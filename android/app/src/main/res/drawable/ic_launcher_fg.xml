@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Six-petal wisp bloom with a glowing core, matching the in-game emblem. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:pivotX="54" android:pivotY="54">
+        <!-- petals -->
+        <path android:fillColor="#3D7FB5" android:fillAlpha="0.9"
+            android:pathData="M54,24 C58,32 58,40 54,46 C50,40 50,32 54,24 Z" />
+        <path android:fillColor="#3D7FB5" android:fillAlpha="0.9"
+            android:pathData="M54,84 C58,76 58,68 54,62 C50,68 50,76 54,84 Z" />
+        <path android:fillColor="#5EA8D6" android:fillAlpha="0.9"
+            android:pathData="M28,39 C36,40 43,44 47,50 C40,51 32,48 28,39 Z" />
+        <path android:fillColor="#5EA8D6" android:fillAlpha="0.9"
+            android:pathData="M80,69 C72,68 65,64 61,58 C68,57 76,60 80,69 Z" />
+        <path android:fillColor="#5EA8D6" android:fillAlpha="0.9"
+            android:pathData="M80,39 C72,40 65,44 61,50 C68,51 76,48 80,39 Z" />
+        <path android:fillColor="#3D7FB5" android:fillAlpha="0.9"
+            android:pathData="M28,69 C36,68 43,64 47,58 C40,57 32,60 28,69 Z" />
+        <!-- glowing core -->
+        <path android:pathData="M54,54 m-11,0 a11,11 0 1,1 22,0 a11,11 0 1,1 -22,0">
+            <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
+                <gradient
+                    android:type="radial"
+                    android:centerX="51" android:centerY="51"
+                    android:gradientRadius="14"
+                    android:startColor="#F2FDFF"
+                    android:endColor="#7ECBE8" />
+            </aapt:attr>
+        </path>
+        <!-- orbiting wisps -->
+        <path android:fillColor="#5EE6D0" android:pathData="M82,26 m-4,0 a4,4 0 1,1 8,0 a4,4 0 1,1 -8,0" />
+        <path android:fillColor="#F27ECF" android:pathData="M24,80 m-3.5,0 a3.5,3.5 0 1,1 7,0 a3.5,3.5 0 1,1 -7,0" />
+        <path android:fillColor="#FFC46B" android:pathData="M86,76 m-3,0 a3,3 0 1,1 6,0 a3,3 0 1,1 -6,0" />
+    </group>
+</vector>
