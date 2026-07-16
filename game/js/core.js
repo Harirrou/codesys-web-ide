@@ -78,6 +78,7 @@
       this.projectiles = [];
       this.warnT = 0;
       this.shotSwayA = 0;
+      this.recoil = 0;
 
       // Aiming state
       this.aiming = false;
@@ -250,6 +251,7 @@
       this.current = this.next;
       this.next = this.drawColor();
       this.shotSwayA = Math.atan2(ny, nx);
+      this.recoil = 1;
       WB.audio.shoot();
       WB.vibrate(10);
     }
@@ -296,6 +298,7 @@
       }
 
       this.time += dt;
+      if (this.recoil > 0) this.recoil = Math.max(0, this.recoil - dt * 5);
       if (this.banner && (this.banner.t -= dt) <= 0) this.banner = null;
       if (this.surgeT > 0) this.surgeT -= dt;
       if (this.lullT > 0) this.lullT -= dt;
@@ -464,6 +467,12 @@
         scale: 0.4,
       });
       ring.pieces.push(p);
+      // Impact wave: nearby wisps squash and pop back.
+      for (const q of ring.pieces) {
+        if (q !== p && Math.abs(WB.angDiff(q.a, p.a)) < ring.minGap * 2.3) {
+          q.scale = Math.min(q.scale, 0.72);
+        }
+      }
       this.separate(ring);
       WB.audio.attach();
       WB.vibrate(12);
@@ -555,6 +564,9 @@
       WB.audio.match(this.combo);
       WB.vibrate(this.combo > 1 ? 30 : 18);
       WB.fx.shake(3 + Math.min(9, run.length));
+      if (this.combo >= 2) {
+        WB.fx.text(this.cx, this.cy - this.coreR * 2.2, 'CHAIN ×' + this.combo, '#8fd8ff', true);
+      }
       if (this.combo >= 3) WB.fx.slowMo(0.4);
 
       // Remove pieces; find the angular gap edges to pull together.
@@ -824,15 +836,52 @@
         }
       }
 
-      // Projectiles
+      // Projectiles: comet trail + orb
       for (const pr of this.projectiles) {
+        const col = pr.pulse ? '#ffffff' : (pr.prism ? '#e8e8ff' : WB.COLORS[pr.colorIdx].main);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const tg = ctx.createLinearGradient(pr.x, pr.y, pr.x - pr.vx * 0.055, pr.y - pr.vy * 0.055);
+        tg.addColorStop(0, col);
+        tg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.strokeStyle = tg;
+        ctx.lineWidth = this.pieceR * 1.1;
+        ctx.lineCap = 'round';
+        ctx.globalAlpha = 0.55;
+        ctx.beginPath();
+        ctx.moveTo(pr.x, pr.y);
+        ctx.lineTo(pr.x - pr.vx * 0.055, pr.y - pr.vy * 0.055);
+        ctx.stroke();
+        ctx.restore();
         this.drawOrb(ctx, pr.x, pr.y, this.pieceR * 0.95,
           pr.pulse ? null : (pr.prism ? null : pr.colorIdx), pr.prism, pr.pulse, 1, 0);
       }
 
       this.drawCore(ctx, t);
       WB.fx.draw(ctx);
+      this.drawVignette(ctx);
       this.drawBanner(ctx);
+    }
+
+    // Cinematic edge shading; blushes red as any ring nears overgrowth.
+    drawVignette(ctx) {
+      const { w, h } = this;
+      let crowd = 0;
+      for (const ring of this.rings) {
+        if (this.boss && ring === this.boss.ring) continue;
+        crowd = Math.max(crowd, ring.pieces.length / ring.capacity);
+      }
+      const danger = WB.clamp((crowd - 0.75) / 0.25, 0, 1);
+      const v = ctx.createRadialGradient(w / 2, h * 0.46, Math.min(w, h) * 0.42, w / 2, h * 0.46, Math.max(w, h) * 0.78);
+      v.addColorStop(0, 'rgba(0,0,0,0)');
+      if (danger > 0) {
+        const pulse = 0.5 + 0.5 * Math.sin(this.time * 5.5);
+        v.addColorStop(1, 'rgba(' + Math.round(90 + 120 * danger) + ',20,40,' + (0.22 + 0.26 * danger * pulse) + ')');
+      } else {
+        v.addColorStop(1, 'rgba(4,6,16,0.32)');
+      }
+      ctx.fillStyle = v;
+      ctx.fillRect(0, 0, w, h);
     }
 
     drawAim(ctx) {
@@ -876,12 +925,14 @@
       if (p.boss) {
         this.drawBossSegment(ctx, x, y, p, s);
       } else {
-        this.drawOrb(ctx, x, y, this.pieceR * s, p.colorIdx, p.prism, false, 1, p.corrupt ? 1 : 0);
+        this.drawOrb(ctx, x, y, this.pieceR * s, p.colorIdx, p.prism, false, 1, p.corrupt ? 1 : 0, p.wobble);
       }
     }
 
     // The universal wisp renderer: colored orb + colorblind glyph.
-    drawOrb(ctx, x, y, r, colorIdx, prism, pulse, alpha, corrupt) {
+    // blinkPhase (optional) animates the creature's eyes; pass the piece's
+    // wobble so every wisp blinks on its own rhythm.
+    drawOrb(ctx, x, y, r, colorIdx, prism, pulse, alpha, corrupt, blinkPhase) {
       ctx.save();
       ctx.globalAlpha = alpha;
       let main, dark;
@@ -932,13 +983,45 @@
           ctx.stroke();
         }
       }
-      // Glyph (also readable on corrupted wisps — their "true color")
+      // Creature face: two sleepy glowing-garden eyes that blink.
+      if (!pulse && !corrupt && r > 6) {
+        const ph = blinkPhase != null ? blinkPhase : 0.8;
+        const blink = Math.pow(Math.max(0, Math.sin(ph * 0.6)), 24); // rare soft blink
+        const eyeH = r * 0.16 * (1 - blink * 0.9);
+        ctx.fillStyle = 'rgba(18,16,38,0.9)';
+        for (const side of [-1, 1]) {
+          ctx.beginPath();
+          ctx.ellipse(x + side * r * 0.34, y - r * 0.24, r * 0.14, Math.max(0.5, eyeH), 0, 0, WB.TAU);
+          ctx.fill();
+        }
+        if (blink < 0.5) {
+          ctx.fillStyle = 'rgba(255,255,255,0.8)';
+          for (const side of [-1, 1]) {
+            ctx.beginPath();
+            ctx.arc(x + side * r * 0.34 - r * 0.045, y - r * 0.29, r * 0.05, 0, WB.TAU);
+            ctx.fill();
+          }
+        }
+      }
+      if (corrupt && r > 6) {
+        // Cross thorned eyes
+        ctx.strokeStyle = 'rgba(255,220,240,0.75)';
+        ctx.lineWidth = Math.max(1.2, r * 0.09);
+        for (const side of [-1, 1]) {
+          const ex = x + side * r * 0.32, ey = y - r * 0.24, s = r * 0.13;
+          ctx.beginPath();
+          ctx.moveTo(ex - s, ey - s); ctx.lineTo(ex + s, ey + s);
+          ctx.moveTo(ex + s, ey - s); ctx.lineTo(ex - s, ey + s);
+          ctx.stroke();
+        }
+      }
+      // Glyph badge (also readable on corrupted wisps — their "true color")
       if (colorIdx != null && colorIdx >= 0 && !pulse && !prism) {
-        this.drawGlyph(ctx, x, y, r * 0.44, WB.COLORS[colorIdx].glyph,
+        this.drawGlyph(ctx, x, y + r * 0.3, r * 0.32, WB.COLORS[colorIdx].glyph,
           corrupt ? WB.COLORS[colorIdx].main : 'rgba(20,18,40,0.75)');
       }
       if (prism) {
-        this.drawGlyph(ctx, x, y, r * 0.44, 'star', 'rgba(255,255,255,0.9)');
+        this.drawGlyph(ctx, x, y + r * 0.3, r * 0.3, 'star', 'rgba(255,255,255,0.9)');
       }
       if (pulse) {
         ctx.strokeStyle = '#ffffff';
@@ -1013,7 +1096,11 @@
     }
 
     drawCore(ctx, t) {
-      const { cx, cy, coreR } = this;
+      const coreR = this.coreR;
+      // Recoil kick opposite the last shot + gentle idle float.
+      const k = WB.easeOutCubic(this.recoil || 0) * coreR * 0.16;
+      const cx = this.cx - Math.cos(this.shotSwayA) * k;
+      const cy = this.cy - Math.sin(this.shotSwayA) * k + Math.sin(t * 1.1) * 2.5;
       const target = this.level.target || 40;
       const energyK = this.level.obj === 'bloom' ? WB.clamp(this.energy / target, 0, 1)
         : WB.clamp(this.energy / 60, 0, 1);

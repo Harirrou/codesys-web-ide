@@ -118,8 +118,9 @@ intended upgrade points:
    loads AI-painted art (generated with Higgsfield, hosted on its CDN) and
    falls back to the baked images in `game/img/` when offline
    (`main.js → WB.BG`, `ui.js → drawBgImage`). To make the AI art permanent,
-   download the four `BG_REMOTE` URLs in `main.js` over the baked
-   `img/bg-*.jpg` files (the extension mismatch is harmless to browsers).
+   run `bash game/img/fetch-art.sh` once on a machine with internet access —
+   it also downloads the painted 1024×1024 app icon (`app-icon.png`) for
+   Android Studio's Image Asset wizard.
    Final hand-painted parallax illustrations remain the end goal.
 3. **SFX & music** — WebAudio synthesis (`audio.js`). Replace with recorded
    layered samples and a composed ambient track; the call sites

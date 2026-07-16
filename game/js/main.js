@@ -25,7 +25,6 @@
   WB.BG = {};
   Object.keys(BG_REMOTE).forEach((key) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
     if (window.WB_BG_DATA && window.WB_BG_DATA[key]) {
       img.src = window.WB_BG_DATA[key];
     } else {

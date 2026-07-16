@@ -300,9 +300,62 @@
     // ----- title -------------------------------------------------------------
     drawTitle(ctx, w, h) {
       const cx = w / 2;
-      // Animated bloom emblem
       const ey = h * 0.23;
       const er = Math.min(w, h) * 0.11;
+
+      // Slow light rays breathing out of the emblem
+      if (!WB.save.data.settings.reduceMotion) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.translate(cx, ey);
+        for (let i = 0; i < 6; i++) {
+          ctx.save();
+          ctx.rotate(this.t * 0.06 + (i / 6) * WB.TAU);
+          const rg = ctx.createLinearGradient(0, 0, 0, -h * 0.55);
+          rg.addColorStop(0, 'rgba(120,200,255,0.06)');
+          rg.addColorStop(1, 'rgba(120,200,255,0)');
+          ctx.fillStyle = rg;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(-h * 0.045, -h * 0.55);
+          ctx.lineTo(h * 0.045, -h * 0.55);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+        ctx.restore();
+      }
+
+      // Drifting glowing petals
+      if (!this.petals) {
+        this.petals = [];
+        const rng = WB.rngFromSeed(31);
+        for (let i = 0; i < 9; i++) {
+          this.petals.push({
+            x: rng() * w, y: rng() * h, rot: rng() * WB.TAU,
+            vr: (rng() - 0.5) * 1.2, vy: 14 + rng() * 22, vx: (rng() - 0.5) * 10,
+            s: 5 + rng() * 7, hue: rng() < 0.5 ? 'rgba(126,203,232,' : 'rgba(242,126,207,',
+            a: 0.14 + rng() * 0.2,
+          });
+        }
+      }
+      const reduced = WB.save.data.settings.reduceMotion;
+      for (const p of this.petals) {
+        if (!reduced) {
+          p.y += p.vy / 60; p.x += (p.vx + Math.sin(this.t + p.rot) * 8) / 60; p.rot += p.vr / 60;
+          if (p.y > h + 20) { p.y = -20; p.x = Math.random() * w; }
+        }
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.hue + p.a + ')';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, p.s * 0.45, p.s, 0, 0, WB.TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Animated bloom emblem
       ctx.save();
       for (let i = 0; i < 6; i++) {
         const a = (i / 6) * WB.TAU + this.t * 0.25;
@@ -333,13 +386,23 @@
       }
       ctx.restore();
 
+      ctx.save();
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#eef6ff';
-      ctx.font = '800 ' + Math.floor(Math.min(w * 0.13, 58)) + 'px ' + FONT;
+      const ts = Math.floor(Math.min(w * 0.13, 58));
+      ctx.font = '800 ' + ts + 'px ' + FONT;
+      const tg = ctx.createLinearGradient(0, h * 0.42 - ts, 0, h * 0.42 + 8);
+      tg.addColorStop(0, '#ffffff');
+      tg.addColorStop(0.55, '#cfeaff');
+      tg.addColorStop(1, '#8fb8ef');
+      ctx.shadowColor = 'rgba(120,200,255,0.55)';
+      ctx.shadowBlur = 24;
+      ctx.fillStyle = tg;
       ctx.fillText('WISPBLOOM', cx, h * 0.42);
-      ctx.fillStyle = 'rgba(190,210,255,0.75)';
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(200,220,255,0.8)';
       ctx.font = '500 15px ' + FONT;
       ctx.fillText('Every match reshapes the sky', cx, h * 0.42 + 26);
+      ctx.restore();
 
       const bw = Math.min(w * 0.72, 300), bx = cx - bw / 2;
       let by = h * 0.52;
@@ -380,6 +443,25 @@
       const gridW = cols * cellW;
       const x0 = cx - gridW / 2;
       const y0 = 92;
+      // Winding garden path connecting the level nodes
+      ctx.save();
+      ctx.strokeStyle = 'rgba(140,170,240,0.28)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([1, 9]);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (let i = 0; i < WB.LEVELS.length; i++) {
+        const px = x0 + (i % cols) * cellW + cellW / 2;
+        const py = y0 + Math.floor(i / cols) * cellH + cellH / 2 - 8;
+        if (i === 0) ctx.moveTo(px, py);
+        else {
+          const qx = x0 + ((i - 1) % cols) * cellW + cellW / 2;
+          const qy = y0 + Math.floor((i - 1) / cols) * cellH + cellH / 2 - 8;
+          ctx.bezierCurveTo(qx, qy + cellH * 0.42, px, py - cellH * 0.42, px, py);
+        }
+      }
+      ctx.stroke();
+      ctx.restore();
       for (let i = 0; i < WB.LEVELS.length; i++) {
         const col = i % cols, row = Math.floor(i / cols);
         const x = x0 + col * cellW + cellW / 2;
@@ -551,8 +633,9 @@
       const g = this.game;
       if (!g) return;
       if (!this.paused) {
-        // Slow-motion effect scales simulation time only.
-        g.update(dt * WB.fx.slowFactor);
+        // Slow-motion scales simulation time only — but once the level is
+        // decided, run real time so the result screen isn't delayed.
+        g.update(dt * (g.result ? 1 : WB.fx.slowFactor));
       }
       ctx.save();
       WB.fx.applyShake(ctx);
