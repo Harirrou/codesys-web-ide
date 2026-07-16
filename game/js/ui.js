@@ -204,8 +204,14 @@
     // 0.5 s crossfade between worlds; falls back to the procedural sky
     // until the image is ready.
     drawBgImage(ctx, w, h, key, alpha) {
-      const img = WB.BG && WB.BG[key];
-      if (!img || !img.complete || !img.naturalWidth) return false;
+      const set = WB.BG && WB.BG[key];
+      if (!set) return false;
+      const ready = (im) => im && im.complete && im.naturalWidth > 0;
+      // Pick the orientation that matches the screen; fall back to the
+      // other one if it hasn't loaded yet.
+      const want = w > h * 1.05 ? 'l' : 'p';
+      const img = ready(set[want]) ? set[want] : (ready(set.p) ? set.p : set.l);
+      if (!ready(img)) return false;
       const reduced = WB.save.data.settings.reduceMotion;
       const zoom = reduced ? 1.02 : 1.03 + 0.025 * Math.sin(this.t * 0.08);
       const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight) * zoom;

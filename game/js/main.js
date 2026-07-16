@@ -15,24 +15,36 @@
   //   2. hosted AI-painted art (Higgsfield) — best quality when online
   //   3. baked local art in img/ — always ships with the game
   // The procedural sky in ui.js covers the frames before anything loads.
+  // Every world ships in two orientations: portrait (p) for phones and
+  // landscape (l) for tablets/desktop, so neither ever over-zooms.
   const BG_CDN = 'https://d8j0ntlcm91z4.cloudfront.net/user_3GCWeZZjU0NmAmmShhKAENmTFXd/';
   const BG_REMOTE = {
-    title: 'hf_20260716_224156_1dee9484-f31e-4e2e-9387-1e1501445690.png',
-    dawn: 'hf_20260716_224200_02c49906-6f8d-4bf7-a777-ca3703d05b67.png',
-    dusk: 'hf_20260716_224202_d7f7e07d-dfc1-45e3-bc17-54c900429fe5.png',
-    lair: 'hf_20260716_224206_787959a5-986b-4cf5-8dd6-ae39202adaf0.png',
-    grove: 'hf_20260716_230354_5559334c-41b6-43f3-bbb2-e69b7c454878.png',
+    title: { p: 'hf_20260716_224156_1dee9484-f31e-4e2e-9387-1e1501445690.png',
+             l: 'hf_20260716_233856_f10e7a13-9987-413a-a2b6-370882c14f5d.png' },
+    dawn:  { p: 'hf_20260716_224200_02c49906-6f8d-4bf7-a777-ca3703d05b67.png',
+             l: 'hf_20260716_233859_6f63cc52-8345-4de6-a833-70e2587ae002.png' },
+    dusk:  { p: 'hf_20260716_224202_d7f7e07d-dfc1-45e3-bc17-54c900429fe5.png',
+             l: 'hf_20260716_233902_f69a9574-2945-4580-ab51-d5ecbe08ee22.png' },
+    lair:  { p: 'hf_20260716_224206_787959a5-986b-4cf5-8dd6-ae39202adaf0.png',
+             l: 'hf_20260716_233904_e24ef95e-4899-4a3b-93cd-e7444b8f4f67.png' },
+    grove: { p: 'hf_20260716_230354_5559334c-41b6-43f3-bbb2-e69b7c454878.png',
+             l: 'hf_20260716_233906_231c8ef0-c8c7-48d9-8880-130adcce1106.png' },
   };
   WB.BG = {};
   Object.keys(BG_REMOTE).forEach((key) => {
-    const img = new Image();
-    if (window.WB_BG_DATA && window.WB_BG_DATA[key]) {
-      img.src = window.WB_BG_DATA[key];
-    } else {
-      img.onerror = () => { img.onerror = null; img.src = 'img/bg-' + key + '.jpg'; };
-      img.src = BG_CDN + BG_REMOTE[key];
+    WB.BG[key] = {};
+    for (const o of ['p', 'l']) {
+      const img = new Image();
+      const localName = 'img/bg-' + key + (o === 'l' ? '-l' : '') + '.jpg';
+      const dataKey = o === 'l' ? key + '_l' : key;
+      if (window.WB_BG_DATA && window.WB_BG_DATA[dataKey]) {
+        img.src = window.WB_BG_DATA[dataKey];
+      } else {
+        img.onerror = () => { img.onerror = null; img.src = localName; };
+        img.src = BG_CDN + BG_REMOTE[key][o];
+      }
+      WB.BG[key][o] = img;
     }
-    WB.BG[key] = img;
   });
 
   function resize() {
