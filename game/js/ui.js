@@ -196,6 +196,7 @@
     bgKey() {
       if (this.screen === 'game' && this.game) return this.game.level.bg || 'dusk';
       if (this.screen === 'levels') return 'dawn';
+      if (this.screen === 'grove') return 'grove';
       return 'title';
     }
 
@@ -288,6 +289,7 @@
       else if (this.screen === 'levels') this.drawLevels(ctx, w, h);
       else if (this.screen === 'settings') this.drawSettings(ctx, w, h);
       else if (this.screen === 'howto') this.drawHowto(ctx, w, h);
+      else if (this.screen === 'grove') this.drawGrove(ctx, w, h);
       else if (this.screen === 'game') this.drawGame(ctx, w, h, dt);
 
       if (this.transition > 0) {
@@ -414,9 +416,10 @@
       const dailyBest = WB.save.dailyBest();
       this.btn(ctx, bx, by, bw, bh, dailyBest ? 'DAILY ✦ BEST ' + dailyBest : 'DAILY BLOOM', () => this.startEndless(true));
       by += bh + gap;
-      const half = (bw - 12) / 2;
-      this.btn(ctx, bx, by, half, 46, 'HOW TO', () => this.goto('howto'), { fontSize: 16 });
-      this.btn(ctx, bx + half + 12, by, half, 46, 'SETTINGS', () => this.goto('settings'), { fontSize: 16 });
+      const third = (bw - 20) / 3;
+      this.btn(ctx, bx, by, third, 46, 'HOW TO', () => this.goto('howto'), { fontSize: 13 });
+      this.btn(ctx, bx + third + 10, by, third, 46, 'GROVE', () => this.goto('grove'), { fontSize: 13 });
+      this.btn(ctx, bx + 2 * (third + 10), by, third, 46, 'SETTINGS', () => this.goto('settings'), { fontSize: 13 });
 
       ctx.fillStyle = 'rgba(170,190,240,0.6)';
       ctx.font = '500 13px ' + FONT;
@@ -438,11 +441,25 @@
 
       const cols = 2;
       const rows = Math.ceil(WB.LEVELS.length / cols);
+      const WORLD2 = 10;                    // index where The Deep Grove begins
+      const divRow = Math.floor(WORLD2 / cols);
+      const divH = 30;
       const cellW = Math.min(w * 0.44, 190);
-      const cellH = Math.min((h - 130) / rows, 96);
+      const cellH = Math.min((h - 130 - divH) / rows, 96);
       const gridW = cols * cellW;
       const x0 = cx - gridW / 2;
       const y0 = 92;
+      const nodePos = (i) => ({
+        x: x0 + (i % cols) * cellW + cellW / 2,
+        y: y0 + Math.floor(i / cols) * cellH + cellH / 2 + (Math.floor(i / cols) >= divRow ? divH : 0),
+      });
+      // World divider
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(150,230,200,0.85)';
+      ctx.font = '700 14px ' + FONT;
+      ctx.fillText('✦  WORLD 2 — THE DEEP GROVE  ✦', cx, y0 + divRow * cellH + divH / 2 + 5);
+      ctx.restore();
       // Winding garden path connecting the level nodes
       ctx.save();
       ctx.strokeStyle = 'rgba(140,170,240,0.28)';
@@ -451,21 +468,18 @@
       ctx.lineCap = 'round';
       ctx.beginPath();
       for (let i = 0; i < WB.LEVELS.length; i++) {
-        const px = x0 + (i % cols) * cellW + cellW / 2;
-        const py = y0 + Math.floor(i / cols) * cellH + cellH / 2 - 8;
-        if (i === 0) ctx.moveTo(px, py);
+        const p = nodePos(i);
+        if (i === 0) ctx.moveTo(p.x, p.y - 8);
         else {
-          const qx = x0 + ((i - 1) % cols) * cellW + cellW / 2;
-          const qy = y0 + Math.floor((i - 1) / cols) * cellH + cellH / 2 - 8;
-          ctx.bezierCurveTo(qx, qy + cellH * 0.42, px, py - cellH * 0.42, px, py);
+          const q = nodePos(i - 1);
+          ctx.bezierCurveTo(q.x, q.y - 8 + cellH * 0.42, p.x, p.y - 8 - cellH * 0.42, p.x, p.y - 8);
         }
       }
       ctx.stroke();
       ctx.restore();
       for (let i = 0; i < WB.LEVELS.length; i++) {
-        const col = i % cols, row = Math.floor(i / cols);
-        const x = x0 + col * cellW + cellW / 2;
-        const y = y0 + row * cellH + cellH / 2;
+        const pos = nodePos(i);
+        const x = pos.x, y = pos.y;
         const lv = WB.LEVELS[i];
         const unlocked = WB.save.isUnlocked(i);
         const stars = WB.save.data.stars[i] || 0;
@@ -564,6 +578,97 @@
       ctx.fillStyle = 'rgba(170,190,240,0.55)';
       ctx.font = '500 12px ' + FONT;
       ctx.fillText('Wispbloom prototype — all art & audio procedural', cx, h - 22);
+    }
+
+    // ----- the Grove: cosmetics earned with stars ---------------------------------
+    drawGrove(ctx, w, h) {
+      const cx = w / 2;
+      const stars = WB.save.totalStars();
+      this.iconBtn(ctx, 14, 14, 46, 'back', () => this.goto('title'));
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#eef6ff';
+      ctx.font = '800 26px ' + FONT;
+      ctx.fillText('The Grove', cx, 46);
+      ctx.fillStyle = 'rgba(190,240,215,0.85)';
+      ctx.font = '600 14px ' + FONT;
+      ctx.fillText('✦ ' + stars + ' stars gathered — spend nothing, just shine', cx, 68);
+
+      const bw = Math.min(w * 0.88, 380), bx = cx - bw / 2;
+      const rowH = Math.min(56, (h - 190) / 8);
+      let y = 90;
+      const cos = WB.save.data.cosmetics;
+
+      const section = (label) => {
+        ctx.fillStyle = 'rgba(170,200,255,0.7)';
+        ctx.font = '700 12px ' + FONT;
+        ctx.textAlign = 'left';
+        ctx.fillText(label.toUpperCase(), bx + 6, y + 12);
+        y += 22;
+      };
+
+      const item = (def, kind, equipped, preview) => {
+        const unlocked = stars >= def.need;
+        const rect = { x: bx, y, w: bw, h: rowH - 8 };
+        if (unlocked && !equipped) {
+          this.buttons.push({ rect, action: () => { cos[kind] = def.id; WB.save.save(); } });
+        }
+        ctx.save();
+        ctx.globalAlpha = unlocked ? 1 : 0.45;
+        WB.roundRect(ctx, rect.x, rect.y, rect.w, rect.h, 12);
+        ctx.fillStyle = equipped ? 'rgba(95,214,168,0.22)' : 'rgba(52,66,120,0.4)';
+        ctx.fill();
+        if (equipped) {
+          ctx.strokeStyle = 'rgba(95,214,168,0.8)';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+        preview(rect.x + 26, rect.y + rect.h / 2);
+        ctx.fillStyle = '#dfe8ff';
+        ctx.font = '600 15px ' + FONT;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(def.name, rect.x + 52, rect.y + rect.h / 2 + 1);
+        ctx.textAlign = 'right';
+        ctx.font = '600 12px ' + FONT;
+        ctx.fillStyle = equipped ? '#5fd6a8' : (unlocked ? 'rgba(200,220,255,0.8)' : 'rgba(255,216,105,0.9)');
+        ctx.fillText(equipped ? 'EQUIPPED' : (unlocked ? 'TAP TO EQUIP' : def.need + ' ★'), rect.x + rect.w - 16, rect.y + rect.h / 2 + 1);
+        ctx.textBaseline = 'alphabetic';
+        ctx.restore();
+        y += rowH;
+      };
+
+      section('Projectile trails');
+      for (const tdef of WB.COSMETICS.trails) {
+        item(tdef, 'trail', cos.trail === tdef.id, (px, py) => {
+          const col = tdef.id === 'wisp' ? WB.COLORS[(Math.floor(this.t) % 4)].main
+            : tdef.id === 'aurora' ? 'hsl(' + ((this.t * 80) % 360) + ',80%,72%)'
+            : tdef.color;
+          const g = ctx.createLinearGradient(px - 16, py, px + 16, py);
+          g.addColorStop(0, 'rgba(0,0,0,0)');
+          g.addColorStop(1, col);
+          ctx.strokeStyle = g;
+          ctx.lineWidth = 6;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(px - 16, py);
+          ctx.lineTo(px + 14, py);
+          ctx.stroke();
+        });
+      }
+      y += 8;
+      section('Core blooms');
+      for (const cdef of WB.COSMETICS.cores) {
+        item(cdef, 'core', cos.core === cdef.id, (px, py) => {
+          const g = ctx.createRadialGradient(px - 3, py - 3, 1, px, py, 12);
+          g.addColorStop(0, cdef.body[0]);
+          g.addColorStop(0.55, cdef.body[1]);
+          g.addColorStop(1, cdef.body[2]);
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(px, py, 11, 0, WB.TAU);
+          ctx.fill();
+        });
+      }
     }
 
     // ----- how to play -----------------------------------------------------------

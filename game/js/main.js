@@ -21,6 +21,7 @@
     dawn: 'hf_20260716_224200_02c49906-6f8d-4bf7-a777-ca3703d05b67.png',
     dusk: 'hf_20260716_224202_d7f7e07d-dfc1-45e3-bc17-54c900429fe5.png',
     lair: 'hf_20260716_224206_787959a5-986b-4cf5-8dd6-ae39202adaf0.png',
+    grove: 'hf_20260716_230354_5559334c-41b6-43f3-bbb2-e69b7c454878.png',
   };
   WB.BG = {};
   Object.keys(BG_REMOTE).forEach((key) => {

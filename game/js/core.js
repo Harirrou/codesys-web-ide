@@ -20,6 +20,33 @@
     surge:   { label: 'SURGE!',         color: '#ffc46b' },
     leap:    { label: 'WISPS LEAP',     color: '#f27ecf' },
     lull:    { label: 'THE GARDEN RESTS', color: '#9fe8b9' },
+    portal:  { label: 'PORTALS OPEN',   color: '#7dffc9' },
+  };
+
+  // Cosmetic unlocks, earned with campaign stars (see the Grove screen).
+  WB.COSMETICS = {
+    trails: [
+      { id: 'wisp',      name: 'Wisplight',  need: 0 },   // matches the wisp's color
+      { id: 'ember',     name: 'Emberdrift', need: 6,  color: '#ffb36b' },
+      { id: 'aurora',    name: 'Aurora',     need: 14 },  // cycling hue
+      { id: 'moonlight', name: 'Moonlight',  need: 24, color: '#e8f4ff' },
+    ],
+    cores: [
+      { id: 'classic',  name: 'Heartbloom', need: 0,
+        body: ['#eafcff', '#7ecbe8', '#2b5d8f'], petal: 'rgba(122,224,255,0.16)', stroke: 'rgba(160,235,255,0.35)' },
+      { id: 'gilded',   name: 'Gilded Sun', need: 10,
+        body: ['#fff9e8', '#ffd27a', '#8a5a1d'], petal: 'rgba(255,210,122,0.16)', stroke: 'rgba(255,226,160,0.4)' },
+      { id: 'nocturne', name: 'Nocturne',   need: 20,
+        body: ['#f2e8ff', '#a98bff', '#3b2a6e'], petal: 'rgba(169,139,255,0.16)', stroke: 'rgba(200,175,255,0.4)' },
+    ],
+  };
+
+  // Resolve the equipped trail color for a projectile (null = wisp color).
+  WB.trailColor = function (fallback) {
+    const id = WB.save.data.cosmetics.trail;
+    if (id === 'aurora') return 'hsl(' + ((performance.now() * 0.08) % 360) + ',80%,72%)';
+    const def = WB.COSMETICS.trails.find(tr => tr.id === id);
+    return (def && def.color) || fallback;
   };
 
   const PROJ_SPEED = 1150;       // px/s
@@ -79,6 +106,7 @@
       this.warnT = 0;
       this.shotSwayA = 0;
       this.recoil = 0;
+      this.portals = [];   // {a, ringA, ringB, t} — wisps crossing hop rings
 
       // Aiming state
       this.aiming = false;
@@ -307,6 +335,7 @@
       this.showHints();
       this.updateSpawner(dt);
       this.updateRings(dt);
+      this.updatePortals(dt);
       this.updateProjectiles(dt);
       this.updateBoss(dt);
       this.checkChains();
@@ -367,6 +396,7 @@
           p.impulse *= Math.pow(0.02, dt); // decay fast
           if (Math.abs(p.impulse) < 0.02) p.impulse = 0;
           if (p.chainT > 0) p.chainT -= dt;
+          if (p.portalCd > 0) p.portalCd -= dt;
         }
         this.separate(ring);
       }
@@ -416,7 +446,7 @@
         const pr = this.projectiles[i];
         pr.x += pr.vx * dt;
         pr.y += pr.vy * dt;
-        WB.fx.trail(pr.x, pr.y, pr.pulse ? '#ffffff' : (pr.prism ? '#e8e8ff' : WB.COLORS[pr.colorIdx].main));
+        WB.fx.trail(pr.x, pr.y, pr.pulse ? '#ffffff' : WB.trailColor(pr.prism ? '#e8e8ff' : WB.COLORS[pr.colorIdx].main));
         const hit = this.findHit(pr.x, pr.y);
         if (hit) {
           this.projectiles.splice(i, 1);
@@ -639,6 +669,45 @@
         this.spawnT = Math.max(this.spawnT, 2);
       } else if (kind === 'leap') {
         this.doLeap(matchedRing);
+      } else if (kind === 'portal') {
+        this.openPortal(matchedRing);
+      }
+    }
+
+    openPortal(fromRing) {
+      const others = this.rings.filter(r => r !== fromRing && !(this.boss && r === this.boss.ring));
+      if (!others.length) return;
+      const target = others[Math.floor(this.rng() * others.length)];
+      this.portals.push({
+        a: this.rng() * WB.TAU,
+        ringA: fromRing,
+        ringB: target,
+        t: 6,
+      });
+      if (this.portals.length > 2) this.portals.shift();
+    }
+
+    updatePortals(dt) {
+      for (let i = this.portals.length - 1; i >= 0; i--) {
+        const po = this.portals[i];
+        po.t -= dt;
+        if (po.t <= 0) { this.portals.splice(i, 1); continue; }
+        for (const [from, to] of [[po.ringA, po.ringB], [po.ringB, po.ringA]]) {
+          for (const p of from.pieces) {
+            if (p.boss || (p.portalCd || 0) > 0) continue;
+            if (Math.abs(WB.angDiff(p.a, po.a)) < from.minGap * 0.55 && to.pieces.length < to.capacity - 1) {
+              from.pieces.splice(from.pieces.indexOf(p), 1);
+              p.portalCd = 2;
+              p.radialFrom = from.r;
+              p.radial = 1; p.radialT = 0;
+              p.chainT = CHAIN_WINDOW;   // arrivals can cascade
+              to.pieces.push(p);
+              WB.fx.ring(this.cx + Math.cos(po.a) * to.r, this.cy + Math.sin(po.a) * to.r, SHIFT_INFO.portal.color, this.pieceR * 2.6);
+              WB.audio.swap();
+              break; // one hop per portal per frame keeps it readable
+            }
+          }
+        }
       }
     }
 
@@ -827,6 +896,36 @@
         }
       }
 
+      // Active portals: swirling twin gates on both linked rings
+      for (const po of this.portals) {
+        const fade = Math.min(1, po.t / 1) * (0.7 + 0.3 * Math.sin(t * 6));
+        for (const ring of [po.ringA, po.ringB]) {
+          const px = this.cx + Math.cos(po.a) * ring.r;
+          const py = this.cy + Math.sin(po.a) * ring.r;
+          ctx.save();
+          ctx.globalAlpha = fade;
+          ctx.strokeStyle = SHIFT_INFO.portal.color;
+          for (let k = 0; k < 2; k++) {
+            ctx.lineWidth = 2 - k * 0.8;
+            ctx.beginPath();
+            ctx.arc(px, py, this.pieceR * (1.1 + k * 0.55), t * (k ? -2.4 : 2.4), t * (k ? -2.4 : 2.4) + WB.TAU * 0.72);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+        // faint thread connecting the pair
+        ctx.save();
+        ctx.globalAlpha = fade * 0.3;
+        ctx.strokeStyle = SHIFT_INFO.portal.color;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 8]);
+        ctx.beginPath();
+        ctx.moveTo(this.cx + Math.cos(po.a) * po.ringA.r, this.cy + Math.sin(po.a) * po.ringA.r);
+        ctx.lineTo(this.cx + Math.cos(po.a) * po.ringB.r, this.cy + Math.sin(po.a) * po.ringB.r);
+        ctx.stroke();
+        ctx.restore();
+      }
+
       this.drawAim(ctx);
 
       // Pieces
@@ -838,7 +937,7 @@
 
       // Projectiles: comet trail + orb
       for (const pr of this.projectiles) {
-        const col = pr.pulse ? '#ffffff' : (pr.prism ? '#e8e8ff' : WB.COLORS[pr.colorIdx].main);
+        const col = pr.pulse ? '#ffffff' : WB.trailColor(pr.prism ? '#e8e8ff' : WB.COLORS[pr.colorIdx].main);
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         const tg = ctx.createLinearGradient(pr.x, pr.y, pr.x - pr.vx * 0.055, pr.y - pr.vy * 0.055);
@@ -1104,6 +1203,7 @@
       const target = this.level.target || 40;
       const energyK = this.level.obj === 'bloom' ? WB.clamp(this.energy / target, 0, 1)
         : WB.clamp(this.energy / 60, 0, 1);
+      const skin = WB.COSMETICS.cores.find(c => c.id === WB.save.data.cosmetics.core) || WB.COSMETICS.cores[0];
       ctx.save();
       // Petals: open wider as the core charges
       const petals = 6;
@@ -1116,8 +1216,8 @@
         ctx.translate(px, py);
         ctx.rotate(a + Math.PI / 2);
         ctx.scale(1, open + Math.sin(t * 1.8 + i) * 0.06);
-        ctx.fillStyle = 'rgba(122,224,255,0.16)';
-        ctx.strokeStyle = 'rgba(160,235,255,0.35)';
+        ctx.fillStyle = skin.petal;
+        ctx.strokeStyle = skin.stroke;
         ctx.lineWidth = 1.2;
         ctx.beginPath();
         ctx.ellipse(0, -coreR * 0.55, coreR * 0.34, coreR * 0.72, 0, 0, WB.TAU);
@@ -1136,9 +1236,9 @@
       ctx.fill();
       ctx.globalCompositeOperation = 'source-over';
       const body = ctx.createRadialGradient(cx - coreR * 0.3, cy - coreR * 0.3, coreR * 0.1, cx, cy, coreR);
-      body.addColorStop(0, '#eafcff');
-      body.addColorStop(0.55, '#7ecbe8');
-      body.addColorStop(1, '#2b5d8f');
+      body.addColorStop(0, skin.body[0]);
+      body.addColorStop(0.55, skin.body[1]);
+      body.addColorStop(1, skin.body[2]);
       ctx.fillStyle = body;
       ctx.beginPath();
       ctx.arc(cx, cy, coreR, 0, WB.TAU);

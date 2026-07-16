@@ -11,6 +11,10 @@
     stars: {},          // levelId -> 0..3
     bestEndless: 0,
     daily: {},          // dateKey -> best score
+    cosmetics: {
+      trail: 'wisp',    // see WB.COSMETICS.trails
+      core: 'classic',  // see WB.COSMETICS.cores
+    },
     settings: {
       sound: true,
       music: true,
@@ -32,6 +36,7 @@
           const parsed = JSON.parse(raw);
           this.data = Object.assign({}, DEFAULTS, parsed);
           this.data.settings = Object.assign({}, DEFAULTS.settings, parsed.settings || {});
+          this.data.cosmetics = Object.assign({}, DEFAULTS.cosmetics, parsed.cosmetics || {});
         }
       } catch (e) { /* corrupted or unavailable storage: keep defaults */ }
     }

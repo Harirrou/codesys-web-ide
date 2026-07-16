@@ -171,6 +171,87 @@
         { at: 0.5, text: 'Crack every shell: hit segments with their color!' },
       ],
     },
+    // ===== WORLD 2: THE DEEP GROVE — the Portal shift arrives =====
+    { // 11 — portals introduced gently
+      name: 'Grove Gate',
+      bg: 'grove',
+      obj: 'bloom', target: 35, colors: 3,
+      rings: [
+        { rr: 0.52, dir: 1, speed: 0.28, fill: 9, capacity: 14 },
+        { rr: 0.8, dir: -1, speed: 0.24, fill: 12, capacity: 19 },
+      ],
+      spawn: { interval: 6.5, rings: [1] },
+      shifts: ['portal'],
+      s2: 3000, s3: 4800,
+      hints: [
+        { at: 0.5, text: 'Portals! Wisps that drift through hop rings' },
+      ],
+    },
+    { // 12 — portals + reversal, cleanse pressure
+      name: 'Twin Doors',
+      bg: 'grove',
+      obj: 'cleanse', colors: 4,
+      rings: [
+        { rr: 0.44, dir: -1, speed: 0.3, fill: 8, corrupt: 3, capacity: 11 },
+        { rr: 0.66, dir: 1, speed: 0.26, fill: 10, corrupt: 3, capacity: 15 },
+        { rr: 0.88, dir: -1, speed: 0.22, fill: 13, corrupt: 4, capacity: 21 },
+      ],
+      spawn: { interval: 6, rings: [1, 2] },
+      shifts: ['portal', 'reverse'],
+      s2: 3800, s3: 6000,
+    },
+    { // 13 — big bloom, portals under surge
+      name: 'Through and Through',
+      bg: 'grove',
+      obj: 'bloom', target: 55, colors: 4,
+      rings: [
+        { rr: 0.44, dir: 1, speed: 0.34, fill: 8, capacity: 11 },
+        { rr: 0.66, dir: -1, speed: 0.3, fill: 11, capacity: 15 },
+        { rr: 0.88, dir: 1, speed: 0.26, fill: 14, capacity: 21 },
+      ],
+      spawn: { interval: 4.2, rings: [0, 1, 2] },
+      shifts: ['portal', 'surge'],
+      s2: 4800, s3: 7600,
+    },
+    { // 14 — survival with everything drifting
+      name: 'Spore Drift',
+      bg: 'grove',
+      obj: 'survive', time: 75, colors: 4,
+      rings: [
+        { rr: 0.44, dir: -1, speed: 0.36, fill: 7, capacity: 11 },
+        { rr: 0.66, dir: 1, speed: 0.32, fill: 10, capacity: 15 },
+        { rr: 0.88, dir: -1, speed: 0.26, fill: 12, capacity: 21 },
+      ],
+      spawn: { interval: 3.1, rings: [0, 1, 2] },
+      shifts: ['portal', 'leap', 'lull'],
+      s2: 5400, s3: 8600,
+    },
+    { // 15 — fast cleanse maze
+      name: 'Maze of Light',
+      bg: 'grove',
+      obj: 'cleanse', colors: 4,
+      rings: [
+        { rr: 0.44, dir: 1, speed: 0.42, fill: 8, corrupt: 5, capacity: 11 },
+        { rr: 0.66, dir: -1, speed: 0.36, fill: 11, corrupt: 5, capacity: 15 },
+        { rr: 0.88, dir: 1, speed: 0.3, fill: 14, corrupt: 6, capacity: 21 },
+      ],
+      spawn: { interval: 3.8, rings: [0, 1, 2] },
+      shifts: ['portal', 'reverse', 'surge'],
+      s2: 6800, s3: 10600,
+    },
+    { // 16 — the grove finale: every shift in the game
+      name: 'Heart of the Grove',
+      bg: 'grove',
+      obj: 'bloom', target: 70, colors: 4,
+      rings: [
+        { rr: 0.44, dir: -1, speed: 0.4, fill: 8, capacity: 11 },
+        { rr: 0.66, dir: 1, speed: 0.34, fill: 11, capacity: 15 },
+        { rr: 0.88, dir: -1, speed: 0.28, fill: 14, capacity: 21 },
+      ],
+      spawn: { interval: 3.4, rings: [0, 1, 2] },
+      shifts: ['portal', 'reverse', 'surge', 'leap', 'lull'],
+      s2: 8000, s3: 12500,
+    },
   ];
 
   // Endless / daily mode config generator. A seeded rng makes the daily
@@ -188,7 +269,7 @@
         { rr: 0.88, dir: dirs[Math.floor(rng() * 2)], speed: 0.2 + rng() * 0.08, fill: 12, capacity: 21 },
       ],
       spawn: { interval: 4.6, rings: [0, 1, 2] },  // interval shrinks over time in endless
-      shifts: ['reverse', 'surge', 'leap', 'lull'],
+      shifts: ['reverse', 'surge', 'leap', 'portal', 'lull'],
       seed: seed,
     };
   };

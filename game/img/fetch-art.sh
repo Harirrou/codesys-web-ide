@@ -16,6 +16,7 @@ curl -fSLo bg-title.jpg "$CDN/hf_20260716_224156_1dee9484-f31e-4e2e-9387-1e15014
 curl -fSLo bg-dawn.jpg  "$CDN/hf_20260716_224200_02c49906-6f8d-4bf7-a777-ca3703d05b67.png"
 curl -fSLo bg-dusk.jpg  "$CDN/hf_20260716_224202_d7f7e07d-dfc1-45e3-bc17-54c900429fe5.png"
 curl -fSLo bg-lair.jpg  "$CDN/hf_20260716_224206_787959a5-986b-4cf5-8dd6-ae39202adaf0.png"
+curl -fSLo bg-grove.jpg "$CDN/hf_20260716_230354_5559334c-41b6-43f3-bbb2-e69b7c454878.png"
 
 # Painted app icon (1024x1024). Import into Android Studio via
 # File > New > Image Asset to generate all launcher densities.

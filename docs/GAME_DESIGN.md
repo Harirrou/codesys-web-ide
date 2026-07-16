@@ -51,6 +51,11 @@ Every successful match triggers the next shift in the level's pool
 
 Levels introduce these one at a time (L4 reverse → L5 surge → L6 leap → L7 lull).
 
+World 2 adds the fifth shift — **Portal** (PORTALS OPEN): a pair of linked
+gates opens between two rings for 6 seconds; wisps drifting through hop to
+the other ring and arrive "chain hot", so a well-read portal can be used to
+assemble cross-ring cascades. Portals cap at two active pairs.
+
 ## 4. Pieces
 
 - **Wisps** (4 colors), each with a **unique inner glyph** (dot / diamond /
@@ -84,8 +89,19 @@ Failure is always the same readable rule: *don't let any ring overgrow*
 | 9 | Shadow Storm | Cleanse 14 | mastery check |
 | 10 | The Umbra Serpent | **Boss** | everything |
 
+| 11 | Grove Gate | Bloom 35 | **Portal shift** (World 2) |
+| 12 | Twin Doors | Cleanse 10 | portals + reversal |
+| 13 | Through and Through | Bloom 55 | portals under surge |
+| 14 | Spore Drift | Survive 75 s | portals + leap + lull |
+| 15 | Maze of Light | Cleanse 16 | speed mastery |
+| 16 | Heart of the Grove | Bloom 70 | every shift at once |
+
 Stars: 1 = win, 2/3 = score thresholds (in level data). Endless Garden and
 seeded **Daily Bloom** reuse the same sim with escalating spawn rates.
+
+**Cosmetics (The Grove):** projectile trails at 0/6/14/24 stars, core skins
+at 0/10/20 stars. Purely visual, equipped from the Grove screen, stored in
+the save file.
 
 ## 6. Boss — The Umbra Serpent
 

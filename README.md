@@ -64,11 +64,18 @@ can cascade into chain reactions. **The Orbit Shift**: every match mutates the
 level — rings reverse, surge, wisps leap between orbits, or the garden rests
 (spawning pauses). Rings slowly fill from spawn gates; if any ring overgrows,
 you lose. Chain two bursts off one shot to earn a **Prism** (wild wisp); four
-matches charge the **Pulse** (area blast). Ten campaign levels rotate four
+matches charge the **Pulse** (area blast). Sixteen campaign levels across two worlds rotate four
 objectives — *charge the bloom*, *cleanse corruption*, *survive*, and a
 **boss**: the Umbra Serpent, whose color-shelled segments ride the outer ring
 and must each be cracked with matching shots while it roars (reversing all
 orbits) and feeds (flooding the inner ring).
+
+**World 2 — The Deep Grove** (levels 11-16) introduces the **Portal** shift:
+matches tear open linked gates between rings, and wisps that drift through
+hop orbits — arrivals can cascade into chains. **The Grove** screen holds
+cosmetic unlocks earned with campaign stars: projectile trails (Wisplight /
+Emberdrift / Aurora / Moonlight) and core blooms (Heartbloom / Gilded Sun /
+Nocturne). Cosmetics are purely visual — never pay-to-win, never paid.
 
 Full design document: [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md)
 
