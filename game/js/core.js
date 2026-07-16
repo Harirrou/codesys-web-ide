@@ -1088,7 +1088,13 @@
       ctx.globalAlpha = Math.min(1, k);
       ctx.textAlign = 'center';
       const y = b.hint ? this.h * 0.83 : this.cy - this.rings[this.rings.length - 1].r - 26;
-      ctx.font = (b.hint ? '600 16px' : '800 22px') + ' system-ui, sans-serif';
+      // Shrink long banners so they never clip on narrow screens.
+      let size = b.hint ? 16 : 22;
+      ctx.font = (b.hint ? '600 ' : '800 ') + size + 'px system-ui, sans-serif';
+      while (size > 11 && ctx.measureText(b.text).width > this.w - 56) {
+        size--;
+        ctx.font = (b.hint ? '600 ' : '800 ') + size + 'px system-ui, sans-serif';
+      }
       ctx.fillStyle = 'rgba(10,14,30,0.55)';
       const w = ctx.measureText(b.text).width + 36;
       WB.roundRect(ctx, this.cx - w / 2, y - 22, w, 34, 17);

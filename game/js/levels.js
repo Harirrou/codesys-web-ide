@@ -4,6 +4,7 @@
  *
  * Level schema:
  *   name       display name
+ *   bg         background art key: 'dawn' | 'dusk' | 'lair' (see ui.js)
  *   obj        'bloom' | 'cleanse' | 'survive' | 'boss'
  *   target     bloom: energy needed / cleanse: corrupted count (auto if omitted)
  *   time       survive: seconds to hold out
@@ -23,6 +24,7 @@
   WB.LEVELS = [
     { // 1 — pure tutorial: aim, shoot, match
       name: 'First Light',
+      bg: 'dawn',
       obj: 'bloom', target: 12, colors: 3,
       rings: [
         { rr: 0.72, dir: 1, speed: 0.22, fill: 12, capacity: 17 },
@@ -38,6 +40,7 @@
     },
     { // 2 — two rings, gentle spawner
       name: 'Twin Streams',
+      bg: 'dawn',
       obj: 'bloom', target: 20, colors: 3,
       rings: [
         { rr: 0.52, dir: -1, speed: 0.26, fill: 9, capacity: 13 },
@@ -53,6 +56,7 @@
     },
     { // 3 — cleanse introduction
       name: 'Creeping Shade',
+      bg: 'dawn',
       obj: 'cleanse', colors: 3,
       rings: [
         { rr: 0.52, dir: 1, speed: 0.24, fill: 9, corrupt: 3, capacity: 13 },
@@ -67,6 +71,7 @@
     },
     { // 4 — the Orbit Shift mechanic arrives
       name: 'The Garden Stirs',
+      bg: 'dawn',
       obj: 'bloom', target: 28, colors: 3,
       rings: [
         { rr: 0.52, dir: 1, speed: 0.3, fill: 10, capacity: 13 },
@@ -81,6 +86,7 @@
     },
     { // 5 — survive + surge shift, ability unlocks here
       name: 'Hold the Bloom',
+      bg: 'dusk',
       obj: 'survive', time: 60, colors: 3,
       rings: [
         { rr: 0.52, dir: -1, speed: 0.3, fill: 8, capacity: 13 },
@@ -96,6 +102,7 @@
     },
     { // 6 — three rings + leap shift, prisms flow
       name: 'Leaping Lights',
+      bg: 'dusk',
       obj: 'cleanse', colors: 4,
       rings: [
         { rr: 0.44, dir: 1, speed: 0.3, fill: 7, corrupt: 2, capacity: 11 },
@@ -111,6 +118,7 @@
     },
     { // 7 — big bloom under pressure
       name: 'Deep Nectar',
+      bg: 'dusk',
       obj: 'bloom', target: 45, colors: 4,
       rings: [
         { rr: 0.44, dir: -1, speed: 0.34, fill: 8, capacity: 11 },
@@ -123,6 +131,7 @@
     },
     { // 8 — long survival, every shift in play
       name: 'Night of Petals',
+      bg: 'dusk',
       obj: 'survive', time: 90, colors: 4,
       rings: [
         { rr: 0.44, dir: 1, speed: 0.36, fill: 7, capacity: 11 },
@@ -135,6 +144,7 @@
     },
     { // 9 — the storm before the boss
       name: 'Shadow Storm',
+      bg: 'dusk',
       obj: 'cleanse', colors: 4,
       rings: [
         { rr: 0.44, dir: -1, speed: 0.4, fill: 8, corrupt: 4, capacity: 11 },
@@ -147,6 +157,7 @@
     },
     { // 10 — BOSS
       name: 'The Umbra Serpent',
+      bg: 'lair',
       obj: 'boss', colors: 3,
       rings: [
         { rr: 0.5, dir: 1, speed: 0.3, fill: 9, capacity: 14 },
@@ -169,6 +180,7 @@
     const dirs = [1, -1];
     return {
       name: seed != null ? 'Daily Bloom' : 'Endless Garden',
+      bg: seed != null ? 'dawn' : 'dusk',
       obj: 'endless', colors: 4,
       rings: [
         { rr: 0.44, dir: dirs[Math.floor(rng() * 2)], speed: 0.28 + rng() * 0.1, fill: 7, capacity: 11 },

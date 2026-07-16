@@ -192,25 +192,67 @@
       }
     }
 
+    // Which painted background belongs to the current screen.
+    bgKey() {
+      if (this.screen === 'game' && this.game) return this.game.level.bg || 'dusk';
+      if (this.screen === 'levels') return 'dawn';
+      return 'title';
+    }
+
+    // Cover-fit a painted background with a slow breathing zoom and a
+    // 0.5 s crossfade between worlds; falls back to the procedural sky
+    // until the image is ready.
+    drawBgImage(ctx, w, h, key, alpha) {
+      const img = WB.BG && WB.BG[key];
+      if (!img || !img.complete || !img.naturalWidth) return false;
+      const reduced = WB.save.data.settings.reduceMotion;
+      const zoom = reduced ? 1.02 : 1.03 + 0.025 * Math.sin(this.t * 0.08);
+      const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight) * zoom;
+      const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+      // Legibility veil: keeps gameplay glow the brightest thing on screen.
+      ctx.fillStyle = 'rgba(8,11,26,0.34)';
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
+      return true;
+    }
+
     drawBackdrop(ctx, w, h, dt) {
+      const key = this.bgKey();
+      if (key !== this.bgCur) {
+        this.bgPrev = this.bgCur;
+        this.bgCur = key;
+        this.bgFade = this.bgPrev ? 1 : 0;
+      }
+      if (this.bgFade > 0) this.bgFade = Math.max(0, this.bgFade - dt * 2);
+
       const g = ctx.createLinearGradient(0, 0, 0, h);
       g.addColorStop(0, '#0a0e21');
       g.addColorStop(0.55, '#111737');
       g.addColorStop(1, '#1b1330');
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, w, h);
-      // Nebula blooms
-      const blobs = [
-        [w * 0.85, h * 0.15, w * 0.5, 'rgba(90,60,140,0.14)'],
-        [w * 0.1, h * 0.75, w * 0.45, 'rgba(40,110,130,0.12)'],
-        [w * 0.6, h * 0.95, w * 0.4, 'rgba(140,70,110,0.1)'],
-      ];
-      for (const [x, y, r, c] of blobs) {
-        const rg = ctx.createRadialGradient(x, y, 0, x, y, r);
-        rg.addColorStop(0, c);
-        rg.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = rg;
-        ctx.fillRect(0, 0, w, h);
+
+      const drewImage = this.drawBgImage(ctx, w, h, this.bgCur, 1);
+      if (this.bgFade > 0 && this.bgPrev) {
+        this.drawBgImage(ctx, w, h, this.bgPrev, this.bgFade);
+      }
+      if (!drewImage) {
+        // Procedural nebula fallback (also the pre-load first frames).
+        const blobs = [
+          [w * 0.85, h * 0.15, w * 0.5, 'rgba(90,60,140,0.14)'],
+          [w * 0.1, h * 0.75, w * 0.45, 'rgba(40,110,130,0.12)'],
+          [w * 0.6, h * 0.95, w * 0.4, 'rgba(140,70,110,0.1)'],
+        ];
+        for (const [x, y, r, c] of blobs) {
+          const rg = ctx.createRadialGradient(x, y, 0, x, y, r);
+          rg.addColorStop(0, c);
+          rg.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = rg;
+          ctx.fillRect(0, 0, w, h);
+        }
       }
       if (!this.stars) this.buildBackdrop(w, h);
       ctx.save();

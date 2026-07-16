@@ -10,6 +10,31 @@
 
   WB.view = { w: 0, h: 0, dpr: 1 };
 
+  // Painted world backgrounds. Preference order:
+  //   1. window.WB_BG_DATA — data URIs injected by the single-file bundle
+  //   2. hosted AI-painted art (Higgsfield) — best quality when online
+  //   3. baked local art in img/ — always ships with the game
+  // The procedural sky in ui.js covers the frames before anything loads.
+  const BG_CDN = 'https://d8j0ntlcm91z4.cloudfront.net/user_3GCWeZZjU0NmAmmShhKAENmTFXd/';
+  const BG_REMOTE = {
+    title: 'hf_20260716_224156_1dee9484-f31e-4e2e-9387-1e1501445690.png',
+    dawn: 'hf_20260716_224200_02c49906-6f8d-4bf7-a777-ca3703d05b67.png',
+    dusk: 'hf_20260716_224202_d7f7e07d-dfc1-45e3-bc17-54c900429fe5.png',
+    lair: 'hf_20260716_224206_787959a5-986b-4cf5-8dd6-ae39202adaf0.png',
+  };
+  WB.BG = {};
+  Object.keys(BG_REMOTE).forEach((key) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    if (window.WB_BG_DATA && window.WB_BG_DATA[key]) {
+      img.src = window.WB_BG_DATA[key];
+    } else {
+      img.onerror = () => { img.onerror = null; img.src = 'img/bg-' + key + '.jpg'; };
+      img.src = BG_CDN + BG_REMOTE[key];
+    }
+    WB.BG[key] = img;
+  });
+
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
     const w = window.innerWidth;

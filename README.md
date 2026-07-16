@@ -114,8 +114,13 @@ intended upgrade points:
 1. **Wisp sprites** — currently gradient orbs with glyphs (`core.js → drawOrb`).
    Replace with hand-painted creature sprites (keep the per-color glyphs for
    colorblind accessibility).
-2. **Backgrounds** — procedural starfield/nebulae (`ui.js → drawBackdrop`).
-   Replace with layered hand-painted parallax illustrations per world.
+2. **Backgrounds** — per-world painted backgrounds are already in: the game
+   loads AI-painted art (generated with Higgsfield, hosted on its CDN) and
+   falls back to the baked images in `game/img/` when offline
+   (`main.js → WB.BG`, `ui.js → drawBgImage`). To make the AI art permanent,
+   download the four `BG_REMOTE` URLs in `main.js` over the baked
+   `img/bg-*.jpg` files (the extension mismatch is harmless to browsers).
+   Final hand-painted parallax illustrations remain the end goal.
 3. **SFX & music** — WebAudio synthesis (`audio.js`). Replace with recorded
    layered samples and a composed ambient track; the call sites
    (`shoot/attach/match/shift/…`) are already the final event vocabulary.
