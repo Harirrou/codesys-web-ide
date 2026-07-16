@@ -15,6 +15,16 @@
     { main: '#a98bff', dark: '#4a3390', glyph: 'cross' },    // dusk wisp
   ];
 
+  // Each world tints the orbit rings and gates so the play field itself
+  // changes character between worlds, not just the backdrop.
+  WB.WORLD_TINT = {
+    title: '#8fb8ef',
+    dawn:  '#6fe0c8',
+    dusk:  '#e08cd8',
+    grove: '#7dffc9',
+    lair:  '#ff8f7a',
+  };
+
   const SHIFT_INFO = {
     reverse: { label: 'ORBIT REVERSED', color: '#8fd8ff' },
     surge:   { label: 'SURGE!',         color: '#ffc46b' },
@@ -855,19 +865,20 @@
     draw(ctx) {
       const t = this.time;
 
-      // Orbit paths with direction dashes
+      // Orbit paths with direction dashes, tinted by the current world
+      const tint = WB.WORLD_TINT[this.level.bg] || WB.WORLD_TINT.title;
       for (const ring of this.rings) {
         const crowd = ring.pieces.length / ring.capacity;
         const danger = crowd > 0.78 && !(this.boss && ring === this.boss.ring);
         ctx.save();
         ctx.strokeStyle = danger
           ? 'rgba(255,110,130,' + (0.16 + 0.12 * Math.sin(t * 6)) + ')'
-          : 'rgba(140,160,220,0.13)';
+          : WB.hexToRgba(tint, 0.14);
         ctx.lineWidth = this.pieceR * 1.7;
         ctx.beginPath();
         ctx.arc(this.cx, this.cy, ring.r, 0, WB.TAU);
         ctx.stroke();
-        ctx.strokeStyle = danger ? 'rgba(255,140,150,0.5)' : 'rgba(160,185,255,0.28)';
+        ctx.strokeStyle = danger ? 'rgba(255,140,150,0.5)' : WB.hexToRgba(tint, 0.34);
         ctx.lineWidth = 1.4;
         ctx.setLineDash([7, 13]);
         ctx.lineDashOffset = ring.dashOff;

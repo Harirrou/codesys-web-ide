@@ -73,6 +73,11 @@ window.WB = window.WB || {};
     return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
   }
 
+  function hexToRgba(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
   function vibrate(ms) {
     if (!WB.save || !WB.save.data.settings.vibration) return;
     try {
@@ -98,5 +103,6 @@ window.WB = window.WB || {};
   WB.easeInOut = easeInOut;
   WB.roundRect = roundRect;
   WB.inRect = inRect;
+  WB.hexToRgba = hexToRgba;
   WB.vibrate = vibrate;
 })(window.WB);

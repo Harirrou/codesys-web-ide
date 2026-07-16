@@ -212,9 +212,15 @@
       const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
-      // Legibility veil: keeps gameplay glow the brightest thing on screen.
-      ctx.fillStyle = 'rgba(8,11,26,0.34)';
+      // Anchor to the bottom: the glowing flora is the soul of each painting,
+      // so wide/desktop crops must never cut it away.
+      ctx.drawImage(img, (w - dw) / 2, h - dh, dw, dh);
+      // Light legibility veil, weighted to the play area's center band.
+      const veil = ctx.createLinearGradient(0, 0, 0, h);
+      veil.addColorStop(0, 'rgba(8,11,26,0.16)');
+      veil.addColorStop(0.45, 'rgba(8,11,26,0.24)');
+      veil.addColorStop(1, 'rgba(8,11,26,0.08)');
+      ctx.fillStyle = veil;
       ctx.fillRect(0, 0, w, h);
       ctx.restore();
       return true;
