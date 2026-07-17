@@ -118,9 +118,11 @@ Manual checklist:
 Everything ships procedural so the game is fully playable today; these are the
 intended upgrade points:
 
-1. **Wisp sprites** — currently gradient orbs with glyphs (`core.js → drawOrb`).
-   Replace with hand-painted creature sprites (keep the per-color glyphs for
-   colorblind accessibility).
+1. **Wisp / core / boss art** — now hand-crafted vector renderers in
+   `game/js/art.js` (teardrop wisp spirits, layered Heartbloom flower,
+   the continuous Umbra Serpent), screenshot-reviewed at phone sizes.
+   Optional future upgrade: painted sprite sheets (keep the per-color
+   glyphs for colorblind accessibility).
 2. **Backgrounds** — per-world painted backgrounds are already in: the game
    loads AI-painted art (generated with Higgsfield, hosted on its CDN) and
    falls back to the baked images in `game/img/` when offline
@@ -132,8 +134,6 @@ intended upgrade points:
 3. **SFX & music** — WebAudio synthesis (`audio.js`). Replace with recorded
    layered samples and a composed ambient track; the call sites
    (`shoot/attach/match/shift/…`) are already the final event vocabulary.
-4. **Boss art** — segments are drawn shapes (`core.js → drawBossSegment`).
-   Replace with an articulated serpent illustration.
 5. **App icon** — vector approximation of the emblem
    (`android/.../ic_launcher_fg.xml`); replace with final art.
 6. **Fonts** — system-ui stack; consider a licensed display font for titles.

@@ -368,28 +368,15 @@
         ctx.restore();
       }
 
-      // Animated bloom emblem
+      // Animated bloom emblem — the same living flower as in-game
       ctx.save();
-      for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * WB.TAU + this.t * 0.25;
-        ctx.save();
-        ctx.translate(cx + Math.cos(a) * er * 0.75, ey + Math.sin(a) * er * 0.75);
-        ctx.rotate(a + Math.PI / 2);
-        ctx.fillStyle = 'rgba(122,224,255,0.18)';
-        ctx.strokeStyle = 'rgba(160,235,255,0.5)';
-        ctx.beginPath();
-        ctx.ellipse(0, -er * 0.5, er * 0.34, er * 0.75, 0, 0, WB.TAU);
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
-      }
-      const g = ctx.createRadialGradient(cx, ey, 2, cx, ey, er);
-      g.addColorStop(0, '#f2fdff');
-      g.addColorStop(1, '#3d7fb5');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(cx, ey, er * 0.55 + Math.sin(this.t * 2) * 2, 0, WB.TAU);
-      ctx.fill();
+      const skin = WB.COSMETICS.cores.find(c => c.id === WB.save.data.cosmetics.core) || WB.COSMETICS.cores[0];
+      window.WB_ART_CORE(ctx, {
+        cx, cy: ey, r: er * 0.62,
+        energyK: 0.65 + 0.1 * Math.sin(this.t * 0.7),
+        t: this.t,
+        body: skin.body, petal: skin.petal, stroke: skin.stroke,
+      });
       // Orbiting wisps around the emblem
       for (let i = 0; i < 3; i++) {
         const a = this.t * (0.6 + i * 0.2) + i * 2.1;

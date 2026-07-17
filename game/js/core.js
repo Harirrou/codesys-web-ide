@@ -952,6 +952,7 @@
       }
 
       this.drawAim(ctx);
+      this.drawSerpent(ctx);
 
       // Pieces
       for (const ring of this.rings) {
@@ -1046,177 +1047,41 @@
       const y = this.cy + Math.sin(p.a) * rr;
       const wob = 1 + Math.sin(p.wobble) * 0.05;
       const s = p.scale * wob;
-      if (p.boss) {
-        this.drawBossSegment(ctx, x, y, p, s);
-      } else {
-        this.drawOrb(ctx, x, y, this.pieceR * s, p.colorIdx, p.prism, false, 1, p.corrupt ? 1 : 0, p.wobble);
-      }
+      if (p.boss) return; // the serpent is drawn as one creature in drawSerpent()
+      this.drawOrb(ctx, x, y, this.pieceR * s, p.colorIdx, p.prism, false, 1, p.corrupt ? 1 : 0, p.wobble);
     }
 
-    // The universal wisp renderer: colored orb + colorblind glyph.
-    // blinkPhase (optional) animates the creature's eyes; pass the piece's
-    // wobble so every wisp blinks on its own rhythm.
+    // Wisp renderer — delegates to the premium art layer (art.js).
     drawOrb(ctx, x, y, r, colorIdx, prism, pulse, alpha, corrupt, blinkPhase) {
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      let main, dark;
-      if (pulse) { main = '#ffffff'; dark = '#8a93c9'; }
-      else if (prism) {
-        const hue = (performance.now() * 0.12) % 360;
-        main = 'hsl(' + hue + ',85%,75%)';
-        dark = 'hsl(' + hue + ',60%,35%)';
-      } else {
-        main = WB.COLORS[colorIdx].main;
-        dark = WB.COLORS[colorIdx].dark;
-      }
-      // Soft glow
-      ctx.globalCompositeOperation = 'lighter';
-      const g = ctx.createRadialGradient(x, y, r * 0.2, x, y, r * 2.2);
-      g.addColorStop(0, main);
-      g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.globalAlpha = alpha * (corrupt ? 0.12 : 0.3);
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(x, y, r * 2.2, 0, WB.TAU);
-      ctx.fill();
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = alpha;
-      // Body
-      const body = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.15, x, y, r);
-      if (corrupt) {
-        body.addColorStop(0, '#4a3f63');
-        body.addColorStop(1, '#221b34');
-      } else {
-        body.addColorStop(0, '#ffffff');
-        body.addColorStop(0.35, main);
-        body.addColorStop(1, dark);
-      }
-      ctx.fillStyle = body;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, WB.TAU);
-      ctx.fill();
-      // Corrupted thorns
-      if (corrupt) {
-        ctx.strokeStyle = '#151022';
-        ctx.lineWidth = 2;
-        for (let i = 0; i < 5; i++) {
-          const a = (i / 5) * WB.TAU + x * 0.01;
-          ctx.beginPath();
-          ctx.moveTo(x + Math.cos(a) * r * 0.85, y + Math.sin(a) * r * 0.85);
-          ctx.lineTo(x + Math.cos(a) * r * 1.35, y + Math.sin(a) * r * 1.35);
-          ctx.stroke();
-        }
-      }
-      // Creature face: two sleepy glowing-garden eyes that blink.
-      if (!pulse && !corrupt && r > 6) {
-        const ph = blinkPhase != null ? blinkPhase : 0.8;
-        const blink = Math.pow(Math.max(0, Math.sin(ph * 0.6)), 24); // rare soft blink
-        const eyeH = r * 0.16 * (1 - blink * 0.9);
-        ctx.fillStyle = 'rgba(18,16,38,0.9)';
-        for (const side of [-1, 1]) {
-          ctx.beginPath();
-          ctx.ellipse(x + side * r * 0.34, y - r * 0.24, r * 0.14, Math.max(0.5, eyeH), 0, 0, WB.TAU);
-          ctx.fill();
-        }
-        if (blink < 0.5) {
-          ctx.fillStyle = 'rgba(255,255,255,0.8)';
-          for (const side of [-1, 1]) {
-            ctx.beginPath();
-            ctx.arc(x + side * r * 0.34 - r * 0.045, y - r * 0.29, r * 0.05, 0, WB.TAU);
-            ctx.fill();
-          }
-        }
-      }
-      if (corrupt && r > 6) {
-        // Cross thorned eyes
-        ctx.strokeStyle = 'rgba(255,220,240,0.75)';
-        ctx.lineWidth = Math.max(1.2, r * 0.09);
-        for (const side of [-1, 1]) {
-          const ex = x + side * r * 0.32, ey = y - r * 0.24, s = r * 0.13;
-          ctx.beginPath();
-          ctx.moveTo(ex - s, ey - s); ctx.lineTo(ex + s, ey + s);
-          ctx.moveTo(ex + s, ey - s); ctx.lineTo(ex - s, ey + s);
-          ctx.stroke();
-        }
-      }
-      // Glyph badge (also readable on corrupted wisps — their "true color")
-      if (colorIdx != null && colorIdx >= 0 && !pulse && !prism) {
-        this.drawGlyph(ctx, x, y + r * 0.3, r * 0.32, WB.COLORS[colorIdx].glyph,
-          corrupt ? WB.COLORS[colorIdx].main : 'rgba(20,18,40,0.75)');
-      }
-      if (prism) {
-        this.drawGlyph(ctx, x, y + r * 0.3, r * 0.3, 'star', 'rgba(255,255,255,0.9)');
-      }
-      if (pulse) {
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(x, y, r * 0.55, 0, WB.TAU);
-        ctx.stroke();
-      }
-      ctx.restore();
+      const c = WB.COLORS[colorIdx != null && colorIdx >= 0 ? colorIdx : 0];
+      window.WB_ART_WISP(ctx, {
+        x, y, r: r * 0.92,
+        main: c.main, dark: c.dark, glyph: c.glyph,
+        prism: !!prism, pulse: !!pulse, corrupt: !!corrupt,
+        alpha: alpha == null ? 1 : alpha,
+        blink: blinkPhase != null ? blinkPhase : 0.8,
+        t: performance.now() * 0.001,
+      });
     }
 
-    drawGlyph(ctx, x, y, s, kind, color) {
-      ctx.fillStyle = color;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = Math.max(1.5, s * 0.4);
-      ctx.beginPath();
-      if (kind === 'dot') {
-        ctx.arc(x, y, s * 0.7, 0, WB.TAU);
-        ctx.fill();
-      } else if (kind === 'diamond') {
-        ctx.moveTo(x, y - s); ctx.lineTo(x + s, y); ctx.lineTo(x, y + s); ctx.lineTo(x - s, y);
-        ctx.closePath(); ctx.fill();
-      } else if (kind === 'triangle') {
-        ctx.moveTo(x, y - s); ctx.lineTo(x + s * 0.9, y + s * 0.7); ctx.lineTo(x - s * 0.9, y + s * 0.7);
-        ctx.closePath(); ctx.fill();
-      } else if (kind === 'cross') {
-        ctx.moveTo(x - s, y); ctx.lineTo(x + s, y);
-        ctx.moveTo(x, y - s); ctx.lineTo(x, y + s);
-        ctx.stroke();
-      } else if (kind === 'star') {
-        for (let i = 0; i < 4; i++) {
-          const a = (i / 4) * WB.TAU + Math.PI / 4;
-          ctx.moveTo(x, y);
-          ctx.lineTo(x + Math.cos(a) * s, y + Math.sin(a) * s);
-        }
-        ctx.stroke();
-      }
-    }
-
-    drawBossSegment(ctx, x, y, p, s) {
-      const r = this.pieceR * 1.5 * s;
-      ctx.save();
-      // Shadow body
-      const body = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.2, x, y, r);
-      body.addColorStop(0, '#3b3252');
-      body.addColorStop(1, '#171226');
-      ctx.fillStyle = body;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, WB.TAU);
-      ctx.fill();
-      // Colored shell plates
-      const c = WB.COLORS[p.colorIdx];
-      ctx.strokeStyle = c.main;
-      ctx.lineWidth = p.bossHp >= 2 ? 5 : 2.5;
-      if (p.bossHp < 2) ctx.setLineDash([6, 5]); // cracked shell
-      ctx.beginPath();
-      ctx.arc(x, y, r * 0.8, 0, WB.TAU);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      // Eye
-      ctx.fillStyle = '#ffd9f4';
-      ctx.beginPath();
-      ctx.arc(x, y, r * 0.28, 0, WB.TAU);
-      ctx.fill();
-      ctx.fillStyle = '#1a1128';
-      ctx.beginPath();
-      ctx.arc(x + Math.cos(this.time * 1.7) * r * 0.1, y + Math.sin(this.time * 1.3) * r * 0.1, r * 0.13, 0, WB.TAU);
-      ctx.fill();
-      // Color glyph so the target color is unmistakable
-      this.drawGlyph(ctx, x, y - r * 1.35, r * 0.24, c.glyph, c.main);
-      ctx.restore();
+    // The Umbra Serpent — one continuous creature through all alive segments.
+    drawSerpent(ctx) {
+      if (!this.boss || this.boss.alive <= 0) return;
+      const ring = this.boss.ring;
+      const segs = ring.pieces.filter(p => p.boss).sort((a, b) => a.a - b.a);
+      if (!segs.length) return;
+      // The oldest surviving segment leads as the head; keep angular order after it.
+      let headIdx = 0;
+      for (let i = 1; i < segs.length; i++) if (segs[i].id < segs[headIdx].id) headIdx = i;
+      const ordered = segs.slice(headIdx).concat(segs.slice(0, headIdx));
+      window.WB_ART_SERPENT(ctx, {
+        cx: this.cx, cy: this.cy, ringR: ring.r, t: this.time,
+        segments: ordered.map(p => ({
+          a: p.a, r: this.pieceR * 1.5,
+          main: WB.COLORS[p.colorIdx].main, dark: WB.COLORS[p.colorIdx].dark,
+          glyph: WB.COLORS[p.colorIdx].glyph, cracked: p.bossHp < 2,
+        })),
+      });
     }
 
     drawCore(ctx, t) {
@@ -1230,44 +1095,11 @@
         : WB.clamp(this.energy / 60, 0, 1);
       const skin = WB.COSMETICS.cores.find(c => c.id === WB.save.data.cosmetics.core) || WB.COSMETICS.cores[0];
       ctx.save();
-      // Petals: open wider as the core charges
-      const petals = 6;
-      const open = 0.5 + energyK * 0.7;
-      for (let i = 0; i < petals; i++) {
-        const a = (i / petals) * WB.TAU + t * 0.15;
-        const px = cx + Math.cos(a) * coreR * 0.72;
-        const py = cy + Math.sin(a) * coreR * 0.72;
-        ctx.save();
-        ctx.translate(px, py);
-        ctx.rotate(a + Math.PI / 2);
-        ctx.scale(1, open + Math.sin(t * 1.8 + i) * 0.06);
-        ctx.fillStyle = skin.petal;
-        ctx.strokeStyle = skin.stroke;
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.ellipse(0, -coreR * 0.55, coreR * 0.34, coreR * 0.72, 0, 0, WB.TAU);
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
-      }
-      // Core body glow
-      ctx.globalCompositeOperation = 'lighter';
-      const g = ctx.createRadialGradient(cx, cy, coreR * 0.1, cx, cy, coreR * 2.4);
-      g.addColorStop(0, 'rgba(190,240,255,0.5)');
-      g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(cx, cy, coreR * 2.4, 0, WB.TAU);
-      ctx.fill();
-      ctx.globalCompositeOperation = 'source-over';
-      const body = ctx.createRadialGradient(cx - coreR * 0.3, cy - coreR * 0.3, coreR * 0.1, cx, cy, coreR);
-      body.addColorStop(0, skin.body[0]);
-      body.addColorStop(0.55, skin.body[1]);
-      body.addColorStop(1, skin.body[2]);
-      ctx.fillStyle = body;
-      ctx.beginPath();
-      ctx.arc(cx, cy, coreR, 0, WB.TAU);
-      ctx.fill();
+      window.WB_ART_CORE(ctx, {
+        cx, cy, r: coreR,
+        energyK, t,
+        body: skin.body, petal: skin.petal, stroke: skin.stroke,
+      });
       // Energy ring for bloom levels
       if (this.level.obj === 'bloom') {
         ctx.strokeStyle = '#ffe9b0';
