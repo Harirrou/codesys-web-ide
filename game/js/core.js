@@ -871,14 +871,28 @@
         const crowd = ring.pieces.length / ring.capacity;
         const danger = crowd > 0.78 && !(this.boss && ring === this.boss.ring);
         ctx.save();
-        ctx.strokeStyle = danger
-          ? 'rgba(255,110,130,' + (0.16 + 0.12 * Math.sin(t * 6)) + ')'
-          : WB.hexToRgba(tint, 0.14);
-        ctx.lineWidth = this.pieceR * 1.7;
+        const baseCol = danger ? '#ff6e82' : tint;
+        const dangerPulse = danger ? 0.1 + 0.1 * Math.sin(t * 6) : 0;
+        // Soft luminous band: wide faint halo + core band + two crisp edge lines
+        ctx.strokeStyle = WB.hexToRgba(baseCol, 0.05 + dangerPulse * 0.4);
+        ctx.lineWidth = this.pieceR * 3.2;
         ctx.beginPath();
         ctx.arc(this.cx, this.cy, ring.r, 0, WB.TAU);
         ctx.stroke();
-        ctx.strokeStyle = danger ? 'rgba(255,140,150,0.5)' : WB.hexToRgba(tint, 0.34);
+        ctx.strokeStyle = WB.hexToRgba(baseCol, 0.1 + dangerPulse);
+        ctx.lineWidth = this.pieceR * 1.6;
+        ctx.beginPath();
+        ctx.arc(this.cx, this.cy, ring.r, 0, WB.TAU);
+        ctx.stroke();
+        ctx.strokeStyle = WB.hexToRgba(baseCol, danger ? 0.55 : 0.3);
+        ctx.lineWidth = 1;
+        for (const edge of [-1, 1]) {
+          ctx.beginPath();
+          ctx.arc(this.cx, this.cy, ring.r + edge * this.pieceR * 0.85, 0, WB.TAU);
+          ctx.stroke();
+        }
+        // Direction dashes drifting along the path
+        ctx.strokeStyle = WB.hexToRgba(baseCol, danger ? 0.6 : 0.4);
         ctx.lineWidth = 1.4;
         ctx.setLineDash([7, 13]);
         ctx.lineDashOffset = ring.dashOff;

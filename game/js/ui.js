@@ -212,9 +212,8 @@
       const want = w > h * 1.05 ? 'l' : 'p';
       const img = ready(set[want]) ? set[want] : (ready(set.p) ? set.p : set.l);
       if (!ready(img)) return false;
-      const reduced = WB.save.data.settings.reduceMotion;
-      const zoom = reduced ? 1.02 : 1.03 + 0.025 * Math.sin(this.t * 0.08);
-      const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight) * zoom;
+      // Exact cover fit — no artificial zoom, the painting shows as composed.
+      const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight);
       const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
       ctx.save();
       ctx.globalAlpha = alpha;
