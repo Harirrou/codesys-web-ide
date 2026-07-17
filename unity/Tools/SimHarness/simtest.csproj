@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="/home/user/codesys-web-ide/unity/Wispbloom/Assets/Scripts/Sim/SimTypes.cs" />
+    <Compile Include="/home/user/codesys-web-ide/unity/Wispbloom/Assets/Scripts/Sim/GameSim.cs" />
+  </ItemGroup>
+</Project>

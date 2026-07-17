@@ -531,9 +531,14 @@ namespace Wispbloom.Sim
 
         void CheckChains()
         {
-            foreach (var ring in Rings)
-                foreach (var p in ring.Pieces)
+            // Index-based: FindRun sorts ring.Pieces, which would invalidate a
+            // foreach enumerator (C#-specific; the JS prototype had no issue).
+            for (int r = 0; r < Rings.Count; r++)
+            {
+                var ring = Rings[r];
+                for (int i = 0; i < ring.Pieces.Count; i++)
                 {
+                    var p = ring.Pieces[i];
                     if (p.ChainT <= 0) continue;
                     var run = FindRun(ring, p);
                     if (run.Count >= 3)
@@ -543,6 +548,7 @@ namespace Wispbloom.Sim
                         return; // one chain per frame keeps cascades readable
                     }
                 }
+            }
         }
 
         // ----- orbit shifts --------------------------------------------------

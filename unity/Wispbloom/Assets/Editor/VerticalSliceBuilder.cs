@@ -129,8 +129,11 @@ namespace Wispbloom.EditorTools
             level.colorCount = 3;
             level.rings = new[]
             {
-                new RingSpec { rr = 0.30f, dir = -1, speed = 0.26f, fill = 9,  corrupt = 0, capacity = 13 },
-                new RingSpec { rr = 1.00f, dir =  1, speed = 0.20f, fill = 12, corrupt = 0, capacity = 19 },
+                // rr values match the prototype's Twin Streams exactly —
+                // smaller inner radii over-crowd the ring (verified by the
+                // headless sim harness).
+                new RingSpec { rr = 0.52f, dir = -1, speed = 0.26f, fill = 9,  corrupt = 0, capacity = 13 },
+                new RingSpec { rr = 0.80f, dir =  1, speed = 0.20f, fill = 12, corrupt = 0, capacity = 19 },
             };
             level.spawnInterval = 7f;
             level.spawnRings = new[] { 1 };
