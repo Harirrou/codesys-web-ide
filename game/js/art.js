@@ -1,25 +1,21 @@
-/* Wispbloom — art.js
- * Premium renderers for wisps, the Heartbloom core and the Umbra Serpent.
- * Produced and screenshot-verified by the art workflow; consumed by core.js.
+/* Wispbloom — art.js (v2, reference-matched style)
+ * Soft painterly blob spirits, a radiant white bloom, glowing ribbon
+ * orbits — matched against the client's reference painting. The Umbra
+ * Serpent renderer follows below.
  */
-/* Wispbloom — wisp creature renderer.
-   Plain ES2018, canvas 2D only. No shadowBlur; glow is built from radial
-   gradients + globalCompositeOperation 'lighter'. Deterministic per frame. */
+'use strict';
 (function () {
-  'use strict';
 
-  /* ---------- color helpers ---------- */
+  /* ---------- shared color helpers ---------- */
   function hexRgb(h) {
     h = String(h).replace('#', '');
     if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
     var n = parseInt(h, 16);
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
   }
-  function rgba(c, a) { return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')'; }
+  function rgba(c, a) { return 'rgba(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ',' + a + ')'; }
   function mix(a, b, t) {
-    return [(a[0] + (b[0] - a[0]) * t) | 0,
-            (a[1] + (b[1] - a[1]) * t) | 0,
-            (a[2] + (b[2] - a[2]) * t) | 0];
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
   }
   function hslRgb(h, s, l) {
     h = (((h % 360) + 360) % 360) / 360;
@@ -31,36 +27,9 @@
       if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
       return p;
     }
-    return [(f(h + 1 / 3) * 255) | 0, (f(h) * 255) | 0, (f(h - 1 / 3) * 255) | 0];
+    return [f(h + 1 / 3) * 255, f(h) * 255, f(h - 1 / 3) * 255];
   }
-  var WHITE = [255, 255, 255], INK = [6, 8, 18];
-
-  /* ---------- shape helpers ---------- */
-  /* Teardrop spirit body: soft, slightly curled flame tip up, plump base. */
-  function bodyPath(ctx, r, lean, squash) {
-    var ty = -1.34 * r, tx = lean * r, s = squash;
-    ctx.beginPath();
-    ctx.moveTo(tx, ty);
-    ctx.bezierCurveTo(tx + 0.10 * r, -1.04 * r, 0.94 * r, -0.6 * r, 1.0 * r, 0.1 * r * s);
-    ctx.bezierCurveTo(1.02 * r, 0.7 * r * s, 0.58 * r, 1.04 * r * s, 0, 1.04 * r * s);
-    ctx.bezierCurveTo(-0.58 * r, 1.04 * r * s, -1.02 * r, 0.7 * r * s, -1.0 * r, 0.1 * r * s);
-    ctx.bezierCurveTo(-0.94 * r, -0.6 * r, tx - 0.28 * r, -0.98 * r, tx, ty);
-    ctx.closePath();
-  }
-
-  /* flame-trail tendril: S-curved tapering ribbon, no blobby tip */
-  function tendril(ctx, bx, by, w, L, bend, drift, col, a) {
-    var tx = bx + drift, ty = by + L;
-    ctx.fillStyle = rgba(col, a);
-    ctx.beginPath();
-    ctx.moveTo(bx - w, by);
-    ctx.bezierCurveTo(bx - w + bend, by + L * 0.45,
-                      tx - bend * 0.7, ty - L * 0.35, tx, ty);
-    ctx.bezierCurveTo(tx - bend * 0.7 + w * 0.5, ty - L * 0.35,
-                      bx + w + bend, by + L * 0.45, bx + w, by);
-    ctx.closePath();
-    ctx.fill();
-  }
+  var WHITE = [255, 255, 255], INK = [24, 16, 40];
 
   function glyphPath(ctx, g, s) {
     ctx.beginPath();
@@ -78,623 +47,281 @@
       ctx.lineTo(s, w); ctx.lineTo(w, w); ctx.lineTo(w, s); ctx.lineTo(-w, s);
       ctx.lineTo(-w, w); ctx.lineTo(-s, w); ctx.lineTo(-s, -w); ctx.lineTo(-w, -w);
       ctx.closePath();
-    } else { /* star (prism) */
-      var i, a, rr;
-      for (i = 0; i < 10; i++) {
-        a = -Math.PI / 2 + i * Math.PI / 5;
-        rr = (i % 2 === 0) ? s : s * 0.45;
-        if (i === 0) ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
-        else ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
-      }
-      ctx.closePath();
     }
   }
 
-  /* ---------- main renderer ---------- */
+  /* =====================================================================
+   * WISP — soft round spirit blob with a tiny curl tip and a minimal
+   * kawaii face (small dark eyes, tiny mouth), heavy soft glow.
+   * =================================================================== */
   window.WB_ART_WISP = function (ctx, o) {
     var r = o.r, t = o.t || 0;
     var main = hexRgb(o.main), dark = hexRgb(o.dark);
-    var glyph = o.glyph;
-    var nucCol = null, rimCol = null, prismHue = 0;
 
     if (o.prism) {
-      prismHue = (t * 55) % 360;
-      main = hslRgb(prismHue, 0.75, 0.68);
-      dark = hslRgb(prismHue + 45, 0.62, 0.30);
-      nucCol = hslRgb(prismHue + 140, 0.85, 0.78);
-      rimCol = hslRgb(prismHue + 210, 0.9, 0.82);
-      glyph = 'star';
+      var hue = (t * 50) % 360;
+      main = hslRgb(hue, 0.7, 0.72);
+      dark = hslRgb(hue + 40, 0.55, 0.42);
     }
     if (o.pulse) {
-      main = [255, 250, 238];
-      dark = [172, 152, 112];
+      main = [255, 250, 240];
+      dark = [210, 190, 150];
+    }
+    var pale = mix(main, WHITE, 0.72);
+    var deepEdge = mix(main, dark, o.corrupt ? 0.85 : 0.55);
+    if (o.corrupt) {
+      pale = mix(main, INK, 0.25);
+      deepEdge = mix(dark, INK, 0.6);
     }
 
-    var lite = mix(main, WHITE, 0.55);
-    var deep = mix(dark, INK, o.corrupt ? 0.55 : 0.4);
-
-    var lean = Math.sin(t * 1.7 + o.blink * 0.3) * 0.14;
-    var squash = 1 + Math.sin(t * 2.3) * 0.02;
+    var breathe = 1 + Math.sin(t * 1.8 + o.blink * 1.7) * 0.025;
+    var R = r * breathe;
 
     ctx.save();
     ctx.translate(o.x, o.y);
-    ctx.globalAlpha = (o.alpha == null ? 1 : o.alpha);
+    ctx.globalAlpha = o.alpha == null ? 1 : o.alpha;
 
-    /* --- 1. ambient halo (lighter) --- */
+    /* soft ambient glow */
     ctx.globalCompositeOperation = 'lighter';
-    var halo = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r * 2.2);
-    var haloA = o.corrupt ? 0.12 : (o.pulse ? 0.32 : 0.22);
-    halo.addColorStop(0, rgba(main, haloA));
-    halo.addColorStop(0.5, rgba(o.prism ? nucCol : main, haloA * 0.35));
+    var halo = ctx.createRadialGradient(0, 0, R * 0.3, 0, 0, R * 2.4);
+    halo.addColorStop(0, rgba(main, o.corrupt ? 0.16 : 0.3));
+    halo.addColorStop(0.55, rgba(main, o.corrupt ? 0.06 : 0.12));
     halo.addColorStop(1, rgba(main, 0));
     ctx.fillStyle = halo;
-    ctx.beginPath(); ctx.arc(0, 0, r * 2.2, 0, Math.PI * 2); ctx.fill();
-
-    /* --- 2. trailing flame tendrils (lighter, behind body) --- */
-    var drift = Math.sin(t * 0.9 + o.blink) * 0.5 * r;
-    var flick = Math.sin(t * 2.4 + o.blink * 2.0) * 0.18 * r;
-    var tenCol = o.corrupt ? mix(main, INK, 0.3) : main;
-    var tenA = o.corrupt ? 0.45 : 0.55;
-    tendril(ctx, -0.4 * r, 0.55 * r, 0.15 * r, 1.15 * r,
-            -0.30 * r + flick, drift * 0.6 - 0.25 * r, tenCol, tenA * 0.8);
-    tendril(ctx, 0.38 * r, 0.6 * r, 0.13 * r, 0.9 * r,
-            0.28 * r - flick, drift * 0.5 + 0.2 * r, tenCol, tenA * 0.75);
-    tendril(ctx, 0, 0.72 * r, 0.17 * r, 1.55 * r,
-            0.34 * r + flick * 0.6, drift, o.corrupt ? tenCol : lite, tenA);
-    /* two drifting spark motes */
-    if (!o.corrupt) {
-      var ma = t * 1.1 + o.blink * 2.0;
-      ctx.fillStyle = rgba(lite, 0.5 + 0.3 * Math.sin(t * 3.0));
-      ctx.beginPath();
-      ctx.arc(Math.cos(ma) * 1.45 * r, Math.sin(ma * 0.7) * 0.9 * r - 0.2 * r, r * 0.07, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(Math.cos(ma + 2.6) * 1.3 * r, Math.sin(ma * 0.8 + 1.2) * 1.1 * r, r * 0.05, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    ctx.beginPath(); ctx.arc(0, 0, R * 2.4, 0, Math.PI * 2); ctx.fill();
     ctx.globalCompositeOperation = 'source-over';
 
-    /* --- 3. corrupt thorns behind body --- */
+    /* corrupt thorns, tucked behind the body */
     if (o.corrupt) {
-      var TH = [[-2.55, 1.0, 0.30], [-1.95, 0.55, -0.2], [-1.28, 0.95, 0.25],
-                [-0.55, 0.65, -0.3], [0.5, 0.9, 0.3], [1.22, 0.6, -0.25],
-                [1.9, 1.0, 0.2], [2.5, 0.7, -0.3]];
-      for (var i = 0; i < TH.length; i++) {
-        var a = TH[i][0] - Math.PI / 2;
-        var len = (0.34 + TH[i][1] * 0.34) * r;
-        var bend = TH[i][2];
-        var px = Math.cos(a) * r * 0.9, py = Math.sin(a) * r * 0.9;
-        var nx = Math.cos(a + bend * 0.5), ny = Math.sin(a + bend * 0.5);
+      ctx.fillStyle = rgba(mix(dark, INK, 0.5), 1);
+      for (var i = 0; i < 7; i++) {
+        var a = (i / 7) * Math.PI * 2 - 0.4;
+        var len = R * (0.32 + 0.16 * Math.sin(i * 2.7));
+        ctx.save();
+        ctx.rotate(a);
         ctx.beginPath();
-        ctx.moveTo(px - Math.sin(a) * 0.14 * r, py + Math.cos(a) * 0.14 * r);
-        ctx.lineTo(px + nx * len, py + ny * len);
-        ctx.lineTo(px + Math.sin(a) * 0.14 * r, py - Math.cos(a) * 0.14 * r);
+        ctx.moveTo(-R * 0.16, R * 0.86);
+        ctx.lineTo(0, R * 0.92 + len);
+        ctx.lineTo(R * 0.16, R * 0.86);
         ctx.closePath();
-        ctx.fillStyle = rgba(deep, 1);
         ctx.fill();
-        ctx.strokeStyle = rgba(main, 0.55);
-        ctx.lineWidth = Math.max(0.8, r * 0.05);
-        ctx.lineJoin = 'round';
-        ctx.stroke();
+        ctx.restore();
       }
     }
 
-    /* --- 4. rim-light underlay, then body over it (lit crescent top-left) --- */
-    bodyPath(ctx, r, lean, squash);
-    ctx.fillStyle = rgba(o.corrupt ? main : (rimCol || lite), 0.9);
+    /* body: near-circle with a small curl tip at upper right */
+    var curlA = -1.05 + Math.sin(t * 1.2 + o.blink) * 0.06; // tip wiggles gently
+    ctx.beginPath();
+    ctx.arc(0, 0, R, curlA + 0.55, curlA - 0.55 + Math.PI * 2);
+    var tipX = Math.cos(curlA) * R * 1.42, tipY = Math.sin(curlA) * R * 1.42;
+    var a1 = curlA - 0.55, a2 = curlA + 0.55;
+    ctx.bezierCurveTo(
+      Math.cos(a1) * R * 1.18, Math.sin(a1) * R * 1.18,
+      tipX + Math.sin(curlA) * R * 0.34, tipY - Math.cos(curlA) * R * 0.34,
+      tipX, tipY);
+    ctx.bezierCurveTo(
+      tipX - Math.sin(curlA) * R * 0.1, tipY + Math.cos(curlA) * R * 0.1,
+      Math.cos(a2) * R * 1.05, Math.sin(a2) * R * 1.05,
+      Math.cos(a2) * R, Math.sin(a2) * R);
+    ctx.closePath();
+
+    var body = ctx.createRadialGradient(-R * 0.32, -R * 0.38, R * 0.1, 0, R * 0.08, R * 1.35);
+    body.addColorStop(0, rgba(pale, 1));
+    body.addColorStop(0.45, rgba(main, 1));
+    body.addColorStop(1, rgba(deepEdge, 1));
+    ctx.fillStyle = body;
     ctx.fill();
 
+    /* soft under-shadow inside the lower rim for roundness */
+    var us = ctx.createRadialGradient(0, R * 0.55, R * 0.2, 0, R * 0.45, R * 1.05);
+    us.addColorStop(0, rgba(deepEdge, 0));
+    us.addColorStop(1, rgba(mix(deepEdge, INK, 0.35), 0.4));
+    ctx.fillStyle = us;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+
+    /* specular highlight */
+    ctx.fillStyle = rgba(WHITE, o.corrupt ? 0.25 : 0.75);
     ctx.save();
-    ctx.translate(0.055 * r, 0.08 * r);
-    bodyPath(ctx, r * 0.935, lean, squash);
-    var bg = ctx.createRadialGradient(-0.35 * r, -0.45 * r, r * 0.1, 0, 0.1 * r, r * 1.35);
-    if (o.corrupt) {
-      bg.addColorStop(0, rgba(mix(dark, INK, 0.15), 1));
-      bg.addColorStop(0.55, rgba(mix(dark, INK, 0.55), 1));
-      bg.addColorStop(1, rgba(INK, 1));
-    } else {
-      bg.addColorStop(0, rgba(mix(main, WHITE, 0.25), 1));
-      bg.addColorStop(0.55, rgba(main, 1));
-      bg.addColorStop(1, rgba(dark, 1));
-    }
-    ctx.fillStyle = bg;
+    ctx.translate(-R * 0.38, -R * 0.44);
+    ctx.rotate(-0.5);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, R * 0.28, R * 0.14, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
+    ctx.fillStyle = rgba(WHITE, o.corrupt ? 0.15 : 0.5);
+    ctx.beginPath();
+    ctx.arc(-R * 0.05, -R * 0.6, R * 0.07, 0, Math.PI * 2);
+    ctx.fill();
 
-    /* soft painted contour: keeps the silhouette on bright backdrops */
-    bodyPath(ctx, r, lean, squash);
-    ctx.strokeStyle = rgba(o.pulse ? [110, 88, 52] : mix(deep, INK, 0.3), o.pulse ? 0.4 : 0.3);
-    ctx.lineWidth = Math.max(0.8, r * 0.05);
-    ctx.stroke();
+    /* face — tiny and minimal like the reference */
+    var eyeY = -R * 0.02;
+    var blink = Math.pow(Math.max(0, Math.sin((o.blink || 0) * 0.6)), 26);
+    var eyeH = R * 0.115 * (1 - blink * 0.85);
+    var faceInk = o.corrupt ? mix(main, WHITE, 0.35) : [42, 26, 54];
+    if (o.corrupt) {
+      /* narrowed glaring eyes */
+      ctx.strokeStyle = rgba(faceInk, 0.95);
+      ctx.lineWidth = Math.max(1, R * 0.09);
+      ctx.lineCap = 'round';
+      for (var s = -1; s <= 1; s += 2) {
+        ctx.beginPath();
+        ctx.moveTo(s * R * 0.34, eyeY - R * 0.06 * s * 0.3 - R * 0.05);
+        ctx.lineTo(s * R * 0.14, eyeY + R * 0.02);
+        ctx.stroke();
+      }
+    } else {
+      ctx.fillStyle = rgba(faceInk, 0.92);
+      for (var s2 = -1; s2 <= 1; s2 += 2) {
+        ctx.beginPath();
+        ctx.ellipse(s2 * R * 0.26, eyeY, R * 0.105, Math.max(0.6, eyeH), 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      /* eye glints */
+      if (blink < 0.5) {
+        ctx.fillStyle = rgba(WHITE, 0.85);
+        for (var s3 = -1; s3 <= 1; s3 += 2) {
+          ctx.beginPath();
+          ctx.arc(s3 * R * 0.26 - R * 0.035, eyeY - R * 0.04, R * 0.032, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      /* tiny mouth: happy 'o' */
+      ctx.fillStyle = rgba(faceInk, 0.8);
+      ctx.beginPath();
+      ctx.ellipse(0, eyeY + R * 0.24, R * 0.075, R * 0.095, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
-    /* --- 5. inner nucleus + prism iridescent band (lighter) --- */
-    ctx.globalCompositeOperation = 'lighter';
-    var nc = nucCol || (o.corrupt ? main : mix(main, WHITE, 0.7));
-    var nuc = ctx.createRadialGradient(-0.12 * r, -0.2 * r, 0, -0.12 * r, -0.2 * r, r * 0.9);
-    var nucA = o.pulse ? 0.95 : (o.corrupt ? 0.26 : 0.6);
-    nuc.addColorStop(0, rgba(nc, nucA));
-    nuc.addColorStop(0.4, rgba(main, nucA * 0.35));
-    nuc.addColorStop(1, rgba(main, 0));
-    ctx.fillStyle = nuc;
-    ctx.beginPath(); ctx.arc(-0.12 * r, -0.2 * r, r * 0.9, 0, Math.PI * 2); ctx.fill();
-
+    /* pulse: charge ring */
+    if (o.pulse) {
+      ctx.strokeStyle = rgba(WHITE, 0.7 + 0.2 * Math.sin(t * 6));
+      ctx.lineWidth = Math.max(1, R * 0.08);
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 1.28, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    /* prism: little sparkle at the tip */
     if (o.prism) {
+      var sp = 0.7 + 0.3 * Math.sin(t * 5);
+      ctx.strokeStyle = rgba(WHITE, 0.9);
+      ctx.lineWidth = Math.max(1, R * 0.07);
+      ctx.lineCap = 'round';
       ctx.save();
-      bodyPath(ctx, r, lean, squash);
-      ctx.clip();
-      var band = ctx.createLinearGradient(-r, -1.3 * r, r, r);
-      band.addColorStop(0.05, rgba(hslRgb(prismHue + 90, 0.9, 0.7), 0));
-      band.addColorStop(0.35, rgba(hslRgb(prismHue + 160, 0.9, 0.7), 0.5));
-      band.addColorStop(0.6, rgba(hslRgb(prismHue + 260, 0.9, 0.72), 0.45));
-      band.addColorStop(0.95, rgba(hslRgb(prismHue + 330, 0.9, 0.7), 0));
-      ctx.fillStyle = band;
-      ctx.fillRect(-r, -1.4 * r, 2 * r, 2.5 * r);
+      ctx.translate(tipX * 0.92, tipY * 0.92);
+      for (var k = 0; k < 4; k++) {
+        var sa = k * Math.PI / 2 + t * 0.8;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(sa) * R * 0.1, Math.sin(sa) * R * 0.1);
+        ctx.lineTo(Math.cos(sa) * R * 0.26 * sp, Math.sin(sa) * R * 0.26 * sp);
+        ctx.stroke();
+      }
       ctx.restore();
     }
 
-    if (!o.corrupt) { /* small specular gloss, top-left */
-      ctx.fillStyle = rgba(WHITE, 0.30);
-      ctx.beginPath();
-      ctx.ellipse(-0.42 * r, -0.6 * r, 0.22 * r, 0.13 * r, 0.8, 0, Math.PI * 2);
+    /* optional colorblind glyph badge (settings toggle) */
+    var wantGlyph = window.WB && WB.save && WB.save.data.settings.glyphs;
+    if (wantGlyph && o.glyph && !o.pulse && r > 8) {
+      ctx.save();
+      ctx.translate(0, R * 0.55);
+      ctx.fillStyle = o.corrupt ? rgba(main, 0.95) : 'rgba(30,20,48,0.6)';
+      glyphPath(ctx, o.glyph, R * 0.2);
       ctx.fill();
+      ctx.restore();
     }
-    ctx.globalCompositeOperation = 'source-over';
-
-    /* --- 6. pulse charge rings --- */
-    if (o.pulse) {
-      ctx.globalCompositeOperation = 'lighter';
-      var ph = (t * 1.3) % 1;
-      ctx.strokeStyle = rgba(WHITE, 0.85 * (1 - ph));
-      ctx.lineWidth = r * 0.10;
-      ctx.beginPath(); ctx.arc(0, 0, r * (1.15 + ph * 0.6), 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = rgba([255, 240, 200], 0.5);
-      ctx.lineWidth = r * 0.07;
-      ctx.beginPath(); ctx.arc(0, 0, r * 1.12, 0, Math.PI * 2); ctx.stroke();
-      ctx.globalCompositeOperation = 'source-over';
-    }
-
-    /* --- 7. eyes + tiny mouth --- */
-    var cyc = ((o.blink % 3.1) + 3.1) % 3.1;
-    var open = 1;
-    if (cyc < 0.32) open = Math.abs(Math.cos((cyc / 0.32) * Math.PI));
-    var ex = 0.33 * r, ey = -0.22 * r, ew = 0.18 * r, eh = 0.26 * r;
-
-    if (o.corrupt) {
-      var sh = Math.max(0.11, 0.17 * open);
-      [-1, 1].forEach(function (s) {
-        ctx.save();
-        ctx.translate(s * ex, ey);
-        ctx.rotate(s * 0.42);
-        ctx.fillStyle = rgba(mix(main, WHITE, 0.4), 1);
-        ctx.beginPath();
-        ctx.ellipse(0, 0, ew * 1.3, sh * r, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = rgba(WHITE, 0.85);           /* hot core in the slit */
-        ctx.beginPath();
-        ctx.ellipse(ew * 0.15, 0, ew * 0.5, sh * r * 0.45, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      });
-    } else {
-      [-1, 1].forEach(function (s) {
-        if (open < 0.12) {
-          ctx.strokeStyle = rgba(INK, 0.9);
-          ctx.lineWidth = Math.max(1, r * 0.07);
-          ctx.lineCap = 'round';
-          ctx.beginPath();
-          ctx.moveTo(s * ex - ew, ey);
-          ctx.quadraticCurveTo(s * ex, ey + eh * 0.5, s * ex + ew, ey);
-          ctx.stroke();
-        } else {
-          ctx.fillStyle = rgba(INK, 0.92);
-          ctx.beginPath();
-          ctx.ellipse(s * ex, ey, ew, eh * open, 0, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      });
-      if (open >= 0.12) {
-        ctx.fillStyle = rgba(WHITE, 0.95 * open);
-        [-1, 1].forEach(function (s) {
-          ctx.beginPath();
-          ctx.arc(s * ex - ew * 0.28, ey - eh * 0.32 * open, ew * 0.32, 0, Math.PI * 2);
-          ctx.fill();
-        });
-      }
-      /* tiny content smile */
-      ctx.strokeStyle = rgba(mix(deep, INK, 0.3), 0.9);
-      ctx.lineWidth = Math.max(1, r * 0.065);
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(-0.11 * r, 0.1 * r);
-      ctx.quadraticCurveTo(0, 0.19 * r, 0.11 * r, 0.1 * r);
-      ctx.stroke();
-    }
-
-    /* --- 8. glyph mark, low on the belly (no disc — reads as a marking) --- */
-    ctx.save();
-    ctx.translate(0, 0.62 * r);
-    var gs = 0.27 * r;
-    if (o.corrupt) {
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = rgba(main, 0.4);
-      glyphPath(ctx, glyph, gs * 1.5); ctx.fill();
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = rgba(mix(main, WHITE, 0.25), 1);
-      glyphPath(ctx, glyph, gs); ctx.fill();
-    } else {
-      /* soft light plate behind, then deep ink glyph on the bright belly */
-      ctx.fillStyle = rgba(lite, 0.5);
-      ctx.beginPath(); ctx.arc(0, 0, gs * 1.5, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = rgba(o.pulse ? [104, 92, 64] : deep, 0.95);
-      glyphPath(ctx, glyph, gs); ctx.fill();
-    }
-    ctx.restore();
 
     ctx.restore();
   };
-})();
 
-/* Wispbloom — Heartbloom core renderer.
-   window.WB_ART_CORE(ctx, o)
-   o = { cx, cy, r, energyK, t, body:[c0,c1,c2], petal, stroke }
-   Canvas 2D only, ES2018, no shadowBlur, deterministic in t.        */
-(function () {
-  'use strict';
-
-  var TAU = Math.PI * 2;
-
-  /* ---- tiny color kit ------------------------------------------------ */
-  function parseColor(c) {
-    if (!c) return [255, 255, 255, 1];
-    c = ('' + c).trim();
-    if (c[0] === '#') {
-      if (c.length === 4) {
-        return [
-          parseInt(c[1] + c[1], 16),
-          parseInt(c[2] + c[2], 16),
-          parseInt(c[3] + c[3], 16), 1];
-      }
-      return [
-        parseInt(c.slice(1, 3), 16),
-        parseInt(c.slice(3, 5), 16),
-        parseInt(c.slice(5, 7), 16), 1];
-    }
-    var m = c.match(/rgba?\(([^)]+)\)/);
-    if (m) {
-      var p = m[1].split(',');
-      return [
-        parseFloat(p[0]), parseFloat(p[1]), parseFloat(p[2]),
-        p.length > 3 ? parseFloat(p[3]) : 1];
-    }
-    return [255, 255, 255, 1];
-  }
-  function css(c, a) {
-    var al = (a === undefined ? c[3] : c[3] * a);
-    return 'rgba(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ',' +
-      Math.max(0, Math.min(1, al)).toFixed(3) + ')';
-  }
-  function mix(a, b, k) {
-    return [
-      a[0] + (b[0] - a[0]) * k,
-      a[1] + (b[1] - a[1]) * k,
-      a[2] + (b[2] - a[2]) * k,
-      a[3] + (b[3] - a[3]) * k];
-  }
-  function clamp01(v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
-
-  /* Wide organic petal in unit space: base (0,0), tip near (0,-1).
-     sk = sideways bend (-1..1) so no petal is a plain ellipse.        */
-  function petalPath(ctx, sk) {
-    var tx = sk * 0.28;
+  /* =====================================================================
+   * CORE — radiant white night-bloom: two rows of sharp luminous petals
+   * around a brilliant warm heart, like the reference painting.
+   * =================================================================== */
+  function petal(ctx, len, wid) {
     ctx.beginPath();
-    ctx.moveTo(0, 0.05);
-    ctx.bezierCurveTo(-0.66, -0.06, -0.78 + sk * 0.36, -0.52, tx - 0.24, -0.86);
-    ctx.quadraticCurveTo(tx - 0.02, -1.02, tx + 0.24, -0.86);
-    ctx.bezierCurveTo(0.78 + sk * 0.36, -0.50, 0.66, -0.06, 0, 0.05);
-    ctx.closePath();
-  }
-
-  /* Lit edge — open path along one flank + tip, for rim light.        */
-  function petalEdgePath(ctx, sk) {
-    var tx = sk * 0.28;
-    ctx.beginPath();
-    ctx.moveTo(-0.30, -0.06);
-    ctx.bezierCurveTo(-0.68, -0.16, -0.76 + sk * 0.36, -0.52, tx - 0.22, -0.85);
-    ctx.quadraticCurveTo(tx - 0.01, -1.0, tx + 0.16, -0.89);
-  }
-
-  /* Luminous center vein, unit space (filled sliver, no stroke).      */
-  function veinPath(ctx, sk) {
-    var tx = sk * 0.24;
-    ctx.beginPath();
-    ctx.moveTo(-0.055, -0.04);
-    ctx.quadraticCurveTo(-0.045 + sk * 0.20, -0.50, tx, -0.94);
-    ctx.quadraticCurveTo(0.055 + sk * 0.20, -0.50, 0.055, -0.04);
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(wid, -len * 0.28, wid * 0.72, -len * 0.75, 0, -len);
+    ctx.bezierCurveTo(-wid * 0.72, -len * 0.75, -wid, -len * 0.28, 0, 0);
     ctx.closePath();
   }
 
   window.WB_ART_CORE = function (ctx, o) {
-    var cx = o.cx, cy = o.cy, r = o.r;
-    var e = clamp01(o.energyK || 0);
-    var t = o.t || 0;
-
-    var petal = parseColor(o.petal);
-    var stroke = parseColor(o.stroke);
-    var b0 = parseColor(o.body[0]);
-    var b1 = parseColor(o.body[1]);
-    var b2 = parseColor(o.body[2]);
-
-    var warm = [255, 224, 176, petal[3]];
-    var pWarm = mix(petal, warm, 0.26 * e);   // colors warm up with energy
-    var night = [8, 10, 26, petal[3]];
-    var white = [255, 255, 248, 1];
+    var cx = o.cx, cy = o.cy, r = o.r, t = o.t || 0;
+    var k = o.energyK == null ? 0.6 : o.energyK;
+    var tintHex = (o.body && o.body[1]) || '#7ecbe8';
+    var tint = hexRgb(tintHex);
+    var cream = mix([255, 250, 236], tint, 0.16);      // petals: warm white + skin tint
+    var warm = mix([255, 214, 140], tint, 0.25);       // heart warmth
+    var glow = mix([255, 244, 220], tint, 0.3);
 
     ctx.save();
     ctx.translate(cx, cy);
 
-    /* gentle global breathing */
-    var breath = 1 + 0.020 * Math.sin(t * 1.35) * (0.45 + 0.55 * e);
-    ctx.scale(breath, breath);
-    var rot = t * 0.055;
-
-    /* Shared gradients (budget: 7 per call) -------------------------- */
-    var haloR = r * (1.85 + 0.85 * e);
-    var gHalo = ctx.createRadialGradient(0, 0, r * 0.10, 0, 0, haloR);
-    var haloA = (0.09 + 0.24 * e) * (1 + 0.10 * Math.sin(t * 1.35 + 0.7));
-    gHalo.addColorStop(0, css(pWarm, haloA));
-    gHalo.addColorStop(0.30, css(mix(pWarm, b1, 0.30), haloA * 0.5));
-    gHalo.addColorStop(0.60, css(pWarm, haloA * 0.16));
-    gHalo.addColorStop(1, css(pWarm, 0));
-
-    var gBack = ctx.createLinearGradient(0, 0, 0, -1);
-    gBack.addColorStop(0, css(mix(pWarm, night, 0.74), 0.96));
-    gBack.addColorStop(0.55, css(mix(pWarm, night, 0.42), 0.92));
-    gBack.addColorStop(1, css(mix(pWarm, night, 0.14), 0.90));
-
-    var gFront = ctx.createLinearGradient(0, 0, 0, -1);
-    gFront.addColorStop(0, css(mix(pWarm, night, 0.60), 0.96));
-    gFront.addColorStop(0.45, css(mix(pWarm, night, 0.18), 0.94));
-    gFront.addColorStop(0.8, css(pWarm, 0.94));
-    gFront.addColorStop(1, css(mix(pWarm, white, 0.34), 0.95));
-
-    var gVein = ctx.createLinearGradient(0, 0, 0, -1);
-    gVein.addColorStop(0, css(pWarm, 0));
-    gVein.addColorStop(0.28, css(mix(pWarm, white, 0.5), 0.10 + 0.12 * e));
-    gVein.addColorStop(0.60, css(mix(pWarm, white, 0.72), 0.30 + 0.42 * e));
-    gVein.addColorStop(1, css(pWarm, 0));
-
-    var rc = r * (0.50 + 0.08 * e);          // heart orb radius
-    var gOrb = ctx.createRadialGradient(-rc * 0.30, -rc * 0.34, rc * 0.08,
-      0, 0, rc * 1.05);
-    gOrb.addColorStop(0, css(b0));
-    gOrb.addColorStop(0.55, css(b1));
-    gOrb.addColorStop(1, css(b2));
-
-    var nucR = rc * (0.55 + 0.45 * e);
-    var gNuc = ctx.createRadialGradient(0, 0, 0, 0, 0, nucR);
-    var nucA = 0.28 + 0.68 * e + 0.06 * Math.sin(t * 2.1);
-    gNuc.addColorStop(0, css(mix(b0, white, 0.65), nucA));
-    gNuc.addColorStop(0.5, css(b0, nucA * 0.5));
-    gNuc.addColorStop(1, css(b0, 0));
-
-    var tipR = r * 0.088;
-    var gTip = ctx.createRadialGradient(0, 0, 0, 0, 0, tipR);
-    gTip.addColorStop(0, css(mix(pWarm, white, 0.8), 0.95));
-    gTip.addColorStop(0.35, css(pWarm, 0.55));
-    gTip.addColorStop(1, css(pWarm, 0));
-
-    /* 1 — glow halo -------------------------------------------------- */
-    ctx.save();
+    /* big soft bloom halo */
     ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = gHalo;
-    ctx.beginPath();
-    ctx.arc(0, 0, haloR, 0, TAU);
-    ctx.fill();
-    ctx.restore();
+    var halo = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r * (2.6 + k * 0.9));
+    halo.addColorStop(0, rgba(glow, 0.34 + k * 0.2));
+    halo.addColorStop(0.4, rgba(glow, 0.12 + k * 0.08));
+    halo.addColorStop(1, rgba(glow, 0));
+    ctx.fillStyle = halo;
+    ctx.beginPath(); ctx.arc(0, 0, r * (2.6 + k * 0.9), 0, Math.PI * 2); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
 
-    /* petal rows ------------------------------------------------------ */
-    function petalRow(n, rowOff, rowPhase, baseLen, baseWid, fill, veinA,
-      edgeA) {
-      for (var i = 0; i < n; i++) {
-        var a = rot + rowOff + i * TAU / n;
-        // individual, asymmetric sway
-        a += (0.030 + 0.045 * e) * Math.sin(t * 0.9 + i * 1.87 + rowPhase);
-        var len = baseLen * (1 + 0.075 * Math.sin(i * 4.7 + rowPhase * 5 + 1.2)
-          + 0.05 * Math.sin(t * 1.15 + i * 2.13 + rowPhase));
-        var wid = baseWid * (1 + 0.06 * Math.sin(i * 3.3 + rowPhase * 7)
-          + 0.04 * Math.sin(t * 0.75 + i * 1.31 + rowPhase * 2));
-        var sk = 0.40 * Math.sin(i * 2.399 + rowPhase * 3.1)
-          + 0.13 * Math.sin(t * 0.65 + i * 1.7);
+    var rot = t * 0.06;
+    var outerLen = r * (1.85 + k * 0.45);
+    var innerLen = r * (1.15 + k * 0.28);
 
-        ctx.save();
-        ctx.rotate(a);
-        ctx.translate(0, -r * 0.14);
-
-        ctx.save();
-        ctx.scale(wid, len);
-        petalPath(ctx, sk);
-        ctx.fillStyle = fill;              // unit-space gradient maps here
-        ctx.fill();
-        ctx.restore();
-
-        // rim light on one flank + tip
-        ctx.save();
-        ctx.scale(wid, len);
-        petalEdgePath(ctx, sk);
-        ctx.restore();
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.strokeStyle = css(mix(stroke, white, 0.3), edgeA);
-        ctx.lineWidth = 1.2;
-        ctx.lineCap = 'round';
-        ctx.stroke();
-        ctx.restore();
-
-        if (veinA > 0) {
-          ctx.save();
-          ctx.globalCompositeOperation = 'lighter';
-          ctx.globalAlpha = veinA;
-          ctx.scale(wid, len);
-          veinPath(ctx, sk);
-          ctx.fillStyle = gVein;
-          ctx.fill();
-          ctx.restore();
-        }
-        ctx.restore();
-      }
-    }
-
-    /* 2 — back petal row */
-    petalRow(6, TAU / 12, 2.1,
-      r * (1.30 + 1.28 * e), r * (0.50 + 0.14 * e), gBack, 0.22,
-      0.14 + 0.10 * e);
-
-    /* 3 — front petal row */
-    petalRow(6, 0, 0.0,
-      r * (0.92 + 0.82 * e), r * (0.46 + 0.14 * e), gFront, 1.0,
-      0.30 + 0.25 * e);
-
-    /* inner bloom light seating petals into the heart (reuses gNuc) */
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.26 + 0.44 * e;
-    ctx.scale(2.5, 2.5);
-    ctx.fillStyle = gNuc;
-    ctx.beginPath();
-    ctx.arc(0, 0, nucR, 0, TAU);
-    ctx.fill();
-    ctx.restore();
-
-    /* 4 — heart orb ---------------------------------------------------- */
-    ctx.save();
-    // seat shadow so the orb reads on top of petals
-    ctx.fillStyle = 'rgba(4,6,18,0.35)';
-    ctx.beginPath();
-    ctx.arc(0, rc * 0.12, rc * 1.16, 0, TAU);
-    ctx.fill();
-
-    ctx.fillStyle = gOrb;
-    ctx.beginPath();
-    ctx.arc(0, 0, rc, 0, TAU);
-    ctx.fill();
-
-    // rim light (upper-left crescent, no gradient)
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.strokeStyle = css(mix(pWarm, white, 0.45), 0.24 + 0.44 * e);
-    ctx.lineWidth = rc * 0.11;
-    ctx.beginPath();
-    ctx.arc(0, 0, rc * 0.90, Math.PI * 0.95, Math.PI * 1.75);
-    ctx.stroke();
-    ctx.restore();
-
-    // freckles / seeds — deterministic per index, each with a dew speck
-    for (var f = 0; f < 7; f++) {
-      var fa = f * 2.399 + 0.9;
-      var fr = rc * (0.32 + 0.46 * ((f * 0.618) % 1));
-      var fx = Math.cos(fa) * fr, fy = Math.sin(fa) * fr;
-      ctx.fillStyle = css(b2, 0.7);
-      ctx.beginPath();
-      ctx.arc(fx, fy, rc * 0.07, 0, TAU);
-      ctx.fill();
-      ctx.fillStyle = css(mix(b0, white, 0.5), 0.5);
-      ctx.beginPath();
-      ctx.arc(fx - rc * 0.025, fy - rc * 0.03, rc * 0.025, 0, TAU);
-      ctx.fill();
-    }
-
-    // bright nucleus
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = gNuc;
-    ctx.beginPath();
-    ctx.arc(0, 0, nucR, 0, TAU);
-    ctx.fill();
-
-    // jewel glint — thin 4-point star, only when charged
-    if (e > 0.35) {
-      var glA = (e - 0.35) / 0.65 * (0.30 + 0.08 * Math.sin(t * 2.1 + 1.1));
+    /* back row: 6 sharp petals */
+    for (var i = 0; i < 6; i++) {
+      var a = rot + (i / 6) * Math.PI * 2;
+      var sway = 1 + Math.sin(t * 1.1 + i * 1.9) * 0.02;
       ctx.save();
-      ctx.rotate(t * 0.18 + 0.6);
-      ctx.fillStyle = css(white, glA);
-      var gl = rc * 1.35, gw = rc * 0.085;
-      for (var q = 0; q < 2; q++) {
-        ctx.beginPath();
-        ctx.moveTo(-gl, 0);
-        ctx.quadraticCurveTo(0, -gw, gl, 0);
-        ctx.quadraticCurveTo(0, gw, -gl, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.rotate(Math.PI / 2);
-      }
-      ctx.restore();
-    }
-    ctx.restore();
-
-    /* 5 — stamens ------------------------------------------------------ */
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    var nS = 7;
-    for (var s = 0; s < nS; s++) {
-      var sa = rot * 1.3 + s * TAU / nS + 0.45
-        + 0.10 * Math.sin(t * 1.05 + s * 2.3);
-      var sLen = r * (0.70 + 0.46 * e)
-        * (1 + 0.10 * Math.sin(s * 2.7 + 0.8)
-          + 0.06 * Math.sin(t * 1.3 + s * 1.9));
-      var bx = Math.cos(sa) * rc * 0.28;
-      var by = Math.sin(sa) * rc * 0.28;
-      var ex = Math.cos(sa) * sLen;
-      var ey = Math.sin(sa) * sLen - r * 0.08;
-      var mxp = Math.cos(sa + 0.45) * sLen * 0.52;
-      var myp = Math.sin(sa + 0.45) * sLen * 0.52;
-
-      ctx.strokeStyle = css(mix(pWarm, white, 0.35), 0.40 + 0.35 * e);
-      ctx.lineWidth = 1.2;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(bx, by);
-      ctx.quadraticCurveTo(mxp, myp, ex, ey);
-      ctx.stroke();
-
-      ctx.save();
-      ctx.translate(ex, ey);
-      ctx.fillStyle = gTip;
-      ctx.beginPath();
-      ctx.arc(0, 0, tipR, 0, TAU);
-      ctx.fill();
-      ctx.fillStyle = css(white, 0.60 + 0.38 * e);
-      ctx.beginPath();
-      ctx.arc(0, 0, tipR * 0.26, 0, TAU);
+      ctx.rotate(a);
+      ctx.scale(1, sway);
+      var pg = ctx.createLinearGradient(0, 0, 0, -outerLen);
+      pg.addColorStop(0, rgba(warm, 0.95));
+      pg.addColorStop(0.45, rgba(cream, 0.92));
+      pg.addColorStop(1, rgba(mix(cream, WHITE, 0.5), 0.85));
+      ctx.fillStyle = pg;
+      petal(ctx, outerLen, r * 0.52);
       ctx.fill();
       ctx.restore();
     }
-    ctx.restore();
-
-    /* 6 — drifting light motes (cosmic garden dust) -------------------- */
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    for (var m = 0; m < 5; m++) {
-      var ph = m * 2.399;
-      var ma = t * (0.22 + 0.05 * Math.sin(ph * 3.7)) * (m % 2 ? 1 : -1) + ph;
-      var mr = r * (1.35 + 0.75 * ((m * 0.618) % 1))
-        * (1 + 0.06 * Math.sin(t * 0.9 + ph));
-      var mScale = 0.42 + 0.42 * ((m * 0.382) % 1);
-      var mA = (0.22 + 0.55 * e) * (0.6 + 0.4 * Math.sin(t * 1.6 + ph * 2));
+    /* front row: 6 shorter petals, offset 30° — brighter */
+    for (var j = 0; j < 6; j++) {
+      var a2 = rot + ((j + 0.5) / 6) * Math.PI * 2;
+      var sway2 = 1 + Math.sin(t * 1.3 + j * 2.3) * 0.025;
       ctx.save();
-      ctx.translate(Math.cos(ma) * mr, Math.sin(ma) * mr * 0.92);
-      ctx.scale(mScale, mScale);
-      ctx.globalAlpha = Math.max(0, mA);
-      ctx.fillStyle = gTip;
-      ctx.beginPath();
-      ctx.arc(0, 0, tipR, 0, TAU);
+      ctx.rotate(a2);
+      ctx.scale(1, sway2);
+      var pg2 = ctx.createLinearGradient(0, 0, 0, -innerLen);
+      pg2.addColorStop(0, rgba(mix(warm, WHITE, 0.3), 1));
+      pg2.addColorStop(1, rgba(WHITE, 0.95));
+      ctx.fillStyle = pg2;
+      petal(ctx, innerLen, r * 0.42);
       ctx.fill();
       ctx.restore();
     }
-    ctx.restore();
+
+    /* warm petal-base shading so petals read as one bloom, not cutouts */
+    var baseSh = ctx.createRadialGradient(0, 0, r * 0.1, 0, 0, r * 1.05);
+    baseSh.addColorStop(0, rgba(mix(warm, [255, 190, 110], 0.5), 0.55));
+    baseSh.addColorStop(1, rgba(warm, 0));
+    ctx.fillStyle = baseSh;
+    ctx.beginPath(); ctx.arc(0, 0, r * 1.05, 0, Math.PI * 2); ctx.fill();
+
+    /* brilliant golden heart */
+    ctx.globalCompositeOperation = 'lighter';
+    var heart = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 0.95);
+    heart.addColorStop(0, 'rgba(255,252,240,' + (0.95 + k * 0.05) + ')');
+    heart.addColorStop(0.35, rgba(mix([255, 216, 140], tint, 0.15), 0.8));
+    heart.addColorStop(1, rgba(warm, 0));
+    ctx.fillStyle = heart;
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.95, 0, Math.PI * 2); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
 
     ctx.restore();
   };
 })();
-
 /* Wispbloom — Umbra Serpent boss renderer.
  * One creature: smoky violet-black body flowing through ring segments,
  * horned head with rose eyes, per-segment armored color shells + glyph badges.

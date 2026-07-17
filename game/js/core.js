@@ -871,29 +871,31 @@
         const crowd = ring.pieces.length / ring.capacity;
         const danger = crowd > 0.78 && !(this.boss && ring === this.boss.ring);
         ctx.save();
-        const baseCol = danger ? '#ff6e82' : tint;
-        const dangerPulse = danger ? 0.1 + 0.1 * Math.sin(t * 6) : 0;
-        // Soft luminous band: wide faint halo + core band + two crisp edge lines
-        ctx.strokeStyle = WB.hexToRgba(baseCol, 0.05 + dangerPulse * 0.4);
-        ctx.lineWidth = this.pieceR * 3.2;
+        const ribbonTint = danger ? '#ff8fa0' : tint;
+        const rt = WB.hexToRgba;
+        const mixW = (a) => rt(ribbonTint, a);   // tint used at low alpha over white
+        const dangerPulse = danger ? 0.12 + 0.12 * Math.sin(t * 6) : 0;
+        // Glowing ribbon: wide soft halo, luminous band, bright thin core line
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = mixW(0.05 + dangerPulse * 0.3);
+        ctx.lineWidth = this.pieceR * 3.4;
         ctx.beginPath();
         ctx.arc(this.cx, this.cy, ring.r, 0, WB.TAU);
         ctx.stroke();
-        ctx.strokeStyle = WB.hexToRgba(baseCol, 0.1 + dangerPulse);
-        ctx.lineWidth = this.pieceR * 1.6;
+        ctx.strokeStyle = danger ? mixW(0.16 + dangerPulse) : 'rgba(220,235,255,0.1)';
+        ctx.lineWidth = this.pieceR * 1.5;
         ctx.beginPath();
         ctx.arc(this.cx, this.cy, ring.r, 0, WB.TAU);
         ctx.stroke();
-        ctx.strokeStyle = WB.hexToRgba(baseCol, danger ? 0.55 : 0.3);
-        ctx.lineWidth = 1;
-        for (const edge of [-1, 1]) {
-          ctx.beginPath();
-          ctx.arc(this.cx, this.cy, ring.r + edge * this.pieceR * 0.85, 0, WB.TAU);
-          ctx.stroke();
-        }
+        ctx.strokeStyle = danger ? 'rgba(255,190,200,0.85)' : 'rgba(235,244,255,0.55)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(this.cx, this.cy, ring.r, 0, WB.TAU);
+        ctx.stroke();
+        ctx.globalCompositeOperation = 'source-over';
         // Direction dashes drifting along the path
-        ctx.strokeStyle = WB.hexToRgba(baseCol, danger ? 0.6 : 0.4);
-        ctx.lineWidth = 1.4;
+        ctx.strokeStyle = danger ? 'rgba(255,200,210,0.5)' : 'rgba(225,238,255,0.28)';
+        ctx.lineWidth = 1.3;
         ctx.setLineDash([7, 13]);
         ctx.lineDashOffset = ring.dashOff;
         ctx.beginPath();

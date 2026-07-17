@@ -558,6 +558,7 @@
       y = this.toggleRow(ctx, bx, y, bw, 'Music', s.music, () => { s.music = !s.music; WB.save.save(); WB.audio.applyMusicSetting(); });
       y = this.toggleRow(ctx, bx, y, bw, 'Vibration', s.vibration, () => { s.vibration = !s.vibration; WB.save.save(); WB.vibrate(20); });
       y = this.toggleRow(ctx, bx, y, bw, 'Reduce motion', s.reduceMotion, () => { s.reduceMotion = !s.reduceMotion; WB.save.save(); });
+      y = this.toggleRow(ctx, bx, y, bw, 'Colorblind glyphs', s.glyphs, () => { s.glyphs = !s.glyphs; WB.save.save(); });
       y += 18;
       const label = this.confirmReset > 0 ? 'TAP AGAIN TO CONFIRM' : 'RESET PROGRESS';
       this.btn(ctx, bx, y, bw, 48, label, () => {
@@ -700,7 +701,7 @@
           ctx.lineWidth = 2;
           ctx.beginPath(); ctx.arc(ix, 0, 13, 0.5, WB.TAU - 0.5); ctx.stroke();
         }],
-        ['Cleanse thorned wisps: match their glyph', () => {
+        ['Cleanse thorned wisps: match their true color', () => {
           this.gameless.drawOrb(ctx, ix, 0, 10, 1, false, false, 1, 1);
         }],
         ['Chain 2 bursts in one shot: earn a Prism', () => {

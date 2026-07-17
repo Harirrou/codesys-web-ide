@@ -16,6 +16,7 @@
       core: 'classic',  // see WB.COSMETICS.cores
     },
     settings: {
+      glyphs: false,     // colorblind ID badges on wisps (accessibility)
       sound: true,
       music: true,
       vibration: true,
