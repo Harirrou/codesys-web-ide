@@ -73,8 +73,20 @@ namespace Wispbloom.EditorTools
             EditorUtility.SetDirty(profile);
         }
 
+        static Shader FindShaderSafe(string name)
+        {
+            var s = Shader.Find(name);
+            if (s == null)
+            {
+                Debug.LogError($"Wispbloom: shader '{name}' not found — falling back to Sprites/Default.");
+                s = Shader.Find("Sprites/Default");
+            }
+            return s;
+        }
+
         static void SetupPlayerSettings()
         {
+            EditorSettings.defaultBehaviorMode = EditorBehaviorMode.Mode2D;
             PlayerSettings.companyName = "Wispbloom";
             PlayerSettings.productName = "Wispbloom";
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
@@ -119,6 +131,9 @@ namespace Wispbloom.EditorTools
             if (art.backgroundDawn == null) art.backgroundDawn = S("PLACEHOLDER_bg_dawn");
             if (art.panelGlow9Slice == null) art.panelGlow9Slice = S("PLACEHOLDER_panel");
             if (art.uiFont == null) art.uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (art.spiritBodies[0] == null || art.spiritGlow == null || art.orbitTile == null)
+                Debug.LogError("Wispbloom: placeholder sprites failed to import as Sprites — " +
+                               "run Wispbloom → Build Vertical Slice again after import settles.");
             EditorUtility.SetDirty(art);
             return art;
         }
@@ -210,15 +225,15 @@ namespace Wispbloom.EditorTools
             var aimGo = new GameObject("Aim");
             var aim = aimGo.AddComponent<AimController>();
             var guide = aimGo.AddComponent<LineRenderer>();
-            guide.material = new Material(Shader.Find("Wispbloom/Additive"));
-            guide.material.mainTexture = art.dustMote.texture;
+            guide.material = new Material(FindShaderSafe("Wispbloom/Additive"));
+            if (art.dustMote != null) guide.material.mainTexture = art.dustMote.texture;
             guide.textureMode = LineTextureMode.Tile;
             guide.startWidth = guide.endWidth = 0.045f;
             guide.startColor = guide.endColor = new Color(1f, 1f, 1f, 0.5f);
             var ghostSr = new GameObject("Ghost").AddComponent<SpriteRenderer>();
             ghostSr.transform.SetParent(aimGo.transform, false);
             ghostSr.sprite = art.spiritGlow;
-            ghostSr.material = new Material(Shader.Find("Wispbloom/Additive"));
+            ghostSr.material = new Material(FindShaderSafe("Wispbloom/Additive"));
             ghostSr.sortingOrder = 14;
             aim.guide = guide;
             aim.ghost = ghostSr.transform;

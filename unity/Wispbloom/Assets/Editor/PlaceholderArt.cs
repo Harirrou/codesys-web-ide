@@ -28,7 +28,41 @@ namespace Wispbloom.EditorTools
             Sparkle("PLACEHOLDER_sparkle");
             Panel9("PLACEHOLDER_panel");
             Vertical("PLACEHOLDER_bg_dawn");
-            AssetDatabase.Refresh();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            ApplySpriteImportSettings();
+        }
+
+        // Without this, a fresh project (3D default behavior) imports the
+        // PNGs as plain textures and every ArtBinding slot loads null —
+        // which is exactly the first-open crash observed in the field.
+        static void ApplySpriteImportSettings()
+        {
+            (string name, float ppu, Vector4 border)[] files =
+            {
+                ("PLACEHOLDER_spirit_tide", 256f, Vector4.zero),
+                ("PLACEHOLDER_spirit_blossom", 256f, Vector4.zero),
+                ("PLACEHOLDER_spirit_ember", 256f, Vector4.zero),
+                ("PLACEHOLDER_spirit_dusk", 256f, Vector4.zero),
+                ("PLACEHOLDER_glow", 256f, Vector4.zero),
+                ("PLACEHOLDER_petal", 256f, Vector4.zero),
+                ("PLACEHOLDER_heart", 512f, Vector4.zero),
+                ("PLACEHOLDER_orbit_tile", 512f, Vector4.zero),
+                ("PLACEHOLDER_dust", 64f, Vector4.zero),
+                ("PLACEHOLDER_sparkle", 64f, Vector4.zero),
+                ("PLACEHOLDER_panel", 100f, new Vector4(24, 24, 24, 24)),
+                ("PLACEHOLDER_bg_dawn", 100f, Vector4.zero),
+            };
+            foreach (var (name, ppu, border) in files)
+            {
+                string path = $"{Dir}/{name}.png";
+                if (AssetImporter.GetAtPath(path) is not TextureImporter imp) continue;
+                imp.textureType = TextureImporterType.Sprite;
+                imp.spritePixelsPerUnit = ppu;
+                imp.spriteBorder = border;
+                imp.mipmapEnabled = false;
+                imp.alphaIsTransparency = true;
+                imp.SaveAndReimport();
+            }
         }
 
         static void Save(Texture2D tex, string name)

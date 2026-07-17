@@ -22,6 +22,11 @@ namespace Wispbloom.EditorTools
         {
             if (Application.isPlaying) return;
             if (File.Exists(VerticalSliceBuilder.ScenePath)) return;   // already set up
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+            {
+                EditorApplication.delayCall += TryBootstrap;           // asset DB not ready yet
+                return;
+            }
 
             Debug.Log("Wispbloom: first open detected — building the vertical slice…");
             try

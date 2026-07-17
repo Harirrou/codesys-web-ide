@@ -13,10 +13,14 @@ namespace UnityEditor
         public static T LoadAssetAtPath<T>(string path) where T : UnityEngine.Object => default;
         public static void CreateAsset(UnityEngine.Object asset, string path) { }
         public static void Refresh() { }
+        public static void Refresh(ImportAssetOptions opts) { }
         public static void SaveAssets() { }
     }
 
     public class AssetImporter { public static AssetImporter GetAtPath(string path) => null; }
+    public static class EditorSettings { public static EditorBehaviorMode defaultBehaviorMode { get; set; } }
+    public enum EditorBehaviorMode { Mode2D, Mode3D }
+    public enum ImportAssetOptions { ForceSynchronousImport }
 
     public class TextureImporter : AssetImporter
     {
@@ -25,6 +29,7 @@ namespace UnityEditor
         public bool mipmapEnabled { get; set; }
         public bool alphaIsTransparency { get; set; }
         public TextureWrapMode wrapMode { get; set; }
+        public Vector4 spriteBorder { get; set; }
         public void ReadTextureSettings(TextureImporterSettings s) { }
         public void SetTextureSettings(TextureImporterSettings s) { }
         public void SaveAndReimport() { }
@@ -41,7 +46,12 @@ namespace UnityEditor
         public static void ClearProgressBar() { }
     }
 
-    public static class EditorApplication { public static Action delayCall; }
+    public static class EditorApplication
+    {
+        public static Action delayCall;
+        public static bool isCompiling => false;
+        public static bool isUpdating => false;
+    }
 
     public static class PlayerSettings
     {

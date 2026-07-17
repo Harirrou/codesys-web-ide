@@ -19,9 +19,20 @@ namespace Wispbloom.View
         public static void Init()
         {
             if (Additive != null) return;
-            Additive = new Material(Shader.Find("Wispbloom/Additive"));
-            OrbitFlow = new Material(Shader.Find("Wispbloom/OrbitFlow"));
-            _dissolveBase = new Material(Shader.Find("Wispbloom/SpriteDissolve"));
+            Additive = new Material(Safe("Wispbloom/Additive"));
+            OrbitFlow = new Material(Safe("Wispbloom/OrbitFlow"));
+            _dissolveBase = new Material(Safe("Wispbloom/SpriteDissolve"));
+        }
+
+        static Shader Safe(string name)
+        {
+            var s = Shader.Find(name);
+            if (s == null)
+            {
+                Debug.LogError($"Wispbloom: shader '{name}' missing, using Sprites/Default fallback.");
+                s = Shader.Find("Sprites/Default");
+            }
+            return s;
         }
 
         public static Material NewDissolve() => new Material(_dissolveBase);

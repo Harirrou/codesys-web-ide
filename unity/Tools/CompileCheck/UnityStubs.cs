@@ -49,6 +49,12 @@ namespace UnityEngine
         public static Color Lerp(Color x, Color y, float t) => x;
     }
 
+    public struct Vector4
+    {
+        public Vector4(float x, float y, float z, float w) { }
+        public static Vector4 zero => default;
+    }
+
     public struct Quaternion
     {
         public static Quaternion Euler(float x, float y, float z) => default;
