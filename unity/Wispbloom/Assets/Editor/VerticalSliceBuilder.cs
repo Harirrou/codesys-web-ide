@@ -27,6 +27,18 @@ namespace Wispbloom.EditorTools
         [MenuItem("Wispbloom/Build Vertical Slice")]
         public static void BuildFromMenu() => Build(false);
 
+        /// <summary>Regenerates placeholders and refills any empty ArtBinding
+        /// slots. Safe to run any time; never overwrites painted art.</summary>
+        [MenuItem("Wispbloom/Repair Art Binding")]
+        public static void RepairArt()
+        {
+            PlaceholderArt.GenerateAll();
+            var art = CreateArtBinding();
+            AssetDatabase.SaveAssets();
+            Debug.Log("Wispbloom: art binding repaired. Null slots refilled: " +
+                      (art.spiritGlow != null && art.panelGlow9Slice != null ? "OK" : "STILL MISSING — see errors above"));
+        }
+
         public static void Build(bool silent)
         {
             PlaceholderArt.GenerateAll();

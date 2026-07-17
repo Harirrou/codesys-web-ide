@@ -36,7 +36,46 @@ namespace Wispbloom.Game
         readonly Dictionary<int, SpiritView> _spiritViews = new();
         readonly List<(Projectile pr, ProjectileView view)> _projViews = new();
 
-        void Start() => StartLevel();
+        string _artProblems;
+
+        void Start()
+        {
+            _artProblems = DiagnoseArt();
+            StartLevel();
+        }
+
+        // Renders any missing-art report directly on screen so a phone
+        // screenshot is enough to debug remotely.
+        string DiagnoseArt()
+        {
+            if (art == null) return "ArtBinding asset not assigned";
+            var missing = new System.Collections.Generic.List<string>();
+            if (art.spiritBodies == null || art.spiritBodies.Length < 4) missing.Add("spiritBodies[]");
+            else for (int i = 0; i < 4; i++) if (art.spiritBodies[i] == null) missing.Add($"spiritBodies[{i}]");
+            if (art.spiritGlow == null) missing.Add("spiritGlow");
+            if (art.flowerPetal == null) missing.Add("flowerPetal");
+            if (art.flowerHeart == null) missing.Add("flowerHeart");
+            if (art.orbitTile == null) missing.Add("orbitTile");
+            if (art.dustMote == null) missing.Add("dustMote");
+            if (art.sparkle == null) missing.Add("sparkle");
+            if (art.backgroundDawn == null) missing.Add("backgroundDawn");
+            if (art.panelGlow9Slice == null) missing.Add("panelGlow9Slice");
+            if (art.uiFont == null) missing.Add("uiFont");
+            if (missing.Count == 0) return null;
+            string report = "ART MISSING: " + string.Join(", ", missing) +
+                            "  (run Wispbloom > Repair Art Binding)";
+            Debug.LogError("Wispbloom: " + report);
+            return report;
+        }
+
+        void OnGUI()
+        {
+            if (_artProblems == null) return;
+            var style = new GUIStyle { fontSize = 26, wordWrap = true };
+            style.normal.textColor = UnityEngine.Color.red;
+            GUI.Label(new UnityEngine.Rect(20, UnityEngine.Screen.height * 0.35f,
+                UnityEngine.Screen.width - 40, 400), _artProblems, style);
+        }
 
         public void StartLevel()
         {

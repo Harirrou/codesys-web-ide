@@ -45,6 +45,7 @@ namespace UnityEngine
         public float r, g, b, a;
         public Color(float r, float g, float b, float a = 1f) { this.r = r; this.g = g; this.b = b; this.a = a; }
         public static Color white => new Color(1, 1, 1);
+        public static Color red => new Color(1, 0, 0);
         public static Color HSVToRGB(float h, float s, float v) => white;
         public static Color Lerp(Color x, Color y, float t) => x;
     }
@@ -63,6 +64,7 @@ namespace UnityEngine
     public struct Rect
     {
         public Vector2 position, size;
+        public Rect(float x, float y, float w, float h) { position = default; size = default; }
         public static bool operator ==(Rect a, Rect b) => true;
         public static bool operator !=(Rect a, Rect b) => false;
         public override bool Equals(object o) => true;
@@ -367,6 +369,15 @@ namespace UnityEngine
     }
 
     public static class ScreenCapture { public static void CaptureScreenshot(string filename) { } }
+
+    public class GUIStyle
+    {
+        public int fontSize { get; set; }
+        public bool wordWrap { get; set; }
+        public GUIStyleState normal => new GUIStyleState();
+    }
+    public class GUIStyleState { public Color textColor { get; set; } }
+    public static class GUI { public static void Label(Rect r, string text, GUIStyle s) { } }
 
     public static class Debug
     {

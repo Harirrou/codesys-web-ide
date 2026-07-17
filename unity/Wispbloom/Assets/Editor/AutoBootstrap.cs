@@ -21,7 +21,19 @@ namespace Wispbloom.EditorTools
         static void TryBootstrap()
         {
             if (Application.isPlaying) return;
-            if (File.Exists(VerticalSliceBuilder.ScenePath)) return;   // already set up
+            if (File.Exists(VerticalSliceBuilder.ScenePath))
+            {
+                // Scene exists: still self-heal the art binding if any slot
+                // is empty (covers a first run that crashed half-way).
+                var art = UnityEditor.AssetDatabase.LoadAssetAtPath<Wispbloom.Data.ArtBinding>("Assets/Data/ArtBinding.asset");
+                if (art != null && (art.spiritGlow == null || art.panelGlow9Slice == null ||
+                    art.spiritBodies == null || art.spiritBodies.Length < 4 || art.spiritBodies[0] == null))
+                {
+                    Debug.LogWarning("Wispbloom: empty art slots detected — repairing automatically.");
+                    VerticalSliceBuilder.RepairArt();
+                }
+                return;
+            }
             if (EditorApplication.isCompiling || EditorApplication.isUpdating)
             {
                 EditorApplication.delayCall += TryBootstrap;           // asset DB not ready yet
