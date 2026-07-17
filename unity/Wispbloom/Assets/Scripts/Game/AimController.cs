@@ -16,9 +16,22 @@ namespace Wispbloom.Game
 
         Vector2 _downScreen;
         bool _dragging;
+        bool _reskinned;
+
+        void EnsureSkin()
+        {
+            if (_reskinned || game == null || game.art == null) return;
+            _reskinned = true;
+            var ghostSr = ghost != null ? ghost.GetComponent<SpriteRenderer>() : null;
+            if (ghostSr != null && ghostSr.sprite == null) ghostSr.sprite = game.art.spiritGlow;
+            if (guide != null && guide.material != null && guide.material.mainTexture == null &&
+                game.art.dustMote != null)
+                guide.material.mainTexture = game.art.dustMote.texture;
+        }
 
         void Update()
         {
+            EnsureSkin();
             if (game.Sim == null || game.Paused || game.Sim.Result != GameResult.Playing)
             {
                 SetGuideVisible(false);

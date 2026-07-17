@@ -8,9 +8,11 @@ namespace Wispbloom.View
     public class BackgroundCoverFit : MonoBehaviour
     {
         public Camera cam;
+        public Wispbloom.Data.ArtBinding art;
         void LateUpdate()
         {
             var sr = GetComponent<SpriteRenderer>();
+            if (sr.sprite == null && art != null) sr.sprite = art.backgroundDawn;
             if (sr.sprite == null || cam == null) return;
             float h = cam.orthographicSize * 2f, w = h * cam.aspect;
             var size = sr.sprite.bounds.size;

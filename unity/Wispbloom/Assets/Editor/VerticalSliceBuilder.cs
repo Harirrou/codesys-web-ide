@@ -205,6 +205,7 @@ namespace Wispbloom.EditorTools
             bg.transform.localScale = Vector3.one * 1.35f;
             var bgFit = bg.gameObject.AddComponent<BackgroundCoverFit>();
             bgFit.cam = cam;
+            bgFit.art = art;
 
             var fieldRoot = new GameObject("FieldRoot").transform;
 

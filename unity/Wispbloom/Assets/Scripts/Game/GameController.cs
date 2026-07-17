@@ -40,6 +40,11 @@ namespace Wispbloom.Game
 
         void Start()
         {
+            // Bulletproof fallback: paint any missing art in memory (no asset
+            // import pipeline involved), then re-skin scene UI saved with
+            // null sprites, then report anything STILL missing on screen.
+            RuntimeArt.FillMissing(art);
+            RuntimeArt.ReskinUi(art);
             _artProblems = DiagnoseArt();
             StartLevel();
         }

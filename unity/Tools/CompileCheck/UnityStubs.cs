@@ -143,6 +143,7 @@ namespace UnityEngine
         public string name { get; set; }
         public static void Destroy(Object o) { }
         public static void DestroyImmediate(Object o) { }
+        public static T[] FindObjectsByType<T>(FindObjectsInactive inactive, FindObjectsSortMode sort) => new T[0];
         public static implicit operator bool(Object o) => o != null;
     }
 
@@ -214,7 +215,11 @@ namespace UnityEngine
     }
     public enum CameraClearFlags { SolidColor }
 
-    public class Texture : Object { }
+    public class Texture : Object
+    {
+        public TextureWrapMode wrapMode { get; set; }
+        public FilterMode filterMode { get; set; }
+    }
     public class Texture2D : Texture
     {
         public Texture2D(int w, int h, TextureFormat f, bool mip) { }
@@ -231,7 +236,13 @@ namespace UnityEngine
     {
         public Bounds bounds => default;
         public Texture2D texture => null;
+        public static Sprite Create(Texture2D tex, Rect rect, Vector2 pivot, float ppu,
+            uint extrude, SpriteMeshType meshType, Vector4 border) => new Sprite();
     }
+    public enum SpriteMeshType { FullRect }
+    public enum FilterMode { Bilinear }
+    public enum FindObjectsInactive { Include }
+    public enum FindObjectsSortMode { None }
     public struct Bounds { public Vector3 size => new Vector3(1, 1, 1); }
 
     public class Shader : Object { public static Shader Find(string name) => null; }
