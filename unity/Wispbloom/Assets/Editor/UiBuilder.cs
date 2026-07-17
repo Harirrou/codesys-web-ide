@@ -40,7 +40,7 @@ namespace Wispbloom.EditorTools
             refs.hud = hudGo.gameObject.AddComponent<HudView>();
 
             refs.pauseBtn = GlowButton(hudGo, "PauseBtn", "II", new Vector2(0, 1), new Vector2(0.055f, -0.012f), new Vector2(120, 120), 44);
-            var objective = Label(hudGo, "Objective", "✿ 0 / 20", new Vector2(0.5f, 1f), new Vector2(0f, -0.035f), 46, TextAnchor.MiddleCenter);
+            var objective = Label(hudGo, "Objective", "BLOOM 0 / 20", new Vector2(0.5f, 1f), new Vector2(0f, -0.035f), 46, TextAnchor.MiddleCenter);
             AddPill(objective);
             var score = Label(hudGo, "Score", "0", new Vector2(1f, 1f), new Vector2(-0.07f, -0.035f), 48, TextAnchor.MiddleRight);
             score.color = new Color(1f, 0.91f, 0.69f);
@@ -90,9 +90,9 @@ namespace Wispbloom.EditorTools
             Label(pauseGo, "Title", "Paused", new Vector2(0.5f, 1f), new Vector2(0f, -0.16f), 72, TextAnchor.MiddleCenter);
             refs.resumeBtn = GlowButton(pauseGo, "Resume", "RESUME", new Vector2(0.5f, 0.5f), new Vector2(0f, 0.1f), new Vector2(640, 130), 44);
             refs.restartBtn = GlowButton(pauseGo, "Restart", "RESTART", new Vector2(0.5f, 0.5f), new Vector2(0f, -0.02f), new Vector2(640, 130), 44);
-            refs.soundBtn = GlowButton(pauseGo, "Sound", "♪ ON", new Vector2(0.3f, 0.5f), new Vector2(0f, -0.16f), new Vector2(280, 110), 34);
-            refs.musicBtn = GlowButton(pauseGo, "Music", "♫ ON", new Vector2(0.5f, 0.5f), new Vector2(0f, -0.16f), new Vector2(280, 110), 34);
-            refs.vibrationBtn = GlowButton(pauseGo, "Vib", "≈ ON", new Vector2(0.7f, 0.5f), new Vector2(0f, -0.16f), new Vector2(280, 110), 34);
+            refs.soundBtn = GlowButton(pauseGo, "Sound", "SOUND ON", new Vector2(0.3f, 0.5f), new Vector2(0f, -0.16f), new Vector2(280, 110), 34);
+            refs.musicBtn = GlowButton(pauseGo, "Music", "MUSIC ON", new Vector2(0.5f, 0.5f), new Vector2(0f, -0.16f), new Vector2(280, 110), 34);
+            refs.vibrationBtn = GlowButton(pauseGo, "Vib", "VIBRATE ON", new Vector2(0.7f, 0.5f), new Vector2(0f, -0.16f), new Vector2(280, 110), 34);
             refs.pause.soundLabel = refs.soundBtn.GetComponentInChildren<Text>();
             refs.pause.musicLabel = refs.musicBtn.GetComponentInChildren<Text>();
             refs.pause.vibrationLabel = refs.vibrationBtn.GetComponentInChildren<Text>();

@@ -57,7 +57,6 @@ namespace Wispbloom.View
             _light.transform.SetParent(transform, false);
             _light.lightType = Light2D.LightType.Point;
             _light.color = new Color(1f, 0.93f, 0.78f);
-            _light.falloffIntensity = 0.6f;
 
             _loadedHalo = MakeSprite("LoadedHalo", art.spiritGlow, 24, MaterialLibrary.Additive);
             _loaded = MakeSprite("Loaded", null, 25, null);

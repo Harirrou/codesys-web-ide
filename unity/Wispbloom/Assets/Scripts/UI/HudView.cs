@@ -25,10 +25,10 @@ namespace Wispbloom.UI
         {
             objectiveText.text = sim.Level.Objective switch
             {
-                Objective.Bloom => $"✿  {sim.Energy} / {sim.Level.Target}",
-                Objective.Cleanse => $"☘  {sim.CleanseTarget - sim.Cleansed} left",
-                Objective.Survive => $"⏳  {Mathf.Max(0, Mathf.CeilToInt(sim.Level.SurviveTime - sim.Time))}s",
-                _ => $"✦  {Mathf.FloorToInt(sim.Time)}s",
+                Objective.Bloom => $"BLOOM  {sim.Energy} / {sim.Level.Target}",
+                Objective.Cleanse => $"CLEANSE  {sim.CleanseTarget - sim.Cleansed} left",
+                Objective.Survive => $"SURVIVE  {Mathf.Max(0, Mathf.CeilToInt(sim.Level.SurviveTime - sim.Time))}s",
+                _ => $"{Mathf.FloorToInt(sim.Time)}s",
             };
             scoreText.text = sim.Score.ToString();
             pulseFill.fillAmount = sim.Ability / (float)sim.Tune.PulseMeterMax;

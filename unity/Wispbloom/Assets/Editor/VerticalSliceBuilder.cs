@@ -22,10 +22,12 @@ namespace Wispbloom.EditorTools
 {
     public static class VerticalSliceBuilder
     {
-        const string ScenePath = "Assets/Scenes/VerticalSlice.unity";
+        public const string ScenePath = "Assets/Scenes/VerticalSlice.unity";
 
         [MenuItem("Wispbloom/Build Vertical Slice")]
-        public static void Build()
+        public static void BuildFromMenu() => Build(false);
+
+        public static void Build(bool silent)
         {
             PlaceholderArt.GenerateAll();
             SetupPipeline();
@@ -34,9 +36,10 @@ namespace Wispbloom.EditorTools
             var tuning = LoadOrCreate<GameTuning>("Assets/Data/GameTuning.asset");
             var level = CreateSliceLevel();
             BuildScene(art, tuning, level);
-            EditorUtility.DisplayDialog("Wispbloom",
-                "Vertical slice built.\n\nOpen Assets/Scenes/VerticalSlice.unity and press Play.\n" +
-                "Then run Wispbloom → Fetch Painted Art to replace placeholders.", "OK");
+            if (!silent)
+                EditorUtility.DisplayDialog("Wispbloom",
+                    "Vertical slice built.\n\nOpen Assets/Scenes/VerticalSlice.unity and press Play.\n" +
+                    "Then run Wispbloom → Fetch Painted Art to replace placeholders.", "OK");
         }
 
         // ----- render pipeline ------------------------------------------------

@@ -18,9 +18,9 @@ namespace Wispbloom.UI
         void RefreshLabels()
         {
             var s = SaveService.Data;
-            soundLabel.text = s.sound ? "♪ ON" : "♪ OFF";
-            musicLabel.text = s.music ? "♫ ON" : "♫ OFF";
-            vibrationLabel.text = s.vibration ? "≈ ON" : "≈ OFF";
+            soundLabel.text = s.sound ? "SOUND ON" : "SOUND OFF";
+            musicLabel.text = s.music ? "MUSIC ON" : "MUSIC OFF";
+            vibrationLabel.text = s.vibration ? "VIBRATE ON" : "VIBRATE OFF";
         }
 
         public void OnResume() => _game.TogglePause(false);
