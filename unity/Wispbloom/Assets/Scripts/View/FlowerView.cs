@@ -46,10 +46,13 @@ namespace Wispbloom.View
                 var sr = new GameObject($"Petal{i}").AddComponent<SpriteRenderer>();
                 sr.transform.SetParent(_petalRoot, false);
                 sr.sprite = art.flowerPetal;
-                sr.material = MaterialLibrary.Additive;
+                // Front row uses normal blending so the painted petal shading
+                // reads (additive was washing the whole flower to a white blob);
+                // the back row stays additive as a soft glow base.
+                if (!front) sr.material = MaterialLibrary.Additive;
                 sr.sortingOrder = front ? 21 : 20;
-                sr.color = front ? new Color(1f, 0.98f, 0.94f, 0.95f)
-                                 : new Color(1f, 0.9f, 0.78f, 0.8f);
+                sr.color = front ? new Color(1f, 1f, 1f, 1f)
+                                 : new Color(0.8f, 0.88f, 1f, 0.6f);
                 float angle = (i % 6) / 6f * 360f + (front ? 30f : 0f);
                 sr.transform.localRotation = Quaternion.Euler(0, 0, angle);
                 _petals[i] = sr.transform;
@@ -96,9 +99,9 @@ namespace Wispbloom.View
 
             // Gentle rotation + breathing; petals open with progress; match kick.
             _petalRoot.localRotation = Quaternion.Euler(0, 0, t * 3.5f);
-            float open = 0.62f + energyK * 0.5f + _matchKick * 0.12f;
+            float open = 0.5f + energyK * 0.3f + _matchKick * 0.1f;
             float breathe = 1f + Mathf.Sin(t * 1.6f) * 0.02f;
-            float petalScale = _sim.CoreRadius * 2.1f;
+            float petalScale = _sim.CoreRadius * 1.4f;   // compact, tasteful bloom
             for (int i = 0; i < _petals.Length; i++)
             {
                 bool front = i >= 6;
@@ -113,15 +116,16 @@ namespace Wispbloom.View
                 _celebrateT += Time.deltaTime;
                 heartK += Mathf.Sin(_celebrateT * 10f) * 0.3f + _celebrateT * 0.5f;
             }
-            _heart.transform.localScale = Vector3.one * (_sim.CoreRadius * 1.7f * heartK);
+            _heart.transform.localScale = Vector3.one * (_sim.CoreRadius * 1.1f * heartK);
             _light.intensity = 0.55f + energyK * 0.55f + _matchKick * 0.6f;
             _light.pointLightOuterRadius = _sim.CoreRadius * (5f + energyK * 2f);
 
-            // Aura breathes with progress and flares on every match.
-            float auraK = 0.7f + energyK * 0.7f + _matchKick * 0.8f + Mathf.Sin(t * 1.3f) * 0.05f;
-            _aura.transform.localScale = Vector3.one * (_sim.CoreRadius * 6.5f * auraK);
+            // Aura breathes with progress and flares on every match — a soft
+            // halo, not a dominating disc.
+            float auraK = 0.7f + energyK * 0.6f + _matchKick * 0.7f + Mathf.Sin(t * 1.3f) * 0.05f;
+            _aura.transform.localScale = Vector3.one * (_sim.CoreRadius * 4.2f * auraK);
             var coreTint = Game.Cosmetics.CoreTint(new Color(1f, 0.95f, 0.82f));
-            _aura.color = new Color(coreTint.r, coreTint.g, coreTint.b, 0.35f + energyK * 0.2f + _matchKick * 0.25f);
+            _aura.color = new Color(coreTint.r, coreTint.g, coreTint.b, 0.2f + energyK * 0.14f + _matchKick * 0.2f);
             _heart.color = Color.Lerp(Color.white, coreTint, 0.5f);
 
             SyncAmmo();
@@ -133,9 +137,9 @@ namespace Wispbloom.View
             var nxt = _sim.Next;
             _loaded.sprite = _art.spiritBodies[(int)cur.color];
             float size = _sim.PieceRadius * 2.1f / Mathf.Max(0.01f, _loaded.sprite.bounds.size.x);
-            _loaded.transform.localScale = Vector3.one * size;
-            _loaded.transform.localPosition = new Vector3(0f, Mathf.Sin(Time.time * 1.1f) * 0.02f, 0f);
-            _loadedHalo.transform.localScale = Vector3.one * (_sim.PieceRadius * 4f);
+            _loaded.transform.localScale = Vector3.one * (size * 0.92f);
+            _loaded.transform.localPosition = new Vector3(0f, -_sim.CoreRadius * 0.08f + Mathf.Sin(Time.time * 1.1f) * 0.02f, 0f);
+            _loadedHalo.transform.localScale = Vector3.one * (_sim.PieceRadius * 3.4f);
             _loadedHalo.color = new Color(1f, 1f, 1f, _sim.PulseIsArmed ? 0.75f : 0.35f);
 
             _next.sprite = _art.spiritBodies[(int)nxt.color];
