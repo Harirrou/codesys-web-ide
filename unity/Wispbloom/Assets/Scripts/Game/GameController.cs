@@ -73,11 +73,13 @@ namespace Wispbloom.Game
         // when the scene didn't author them, so an already-built VerticalSlice
         // scene gains the full game just by recompiling — no rebuild needed.
         BackgroundCoverFit _bg;
+        AmbientDepth _ambient;
 
         void EnsureFullGameObjects()
         {
             if (serpent == null && fieldRoot != null) serpent = SerpentView.Create(fieldRoot, art);
             if (portals == null && fieldRoot != null) portals = PortalView.Create(fieldRoot, art);
+            if (_ambient == null && cam != null) _ambient = AmbientDepth.Create(cam.transform, cam);
             if (_bg == null)
             {
                 var bgs = Object.FindObjectsByType<BackgroundCoverFit>(FindObjectsInactive.Include, FindObjectsSortMode.None);
@@ -240,10 +242,11 @@ namespace Wispbloom.Game
                 mid /= run.Count;
                 effects.FloatingScore(mid, gained, combo);
                 effects.Shake(0.06f + Mathf.Min(0.14f, run.Count * 0.02f));
+                if (combo >= 2) effects.Flash(new Color(1f, 0.96f, 0.85f), 0.18f + combo * 0.06f);
                 if (combo >= 3) effects.SlowMo(0.4f, tuning.slowMoScale);
                 flower.OnMatch();
             };
-            e.Shift += (kind, ring) => hud.ShowShiftBanner(kind);
+            e.Shift += (kind, ring) => { hud.ShowShiftBanner(kind); effects.Flash(ShiftColor(kind), 0.6f); };
             e.Leaped += (p, from, to) => { /* view keeps following sim state */ };
             e.Spawned += (ring, p) =>
             {
@@ -286,6 +289,16 @@ namespace Wispbloom.Game
                 SaveService.Flush();
             }
         }
+
+        static Color ShiftColor(ShiftKind kind) => kind switch
+        {
+            ShiftKind.Reverse => new Color(0.45f, 0.85f, 1f),
+            ShiftKind.Surge => new Color(1f, 0.7f, 0.4f),
+            ShiftKind.Leap => new Color(0.75f, 0.6f, 1f),
+            ShiftKind.Lull => new Color(0.6f, 1f, 0.75f),
+            ShiftKind.Portal => new Color(0.5f, 1f, 0.85f),
+            _ => Color.white,
+        };
 
         void SpawnSpiritView(Ring ring, Piece piece)
         {

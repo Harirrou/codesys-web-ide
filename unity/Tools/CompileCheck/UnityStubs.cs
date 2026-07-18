@@ -15,6 +15,7 @@ namespace UnityEngine
         public static Vector2 one => new Vector2(1, 1);
         public static Vector2 up => new Vector2(0, 1);
         public float magnitude => (float)Math.Sqrt(x * x + y * y);
+        public float sqrMagnitude => x * x + y * y;
         public void Normalize() { var m = magnitude; if (m > 1e-6f) { x /= m; y /= m; } }
         public static float Distance(Vector2 a, Vector2 b) => (a - b).magnitude;
         public static Vector2 operator +(Vector2 a, Vector2 b) => new Vector2(a.x + b.x, a.y + b.y);

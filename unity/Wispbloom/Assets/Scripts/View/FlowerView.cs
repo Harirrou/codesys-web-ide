@@ -17,6 +17,7 @@ namespace Wispbloom.View
         Transform _petalRoot;
         Transform[] _petals;
         SpriteRenderer _heart;
+        SpriteRenderer _aura;
         Light2D _light;
         SpriteRenderer _loaded, _loadedHalo, _next;
         float _matchKick;
@@ -27,6 +28,14 @@ namespace Wispbloom.View
             _sim = sim; _tuning = tuning; _art = art;
             foreach (Transform child in transform) Destroy(child.gameObject);
             transform.position = Vector3.zero; // parent = fieldRoot
+
+            // Soft aura behind everything — the flower feels like a light source.
+            _aura = new GameObject("Aura").AddComponent<SpriteRenderer>();
+            _aura.transform.SetParent(transform, false);
+            _aura.sprite = RuntimeArt.MakeAura();
+            _aura.material = MaterialLibrary.Additive;
+            _aura.sortingOrder = 3;
+            _aura.color = new Color(1f, 0.95f, 0.82f, 0.5f);
 
             _petalRoot = new GameObject("Petals").transform;
             _petalRoot.SetParent(transform, false);
@@ -107,6 +116,13 @@ namespace Wispbloom.View
             _heart.transform.localScale = Vector3.one * (_sim.CoreRadius * 1.7f * heartK);
             _light.intensity = 0.55f + energyK * 0.55f + _matchKick * 0.6f;
             _light.pointLightOuterRadius = _sim.CoreRadius * (5f + energyK * 2f);
+
+            // Aura breathes with progress and flares on every match.
+            float auraK = 0.7f + energyK * 0.7f + _matchKick * 0.8f + Mathf.Sin(t * 1.3f) * 0.05f;
+            _aura.transform.localScale = Vector3.one * (_sim.CoreRadius * 6.5f * auraK);
+            var coreTint = Game.Cosmetics.CoreTint(new Color(1f, 0.95f, 0.82f));
+            _aura.color = new Color(coreTint.r, coreTint.g, coreTint.b, 0.35f + energyK * 0.2f + _matchKick * 0.25f);
+            _heart.color = Color.Lerp(Color.white, coreTint, 0.5f);
 
             SyncAmmo();
         }

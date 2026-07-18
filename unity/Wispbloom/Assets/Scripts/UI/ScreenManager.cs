@@ -76,7 +76,29 @@ namespace Wispbloom.UI
         void BuildTitle()
         {
             _title = Screen("Title");
-            Label(_title.transform, "Wispbloom", 0.5f, 0.5f, 0, 620, 128, TextAnchor.MiddleCenter, Ink);
+
+            // Drifting sparkles across the title.
+            if (_art.sparkle != null)
+                for (int i = 0; i < 6; i++)
+                {
+                    float x = (i - 2.5f) * 180f;
+                    var s = Accent(_title.transform, _art.sparkle, 0.5f, 0.5f, x, 300f - (i % 3) * 220f, 34f + (i % 3) * 14f,
+                                   new Color(1f, 1f, 1f, 0.5f));
+                    var f = s.gameObject.AddComponent<UiFx>();
+                    f.drift = new Vector2(6f + i * 2f, 10f + i * 3f);
+                    f.shimmerAmp = 0.35f; f.shimmerSpeed = 1.6f + i * 0.2f;
+                }
+
+            // Soft glow behind the wordmark.
+            var glow = Accent(_title.transform, _art.spiritGlow, 0.5f, 0.5f, 0, 620, 720f, new Color(0.75f, 0.85f, 1f, 0.22f));
+            var glowFx = glow.gameObject.AddComponent<UiFx>();
+            glowFx.baseScale = 1f; glowFx.pulseAmp = 0.06f; glowFx.pulseSpeed = 1.3f;
+            glowFx.shimmerAmp = 0.06f; glowFx.shimmerSpeed = 1.1f;
+
+            var title = Label(_title.transform, "Wispbloom", 0.5f, 0.5f, 0, 620, 128, TextAnchor.MiddleCenter, Ink);
+            var titleFx = title.gameObject.AddComponent<UiFx>();
+            titleFx.pulseAmp = 0.02f; titleFx.pulseSpeed = 1.5f;
+
             var sub = Label(_title.transform, "Every match reshapes the sky", 0.5f, 0.5f, 0, 470, 44, TextAnchor.MiddleCenter, new Color(0.7f, 0.82f, 1f));
             sub.fontStyle = FontStyle.Normal;
 
@@ -334,9 +356,14 @@ namespace Wispbloom.UI
         {
             var go = new GameObject(name, typeof(RectTransform));
             go.transform.SetParent(_root.transform, false);
-            var rt = (RectTransform)go.transform;
-            Stretch(rt);
-            var img = go.AddComponent<Image>();
+            Stretch((RectTransform)go.transform);
+
+            // Painted sky on its own child so the slow Ken-Burns zoom never
+            // drags the buttons/labels (which are added to the root above it).
+            var skyGo = new GameObject("Sky", typeof(RectTransform));
+            skyGo.transform.SetParent(go.transform, false);
+            Stretch((RectTransform)skyGo.transform);
+            var img = skyGo.AddComponent<Image>();
             var sky = Wispbloom.View.PaintedResources.Title();
             if (sky != null)
             {
@@ -349,8 +376,26 @@ namespace Wispbloom.UI
                 img.color = new Color(0.16f, 0.2f, 0.32f, 1f);
             }
             else img.color = new Color(0.03f, 0.05f, 0.12f, 0.97f);
+            var kb = skyGo.AddComponent<UiFx>();
+            kb.baseScale = 1.06f; kb.kenBurns = 0.035f;
+
             go.SetActive(false);
             return go;
+        }
+
+        Image Accent(Transform parent, Sprite sprite, float ax, float ay, float x, float y, float size, Color color)
+        {
+            var go = new GameObject("Accent", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(ax, ay);
+            rt.anchoredPosition = new Vector2(x, y);
+            rt.sizeDelta = new Vector2(size, size);
+            var img = go.AddComponent<Image>();
+            img.sprite = sprite;
+            img.color = color;
+            img.raycastTarget = false;
+            return img;
         }
 
         Text Toggle(Transform parent, float y, UnityAction onClick)

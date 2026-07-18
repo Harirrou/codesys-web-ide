@@ -60,6 +60,12 @@ namespace Wispbloom.View
             }
         }
 
+        // Public builders for the ambient/framing layers (AmbientDepth, flower
+        // aura). Painted in memory like everything else here.
+        public static Sprite MakeVignette() => Make(Vignette(), 100f);
+        public static Sprite MakeAura() => Make(Aura(), 512f);
+        public static Sprite MakeBokeh() => Make(Bokeh(), 128f);
+
         static Sprite Make(Texture2D tex, float ppu, float pivotY = 0.5f, bool wrap = false, Vector4 border = default)
         {
             tex.wrapMode = wrap ? TextureWrapMode.Repeat : TextureWrapMode.Clamp;
@@ -85,33 +91,66 @@ namespace Wispbloom.View
         {
             const int S = 256;
             var t = NewTex(S, S, "spirit");
-            Vector2 c = new Vector2(S / 2f, S / 2f - 8);
-            float R = S * 0.34f;
+            Vector2 c = new Vector2(S / 2f, S / 2f - 6);
+            float R = S * 0.36f;
+            Color lightMain = Color.Lerp(main, Color.white, 0.72f);
             for (int y = 0; y < S; y++)
                 for (int x = 0; x < S; x++)
                 {
                     Vector2 p = new Vector2(x, y) - c;
-                    Vector2 tip = p - new Vector2(R * 0.55f, R * 0.95f);
-                    float body = Mathf.Min(p.magnitude / R, tip.magnitude / (R * 0.35f));
+                    // Round body with a soft upward wisp tip on the upper-right.
+                    Vector2 tip = p - new Vector2(R * 0.5f, R * 0.98f);
+                    float body = Mathf.Min(p.magnitude / R, tip.magnitude / (R * 0.4f));
                     if (body > 1f) continue;
-                    float lightK = Mathf.Clamp01(1f - (p + new Vector2(R * 0.35f, -R * 0.4f)).magnitude / (R * 1.5f));
-                    Color col = Color.Lerp(dark, Color.Lerp(main, Color.white, 0.65f), lightK);
-                    col.a = Mathf.SmoothStep(1f, 0.92f, body);
+
+                    // Vertical soft-body gradient (lighter toward the top).
+                    float vGrad = Mathf.Clamp01(0.5f + p.y / (R * 2.1f));
+                    Color baseCol = Color.Lerp(dark, main, 0.35f + vGrad * 0.55f);
+
+                    // Key light, upper-left.
+                    float key = Mathf.Clamp01(1f - (p + new Vector2(R * 0.42f, -R * 0.5f)).magnitude / (R * 1.35f));
+                    Color col = Color.Lerp(baseCol, lightMain, key * 0.85f);
+
+                    // Rim light along the lower edge for a soft 3D read.
+                    float rim = Mathf.SmoothStep(0.78f, 1f, body) *
+                                Mathf.Clamp01(0.5f - p.y / (R * 1.8f));
+                    col = Color.Lerp(col, Color.Lerp(main, Color.white, 0.4f), rim * 0.5f);
+
+                    // Glossy specular dab, upper-left.
+                    float gloss = Mathf.Exp(-(p - new Vector2(-R * 0.34f, R * 0.36f)).sqrMagnitude / (R * R * 0.09f));
+                    col = Color.Lerp(col, Color.white, gloss * 0.55f);
+
+                    col.a = Mathf.SmoothStep(1f, 0.9f, body);
                     t.SetPixel(x, S - 1 - y, col);
                 }
+
             void Dot(float fx, float fy, float r, Color col)
             {
-                for (int y = (int)(fy - r); y <= fy + r; y++)
-                    for (int x = (int)(fx - r); x <= fx + r; x++)
-                        if (new Vector2(x - fx, y - fy).magnitude <= r && x >= 0 && x < S && y >= 0 && y < S)
-                            t.SetPixel(x, S - 1 - y, col);
+                int r0 = (int)(r + 1.5f);
+                for (int y = (int)fy - r0; y <= fy + r0; y++)
+                    for (int x = (int)fx - r0; x <= fx + r0; x++)
+                    {
+                        if (x < 0 || x >= S || y < 0 || y >= S) continue;
+                        float d = new Vector2(x - fx, y - fy).magnitude;
+                        if (d > r) continue;
+                        float a = Mathf.SmoothStep(1f, 0.6f, d / r) * col.a;
+                        int yy = S - 1 - y;
+                        // soft over-blend so features don't look stamped
+                        t.SetPixel(x, yy, new Color(col.r, col.g, col.b, a));
+                    }
             }
-            var ink = new Color(0.16f, 0.10f, 0.21f, 0.95f);
-            Dot(c.x - R * 0.28f, c.y - R * 0.05f, R * 0.10f, ink);
-            Dot(c.x + R * 0.28f, c.y - R * 0.05f, R * 0.10f, ink);
-            Dot(c.x - R * 0.31f, c.y - R * 0.09f, R * 0.035f, Color.white);
-            Dot(c.x + R * 0.25f, c.y - R * 0.09f, R * 0.035f, Color.white);
-            Dot(c.x, c.y + R * 0.22f, R * 0.07f, ink);
+
+            var ink = new Color(0.17f, 0.11f, 0.24f, 1f);
+            // rosy blush
+            Dot(c.x - R * 0.34f, c.y - R * 0.26f, R * 0.14f, new Color(1f, 0.55f, 0.62f, 0.35f));
+            Dot(c.x + R * 0.34f, c.y - R * 0.26f, R * 0.14f, new Color(1f, 0.55f, 0.62f, 0.35f));
+            // eyes + catchlights
+            Dot(c.x - R * 0.27f, c.y + R * 0.02f, R * 0.115f, ink);
+            Dot(c.x + R * 0.27f, c.y + R * 0.02f, R * 0.115f, ink);
+            Dot(c.x - R * 0.30f, c.y + R * 0.06f, R * 0.04f, new Color(1f, 1f, 1f, 0.95f));
+            Dot(c.x + R * 0.24f, c.y + R * 0.06f, R * 0.04f, new Color(1f, 1f, 1f, 0.95f));
+            // little smile
+            Dot(c.x, c.y - R * 0.14f, R * 0.055f, new Color(ink.r, ink.g, ink.b, 0.9f));
             return t;
         }
 
@@ -217,6 +256,56 @@ namespace Wispbloom.View
             for (int i = 0; i < 160; i++)
                 t.SetPixel(rng.Next(W), rng.Next(H),
                     new Color(0.85f, 0.9f, 1f, 0.25f + (float)rng.NextDouble() * 0.5f));
+            return t;
+        }
+
+        // Radial darkening for cinematic framing: transparent center, dark edges.
+        static Texture2D Vignette()
+        {
+            const int S = 256;
+            var t = NewTex(S, S, "vignette");
+            Vector2 c = Vector2.one * (S / 2f);
+            for (int y = 0; y < S; y++)
+                for (int x = 0; x < S; x++)
+                {
+                    float d = (new Vector2(x, y) - c).magnitude / (S / 2f);
+                    float a = Mathf.Clamp01((d - 0.55f) / 0.45f);
+                    t.SetPixel(x, y, new Color(0.02f, 0.03f, 0.07f, a * a * 0.85f));
+                }
+            return t;
+        }
+
+        // Big soft radial aura for the flower / ambient glow.
+        static Texture2D Aura()
+        {
+            const int S = 256;
+            var t = NewTex(S, S, "aura");
+            Vector2 c = Vector2.one * (S / 2f);
+            for (int y = 0; y < S; y++)
+                for (int x = 0; x < S; x++)
+                {
+                    float k = 1f - Mathf.Clamp01((new Vector2(x, y) - c).magnitude / (S / 2f));
+                    float soft = Mathf.SmoothStep(0f, 1f, k);
+                    t.SetPixel(x, y, new Color(1f, 0.96f, 0.85f, soft * soft * 0.9f));
+                }
+            return t;
+        }
+
+        // Out-of-focus bokeh dot: bright soft ring, used for drifting motes.
+        static Texture2D Bokeh()
+        {
+            const int S = 64;
+            var t = NewTex(S, S, "bokeh");
+            Vector2 c = Vector2.one * (S / 2f);
+            for (int y = 0; y < S; y++)
+                for (int x = 0; x < S; x++)
+                {
+                    float d = (new Vector2(x, y) - c).magnitude / (S / 2f);
+                    if (d > 1f) continue;
+                    float core = Mathf.SmoothStep(1f, 0.2f, d);
+                    float rim = Mathf.Exp(-Mathf.Pow((d - 0.82f) * 6f, 2f)) * 0.5f;
+                    t.SetPixel(x, y, new Color(0.9f, 0.95f, 1f, Mathf.Clamp01(core * 0.5f + rim)));
+                }
             return t;
         }
     }

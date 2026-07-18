@@ -49,6 +49,9 @@ namespace Wispbloom.View
         float _shake;
         Vector3 _camHome;
         Coroutine _slowMo;
+        Image _flash;
+        Color _flashColor = Color.white;
+        float _flashAmt;
 
         void Awake()
         {
@@ -60,6 +63,30 @@ namespace Wispbloom.View
         {
             // After CameraWidthFit has pulled the camera to z=-10.
             _camHome = cam.transform.localPosition;
+            BuildFlash();
+        }
+
+        void BuildFlash()
+        {
+            if (worldTextCanvas == null) return;
+            var go = new GameObject("Flash", typeof(RectTransform));
+            go.transform.SetParent(worldTextCanvas.transform, false);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+            _flash = go.AddComponent<Image>();
+            _flash.raycastTarget = false;
+            _flash.color = new Color(1f, 1f, 1f, 0f);
+            go.transform.SetAsFirstSibling();   // behind score pops, over the field
+        }
+
+        /// <summary>Brief full-screen color wash — used to make orbit shifts and
+        /// big combos land as events, not silent state changes.</summary>
+        public void Flash(Color color, float strength)
+        {
+            if (Game.SaveService.Data.reduceMotion) return;
+            _flashColor = color;
+            _flashAmt = Mathf.Max(_flashAmt, strength);
         }
 
         ParticleSystem BuildBurstSystem()
@@ -203,6 +230,14 @@ namespace Wispbloom.View
                 cam.transform.localPosition = _camHome + (Vector3)(Random.insideUnitCircle * _shake);
             }
             else cam.transform.localPosition = _camHome;
+
+            if (_flash != null && _flashAmt > 0.001f)
+            {
+                _flashAmt = Mathf.Lerp(_flashAmt, 0f, Time.unscaledDeltaTime * 4.5f);
+                _flash.color = new Color(_flashColor.r, _flashColor.g, _flashColor.b, _flashAmt * 0.32f);
+            }
+            else if (_flash != null && _flash.color.a > 0f)
+                _flash.color = new Color(_flashColor.r, _flashColor.g, _flashColor.b, 0f);
         }
     }
 }
