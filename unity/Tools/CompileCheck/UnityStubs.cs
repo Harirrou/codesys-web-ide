@@ -371,6 +371,7 @@ namespace UnityEngine
     {
         public static string persistentDataPath => "/tmp";
         public static bool isPlaying => false;
+        public static bool isEditor => true;
     }
 
     public static class JsonUtility

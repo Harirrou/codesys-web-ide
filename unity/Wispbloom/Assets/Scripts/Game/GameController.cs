@@ -258,6 +258,10 @@ namespace Wispbloom.Game
 
         void OnApplicationPause(bool paused)
         {
+            // Real devices only: in the editor this fires on any focus loss
+            // (e.g. taking a screenshot) and made the game seem stuck on the
+            // pause menu.
+            if (Application.isEditor) return;
             if (paused && Sim != null && Sim.Result == GameResult.Playing)
                 TogglePause(true);
             if (paused) SaveService.Flush();
