@@ -21,6 +21,48 @@ namespace Wispbloom.View
         /// <summary>Painted sky used behind the menus.</summary>
         public static Sprite Title() => Load("bg-title");
 
+        static readonly string[] SpiritKeys = { "tide", "blossom", "ember", "dusk" };
+
+        /// <summary>Painted spirit for a color index (0=Tide..3=Dusk), loaded
+        /// from raw PNG bytes on disk so it never depends on Unity's texture
+        /// import pipeline. Checks StreamingAssets first (survives into builds),
+        /// then the auto-fetch folder. Returns null → procedural fallback.</summary>
+        public static Sprite Spirit(int colorIndex)
+        {
+            if (colorIndex < 0 || colorIndex >= SpiritKeys.Length) return null;
+            string key = SpiritKeys[colorIndex];
+            string cacheKey = "spirit-" + key;
+            if (_cache.TryGetValue(cacheKey, out var cached)) return cached;
+            if (_missing.Contains(cacheKey)) return null;
+
+            string[] candidates =
+            {
+                System.IO.Path.Combine(Application.streamingAssetsPath, "wispbloom", "spirit-" + key + ".png"),
+                System.IO.Path.Combine(Application.dataPath, "StreamingAssets", "wispbloom", "spirit-" + key + ".png"),
+                System.IO.Path.Combine(Application.dataPath, "Art", "Painted", "spirit_" + key + ".png"),
+            };
+            foreach (var path in candidates)
+            {
+                try
+                {
+                    if (!System.IO.File.Exists(path)) continue;
+                    var bytes = System.IO.File.ReadAllBytes(path);
+                    var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                    if (!tex.LoadImage(bytes)) continue;
+                    tex.wrapMode = TextureWrapMode.Clamp;
+                    tex.filterMode = FilterMode.Bilinear;
+                    var sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height),
+                        new Vector2(0.5f, 0.5f), Mathf.Max(tex.width, 1), 0, SpriteMeshType.FullRect, Vector4.zero);
+                    sprite.name = "DISK_spirit_" + key;
+                    _cache[cacheKey] = sprite;
+                    return sprite;
+                }
+                catch { /* try next candidate */ }
+            }
+            _missing.Add(cacheKey);
+            return null;
+        }
+
         static Sprite Load(string name)
         {
             if (_cache.TryGetValue(name, out var cached)) return cached;

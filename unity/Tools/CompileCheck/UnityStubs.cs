@@ -229,6 +229,7 @@ namespace UnityEngine
         public void SetPixel(int x, int y, Color c) { }
         public void SetPixels(Color[] c) { }
         public void Apply() { }
+        public bool LoadImage(byte[] data) => true;
         public byte[] EncodeToPNG() => null;
     }
     public enum TextureFormat { RGBA32 }
@@ -379,6 +380,8 @@ namespace UnityEngine
     public static class Application
     {
         public static string persistentDataPath => "/tmp";
+        public static string streamingAssetsPath => "/tmp";
+        public static string dataPath => "/tmp";
         public static bool isPlaying => false;
         public static bool isEditor => true;
     }

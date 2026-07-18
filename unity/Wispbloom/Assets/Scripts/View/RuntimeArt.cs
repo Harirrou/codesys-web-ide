@@ -26,7 +26,10 @@ namespace Wispbloom.View
             };
             for (int i = 0; i < 4; i++)
                 if (art.spiritBodies[i] == null)
-                    art.spiritBodies[i] = Make(SpiritBody(spiritCols[i].Item1, spiritCols[i].Item2), 256f);
+                    // Prefer the painted spirit loaded straight from disk bytes
+                    // (import-pipeline-proof); fall back to the procedural one.
+                    art.spiritBodies[i] = PaintedResources.Spirit(i)
+                        ?? Make(SpiritBody(spiritCols[i].Item1, spiritCols[i].Item2), 256f);
 
             if (art.spiritGlow == null) art.spiritGlow = Make(SoftGlow(256, false), 256f);
             if (art.flowerPetal == null) art.flowerPetal = Make(Petal(), 256f, pivotY: 0f);
