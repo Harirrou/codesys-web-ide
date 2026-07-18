@@ -53,8 +53,13 @@ namespace Wispbloom.View
         void Awake()
         {
             MaterialLibrary.Init();
-            _camHome = cam.transform.localPosition;
             _burst = BuildBurstSystem();
+        }
+
+        void Start()
+        {
+            // After CameraWidthFit has pulled the camera to z=-10.
+            _camHome = cam.transform.localPosition;
         }
 
         ParticleSystem BuildBurstSystem()

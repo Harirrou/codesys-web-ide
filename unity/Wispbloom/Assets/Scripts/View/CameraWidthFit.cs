@@ -16,6 +16,11 @@ namespace Wispbloom.View
             var cam = GetComponent<Camera>();
             if (cam.aspect > 0.0001f)
                 cam.orthographicSize = designHalfWidth / cam.aspect;
+            // The play field lives at z=0; a camera also at z=0 near-clips
+            // every field object (background at z=5 still showed — the
+            // "invisible game" symptom). Keep the camera pulled back.
+            if (transform.position.z > -0.5f)
+                transform.position = new Vector3(transform.position.x, transform.position.y, -10f);
         }
     }
 }

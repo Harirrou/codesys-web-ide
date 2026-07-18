@@ -181,7 +181,9 @@ namespace Wispbloom.EditorTools
 
             // Camera: portrait, width-locked framing (design width 3.9 units).
             var camGo = new GameObject("Main Camera");
+            camGo.transform.position = new Vector3(0f, 0f, -10f);
             var cam = camGo.AddComponent<Camera>();
+            camGo.AddComponent<AudioListener>();
             camGo.tag = "MainCamera";
             cam.orthographic = true;
             cam.orthographicSize = 4.22f;          // 390x844 reference: halfW 1.95

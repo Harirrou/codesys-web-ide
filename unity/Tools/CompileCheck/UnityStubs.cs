@@ -355,6 +355,7 @@ namespace UnityEngine
         public static AudioClip Create(string name, int lengthSamples, int channels, int frequency, bool stream) => new AudioClip();
         public void SetData(float[] data, int offset) { }
     }
+    public class AudioListener : Behaviour { }
     public class AudioSource : Behaviour
     {
         public AudioClip clip { get; set; }

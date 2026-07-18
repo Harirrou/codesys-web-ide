@@ -45,6 +45,8 @@ namespace Wispbloom.Game
             // null sprites, then report anything STILL missing on screen.
             RuntimeArt.FillMissing(art);
             RuntimeArt.ReskinUi(art);
+            if (Object.FindObjectsByType<AudioListener>(FindObjectsInactive.Include, FindObjectsSortMode.None).Length == 0)
+                cam.gameObject.AddComponent<AudioListener>();
             _artProblems = DiagnoseArt();
             StartLevel();
         }
