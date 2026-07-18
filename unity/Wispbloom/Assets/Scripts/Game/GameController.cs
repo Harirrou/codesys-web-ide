@@ -86,7 +86,12 @@ namespace Wispbloom.Game
 
         public void StartLevel()
         {
-            foreach (Transform child in fieldRoot) Destroy(child.gameObject);
+            // Clear the field but keep the flower — it lives under fieldRoot
+            // and is rebound, not rebuilt, on restart. (Destroying it was why
+            // the center bloom vanished in the first playable build.)
+            foreach (Transform child in fieldRoot)
+                if (flower == null || child != flower.transform)
+                    Destroy(child.gameObject);
             _ringViews.Clear();
             _spiritViews.Clear();
             _projViews.Clear();
