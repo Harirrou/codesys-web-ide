@@ -36,7 +36,9 @@ namespace Wispbloom.EditorTools
                 // was never fetched. The CDN is reachable from a normal network;
                 // failure is harmless (the painted skies are baked in Resources
                 // and the spirits fall back to the in-engine recreation).
-                if (!Directory.Exists("Assets/Art/Painted"))
+                // Trigger on the Dusk cutout specifically so machines that
+                // fetched the older three-spirit set upgrade to the full set.
+                if (!File.Exists("Assets/Art/Painted/spirit_dusk.png"))
                 {
                     try { PaintedArtFetcher.Fetch(); }
                     catch (System.Exception e)

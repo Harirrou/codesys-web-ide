@@ -21,14 +21,17 @@ namespace Wispbloom.EditorTools
         // the petal uses a bottom pivot (set below).
         static readonly (string file, string cdn, float ppu)[] Files =
         {
-            ("spirit_tide.png",    "hf_20260717_111326_ee0e03fd-7244-4439-ab0b-dbbf3d8c6d94.png", 640f),
-            ("spirit_blossom.png", "hf_20260717_111329_7720f7b9-e15d-4b4f-9fed-38516fdcf7f8.png", 640f),
-            ("spirit_ember.png",   "hf_20260717_111332_71d73c6a-e813-4703-9a9a-eff715621502.png", 640f),
+            // Refreshed painterly spirit set (1024px cutouts, complete 4-color
+            // set incl. Dusk). Sprites are rescaled to piece size in SpriteView,
+            // so PPU only sets the source bounds.
+            ("spirit_tide.png",    "hf_20260718_060609_e7c88db4-35e8-4af8-8f12-2a64e35f842d.png", 1024f),
+            ("spirit_blossom.png", "hf_20260718_060612_6a12a4ca-81e5-4c2f-a923-732da0269251.png", 1024f),
+            ("spirit_ember.png",   "hf_20260718_060615_a5542739-d884-470a-9d2a-b55573613a03.png", 1024f),
+            ("spirit_dusk.png",    "hf_20260718_060618_c3471afc-7259-43c4-a420-49a005a12905.png", 1024f),
             ("flower_petal.png",   "hf_20260717_110244_18574522-ec92-484b-9fe4-616997a90907.png", 512f),
             ("flower_heart.png",   "hf_20260717_110255_cba5d4c1-2d2c-4389-9956-b32970b6270f.png", 512f),
             ("orbit_tile.png",     "hf_20260717_110258_e65393aa-8170-471f-b98a-5c1217f41c0c.png", 512f),
             ("fx_dust.png",        "hf_20260717_110302_b0b8e8f4-f2c6-426b-a881-846917a8f013.png", 512f),
-            ("bg_dawn.jpg",        "hf_20260716_224200_02c49906-6f8d-4bf7-a777-ca3703d05b67.png", 160f),
         };
 
         [MenuItem("Wispbloom/Fetch Painted Art")]
@@ -92,15 +95,17 @@ namespace Wispbloom.EditorTools
             var art = AssetDatabase.LoadAssetAtPath<ArtBinding>("Assets/Data/ArtBinding.asset");
             if (art == null) { Debug.LogWarning("ArtBinding.asset missing — run Build Vertical Slice first."); return; }
             Sprite S(string file) => AssetDatabase.LoadAssetAtPath<Sprite>($"{Dir}/{file}");
+            if (art.spiritBodies == null || art.spiritBodies.Length < 4)
+                art.spiritBodies = new Sprite[4];
             art.spiritBodies[0] = S("spirit_tide.png") ?? art.spiritBodies[0];
             art.spiritBodies[1] = S("spirit_blossom.png") ?? art.spiritBodies[1];
             art.spiritBodies[2] = S("spirit_ember.png") ?? art.spiritBodies[2];
-            // Dusk spirit ships in phase 2 (slice uses three types); placeholder stays.
+            art.spiritBodies[3] = S("spirit_dusk.png") ?? art.spiritBodies[3];
             art.flowerPetal = S("flower_petal.png") ?? art.flowerPetal;
             art.flowerHeart = S("flower_heart.png") ?? art.flowerHeart;
             art.orbitTile = S("orbit_tile.png") ?? art.orbitTile;
             art.dustMote = S("fx_dust.png") ?? art.dustMote;
-            art.backgroundDawn = S("bg_dawn.jpg") ?? art.backgroundDawn;
+            // Backgrounds are baked into Resources (PaintedResources) — not fetched.
             EditorUtility.SetDirty(art);
             AssetDatabase.SaveAssets();
         }
