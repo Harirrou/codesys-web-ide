@@ -25,6 +25,7 @@ namespace Wispbloom.UI
 
         public void OnResume() => _game.TogglePause(false);
         public void OnRestart() { _game.TogglePause(false); _game.Restart(); }
+        public void OnMenu() { _game.TogglePause(false); _game.ReturnToMenu(); }
         public void OnToggleSound() { SaveService.Data.sound = !SaveService.Data.sound; SaveService.Flush(); RefreshLabels(); }
         public void OnToggleMusic()
         {

@@ -46,6 +46,12 @@ namespace Wispbloom.Sim
         public Action Swapped;
         public Action Won;
         public Action Lost;
+        public Action<Portal> PortalOpened;
+        public Action<Piece, Ring, Ring> PortalHop;              // piece, from, to
+        public Action<Piece, bool> BossHit;                      // segment, broken
+        public Action<Piece> BossBounce;                         // color mismatch
+        public Action BossRoared;                                // all rings reversed + surge
+        public Action BossFed;                                   // 2 wisps forced onto ring 0
     }
 
     public sealed class GameSim
@@ -57,6 +63,7 @@ namespace Wispbloom.Sim
         public readonly SimEvents Events = new SimEvents();
         public readonly List<Ring> Rings = new List<Ring>();
         public readonly List<Projectile> Projectiles = new List<Projectile>();
+        public readonly List<Portal> Portals = new List<Portal>();
 
         // Layout (world units) — set by SetLayout before the first Tick.
         public float CoreRadius { get; private set; } = 0.45f;
@@ -76,12 +83,19 @@ namespace Wispbloom.Sim
         public (SpiritColor color, bool prism) Current { get; private set; }
         public (SpiritColor color, bool prism) Next { get; private set; }
 
+        // Boss state (proto this.boss). BossRing is null on non-boss levels.
+        public Ring BossRing { get; private set; }
+        public int BossTotal { get; private set; }
+        public int BossAlive { get; private set; }
+        public int BossRage { get; private set; }
+
         readonly Func<double> _rng;
         int _pieceUid = 1;
         int _shiftIdx;
         int _burstsThisShot;
         bool _prismPending;
         float _spawnTimer;
+        float _roarTimer, _eatTimer;
 
         public GameSim(LevelSpec level, SimTuning tune)
         {
@@ -98,6 +112,7 @@ namespace Wispbloom.Sim
                 _rng = r.NextDouble;
             }
             BuildRings();
+            BuildBoss();
             _spawnTimer = level.SpawnInterval > 0 ? level.SpawnInterval * 0.6f : 0f;
             Current = DrawColor();
             Next = DrawColor();
@@ -146,6 +161,35 @@ namespace Wispbloom.Sim
                 }
                 SanitizeInitial(ring);
                 Rings.Add(ring);
+            }
+        }
+
+        /// <summary>Boss levels: the serpent's shell segments ride the LAST
+        /// ring, evenly spaced, hp 2 each (core.js buildBoss).</summary>
+        void BuildBoss()
+        {
+            BossRing = null;
+            if (Level.Objective != Objective.Boss || Level.Boss == null) return;
+            var cfg = Level.Boss;
+            var ring = Rings[Rings.Count - 1];
+            BossRing = ring;
+            BossTotal = cfg.Segments;
+            BossAlive = cfg.Segments;
+            BossRage = 0;
+            _roarTimer = cfg.RoarEvery;
+            _eatTimer = cfg.EatEvery;
+            for (int i = 0; i < cfg.Segments; i++)
+            {
+                ring.Pieces.Add(new Piece
+                {
+                    Id = _pieceUid++,
+                    Color = (SpiritColor)(i % Level.ColorCount),
+                    Angle = Norm(i / (float)cfg.Segments * TAU),
+                    IsBoss = true,
+                    BossHp = 2,
+                    Scale = 1f,
+                    Wobble = (float)(_rng() * TAU),
+                });
             }
         }
 
@@ -236,7 +280,7 @@ namespace Wispbloom.Sim
             for (int i = 0; i < Level.ColorCount; i++) counts[i] = 1;
             foreach (var ring in Rings)
                 foreach (var p in ring.Pieces)
-                    if ((int)p.Color < Level.ColorCount) counts[(int)p.Color] += 3;
+                    if (!p.IsBoss && (int)p.Color < Level.ColorCount) counts[(int)p.Color] += 3;
             int total = 0;
             for (int i = 0; i < Level.ColorCount; i++) total += counts[i];
             double roll = _rng() * total;
@@ -263,7 +307,9 @@ namespace Wispbloom.Sim
 
             UpdateSpawner(dt);
             UpdateRings(dt);
+            UpdatePortals(dt);
             UpdateProjectiles(dt);
+            UpdateBoss(dt);
             CheckChains();
             CheckEnd();
         }
@@ -283,6 +329,7 @@ namespace Wispbloom.Sim
         {
             float s = ring.Speed * ring.Direction;
             if (SurgeRemaining > 0) s *= Tune.SurgeMultiplier;
+            if (BossRing != null) s *= 1f + BossRage * 0.12f;   // serpent rage
             return s;
         }
 
@@ -297,6 +344,7 @@ namespace Wispbloom.Sim
                     p.Impulse *= MathF.Pow(0.02f, dt);
                     if (MathF.Abs(p.Impulse) < 0.02f) p.Impulse = 0f;
                     if (p.ChainT > 0) p.ChainT -= dt;
+                    if (p.PortalCooldown > 0) p.PortalCooldown -= dt;
                 }
                 Separate(ring);
             }
@@ -341,8 +389,11 @@ namespace Wispbloom.Sim
 
             var candidates = new List<Ring>();
             foreach (int idx in Level.SpawnRings)
+            {
+                if (BossRing != null && Rings[idx] == BossRing) continue;   // serpent's ring
                 if (Rings[idx].Pieces.Count < Rings[idx].Capacity + 1)
                     candidates.Add(Rings[idx]);
+            }
             if (candidates.Count == 0) return;
             var ring = candidates[(int)(_rng() * candidates.Count)];
             var piece = new Piece
@@ -375,7 +426,8 @@ namespace Wispbloom.Sim
                     float pr = PieceRadiusOn(ring, p);
                     float px = MathF.Cos(p.Angle) * pr, py = MathF.Sin(p.Angle) * pr;
                     float dx = x - px, dy = y - py;
-                    if (dx * dx + dy * dy < Sq(PieceRadius + PieceRadius * 0.9f))
+                    float rad = p.IsBoss ? PieceRadius * 1.5f : PieceRadius;  // boss body is bigger
+                    if (dx * dx + dy * dy < Sq(rad + PieceRadius * 0.9f))
                         return (ring, p);
                 }
             }
@@ -404,6 +456,8 @@ namespace Wispbloom.Sim
 
         void OnProjectileHit(Projectile pr, Ring ring, Piece hitPiece)
         {
+            // Boss segments: crack with a matching color, bounce otherwise.
+            if (hitPiece.IsBoss) { HitBossSegment(pr, ring, hitPiece); return; }
             if (pr.Pulse) { PulseBlast(ring, hitPiece); return; }
 
             float angle = MathF.Atan2(pr.Y, pr.X);
@@ -440,8 +494,8 @@ namespace Wispbloom.Sim
             {
                 var l = ps[(idx - off + ps.Count) % ps.Count];
                 var r = ps[(idx + off) % ps.Count];
-                if (!grab.Contains(l)) grab.Add(l);
-                if (!grab.Contains(r)) grab.Add(r);
+                if (!l.IsBoss && !grab.Contains(l)) grab.Add(l);
+                if (!r.IsBoss && !grab.Contains(r)) grab.Add(r);
             }
             float pr = PieceRadiusOn(ring, hitPiece);
             Events.PulseBlast?.Invoke(MathF.Cos(hitPiece.Angle) * pr, MathF.Sin(hitPiece.Angle) * pr);
@@ -473,6 +527,7 @@ namespace Wispbloom.Sim
                     float gap = dir > 0 ? b.Angle - a.Angle : a.Angle - b.Angle;
                     if (gap < 0) gap += TAU;
                     if (gap > joinGap) break;
+                    if (b.IsBoss) break;                        // boss segments never join runs
                     int bc = b.Prism ? -1 : (int)b.Color;
                     if (runColor == -1) runColor = bc;
                     if (bc != -1 && runColor != -1 && bc != runColor) break;
@@ -521,6 +576,7 @@ namespace Wispbloom.Sim
             float dCw = float.MaxValue, dCcw = float.MaxValue;
             foreach (var p in ring.Pieces)
             {
+                if (p.IsBoss) continue;
                 float d = Diff(midA, p.Angle);
                 if (d >= 0 && d < dCw) { dCw = d; cw = p; }
                 if (d < 0 && -d < dCcw) { dCcw = -d; ccw = p; }
@@ -539,7 +595,7 @@ namespace Wispbloom.Sim
                 for (int i = 0; i < ring.Pieces.Count; i++)
                 {
                     var p = ring.Pieces[i];
-                    if (p.ChainT <= 0) continue;
+                    if (p.ChainT <= 0 || p.IsBoss) continue;
                     var run = FindRun(ring, p);
                     if (run.Count >= 3)
                     {
@@ -574,7 +630,7 @@ namespace Wispbloom.Sim
                     DoLeap(matchedRing);
                     break;
                 case ShiftKind.Portal:
-                    // Phase 2 (World 2). Excluded from slice level pools.
+                    OpenPortal(matchedRing);
                     break;
             }
             Events.Shift?.Invoke(kind, matchedRing);
@@ -582,7 +638,7 @@ namespace Wispbloom.Sim
 
         void DoLeap(Ring from)
         {
-            var others = Rings.FindAll(r => r != from);
+            var others = Rings.FindAll(r => r != from && !(BossRing != null && r == BossRing));
             if (others.Count == 0 || from.Pieces.Count == 0) return;
             var target = others[(int)(_rng() * others.Count)];
             int moved = 0;
@@ -590,6 +646,7 @@ namespace Wispbloom.Sim
             {
                 if (from.Pieces.Count == 0 || target.Pieces.Count >= target.Capacity - 1) break;
                 var p = from.Pieces[(int)(_rng() * from.Pieces.Count)];
+                if (p.IsBoss) continue;                          // never leap the serpent
                 from.Pieces.Remove(p);
                 p.RadialFrom = from.Radius;
                 p.RadialT = 0f;
@@ -597,6 +654,122 @@ namespace Wispbloom.Sim
                 target.Pieces.Add(p);
                 moved++;
                 Events.Leaped?.Invoke(p, from, target);
+            }
+        }
+
+        // ----- portals -------------------------------------------------------
+
+        /// <summary>Open a portal pair between the matched ring and a random
+        /// other ring (core.js openPortal). Max 2 concurrent, oldest drops.</summary>
+        void OpenPortal(Ring fromRing)
+        {
+            var others = Rings.FindAll(r => r != fromRing && !(BossRing != null && r == BossRing));
+            if (others.Count == 0) return;
+            var target = others[(int)(_rng() * others.Count)];
+            var portal = new Portal
+            {
+                Angle = (float)(_rng() * TAU),
+                RingA = fromRing,
+                RingB = target,
+                Remaining = Tune.PortalDuration,
+            };
+            Portals.Add(portal);
+            if (Portals.Count > 2) Portals.RemoveAt(0);
+            Events.PortalOpened?.Invoke(portal);
+        }
+
+        void UpdatePortals(float dt)
+        {
+            for (int i = Portals.Count - 1; i >= 0; i--)
+            {
+                var po = Portals[i];
+                po.Remaining -= dt;
+                if (po.Remaining <= 0) { Portals.RemoveAt(i); continue; }
+                HopThrough(po, po.RingA, po.RingB);
+                HopThrough(po, po.RingB, po.RingA);
+            }
+        }
+
+        void HopThrough(Portal po, Ring from, Ring to)
+        {
+            for (int j = 0; j < from.Pieces.Count; j++)
+            {
+                var p = from.Pieces[j];
+                if (p.IsBoss || p.PortalCooldown > 0) continue;
+                if (MathF.Abs(Diff(p.Angle, po.Angle)) < from.MinGap * 0.55f
+                    && to.Pieces.Count < to.Capacity - 1)
+                {
+                    from.Pieces.RemoveAt(j);
+                    p.PortalCooldown = 2f;
+                    p.RadialFrom = from.Radius;
+                    p.RadialT = 0f;
+                    p.ChainT = Tune.ChainWindow;                 // arrivals can cascade
+                    to.Pieces.Add(p);
+                    Events.PortalHop?.Invoke(p, from, to);
+                    break;   // one hop per portal per frame keeps it readable
+                }
+            }
+        }
+
+        // ----- boss ----------------------------------------------------------
+
+        /// <summary>Projectile struck a shell segment (core.js hitBossSegment):
+        /// prism/pulse/matching color cracks it, otherwise it bounces off.</summary>
+        void HitBossSegment(Projectile pr, Ring ring, Piece seg)
+        {
+            bool match = pr.Prism || pr.Pulse || pr.Color == seg.Color;
+            if (!match)
+            {
+                Events.BossBounce?.Invoke(seg);
+                return;
+            }
+            seg.BossHp--;
+            if (seg.BossHp <= 0)
+            {
+                ring.Pieces.Remove(seg);
+                BossAlive--;
+                BossRage++;
+                Score += 400;
+                Energy += 2;
+                Events.BossHit?.Invoke(seg, true);
+            }
+            else
+            {
+                // Cracked segment reveals a new shell color — re-aim!
+                seg.Color = (SpiritColor)(((int)seg.Color + 1 + (int)(_rng() * (Level.ColorCount - 1))) % Level.ColorCount);
+                Events.BossHit?.Invoke(seg, false);
+            }
+        }
+
+        void UpdateBoss(float dt)
+        {
+            if (BossRing == null || BossAlive <= 0) return;
+            _roarTimer -= dt;
+            if (_roarTimer <= 0)
+            {
+                _roarTimer = Level.Boss.RoarEvery;
+                foreach (var ring in Rings) ring.Direction *= -1;
+                SurgeRemaining = 2f;
+                Events.BossRoared?.Invoke();
+            }
+            _eatTimer -= dt;
+            if (_eatTimer <= 0)
+            {
+                _eatTimer = Level.Boss.EatEvery;
+                // The serpent feeds: two extra wisps burst onto the inner ring.
+                var inner = Rings[0];
+                for (int i = 0; i < 2 && inner.Pieces.Count < inner.Capacity; i++)
+                {
+                    inner.Pieces.Add(new Piece
+                    {
+                        Id = _pieceUid++,
+                        Color = (SpiritColor)(int)(_rng() * Level.ColorCount),
+                        Angle = Norm(inner.GateAngle + i * 0.4f),
+                        Wobble = (float)(_rng() * TAU),
+                    });
+                }
+                Events.BossFed?.Invoke();
+                if (inner.Pieces.Count >= inner.Capacity) Fail();
             }
         }
 
@@ -613,13 +786,15 @@ namespace Wispbloom.Sim
         {
             if (Result != GameResult.Playing) return;
             foreach (var ring in Rings)
-                if (ring.Pieces.Count >= ring.Capacity) { Fail(); return; }
+                if (!(BossRing != null && ring == BossRing) && ring.Pieces.Count >= ring.Capacity)
+                { Fail(); return; }
 
             bool won = Level.Objective switch
             {
                 Objective.Bloom => Energy >= Level.Target,
                 Objective.Cleanse => Cleansed >= CleanseTarget,
                 Objective.Survive => Time >= Level.SurviveTime,
+                Objective.Boss => BossRing != null && BossAlive <= 0,
                 _ => false,
             };
             if (won)

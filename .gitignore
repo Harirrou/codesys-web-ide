@@ -9,6 +9,19 @@ android/captures/
 *.aab
 *.iml
 
+# .NET build output (Unity compile-check + sim harness tooling)
+unity/Tools/**/bin/
+unity/Tools/**/obj/
+unity/Tools/**/bin-editor/
+unity/Tools/**/obj-editor/
+
+# Unity generated
+unity/Wispbloom/Library/
+unity/Wispbloom/Temp/
+unity/Wispbloom/Logs/
+unity/Wispbloom/UserSettings/
+unity/Wispbloom/obj/
+
 # OS
 .DS_Store
 Thumbs.db

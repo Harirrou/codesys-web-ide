@@ -279,6 +279,8 @@ namespace UnityEngine
         public int positionCount { get; set; }
         public void SetPosition(int i, Vector3 p) { }
         public LineTextureMode textureMode { get; set; }
+        public bool useWorldSpace { get; set; }
+        public int numCapVertices { get; set; }
         public float startWidth { get; set; }
         public float endWidth { get; set; }
         public Color startColor { get; set; }
@@ -462,6 +464,7 @@ namespace UnityEngine.UI
     {
         public ButtonClickedEvent onClick => new ButtonClickedEvent();
         public ColorBlock colors { get; set; }
+        public bool interactable { get; set; }
         public class ButtonClickedEvent : Events.UnityEvent { }
     }
     public struct ColorBlock

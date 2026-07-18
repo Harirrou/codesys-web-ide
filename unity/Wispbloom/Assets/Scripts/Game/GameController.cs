@@ -28,8 +28,21 @@ namespace Wispbloom.Game
         public ResultPanel resultPanel;
         public AimController aim;
 
+        [Header("Full game (auto-created at runtime if empty)")]
+        public ScreenManager screens;
+        public SerpentView serpent;
+        public PortalView portals;
+
+        public enum PlayKind { Campaign, Endless, Daily }
+        public PlayKind kind = PlayKind.Campaign;
+        public int levelIndex;
+
         public GameSim Sim { get; private set; }
         public bool Paused { get; private set; }
+        public bool HasNextLevel => kind == PlayKind.Campaign && levelIndex < LevelLibrary.Count - 1;
+        public bool IsCampaign => kind == PlayKind.Campaign;
+        bool _inMenu;
+        int _hintIdx;
         float _resultTimer;
         bool _resultShown;
         readonly List<RingView> _ringViews = new();
@@ -48,7 +61,38 @@ namespace Wispbloom.Game
             if (Object.FindObjectsByType<AudioListener>(FindObjectsInactive.Include, FindObjectsSortMode.None).Length == 0)
                 cam.gameObject.AddComponent<AudioListener>();
             _artProblems = DiagnoseArt();
-            StartLevel();
+            Cosmetics.LoadFromSave();
+            EnsureFullGameObjects();
+            // Boot to the title screen if the front end is available; otherwise
+            // (a legacy scene with no canvas) drop straight into the campaign.
+            if (screens != null) { _inMenu = true; screens.ShowTitle(); }
+            else StartLevel();
+        }
+
+        // The serpent/portal views and the whole screen flow are created here
+        // when the scene didn't author them, so an already-built VerticalSlice
+        // scene gains the full game just by recompiling — no rebuild needed.
+        void EnsureFullGameObjects()
+        {
+            if (serpent == null && fieldRoot != null) serpent = SerpentView.Create(fieldRoot, art);
+            if (portals == null && fieldRoot != null) portals = PortalView.Create(fieldRoot, art);
+            if (screens == null)
+            {
+                var canvas = FindMenuCanvas();
+                if (canvas != null)
+                {
+                    try { screens = ScreenManager.Create(canvas.transform, art, this); }
+                    catch (System.Exception e) { Debug.LogError("Wispbloom: screen UI build failed — " + e); screens = null; }
+                }
+            }
+        }
+
+        Canvas FindMenuCanvas()
+        {
+            var canvases = Object.FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var c in canvases)
+                if (c.renderMode == RenderMode.ScreenSpaceOverlay) return c;
+            return canvases.Length > 0 ? canvases[0] : null;
         }
 
         // Renders any missing-art report directly on screen so a phone
@@ -86,21 +130,15 @@ namespace Wispbloom.Game
 
         public void StartLevel()
         {
-            // Clear the field but keep the flower — it lives under fieldRoot
-            // and is rebound, not rebuilt, on restart. (Destroying it was why
-            // the center bloom vanished in the first playable build.)
-            foreach (Transform child in fieldRoot)
-                if (flower == null || child != flower.transform)
-                    Destroy(child.gameObject);
-            _ringViews.Clear();
-            _spiritViews.Clear();
-            _projViews.Clear();
+            ClearField();
             Paused = false;
+            _inMenu = false;
+            _hintIdx = 0;
             _resultTimer = 0f;
             _resultShown = false;
             Time.timeScale = 1f;
 
-            Sim = new GameSim(level.ToSpec(), tuning.sim);
+            Sim = new GameSim(BuildSpec(), tuning.sim);
             Layout();
             HookEvents();
 
@@ -117,7 +155,44 @@ namespace Wispbloom.Game
             pausePanel.Hide();
             resultPanel.Hide();
             audioDirector.Bind(Sim.Events);
-            hud.ShowLevelName(level.displayName);
+            hud.ShowLevelName(Sim.Level.Name);
+        }
+
+        // Builds the level for the active mode. Campaign pulls from the ported
+        // LevelLibrary (game/js/levels.js); endless/daily use the generator.
+        LevelSpec BuildSpec()
+        {
+            switch (kind)
+            {
+                case PlayKind.Endless: return LevelLibrary.MakeEndless(null);
+                case PlayKind.Daily: return LevelLibrary.MakeEndless(DailySeed());
+                default:
+                    levelIndex = Mathf.Clamp(levelIndex, 0, LevelLibrary.Count - 1);
+                    return LevelLibrary.Get(levelIndex);
+            }
+        }
+
+        // Date-derived seed so the daily challenge is identical for everyone.
+        static int DailySeed()
+        {
+            var d = System.DateTime.Now;
+            return d.Year * 10000 + d.Month * 100 + d.Day;
+        }
+
+        // Clears rings/spirits/projectiles but preserves the flower and the
+        // persistent serpent/portal views (all children of fieldRoot).
+        void ClearField()
+        {
+            foreach (Transform child in fieldRoot)
+            {
+                if (flower != null && child == flower.transform) continue;
+                if (serpent != null && child == serpent.transform) continue;
+                if (portals != null && child == portals.transform) continue;
+                Destroy(child.gameObject);
+            }
+            _ringViews.Clear();
+            _spiritViews.Clear();
+            _projViews.Clear();
         }
 
         void Layout()
@@ -174,12 +249,39 @@ namespace Wispbloom.Game
                 effects.Shake(0.22f);
                 effects.SlowMo(0.5f, tuning.slowMoScale);
             };
-            e.Won += () => { _resultTimer = 0f; effects.CelebrateField(_spiritViews.Values); flower.Celebrate(); };
-            e.Lost += () => { _resultTimer = 0f; effects.Shake(0.3f); };
+            e.Won += () => { _resultTimer = 0f; effects.CelebrateField(_spiritViews.Values); flower.Celebrate(); RecordResult(true); };
+            e.Lost += () => { _resultTimer = 0f; effects.Shake(0.3f); RecordResult(false); };
+
+            // Boss feedback (the serpent's own rendering lives in SerpentView).
+            e.BossRoared += () => { hud.Toast("THE SERPENT ROARS"); effects.Shake(0.25f); };
+            e.BossFed += () => hud.PulseDanger();
+            e.BossHit += (seg, broken) => { if (broken) effects.Shake(0.12f); };
+        }
+
+        void RecordResult(bool won)
+        {
+            if (kind == PlayKind.Campaign)
+            {
+                if (won) SaveService.RecordStars(levelIndex, Sim.Stars());
+            }
+            else if (kind == PlayKind.Endless)
+            {
+                if (Sim.Score > SaveService.Data.bestEndless)
+                { SaveService.Data.bestEndless = Sim.Score; SaveService.Flush(); }
+            }
+            else // Daily
+            {
+                string key = DailySeed().ToString();
+                var s = SaveService.Data;
+                if (s.dailyKey != key) { s.dailyKey = key; s.dailyBest = 0; }
+                if (Sim.Score > s.dailyBest) s.dailyBest = Sim.Score;
+                SaveService.Flush();
+            }
         }
 
         void SpawnSpiritView(Ring ring, Piece piece)
         {
+            if (piece.IsBoss) return;   // serpent segments are drawn by SerpentView
             var view = SpiritView.Create(fieldRoot, art, tuning, piece.Color, piece.Corrupt, piece.Prism);
             _spiritViews[piece.Id] = view;
         }
@@ -197,6 +299,7 @@ namespace Wispbloom.Game
 
         void Update()
         {
+            if (_inMenu || Sim == null) return;
             if (Input.GetKeyDown(KeyCode.Escape)) OnBackButton();
             if (Paused) return;
 
@@ -206,6 +309,13 @@ namespace Wispbloom.Game
 
             SyncViews();
             hud.Refresh(Sim);
+
+            // Timed tutorial hints (levels.js "hints"): fire as their time comes.
+            while (_hintIdx < Sim.Level.Hints.Length && Sim.Level.Hints[_hintIdx].At <= Sim.Time)
+            {
+                hud.Toast(Sim.Level.Hints[_hintIdx].Text);
+                _hintIdx++;
+            }
 
             if (decided)
             {
@@ -242,11 +352,15 @@ namespace Wispbloom.Game
             }
             foreach (var t in _projViews)
                 t.view.transform.position = FieldPoint(t.pr.X, t.pr.Y);
+
+            if (serpent != null) serpent.Sync(FieldPoint(0, 0), Sim);
+            if (portals != null) portals.Sync(FieldPoint(0, 0), Sim);
         }
 
         // ----- UI actions ----------------------------------------------------
         public void TogglePause(bool pause)
         {
+            if (Sim == null) return;
             if (Sim.Result != GameResult.Playing && pause) return;
             Paused = pause;
             Time.timeScale = pause ? 0f : 1f;
@@ -254,6 +368,39 @@ namespace Wispbloom.Game
         }
 
         public void Restart() { Time.timeScale = 1f; StartLevel(); }
+
+        // ----- level / screen navigation -------------------------------------
+        public void PlayLevel(int index)
+        {
+            kind = PlayKind.Campaign;
+            levelIndex = Mathf.Clamp(index, 0, LevelLibrary.Count - 1);
+            if (screens != null) screens.HideAll();
+            StartLevel();
+        }
+
+        public void PlayEndless() { kind = PlayKind.Endless; if (screens != null) screens.HideAll(); StartLevel(); }
+        public void PlayDaily() { kind = PlayKind.Daily; if (screens != null) screens.HideAll(); StartLevel(); }
+
+        public void PlayNextLevel()
+        {
+            if (kind == PlayKind.Campaign && levelIndex < LevelLibrary.Count - 1) PlayLevel(levelIndex + 1);
+            else ReturnToMenu();
+        }
+
+        public void ReturnToMenu()
+        {
+            Time.timeScale = 1f;
+            Paused = false;
+            _inMenu = true;
+            _resultShown = false;
+            ClearField();
+            Sim = null;
+            if (pausePanel != null) pausePanel.Hide();
+            if (resultPanel != null) resultPanel.Hide();
+            if (serpent != null) serpent.Hide();
+            if (portals != null) portals.Hide();
+            if (screens != null) screens.ShowMap(); else _inMenu = false;
+        }
 
         public void ArmPulse() { if (Sim.ArmPulse()) audioDirector.PlayPower(); }
 

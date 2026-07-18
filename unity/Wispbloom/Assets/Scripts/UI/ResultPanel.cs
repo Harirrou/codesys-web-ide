@@ -13,6 +13,8 @@ namespace Wispbloom.UI
         public Text scoreText;
         public Text thresholdText;
         public Image[] starImages = new Image[3];
+        public Button nextButton;
+        public Button menuButton;
 
         GameController _game;
         float _shownAt;
@@ -33,7 +35,10 @@ namespace Wispbloom.UI
             thresholdText.text = won
                 ? $"2★ at {sim.Level.Star2Score}   •   3★ at {sim.Level.Star3Score}"
                 : "Keep any orbit from overgrowing";
-            if (won) SaveService.RecordStars(0, _stars); // slice = single level slot
+            // Star progress is recorded by the GameController (it knows the
+            // real level index, endless best and daily best).
+            if (nextButton != null)
+                nextButton.gameObject.SetActive(won && _game != null && _game.HasNextLevel);
         }
 
         void Update()
@@ -56,5 +61,7 @@ namespace Wispbloom.UI
         }
 
         public void OnReplay() => _game.Restart();
+        public void OnNext() => _game.PlayNextLevel();
+        public void OnMenu() => _game.ReturnToMenu();
     }
 }

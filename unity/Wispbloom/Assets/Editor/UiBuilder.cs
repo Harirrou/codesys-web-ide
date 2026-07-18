@@ -19,6 +19,7 @@ namespace Wispbloom.EditorTools
         public ResultPanel result;
         public Button pauseBtn, pulseBtn, resumeBtn, restartBtn, replayBtn;
         public Button soundBtn, musicBtn, vibrationBtn;
+        public Button nextBtn, mapBtn, pauseMapBtn;
     }
 
     public static class UiBuilder
@@ -96,6 +97,7 @@ namespace Wispbloom.EditorTools
             refs.pause.soundLabel = refs.soundBtn.GetComponentInChildren<Text>();
             refs.pause.musicLabel = refs.musicBtn.GetComponentInChildren<Text>();
             refs.pause.vibrationLabel = refs.vibrationBtn.GetComponentInChildren<Text>();
+            refs.pauseMapBtn = GlowButton(pauseGo, "MapBtn", "LEVEL MAP", new Vector2(0.5f, 0.5f), new Vector2(0f, -0.30f), new Vector2(640, 120), 40);
 
             // --- Result modal --------------------------------------------------
             var resultGo = Modal(safe, "ResultPanel");
@@ -119,7 +121,11 @@ namespace Wispbloom.EditorTools
                 rt.sizeDelta = new Vector2(120, 120);
                 refs.result.starImages[i] = star;
             }
-            refs.replayBtn = GlowButton(resultGo, "Replay", "REPLAY", new Vector2(0.5f, 0.5f), new Vector2(0f, -0.14f), new Vector2(640, 132), 46);
+            refs.replayBtn = GlowButton(resultGo, "Replay", "REPLAY", new Vector2(0.5f, 0.5f), new Vector2(0f, -0.095f), new Vector2(640, 120), 44);
+            refs.nextBtn = GlowButton(resultGo, "Next", "NEXT LEVEL", new Vector2(0.5f, 0.5f), new Vector2(0f, -0.185f), new Vector2(640, 120), 44);
+            refs.mapBtn = GlowButton(resultGo, "Map", "LEVEL MAP", new Vector2(0.5f, 0.5f), new Vector2(0f, -0.275f), new Vector2(640, 120), 44);
+            refs.result.nextButton = refs.nextBtn;
+            refs.result.menuButton = refs.mapBtn;
 
             return refs;
         }
@@ -137,7 +143,10 @@ namespace Wispbloom.EditorTools
             Wire(ui.soundBtn, ui.pause.OnToggleSound);
             Wire(ui.musicBtn, ui.pause.OnToggleMusic);
             Wire(ui.vibrationBtn, ui.pause.OnToggleVibration);
+            Wire(ui.pauseMapBtn, ui.pause.OnMenu);
             Wire(ui.replayBtn, ui.result.OnReplay);
+            Wire(ui.nextBtn, ui.result.OnNext);
+            Wire(ui.mapBtn, ui.result.OnMenu);
             ui.pause.Bind(game);
             ui.result.Bind(game);
         }

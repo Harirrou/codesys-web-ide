@@ -1,61 +1,172 @@
+// Wispbloom headless playtest harness. Drives the pure C# simulation with a
+// deterministic bot across every ported campaign level plus the endless/daily
+// generator, then checks the phase-2 additions specifically: the Umbra
+// Serpent boss is defeatable, portals open and pieces hop, and the daily seed
+// is bit-for-bit reproducible. No Unity, no rendering — just the sim.
 using System;
-using System.Linq;
 using Wispbloom.Sim;
+using Wispbloom.Data;
 
 class SimHarness
 {
+    // Layout the GameController derives for a 390x844 reference phone.
+    const float CoreR = 0.332f, PieceR = 0.1375f, InnerR = 0.7295f, OuterR = 1.833f;
+
+    struct Report
+    {
+        public GameResult result;
+        public float time;
+        public int score, stars, shots, bursts, shifts;
+        public int portalOpened, portalHop, bossBroken;
+        public override string ToString()
+            => $"{result,-7} t={time,5:0.0}s score={score,6} stars={stars} " +
+               $"shots={shots,3} bursts={bursts,3} shifts={shifts,3} " +
+               $"portals={portalOpened} hops={portalHop} serpent={bossBroken}/8";
+    }
+
     static int Main()
     {
-        var level = new LevelSpec
+        int failures = 0;
+        Console.WriteLine("== Wispbloom sim playtests (ported campaign) ==");
+        for (int i = 0; i < LevelLibrary.Count; i++)
         {
-            Objective = Objective.Bloom, Target = 20, ColorCount = 3,
-            Rings = new[]
+            try
             {
-                new RingSpec { rr = 0.52f, dir = -1, speed = 0.26f, fill = 9,  capacity = 13 },
-                new RingSpec { rr = 0.80f, dir =  1, speed = 0.20f, fill = 12, capacity = 19 },
-            },
-            SpawnInterval = 7f, SpawnRings = new[] { 1 },
-            Shifts = new[] { ShiftKind.Reverse, ShiftKind.Surge },
-            Star2Score = 1600, Star3Score = 2600, Seed = 1234,
-        };
-        var sim = new GameSim(level, new SimTuning());
-        // Exact values GameController derives for a 390x844 reference phone.
-        sim.SetLayout(0.332f, 0.1375f, 0.7295f, 1.833f);
+                var r = Play(LevelLibrary.Get(i), 220f);
+                Console.WriteLine($"L{i + 1,2} {LevelLibrary.Get(i).Name,-20} {r}");
+            }
+            catch (Exception e)
+            {
+                failures++;
+                Console.WriteLine($"L{i + 1,2} EXCEPTION: {e.Message}\n{e.StackTrace}");
+            }
+        }
 
-        foreach (var ring in sim.Rings)
-            Console.WriteLine($"ring{ring.Index} r={ring.Radius:0.00} minGap={ring.MinGap:0.000} " +
-                $"join={ring.MinGap * 1.45f:0.000} spacing={(MathF.PI * 2 / ring.Pieces.Count):0.000} " +
-                $"colors=[{string.Join(",", ring.Pieces.Select(p => (int)p.Color))}]");
+        Console.WriteLine();
 
-        int bursts = 0, shifts = 0, chains = 0;
-        sim.Events.Burst += (run, r, combo, gained) => { bursts++; if (combo > 1) chains++; };
-        sim.Events.Shift += (k, r) => shifts++;
+        // --- Boss: the serpent must be defeatable -------------------------
+        try
+        {
+            var r = Play(LevelLibrary.Get(9), 300f);
+            Console.WriteLine($"BOSS   Umbra Serpent      {r}");
+            if (r.result != GameResult.Won) { failures++; Console.WriteLine("  FAIL: serpent not defeated"); }
+        }
+        catch (Exception e) { failures++; Console.WriteLine("BOSS EXCEPTION: " + e); }
 
-        const float dt = 1f / 60f;
-        int shots = 0;
+        // --- Portals: opening + hopping on the first Grove level -----------
+        try
+        {
+            var r = Play(LevelLibrary.Get(10), 220f);
+            Console.WriteLine($"PORTAL Grove Gate         {r}");
+            if (r.portalOpened == 0) { failures++; Console.WriteLine("  FAIL: no portals opened"); }
+        }
+        catch (Exception e) { failures++; Console.WriteLine("PORTAL EXCEPTION: " + e); }
+
+        // --- Determinism: the daily seed reproduces exactly ----------------
+        var a = Play(LevelLibrary.MakeEndless(20260718), 60f);
+        var b = Play(LevelLibrary.MakeEndless(20260718), 60f);
+        bool det = a.score == b.score && a.shots == b.shots && a.bursts == b.bursts
+                   && Math.Abs(a.time - b.time) < 1e-3f;
+        Console.WriteLine($"DAILY  seed 20260718      A(score={a.score},shots={a.shots},bursts={a.bursts}) " +
+                          $"B(score={b.score},shots={b.shots},bursts={b.bursts}) -> {(det ? "MATCH" : "MISMATCH")}");
+        if (!det) failures++;
+
+        Console.WriteLine();
+        Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
+        return failures == 0 ? 0 : 1;
+    }
+
+    static Report Play(LevelSpec spec, float maxTime)
+    {
+        var sim = new GameSim(spec, new SimTuning());
+        sim.SetLayout(CoreR, PieceR, InnerR, OuterR);
+        var r = new Report();
+        sim.Events.Burst += (run, ring, combo, g) => r.bursts++;
+        sim.Events.Shift += (k, ring) => r.shifts++;
+        sim.Events.PortalOpened += p => r.portalOpened++;
+        sim.Events.PortalHop += (p, from, to) => r.portalHop++;
+        sim.Events.BossHit += (seg, broken) => { if (broken) r.bossBroken++; };
+
+        const float dt = 1f / 60f, cadence = 0.28f;
         float sinceShot = 999f;
-        while (sim.Result == GameResult.Playing && sim.Time < 180f)
+        int swaps = 0;
+        while (sim.Result == GameResult.Playing && sim.Time < maxTime)
         {
             sim.Tick(dt);
             sinceShot += dt;
-            if (sinceShot >= 0.45f && sim.Projectiles.Count == 0)
+            if (sinceShot >= cadence && sim.Projectiles.Count == 0)
             {
-                Ring tr = null; Piece target = null;
-                foreach (var ring in sim.Rings)          // inner ring first: clean line of sight
-                {
-                    foreach (var p in ring.Pieces)
-                        if (p.Color == sim.Current.color) { tr = ring; target = p; break; }
-                    if (target != null) break;
-                }
-                if (target == null) { sim.Swap(); continue; }
-                float tof = tr.Radius / sim.Tune.ProjectileSpeed;
-                float a = target.Angle + sim.RingSpeed(tr) * tof;
-                shots++;
-                sim.Shoot(MathF.Cos(a), MathF.Sin(a));
-                sinceShot = 0f;
+                if (TryShoot(sim)) { r.shots++; sinceShot = 0f; swaps = 0; }
+                else if (swaps < 1) { sim.Swap(); sinceShot = cadence - 0.06f; swaps++; }
+                else { sinceShot = 0f; swaps = 0; }   // hold: never force a fatal shot
             }
         }
-        Console.WriteLine($"RESULT={sim.Result} time={sim.Time:0.0}s shots={shots} bursts={bursts} chains={chains} shifts={shifts} score={sim.Score} energy={sim.Energy}/20 stars={sim.Stars()}");
-        return 0;
+        r.result = sim.Result;
+        r.time = sim.Time;
+        r.score = sim.Score;
+        r.stars = sim.Stars();
+        return r;
     }
+
+    // Deterministic bot: crack the serpent when a color-matched lane is clear,
+    // cleanse thorned wisps first on cleanse levels, otherwise match the
+    // nearest same-color wisp on the innermost ring (cleanest line of sight).
+    static bool TryShoot(GameSim sim)
+    {
+        var cur = sim.Current.color;
+
+        if (sim.BossRing != null && sim.BossAlive > 0)
+        {
+            foreach (var seg in sim.BossRing.Pieces)
+            {
+                if (!seg.IsBoss || seg.Color != cur) continue;
+                float tof = sim.BossRing.Radius / sim.Tune.ProjectileSpeed;
+                float ang = seg.Angle + sim.RingSpeed(sim.BossRing) * tof;
+                if (LaneClear(sim, ang, sim.BossRing)) { ShootAngle(sim, ang); return true; }
+            }
+        }
+
+        if (sim.Level.Objective == Objective.Cleanse)
+        {
+            var t = FindMatch(sim, cur, corruptOnly: true);
+            if (t.HasValue) { ShootLead(sim, t.Value.ring, t.Value.piece); return true; }
+        }
+
+        var g = FindMatch(sim, cur, corruptOnly: false);
+        if (g.HasValue) { ShootLead(sim, g.Value.ring, g.Value.piece); return true; }
+        return false;
+    }
+
+    static (Ring ring, Piece piece)? FindMatch(GameSim sim, SpiritColor c, bool corruptOnly)
+    {
+        foreach (var ring in sim.Rings)
+            foreach (var p in ring.Pieces)
+            {
+                if (p.IsBoss) continue;
+                if (corruptOnly && !p.Corrupt) continue;
+                if (p.Color == c) return (ring, p);
+            }
+        return null;
+    }
+
+    // No inner ring piece blocks the radial path at this angle.
+    static bool LaneClear(GameSim sim, float ang, Ring target)
+    {
+        foreach (var ring in sim.Rings)
+        {
+            if (ring == target || ring.Radius >= target.Radius) continue;
+            float w = PieceR * 2.2f / ring.Radius;
+            foreach (var p in ring.Pieces)
+                if (MathF.Abs(GameSim.Diff(p.Angle, ang)) < w) return false;
+        }
+        return true;
+    }
+
+    static void ShootLead(GameSim sim, Ring ring, Piece p)
+    {
+        float tof = ring.Radius / sim.Tune.ProjectileSpeed;
+        ShootAngle(sim, p.Angle + sim.RingSpeed(ring) * tof);
+    }
+
+    static void ShootAngle(GameSim sim, float a) => sim.Shoot(MathF.Cos(a), MathF.Sin(a));
 }

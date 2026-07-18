@@ -9,5 +9,6 @@
   <ItemGroup>
     <Compile Include="/home/user/codesys-web-ide/unity/Wispbloom/Assets/Scripts/Sim/SimTypes.cs" />
     <Compile Include="/home/user/codesys-web-ide/unity/Wispbloom/Assets/Scripts/Sim/GameSim.cs" />
+    <Compile Include="/home/user/codesys-web-ide/unity/Wispbloom/Assets/Scripts/Data/LevelLibrary.cs" />
   </ItemGroup>
 </Project>
