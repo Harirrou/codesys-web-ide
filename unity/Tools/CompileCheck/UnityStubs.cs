@@ -368,7 +368,11 @@ namespace UnityEngine
     }
 
     public class Font : Object { }
-    public static class Resources { public static T GetBuiltinResource<T>(string path) where T : Object => default; }
+    public static class Resources
+    {
+        public static T GetBuiltinResource<T>(string path) where T : Object => default;
+        public static T Load<T>(string path) where T : Object => default;
+    }
 
     public static class Application
     {

@@ -9,6 +9,15 @@ namespace Wispbloom.View
     {
         public Camera cam;
         public Wispbloom.Data.ArtBinding art;
+
+        /// <summary>Swap to a world's painted sky ("dawn"|"dusk"|"grove"|"lair").
+        /// Falls back to whatever sprite is already set if the file is absent.</summary>
+        public void SetWorld(string worldKey)
+        {
+            var s = PaintedResources.Background(worldKey);
+            if (s != null) GetComponent<SpriteRenderer>().sprite = s;
+        }
+
         void LateUpdate()
         {
             var sr = GetComponent<SpriteRenderer>();

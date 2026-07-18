@@ -72,10 +72,17 @@ namespace Wispbloom.Game
         // The serpent/portal views and the whole screen flow are created here
         // when the scene didn't author them, so an already-built VerticalSlice
         // scene gains the full game just by recompiling — no rebuild needed.
+        BackgroundCoverFit _bg;
+
         void EnsureFullGameObjects()
         {
             if (serpent == null && fieldRoot != null) serpent = SerpentView.Create(fieldRoot, art);
             if (portals == null && fieldRoot != null) portals = PortalView.Create(fieldRoot, art);
+            if (_bg == null)
+            {
+                var bgs = Object.FindObjectsByType<BackgroundCoverFit>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+                if (bgs.Length > 0) _bg = bgs[0];
+            }
             if (screens == null)
             {
                 var canvas = FindMenuCanvas();
@@ -139,6 +146,7 @@ namespace Wispbloom.Game
             Time.timeScale = 1f;
 
             Sim = new GameSim(BuildSpec(), tuning.sim);
+            if (_bg != null) _bg.SetWorld(Sim.Level.Bg);   // painted sky per world
             Layout();
             HookEvents();
 

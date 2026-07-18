@@ -337,8 +337,18 @@ namespace Wispbloom.UI
             var rt = (RectTransform)go.transform;
             Stretch(rt);
             var img = go.AddComponent<Image>();
-            if (_art.backgroundDawn != null) { img.sprite = _art.backgroundDawn; img.type = Image.Type.Simple; }
-            img.color = new Color(0.03f, 0.05f, 0.12f, 0.97f);
+            var sky = Wispbloom.View.PaintedResources.Title();
+            if (sky != null)
+            {
+                img.sprite = sky; img.type = Image.Type.Simple;
+                img.color = new Color(0.72f, 0.76f, 0.9f, 1f);   // slight cool darken for text contrast
+            }
+            else if (_art.backgroundDawn != null)
+            {
+                img.sprite = _art.backgroundDawn; img.type = Image.Type.Simple;
+                img.color = new Color(0.16f, 0.2f, 0.32f, 1f);
+            }
+            else img.color = new Color(0.03f, 0.05f, 0.12f, 0.97f);
             go.SetActive(false);
             return go;
         }

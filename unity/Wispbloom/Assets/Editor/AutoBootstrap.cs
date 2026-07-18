@@ -32,6 +32,19 @@ namespace Wispbloom.EditorTools
                     Debug.LogWarning("Wispbloom: empty art slots detected — repairing automatically.");
                     VerticalSliceBuilder.RepairArt();
                 }
+                // Auto-pull the painted spirit/petal/heart/orbit art once, if it
+                // was never fetched. The CDN is reachable from a normal network;
+                // failure is harmless (the painted skies are baked in Resources
+                // and the spirits fall back to the in-engine recreation).
+                if (!Directory.Exists("Assets/Art/Painted"))
+                {
+                    try { PaintedArtFetcher.Fetch(); }
+                    catch (System.Exception e)
+                    {
+                        Debug.LogWarning("Wispbloom: painted-art fetch skipped (offline?). " +
+                            "Retry any time via Wispbloom → Fetch Painted Art. " + e.Message);
+                    }
+                }
                 return;
             }
             if (EditorApplication.isCompiling || EditorApplication.isUpdating)

@@ -34,7 +34,10 @@ namespace Wispbloom.View
             if (art.orbitTile == null) art.orbitTile = Make(OrbitTile(), 512f, wrap: true);
             if (art.dustMote == null) art.dustMote = Make(SoftGlow(64, false), 64f);
             if (art.sparkle == null) art.sparkle = Make(Sparkle(), 64f);
-            if (art.backgroundDawn == null) art.backgroundDawn = Make(Background(), 100f);
+            // Prefer the baked Higgsfield painted sky; only paint a procedural
+            // gradient if the Resources file is somehow absent.
+            if (art.backgroundDawn == null)
+                art.backgroundDawn = PaintedResources.Background("dawn") ?? Make(Background(), 100f);
             if (art.panelGlow9Slice == null)
                 art.panelGlow9Slice = Make(Panel9(), 100f, border: new Vector4(24, 24, 24, 24));
             if (art.uiFont == null) art.uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
