@@ -241,6 +241,7 @@ namespace Wispbloom.Game
                 }
                 mid /= run.Count;
                 effects.FloatingScore(mid, gained, combo);
+                effects.Shockwave(mid, run.Count > 0 ? run[0].Color : SpiritColor.Tide, art);
                 effects.Shake(0.06f + Mathf.Min(0.14f, run.Count * 0.02f));
                 if (combo >= 2) effects.Flash(new Color(1f, 0.96f, 0.85f), 0.18f + combo * 0.06f);
                 if (combo >= 3) effects.SlowMo(0.4f, tuning.slowMoScale);

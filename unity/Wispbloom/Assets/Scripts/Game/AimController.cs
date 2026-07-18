@@ -17,12 +17,14 @@ namespace Wispbloom.Game
         Vector2 _downScreen;
         bool _dragging;
         bool _reskinned;
+        SpriteRenderer _ghostSr;
 
         void EnsureSkin()
         {
             if (_reskinned || game == null || game.art == null) return;
             _reskinned = true;
-            var ghostSr = ghost != null ? ghost.GetComponent<SpriteRenderer>() : null;
+            _ghostSr = ghost != null ? ghost.GetComponent<SpriteRenderer>() : null;
+            var ghostSr = _ghostSr;
             if (ghostSr != null && ghostSr.sprite == null) ghostSr.sprite = game.art.spiritGlow;
             if (guide != null && guide.material != null && guide.material.mainTexture == null &&
                 game.art.dustMote != null)
@@ -99,20 +101,38 @@ namespace Wispbloom.Game
                 if (sim.FindHit(p.x, p.y).HasValue) { hit = p; found = true; break; }
             }
 
+            // Preview whether this shot will actually burst a run — the guide
+            // and target ghost glow green when it scores, white when it won't.
+            bool willMatch = false;
+            if (found)
+            {
+                var info = sim.FindHit(hit.x, hit.y);
+                if (info.HasValue)
+                {
+                    float attachA = Mathf.Atan2(hit.y, hit.x);
+                    var col = sim.Current.prism ? info.Value.piece.Color : sim.Current.color;
+                    willMatch = sim.Current.prism || sim.WouldMatch(info.Value.ring, attachA, col);
+                }
+            }
+            Color tint = willMatch ? new Color(0.45f, 1f, 0.6f) : new Color(1f, 1f, 1f);
+
             SetGuideVisible(true);
             Vector3 a = game.FieldPoint(dir.x * (sim.CoreRadius + 0.08f), dir.y * (sim.CoreRadius + 0.08f));
             Vector3 b = game.FieldPoint(hit.x, hit.y);
             guide.positionCount = 2;
             guide.SetPosition(0, a);
             guide.SetPosition(1, b);
+            guide.startColor = guide.endColor = new Color(tint.r, tint.g, tint.b, 0.6f);
             guide.material.mainTextureScale = new Vector2(Vector3.Distance(a, b) * 3f, 1f);
 
             ghost.gameObject.SetActive(found);
             if (found)
             {
                 ghost.position = b;
-                float pulse = 1f + Mathf.Sin(Time.time * 8f) * 0.12f;
+                float pulse = 1f + Mathf.Sin(Time.time * 8f) * (willMatch ? 0.22f : 0.12f);
                 ghost.localScale = Vector3.one * (sim.PieceRadius * 2.6f * pulse);
+                if (_ghostSr != null)
+                    _ghostSr.color = new Color(tint.r, tint.g, tint.b, willMatch ? 0.9f : 0.55f);
             }
         }
 

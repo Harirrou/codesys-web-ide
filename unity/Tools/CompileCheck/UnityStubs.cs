@@ -96,6 +96,7 @@ namespace UnityEngine
         public const float PI = (float)Math.PI;
         public static float Sin(float f) => (float)Math.Sin(f);
         public static float Cos(float f) => (float)Math.Cos(f);
+        public static float Atan2(float y, float x) => (float)Math.Atan2(y, x);
         public static float Sqrt(float f) => (float)Math.Sqrt(f);
         public static float Abs(float f) => Math.Abs(f);
         public static int Abs(int i) => Math.Abs(i);

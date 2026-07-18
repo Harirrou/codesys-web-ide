@@ -218,11 +218,15 @@ namespace Wispbloom.UI
 
         // ----- navigation ----------------------------------------------------
 
-        public void ShowTitle() { HideEverything(); _title.SetActive(true); }
-        public void ShowMap() { HideEverything(); RefreshMap(); _map.SetActive(true); }
-        public void ShowSettings() { HideEverything(); RefreshSettings(); _settings.SetActive(true); }
-        public void ShowHowTo() { HideEverything(); _howto.SetActive(true); }
-        public void ShowGrove() { HideEverything(); RefreshGrove(); _grove.SetActive(true); }
+        public void ShowTitle() { HideEverything(); Intro(_title); }
+        public void ShowMap() { HideEverything(); RefreshMap(); Intro(_map); }
+        public void ShowSettings() { HideEverything(); RefreshSettings(); Intro(_settings); }
+        public void ShowHowTo() { HideEverything(); Intro(_howto); }
+        public void ShowGrove() { HideEverything(); RefreshGrove(); Intro(_grove); }
+
+        GameObject _active;
+        float _introT = 1f;
+        void Intro(GameObject g) { g.SetActive(true); _active = g; _introT = 0f; }
 
         /// <summary>Called by the GameController when a level starts: all menus
         /// off, only the little in-game MENU button remains.</summary>
@@ -246,6 +250,15 @@ namespace Wispbloom.UI
 
         void Update()
         {
+            // Quick pop-in when a screen appears.
+            if (_introT < 1f && _active != null)
+            {
+                _introT = Mathf.Min(1f, _introT + Time.unscaledDeltaTime * 6f);
+                float e = 1f - (1f - _introT) * (1f - _introT);   // ease-out
+                float s = 0.96f + 0.04f * e;
+                ((RectTransform)_active.transform).localScale = new Vector3(s, s, 1f);
+            }
+
             if (!Input.GetKeyDown(KeyCode.Escape)) return;
             // Sub-screens step back to the title; the title and in-game state
             // are left for the GameController (quit / pause) to handle.

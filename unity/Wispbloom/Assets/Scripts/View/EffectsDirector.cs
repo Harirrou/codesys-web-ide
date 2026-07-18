@@ -133,6 +133,34 @@ namespace Wispbloom.View
             _burst.Emit(emitParams, 14);
         }
 
+        // Expanding light ring on a burst — cheap, reads as impact.
+        public void Shockwave(Vector3 pos, SpiritColor color, ArtBinding art)
+        {
+            if (Game.SaveService.Data.reduceMotion || art == null || art.spiritGlow == null) return;
+            var go = new GameObject("Shock");
+            go.transform.position = pos;
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = art.spiritGlow;
+            sr.material = MaterialLibrary.Additive;
+            sr.sortingOrder = 28;
+            StartCoroutine(ShockRoutine(sr, Tint[(int)color]));
+        }
+
+        IEnumerator ShockRoutine(SpriteRenderer sr, Color color)
+        {
+            float t = 0f;
+            while (t < 0.42f)
+            {
+                t += Time.unscaledDeltaTime;
+                float k = t / 0.42f;
+                float scale = Mathf.Lerp(0.3f, 2.2f, 1f - (1f - k) * (1f - k));
+                sr.transform.localScale = Vector3.one * scale;
+                sr.color = new Color(color.r, color.g, color.b, (1f - k) * 0.55f);
+                yield return null;
+            }
+            Destroy(sr.gameObject);
+        }
+
         public void AttachRipple(Vector3 pos, ArtBinding art)
         {
             var emitParams = new ParticleSystem.EmitParams

@@ -541,6 +541,44 @@ namespace Wispbloom.Sim
             return result;
         }
 
+        /// <summary>Read-only: would dropping a piece of <paramref name="color"/>
+        /// at <paramref name="angle"/> on this ring form a run of 3+? Drives the
+        /// aim preview so a shot can be read as "will score" before firing.
+        /// Never mutates state.</summary>
+        public bool WouldMatch(Ring ring, float angle, SpiritColor color)
+        {
+            if (ring == null || ring.Pieces.Count < 2) return false;
+            var sorted = new List<Piece>(ring.Pieces);
+            sorted.Sort((a, b) => a.Angle.CompareTo(b.Angle));
+            int n = sorted.Count;
+            float joinGap = ring.MinGap * Tune.JoinFactor;
+            float a0 = Norm(angle);
+
+            int ins = 0;
+            while (ins < n && sorted[ins].Angle < a0) ins++;
+
+            int count = 1;
+            float prev = a0;
+            for (int k = 0; k < n; k++)
+            {
+                var p = sorted[(ins + k) % n];
+                float gap = Norm(p.Angle - prev);
+                if (gap > joinGap) break;
+                if (p.IsBoss || (int)p.Color != (int)color) break;
+                count++; prev = p.Angle;
+            }
+            prev = a0;
+            for (int k = 0; k < n; k++)
+            {
+                var p = sorted[((ins - 1 - k) % n + n) % n];
+                float gap = Norm(prev - p.Angle);
+                if (gap > joinGap) break;
+                if (p.IsBoss || (int)p.Color != (int)color) break;
+                count++; prev = p.Angle;
+            }
+            return count >= 3;
+        }
+
         void DoBurst(Ring ring, List<Piece> run, bool isChain, bool isPulse = false)
         {
             if (run.Count == 0) return;
