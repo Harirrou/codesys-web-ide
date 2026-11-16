@@ -463,7 +463,7 @@
       sims: { ctu: { program: 'RUNG Count presses\nNO(I0.0) CTU(C0,5)\nRUNG Reset\nNO(I0.1) RST(C0)\nRUNG Done lamp\nNO(C0) COIL(Q0.0)', inputs: { 'I0.0': pb('Count'), 'I0.1': pb('Reset') }, outputs: { 'Q0.0': '5 reached' } } },
       takeaways: ['CTU/CTD count rising edges.', 'Done bit at preset; RESET clears.', 'Share a number for up/down counting.'],
       mistakes: ['Forgetting the reset, so the batch is "done" forever.', 'Resetting with a level signal that stays on and blocks counting.'],
-      challenges: ['count-boxes', 'parking', 'ctd-batch'],
+      challenges: ['count-boxes', 'parking', 'ctd-batch', 'palletizer'],
     },
     {
       id: 'compare-math', level: 4, title: 'Words, compare, MOV & math', min: 9,
@@ -671,7 +671,7 @@ END_CASE</pre>
       sims: { alarm: { program: 'RUNG Alarm latches on overtemperature\nNO(I0.5) | NO(I0.0) COIL(M2.0)\nNO(M2.0) | NC(I0.5)\nRUNG Alarm horn until acknowledged\nNO(M2.0) NC(M2.1) COIL(Q0.6)\nRUNG Acknowledge memory\nNO(I0.0) NO(M2.0) | COIL(M2.1)\nNO(M2.1) NO(M2.0)\nRUNG Fault lamp flashes until acknowledged, then steady\nNO(M2.0) NO(SM0.5) | COIL(Q0.4)\nNO(M2.0) NO(M2.1)', inputs: { 'I0.5': sw('Overtemp'), 'I0.0': pb('Ack / reset') }, outputs: { 'Q0.6': 'Horn', 'Q0.4': 'Fault lamp' }, note: 'Switch Overtemp on and off: the alarm stays latched. Ack silences the horn; the alarm clears only when the cause is gone and you press Ack again.' } },
       takeaways: ['E-stop = hardware safety circuit.', 'Latch faults, require acknowledge, no auto restart.', 'Initialise on first scan.'],
       mistakes: ['Making the E-stop a normal PLC input only.', 'Alarms that clear themselves before anyone sees them.'],
-      challenges: ['tank', 'garage'],
+      challenges: ['tank', 'garage', 'gate', 'compressor'],
     },
     {
       id: 'structure', level: 5, title: 'Program structure & troubleshooting', min: 9,
@@ -770,7 +770,7 @@ Lamp := T0.Q;</pre>
       sims: {},
       takeaways: ['I/O list → step table → safety → transitions → outputs → test normal → test abnormal.', 'The step table is the program.', 'Remember measured data until the item reaches the station that uses it.'],
       mistakes: ['Starting to draw rungs before the sequence is written down.', 'Testing only the happy path.'],
-      challenges: ['ped-crossing', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pump-station', 'level-control', 'drill-station', 'oven', 'traffic-night', 'washer', 'crane', 'indexer', 'auto-batching'],
+      challenges: ['ped-crossing', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pump-station', 'level-control', 'drill-station', 'oven', 'traffic-night', 'washer', 'crane', 'indexer', 'auto-batching', 'gate', 'compressor', 'capline', 'palletizer'],
     },
     // ═══════════════════════ LEVEL 7 · ST ═══════════════════════
     {
@@ -872,7 +872,7 @@ END_CASE</pre>
       sims: { traffic: { lang: 'st', program: "VAR\n  Run    AT %IX0.4 : BOOL;\n  Red    AT %QX0.4 : BOOL;\n  Yellow AT %QX0.2 : BOOL;\n  Green  AT %QX0.0 : BOOL;\n  State  : INT := 0;\n  T      : TON;\nEND_VAR\n\nCASE State OF\n  0: (* red *)\n     T(IN := Run, PT := T#3s);\n     IF T.Q THEN T(IN := FALSE); State := 1; END_IF\n  1: (* green *)\n     T(IN := TRUE, PT := T#3s);\n     IF T.Q THEN T(IN := FALSE); State := 2; END_IF\n  2: (* yellow *)\n     T(IN := TRUE, PT := T#1s);\n     IF T.Q THEN T(IN := FALSE); State := 0; END_IF\nEND_CASE\n\nRed := State = 0;\nGreen := State = 1;\nYellow := State = 2;", inputs: { 'I0.4': sw('RUN') }, outputs: { 'Q0.4': 'Red', 'Q0.2': 'Yellow', 'Q0.0': 'Green' }, note: 'One timer, reused in every state. Switch RUN on and watch State in the values.' } },
       takeaways: ['CASE runs one branch per scan; steps wait by not changing Step.', 'Transitions inside CASE, outputs decoded after it.', 'Number steps 10, 20, 30…'],
       mistakes: ['Writing WHILE NOT sensor DO inside a step (see next lesson).', 'Setting outputs inside branches and forgetting to reset them.'],
-      challenges: ['st-case-abc', 'st-repeat-count', 'st-traffic', 'st-mixer', 'st-bottling'],
+      challenges: ['st-case-abc', 'st-repeat-count', 'st-traffic', 'st-mixer', 'st-bottling', 'st-gate'],
     },
     {
       id: 'st-loops', level: 7, title: 'FOR, WHILE, REPEAT & arrays', min: 12,

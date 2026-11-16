@@ -1550,7 +1550,307 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pumps', 'atank', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse'];
+  // ───────────────────────── sliding gate ─────────────────────────
+  P.gate = {
+    id: 'gate', name: 'Automatic sliding gate', blurb: 'A sliding gate with one remote button, open/closed limit switches, a photocell across the gateway and a rubber safety edge. A car in the gateway blocks the photocell.',
+    inputs: [
+      { addr: 'I0.0', name: 'Remote', kind: 'pb', color: 'black' },
+      { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'Gate open', kind: 'sensor' },
+      { addr: 'I0.3', name: 'Gate closed', kind: 'sensor' },
+      { addr: 'I0.4', name: 'Photocell clear', kind: 'sensor', note: '1 = beam clear, 0 = something in the gateway' },
+      { addr: 'I0.5', name: 'Safety edge OK', kind: 'sensor', note: 'NC rubber edge: 0 when the gate touches something' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Motor open', color: 'green' },
+      { addr: 'Q0.1', name: 'Motor close', color: 'blue' },
+      { addr: 'Q0.2', name: 'Flashing lamp', color: 'amber' },
+    ],
+    actions: [
+      { id: 'car', label: 'Car in gateway', toggle: true, run(st) { st.car = !st.car; } },
+      { id: 'edge', label: 'Hit safety edge', run(st) { st.edgeT = 300; } },
+    ],
+    init() { return { pos: 0, car: false, edgeT: 0, stall: 0, t: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000, op = Q['Q0.0'], cl = Q['Q0.1'];
+      if (op && cl) st.fault = st.fault || 'Motor driven open and close together.';
+      if (!st.fault) st.pos = clamp(st.pos + ((op ? 1 : 0) - (cl ? 1 : 0)) * 0.2 * s, 0, 1);
+      if (st.car && cl && st.pos < 0.45) st.fault = st.fault || 'The gate closed onto the car!';
+      if ((op && st.pos >= 1) || (cl && st.pos <= 0)) st.stall += dt; else st.stall = 0;
+      if (st.stall > 1500) st.fault = st.fault || 'Gate motor stalled at the end of travel.';
+      st.edgeT = Math.max(0, st.edgeT - dt);
+      const o = devices(this, ctrl);
+      o['I0.2'] = st.pos >= 0.99 ? 1 : 0; o['I0.3'] = st.pos <= 0.01 ? 1 : 0;
+      o['I0.4'] = st.car ? 0 : 1; o['I0.5'] = st.edgeT > 0 ? 0 : 1;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const gx = 120, gw = 360, gy = 120;
+      c.fillStyle = th.ground; c.fillRect(0, 250, 640, 14);
+      c.fillStyle = th.wall; c.fillRect(gx - 30, 90, 26, 160); c.fillRect(gx + gw + 4, 90, 26, 160);
+      if (st.car) { c.fillStyle = th.carBody; D.rr(c, gx + 90, 190, 180, 50, 12); c.fill(); c.fillStyle = th.carGlass; D.rr(c, gx + 130, 168, 90, 28, 8); c.fill(); }
+      const off = st.pos * gw;
+      c.strokeStyle = th.metalDark; c.lineWidth = 4;
+      c.save(); c.beginPath(); c.rect(gx - 4, 60, gw + 8, 200); c.clip();
+      const x0 = gx - off;
+      c.strokeRect(x0, gy, gw, 120);
+      for (let i = 1; i < 12; i++) { c.beginPath(); c.moveTo(x0 + i * gw / 12, gy); c.lineTo(x0 + i * gw / 12, gy + 120); c.stroke(); }
+      c.fillStyle = st.edgeT > 0 ? th.red : th.knob; c.fillRect(x0 + gw - 6, gy, 8, 120);
+      c.restore();
+      c.strokeStyle = st.car ? th.red : 'rgba(239,68,68,.35)'; c.setLineDash([4, 5]); c.lineWidth = 2; c.beginPath(); c.moveTo(gx - 4, 230); c.lineTo(gx + gw + 4, 230); c.stroke(); c.setLineDash([]);
+      D.lamp(c, th, gx - 17, 76, 9, !!Q['Q0.2'], 'amber');
+      D.text(c, Q['Q0.0'] ? '◀ OPENING' : Q['Q0.1'] ? 'CLOSING ▶' : Math.round(st.pos * 100) + '% open', 320, 40, { size: 13, mono: true, weight: 700, color: Q['Q0.0'] || Q['Q0.1'] ? th.on : th.muted });
+      D.sensorDot(c, th, 560, 100, !!I['I0.2'], 'open I0.2');
+      D.sensorDot(c, th, 560, 122, !!I['I0.3'], 'closed I0.3');
+      D.sensorDot(c, th, 560, 144, !I['I0.4'], 'photocell I0.4');
+      D.sensorDot(c, th, 560, 166, !I['I0.5'], 'edge I0.5');
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  // ───────────────────────── compressor station ─────────────────────────
+  P.compressor = {
+    id: 'compressor', name: 'Air compressor station', blurb: 'A screw compressor fills an air receiver. Pressure switches at 6, 8 and 10 bar. The load valve makes it compress; unloaded it idles. The motor may start at most 3 times per minute.',
+    inputs: [
+      { addr: 'I0.0', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP / reset', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'P ≥ 6 bar', kind: 'sensor' },
+      { addr: 'I0.3', name: 'P ≥ 8 bar', kind: 'sensor' },
+      { addr: 'I0.4', name: 'OL ok', kind: 'sensor', note: 'Overload relay: 1 = healthy' },
+      { addr: 'I0.5', name: 'P ≥ 10 bar', kind: 'sensor', note: 'Safety high-pressure switch' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Motor', color: 'green' },
+      { addr: 'Q0.1', name: 'Load valve', color: 'blue' },
+      { addr: 'Q0.2', name: 'Fault lamp', color: 'red' },
+      { addr: 'Q0.3', name: 'Running lamp', color: 'green' },
+    ],
+    actions: [
+      { id: 'demand', label: 'Low air demand', toggle: true, run(st) { st.low = !st.low; } },
+      { id: 'trip', label: 'Trip overload', toggle: true, run(st) { st.tripped = !st.tripped; } },
+    ],
+    init() { return { P: 3, low: false, tripped: false, run: 0, runT: 0, starts: 0, startTimes: [], ang: 0, hist: [], ht: 0, t: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      const run = Q['Q0.0'] && !st.tripped ? 1 : 0;
+      if (run && !st.run) {
+        st.starts++; st.runT = 0; st.startTimes.push(st.t);
+        st.startTimes = st.startTimes.filter((x) => st.t - x < 60000);
+        if (st.startTimes.length > 3) st.fault = st.fault || 'Motor overheated: more than 3 starts in one minute. Keep it idling (run-on) instead of stopping.';
+      }
+      st.run = run;
+      if (run) st.runT += dt;
+      if (run && Q['Q0.1'] && st.runT < 1500) st.fault = st.fault || 'Started under load: the motor stalled. Start unloaded, then load.';
+      st.P += ((run && Q['Q0.1'] ? 0.6 : 0) - (st.low ? 0.05 : 0.2) * Math.min(1, st.P / 2)) * s;
+      if (st.P > 10.6) st.fault = st.fault || 'Safety valve blew at 10.6 bar.';
+      st.P = clamp(st.P, 0, 11);
+      if (run) st.ang += dt * (Q['Q0.1'] ? 0.03 : 0.015);
+      st.ht += dt; if (st.ht >= 250) { st.ht = 0; st.hist.push(st.P); if (st.hist.length > 160) st.hist.shift(); }
+      const o = devices(this, ctrl);
+      o['I0.2'] = st.P >= 6 ? 1 : 0; o['I0.3'] = st.P >= 8 ? 1 : 0; o['I0.4'] = st.tripped ? 0 : 1; o['I0.5'] = st.P >= 10 ? 1 : 0;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      // motor + compressor
+      c.fillStyle = st.run ? th.on : th.metal; D.rr(c, 40, 150, 100, 70, 10); c.fill();
+      D.text(c, 'M', 90, 185, { size: 18, weight: 800, color: st.run ? th.onInk : th.ink });
+      c.save(); c.translate(190, 185); c.rotate(st.ang); c.fillStyle = th.metalDark; for (let i = 0; i < 4; i++) { c.rotate(Math.PI / 2); D.rr(c, -4, 0, 8, 30, 4); c.fill(); } c.restore();
+      D.pipe(c, th, [[220, 185], [300, 185]], st.run && Q['Q0.1'], st.t);
+      c.fillStyle = Q['Q0.1'] ? th.blue : th.metal; D.rr(c, 240, 172, 30, 26, 4); c.fill();
+      D.text(c, 'load valve', 255, 214, { size: 9, mono: true, color: th.muted });
+      // receiver
+      c.fillStyle = th.metal; D.rr(c, 300, 110, 90, 160, 40); c.fill();
+      D.text(c, st.P.toFixed(1) + ' bar', 345, 190, { size: 15, mono: true, weight: 800, color: st.P >= 10 ? th.red : th.ink });
+      D.sensorDot(c, th, 410, 120, !!I['I0.5'], '10 bar');
+      D.sensorDot(c, th, 410, 142, !!I['I0.3'], '8 bar');
+      D.sensorDot(c, th, 410, 164, !!I['I0.2'], '6 bar');
+      // trend
+      const gx = 470, gy = 40, gw = 150, gh = 200;
+      c.fillStyle = th.panel; D.rr(c, gx, gy, gw, gh, 8); c.fill();
+      const yy = (v) => gy + gh - (v / 11) * gh;
+      c.fillStyle = 'rgba(34,197,94,.14)'; c.fillRect(gx, yy(8), gw, yy(6) - yy(8));
+      c.strokeStyle = th.blue; c.lineWidth = 2; c.beginPath(); st.hist.forEach((v, i) => { const px = gx + (i / 159) * gw, py = yy(v); i ? c.lineTo(px, py) : c.moveTo(px, py); }); c.stroke();
+      D.text(c, 'pressure · 40 s', gx + 6, gy + 12, { size: 9, color: th.muted, align: 'left' });
+      D.text(c, 'starts ' + st.starts + (st.tripped ? '  OL TRIPPED' : '') + (st.low ? '  low demand' : ''), 40, 290, { size: 11, mono: true, weight: 700, color: st.tripped ? th.red : th.ink, align: 'left' });
+      D.lamp(c, th, 60, 60, 11, !!Q['Q0.3'], 'green', 'Running', 'Q0.3');
+      D.lamp(c, th, 140, 60, 11, !!Q['Q0.2'], 'red', 'Fault', 'Q0.2');
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  // ───────────────────────── filling & capping line ─────────────────────────
+  P.capline = {
+    id: 'capline', name: 'Filling & capping line', blurb: 'Bottles move one pitch at a time. When a bottle stops at the filler, the bottle ahead stands at the capper: both stations work at the same time. Every bottle leaving must be full and capped.',
+    inputs: [
+      { addr: 'I0.0', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'Bottle at filler', kind: 'sensor' },
+      { addr: 'I0.3', name: 'Bottle full', kind: 'sensor' },
+      { addr: 'I0.4', name: 'Bottle at capper', kind: 'sensor' },
+      { addr: 'I0.5', name: 'Capper up', kind: 'sensor' },
+      { addr: 'I0.6', name: 'Capper down', kind: 'sensor' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Conveyor', color: 'green' },
+      { addr: 'Q0.1', name: 'Fill valve', color: 'blue' },
+      { addr: 'Q0.2', name: 'Capper down', color: 'amber' },
+      { addr: 'Q0.3', name: 'Capper twist', color: 'green' },
+      { addr: 'Q0.4', name: 'Running lamp', color: 'green' },
+    ],
+    actions: [],
+    init() { return { b: [{ x: 0.15, l: 0, cap: 0 }], cz: 0, off: 0, ang: 0, good: 0, bad: 0, last: '', t: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      const atF = st.b.find((b) => Math.abs(b.x - 0.4) < 0.012), atC = st.b.find((b) => Math.abs(b.x - 0.65) < 0.012);
+      st.cz = clamp(st.cz + (Q['Q0.2'] ? 3 : -3) * s, 0, 1);
+      if (Q['Q0.1']) { if (!atF) st.fault = st.fault || 'Fill valve opened with no bottle: product spilled.'; else { atF.l += 0.5 * s; if (atF.l > 1.15) st.fault = st.fault || 'Bottle overflowed.'; } }
+      if (Q['Q0.0']) {
+        if (Q['Q0.1'] && atF) st.fault = st.fault || 'Conveyor moved while filling.';
+        if (st.cz > 0.1) st.fault = st.fault || 'Conveyor moved with the capper down: bottles smashed.';
+        const v = 0.2 * s; st.off += v; st.b.forEach((b) => (b.x += v));
+        st.b = st.b.filter((b) => { if (b.x > 1.03) { const ok = b.l >= 0.9 && b.cap >= 800; if (ok) st.good++; else { st.bad++; st.last = 'Bad bottle: ' + (b.l < 0.9 ? 'under-filled ' : '') + (b.cap < 800 ? 'not capped' : ''); } return false; } return true; });
+        if (Math.min(...st.b.map((b) => b.x)) >= 0.25) st.b.push({ x: 0, l: 0, cap: 0 });
+      }
+      if (Q['Q0.3'] && st.cz > 0.97 && atC) { atC.cap += dt; if (atC.l < 0.9) st.fault = st.fault || 'Capped an empty bottle.'; }
+      if (Q['Q0.3']) st.ang += dt * 0.03;
+      const o = devices(this, ctrl);
+      o['I0.2'] = atF ? 1 : 0; o['I0.3'] = atF && atF.l >= 0.95 ? 1 : 0; o['I0.4'] = atC ? 1 : 0;
+      o['I0.5'] = st.cz < 0.03 ? 1 : 0; o['I0.6'] = st.cz > 0.97 ? 1 : 0;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const x0 = 30, L = 580, y = 250;
+      c.fillStyle = th.metalDark; D.rr(c, x0 - 10, y, L + 20, 18, 9); c.fill();
+      c.strokeStyle = th.pipe; c.lineWidth = 2;
+      for (let i = 0; i < 36; i++) { const xx = x0 + (((i / 36) + st.off) % 1) * L; c.beginPath(); c.moveTo(xx, y + 3); c.lineTo(xx - 5, y + 15); c.stroke(); }
+      const fx = x0 + 0.4 * L, cx = x0 + 0.65 * L;
+      c.fillStyle = th.metal; D.rr(c, fx - 34, 50, 68, 44, 6); c.fill(); D.text(c, 'FILLER', fx, 72, { size: 10, weight: 700, color: th.ink });
+      c.fillStyle = Q['Q0.1'] ? th.blue : th.metalDark; c.fillRect(fx - 5, 94, 10, 50); if (Q['Q0.1']) { c.fillStyle = th.water; c.fillRect(fx - 2, 144, 4, 30); }
+      c.fillStyle = th.metal; D.rr(c, cx - 34, 50, 68, 44, 6); c.fill(); D.text(c, 'CAPPER', cx, 72, { size: 10, weight: 700, color: th.ink });
+      const ch = 94 + st.cz * 66;
+      c.fillStyle = th.metalDark; c.fillRect(cx - 4, 94, 8, ch - 94);
+      c.save(); c.translate(cx, ch + 6); c.rotate(st.ang); c.fillStyle = Q['Q0.3'] ? th.on : th.amber; D.rr(c, -14, -6, 28, 12, 3); c.fill(); c.restore();
+      st.b.forEach((b) => {
+        const bx = x0 + b.x * L, bw = 30, bh = 74;
+        c.fillStyle = th.glass; D.rr(c, bx - bw / 2, y - bh, bw, bh, 7); c.fill();
+        c.fillStyle = th.water; const lh = Math.min(1, b.l) * (bh - 14); D.rr(c, bx - bw / 2 + 3, y - lh - 3, bw - 6, lh, 4); c.fill();
+        c.fillStyle = b.cap >= 800 ? th.red : th.metalDark; c.fillRect(bx - 7, y - bh - 8, 14, 8);
+      });
+      D.sensorDot(c, th, fx - 50, y - 24, !!I['I0.2'], 'I0.2', 'left');
+      D.sensorDot(c, th, fx + 44, 116, !!I['I0.3'], 'full I0.3');
+      D.sensorDot(c, th, cx + 50, y - 24, !!I['I0.4'], 'I0.4');
+      D.sensorDot(c, th, cx + 44, 60, !!I['I0.5'], 'up I0.5');
+      D.sensorDot(c, th, cx + 44, 82, !!I['I0.6'], 'down I0.6');
+      D.text(c, 'good ' + st.good + '  bad ' + st.bad, 620, 300, { size: 12, mono: true, weight: 700, color: st.bad ? th.red : th.ink, align: 'right' });
+      D.lamp(c, th, 50, 60, 10, !!Q['Q0.4'], 'green', 'Running', 'Q0.4');
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  // ───────────────────────── palletizer ─────────────────────────
+  P.palletizer = {
+    id: 'palletizer', name: 'Palletizer', blurb: 'Boxes arrive on the infeed. The box pusher forms rows of 3, the row pusher moves each row onto the pallet (2 rows = 1 layer), and the elevator lowers the pallet one layer. 3 layers make a full pallet.',
+    inputs: [
+      { addr: 'I0.0', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'Box at pusher', kind: 'sensor' },
+      { addr: 'I0.3', name: 'Box pusher home', kind: 'sensor' },
+      { addr: 'I0.4', name: 'Box pusher out', kind: 'sensor' },
+      { addr: 'I0.5', name: 'Row pusher home', kind: 'sensor' },
+      { addr: 'I0.6', name: 'Row pusher out', kind: 'sensor' },
+      { addr: 'I0.7', name: 'Elevator at layer', kind: 'sensor', note: 'Index sensor: 1 when the pallet is at a layer height' },
+      { addr: 'I1.0', name: 'Pallet present', kind: 'sensor' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Infeed conveyor', color: 'green' },
+      { addr: 'Q0.1', name: 'Box pusher', color: 'amber' },
+      { addr: 'Q0.2', name: 'Row pusher', color: 'amber' },
+      { addr: 'Q0.3', name: 'Elevator down', color: 'blue' },
+      { addr: 'Q0.4', name: 'Pallet out', color: 'green' },
+      { addr: 'Q0.5', name: 'Pallet full lamp', color: 'green' },
+    ],
+    actions: [],
+    init() { return { q: [0.7, 0.45, 0.2], bp: 0, rp: 0, row: 0, rows: 0, layers: [], z: 0, pallet: true, px: 0, newT: 0, pallets: 0, bad: 0, last: '', off: 0, t: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      // infeed
+      if (Q['Q0.0']) {
+        st.off += 0.25 * s;
+        if (st.bp > 0.05 && st.q.some((x) => x > 0.88)) st.fault = st.fault || 'A box jammed against the extended box pusher.';
+        let lim = 1;
+        st.q.sort((a, b) => b - a);
+        st.q = st.q.map((x) => { const nx = Math.min(x + 0.25 * s, lim); lim = nx - 0.2; return nx; });
+        if (!st.q.length || Math.min(...st.q) > 0.2) st.q.push(0);
+      }
+      const boxAt = st.q.some((x) => x >= 0.99);
+      // box pusher
+      if (Q['Q0.1'] && st.rp > 0.05) st.fault = st.fault || 'Box pushed into the row pusher.';
+      st.bp = clamp(st.bp + (Q['Q0.1'] ? 2 : -2) * s, 0, 1);
+      if (st.bp > 0.97 && boxAt) { st.q = st.q.filter((x) => x < 0.99); st.row++; if (st.row > 3) st.fault = st.fault || 'Row overfilled: a 4th box fell off the table.'; }
+      // row pusher
+      if (Q['Q0.2'] && st.bp > 0.05) st.fault = st.fault || 'Row pusher moved with the box pusher out.';
+      st.rp = clamp(st.rp + (Q['Q0.2'] ? 1 : -1) * s, 0, 1);
+      if (st.rp > 0.97 && st.row > 0) {
+        if (!st.pallet) st.fault = st.fault || 'Row pushed with no pallet: boxes on the floor.';
+        const L = Math.round(st.z);
+        st.layers[L] = st.layers[L] || [];
+        st.layers[L].push(st.row);
+        if (st.layers[L].length > 2) st.fault = st.fault || 'Layer overfilled: lower the elevator after 2 rows.';
+        st.row = 0;
+      }
+      // elevator
+      if (Q['Q0.3']) { if (st.rp > 0.05) st.fault = st.fault || 'Elevator moved with the row pusher out.'; st.z += 0.5 * s; if (st.z > 3.05) st.fault = st.fault || 'Elevator ran past the bottom.'; }
+      // pallet out
+      if (Q['Q0.4'] && st.pallet) {
+        st.px += 0.5 * s;
+        if (st.px >= 1) {
+          st.pallet = false; st.px = 0;
+          const ok = st.layers.length === 3 && st.layers.every((l) => l && l.length === 2 && l.every((r) => r === 3));
+          if (ok) st.pallets++; else { st.bad++; st.last = 'Bad pallet: ' + st.layers.map((l) => (l || []).join('+')).join(' | '); }
+          st.layers = []; st.newT = 1500;
+        }
+      }
+      if (!st.pallet && st.newT > 0) { st.newT -= dt; if (st.newT <= 0) { st.pallet = true; st.z = 0; } }
+      const o = devices(this, ctrl);
+      o['I0.2'] = boxAt ? 1 : 0; o['I0.3'] = st.bp < 0.03 ? 1 : 0; o['I0.4'] = st.bp > 0.97 ? 1 : 0;
+      o['I0.5'] = st.rp < 0.03 ? 1 : 0; o['I0.6'] = st.rp > 0.97 ? 1 : 0;
+      o['I0.7'] = Math.abs(st.z - Math.round(st.z)) < 0.02 ? 1 : 0; o['I1.0'] = st.pallet ? 1 : 0;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      // infeed (left, horizontal)
+      const ix = 20, iw = 260, iy = 120;
+      c.fillStyle = th.metalDark; D.rr(c, ix, iy, iw, 16, 8); c.fill();
+      st.q.forEach((x) => { c.fillStyle = th.box; D.rr(c, ix + x * (iw - 40), iy - 30, 36, 30, 3); c.fill(); });
+      D.text(c, 'infeed Q0.0', ix, iy + 30, { size: 9, mono: true, color: Q['Q0.0'] ? th.on : th.muted, align: 'left' });
+      // row table
+      const tx = 300, ty = 80;
+      c.fillStyle = th.panel2; D.rr(c, tx, ty, 140, 60, 6); c.fill(); c.strokeStyle = th.line; c.stroke();
+      for (let i = 0; i < st.row; i++) { c.fillStyle = th.box; D.rr(c, tx + 6 + i * 44, ty + 12, 40, 36, 3); c.fill(); }
+      c.fillStyle = Q['Q0.1'] ? th.amber : th.metal; c.fillRect(tx - 30 + st.bp * 20, ty + 20, 24, 20);
+      D.text(c, 'box pusher', tx + 70, ty + 74, { size: 9, mono: true, color: th.muted });
+      c.fillStyle = Q['Q0.2'] ? th.amber : th.metal; c.fillRect(tx, ty - 22 + st.rp * 30, 140, 10);
+      D.text(c, 'row pusher', tx + 70, ty - 30, { size: 9, mono: true, color: th.muted });
+      // pallet (side view)
+      const pxx = 300 + st.px * 300, py = 200 + Math.min(3, st.z) * 18;
+      if (st.pallet) {
+        c.fillStyle = th.wall; c.fillRect(pxx, py + 60, 150, 14);
+        st.layers.forEach((l, li) => (l || []).forEach((r, ri) => { for (let k = 0; k < r; k++) { c.fillStyle = th.box; D.rr(c, pxx + 4 + ri * 72 + k * 22, py + 40 - li * 22, 20, 20, 2); c.fill(); } }));
+      }
+      D.text(c, 'layer ' + Math.min(3, Math.round(st.z)) + '/3', 520, 120, { size: 12, mono: true, weight: 700, color: th.ink });
+      D.sensorDot(c, th, 600, 150, !!I['I0.7'], 'at layer I0.7', 'left');
+      D.sensorDot(c, th, 600, 172, !!I['I1.0'], 'pallet I1.0', 'left');
+      D.text(c, 'pallets ' + st.pallets + '  bad ' + st.bad, 620, 310, { size: 12, mono: true, weight: 700, color: st.bad ? th.red : th.ink, align: 'right' });
+      D.lamp(c, th, 40, 40, 10, !!Q['Q0.5'], 'green', 'Full', 'Q0.5');
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pumps', 'atank', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer'];
 
   // ───────────────────────── automated test runner ─────────────────────────
   /* Test steps (strings):

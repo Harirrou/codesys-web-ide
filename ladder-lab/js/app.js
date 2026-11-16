@@ -123,8 +123,11 @@
     const set = (v) => { ctrl[d.addr] = v; b.classList.toggle('down', !!v); b.setAttribute('aria-pressed', v ? 'true' : 'false'); onChange && onChange(); };
     if (kind === 'sw') b.addEventListener('click', () => set(!ctrl[d.addr]));
     else {
-      const down = (e) => { e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch (err) { /* synthetic event */ } set(true); };
-      const up = () => { if (ctrl[d.addr]) set(false); };
+      // A real finger press lasts ~150 ms; keep very quick taps "pressed" long enough
+      // for the PLC to see them in at least one scan.
+      let downAt = 0, relT = 0;
+      const down = (e) => { e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch (err) { /* synthetic event */ } clearTimeout(relT); downAt = performance.now(); set(true); };
+      const up = () => { if (!ctrl[d.addr]) return; const held = performance.now() - downAt; clearTimeout(relT); if (held >= 150) set(false); else relT = setTimeout(() => set(false), 150 - held); };
       b.addEventListener('pointerdown', down);
       b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
       b.addEventListener('keydown', (e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); set(true); } });
