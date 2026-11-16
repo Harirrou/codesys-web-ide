@@ -480,3 +480,6 @@ pre.st-code { margin: 0; padding: 12px 14px; font-family: var(--f-mono); font-si
 .filters button span { font-family: var(--f-mono); font-size: .75rem; color: var(--muted); margin-left: 4px; }
 .filters button.on { background: var(--ink); border-color: var(--ink); color: var(--surface); }
 .filters button.on span { color: var(--surface); opacity: .75; }
+
+.machine-head .how-btn { margin-left: auto; }
+ul.guide { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 64ch; }

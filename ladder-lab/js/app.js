@@ -410,9 +410,10 @@
     const modes = $('.modes', el);
     const area = $('.qarea', el);
     [['predict', 'Predict the output', 'Random rungs and input states. Will the lamp light? Endless.', 'Best streak ' + (S.quiz.predictBest || 0)],
-      ['concept', 'Concept check', '10 questions across all levels, with explanations.', 'Best score ' + (S.quiz.best || 0) + '/10']].forEach(([k, t, d, s]) => {
-      const b = h(`<button class="card path" style="text-align:left;cursor:pointer"><span class="ic">${k === 'predict' ? I.lab : I.quiz}</span><h3>${t}</h3><p>${d}</p><span class="chip">${s}</span></button>`);
-      b.onclick = () => (k === 'predict' ? predict(area) : concept(area));
+      ['drill', 'Timer & counter drill', 'TON, TOF, TP, RTO, CTU, CTD scenarios. Endless.', 'Best streak ' + (S.quiz.drillBest || 0)],
+      ['concept', 'Concept check', LL.QUIZ.length + ' questions, 10 per round, pick a level.', 'Best score ' + (S.quiz.best || 0) + '/10']].forEach(([k, t, d, s]) => {
+      const b = h(`<button class="card path" style="text-align:left;cursor:pointer"><span class="ic">${k === 'predict' ? I.lab : k === 'drill' ? I.reset : I.quiz}</span><h3>${t}</h3><p>${d}</p><span class="chip">${s}</span></button>`);
+      b.onclick = () => (k === 'predict' ? predict(area) : k === 'drill' ? drill(area) : concept(area));
       modes.appendChild(b);
     });
     main().appendChild(el);
@@ -420,7 +421,15 @@
   }
 
   function concept(area) {
-    const qs = LL.QUIZ.slice().sort(() => Math.random() - 0.5).slice(0, 10);
+    const lvl = S.quiz.lvl || 'all';
+    const pool = LL.QUIZ.filter((q) => lvl === 'all' || q.l === +lvl);
+    const qs = pool.slice().sort(() => Math.random() - 0.5).slice(0, 10).map((q) => {
+      // shuffle the answer options so the right one is not always in the same place
+      const order = q.a.map((_, i) => i).sort(() => Math.random() - 0.5);
+      return Object.assign({}, q, { a: order.map((i) => q.a[i]), c: order.indexOf(q.c) });
+    });
+    const lvlBar = () => `<div class="filters" style="margin:0">${['all', 1, 2, 3, 4, 5, 6, 7].map((L) => `<button data-lvl="${L}" class="${String(L) === String(lvl) ? 'on' : ''}">${L === 'all' ? 'All levels' : 'Level ' + L} <span>${LL.QUIZ.filter((q) => L === 'all' || q.l === L).length}</span></button>`).join('')}</div>`;
+    const bindLvl = () => $$('[data-lvl]', area).forEach((b) => (b.onclick = () => { S.quiz.lvl = b.dataset.lvl; save(); concept(area); }));
     let i = 0, score = 0;
     const show = () => {
       if (i >= qs.length) {
@@ -430,7 +439,8 @@
         return;
       }
       const q = qs[i];
-      area.innerHTML = `<div class="card qcard"><div class="row" style="justify-content:space-between"><span class="eyebrow">Question ${i + 1}/${qs.length} · Level ${q.l}</span><span class="scorebar">Score <b>${score}</b></span></div><h2>${esc(q.q)}</h2><div class="opts">${q.a.map((a, k) => `<button class="opt" data-k="${k}"><span class="k">${'ABCD'[k]}</span>${esc(a)}</button>`).join('')}</div><div class="fb"></div></div>`;
+      area.innerHTML = lvlBar() + `<div class="card qcard" style="margin-top:12px"><div class="row" style="justify-content:space-between"><span class="eyebrow">Question ${i + 1}/${qs.length} · Level ${q.l}</span><span class="scorebar">Score <b>${score}</b></span></div><h2>${esc(q.q)}</h2><div class="opts">${q.a.map((a, k) => `<button class="opt" data-k="${k}"><span class="k">${'ABCD'[k]}</span>${esc(a)}</button>`).join('')}</div><div class="fb"></div></div>`;
+      bindLvl();
       $$('.opt', area).forEach((b) => (b.onclick = () => {
         if (area.dataset.lock) return;
         area.dataset.lock = 1;
@@ -440,6 +450,41 @@
         $$('.opt', area)[q.c].classList.add('right');
         $('.fb', area).innerHTML = `<div class="why"><b>${ok ? 'Correct.' : 'Not quite.'}</b> ${esc(q.why)}</div><div class="row" style="margin-top:12px"><button class="btn primary" data-n>${i + 1 < qs.length ? 'Next' : 'See result'} ${I.arrow}</button></div>`;
         $('[data-n]', area).onclick = () => { delete area.dataset.lock; i++; show(); };
+      }));
+    };
+    delete area.dataset.lock;
+    show();
+  }
+
+  function genDrill() {
+    const r = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+    const t = r(0, 8);
+    const onoff = (on) => (on ? 0 : 1);
+    switch (t) {
+      case 0: { const pt = r(2, 6), on = r(1, 8); return { tag: 'TON', q: `TON with PT = ${pt} s. Its input has been ON for ${on} s without interruption. Is the output (done bit) ON?`, a: ['ON', 'OFF'], c: onoff(on >= pt), why: `A TON turns on after its input has been on continuously for PT: ${on} s ${on >= pt ? '≥' : '<'} ${pt} s.` }; }
+      case 1: { const pt = r(4, 6), a = r(1, pt - 1), off = r(1, 3), b = r(1, pt - 1); return { tag: 'TON', q: `TON with PT = ${pt} s. Input ON for ${a} s, OFF for ${off} s, then ON again for ${b} s. Is the output ON now?`, a: ['ON', 'OFF'], c: 1, why: `A TON restarts from zero every time its input goes off, so only the last ${b} s count (${b} s < ${pt} s).` }; }
+      case 2: { const pt = r(4, 7), a = r(1, pt - 1), off = r(1, 3), b = r(1, pt); return { tag: 'RTO', q: `Retentive timer RTO with PT = ${pt} s. Input ON for ${a} s, OFF for ${off} s, then ON again for ${b} s. Is the output ON now?`, a: ['ON', 'OFF'], c: onoff(a + b >= pt), why: `An RTO keeps its time while the input is off: ${a} + ${b} = ${a + b} s ${a + b >= pt ? '≥' : '<'} ${pt} s.` }; }
+      case 3: { const pt = r(3, 8), ago = r(1, 10); return { tag: 'TOF', q: `TOF with PT = ${pt} s. Its input was ON and switched OFF ${ago} s ago. Is the output still ON?`, a: ['ON', 'OFF'], c: onoff(ago < pt), why: `A TOF stays on for PT after the input goes off: ${ago} s ${ago < pt ? '<' : '≥'} ${pt} s.` }; }
+      case 4: { const pt = r(2, 5), hold = r(1, 8), x = r(1, 8); const on = x < pt; return { tag: 'TP', q: `Pulse timer TP with PT = ${pt} s. A button is pressed and held for ${hold} s. ${x} s after the press, is the output ON?`, a: ['ON', 'OFF'], c: onoff(on), why: `A TP gives exactly PT = ${pt} s from the rising edge, however long the button is held: ${x} s ${on ? '<' : '≥'} ${pt} s.` }; }
+      case 5: { const n = r(3, 8), k = r(1, 10); return { tag: 'CTU', q: `CTU with PV = ${n}. The input has had ${k} rising edges since the last reset. Is the done bit ON?`, a: ['ON', 'OFF'], c: onoff(k >= n), why: `CTU is done when CV ≥ PV: CV = ${k}, PV = ${n}.` }; }
+      case 6: { const n = r(3, 8), k = r(1, n + 2); const ans = String(n - k); const opts = [...new Set([ans, String(n + k), String(k), String(n), String(n - k - 1)])].slice(0, 4).sort(() => Math.random() - 0.5); return { tag: 'CTD', q: `CTD with PV = ${n}, freshly loaded (reset). After ${k} pulses, what is CV?`, a: opts, c: opts.indexOf(ans), why: `CTD starts at PV and counts down: ${n} − ${k} = ${n - k}. Done when CV ≤ 0.` }; }
+      case 7: { const s = r(2, 5); const opts = ['1', String(s * 100), String(s), '0'].sort(() => Math.random() - 0.5); return { tag: 'CTU', q: `A CTU input is held ON for ${s} s (scan time 10 ms). How much does CV increase?`, a: opts, c: opts.indexOf('1'), why: 'Counters count rising edges, not scans: one press = +1.' }; }
+      default: { const pt = r(2, 6), x = r(1, 9); const on = x < pt; return { tag: 'TOF', q: `Fan overrun: TOF with PT = ${pt} s fed by the light switch. The switch went off ${x} s ago. Is the fan running?`, a: ['Running', 'Stopped'], c: onoff(on), why: `Off-delay: the fan stops PT = ${pt} s after the switch goes off.` }; }
+    }
+  }
+  function drill(area) {
+    let streak = 0;
+    const show = () => {
+      const g = genDrill();
+      area.innerHTML = `<div class="card qcard"><div class="row" style="justify-content:space-between"><span class="eyebrow">Timer & counter drill · ${g.tag}</span><span class="scorebar">Streak <b>${streak}</b> · Best <b>${S.quiz.drillBest || 0}</b></span></div><h2>${esc(g.q)}</h2><div class="opts">${g.a.map((a, k) => `<button class="opt" data-k="${k}"><span class="k">${'ABCD'[k]}</span>${esc(a)}</button>`).join('')}</div><div class="fb"></div></div>`;
+      $$('.opt', area).forEach((b) => (b.onclick = () => {
+        if (area.dataset.lock) return; area.dataset.lock = 1;
+        const ok = +b.dataset.k === g.c;
+        streak = ok ? streak + 1 : 0;
+        S.quiz.drillBest = Math.max(S.quiz.drillBest || 0, streak); save();
+        b.classList.add(ok ? 'right' : 'wrong'); $$('.opt', area)[g.c].classList.add('right');
+        $('.fb', area).innerHTML = `<div class="why"><b>${ok ? 'Correct.' : 'Not quite.'}</b> ${esc(g.why)}</div><div class="row" style="margin-top:12px"><button class="btn primary" data-n>Next ${I.arrow}</button></div>`;
+        $('[data-n]', area).onclick = () => { delete area.dataset.lock; show(); };
       }));
     };
     delete area.dataset.lock;
@@ -604,7 +649,7 @@
         <div class="lab-side">
           ${ch ? '<div class="card chal only-task"></div>' : ''}
           <div class="card machine only-machine">
-            <div class="machine-head"><span class="eyebrow">Machine</span>${ch ? `<b>${esc(this.plant.name)}</b>` : `<select id="plant-sel" aria-label="Machine">${LL.PLANT_ORDER.map((p) => `<option value="${p}">${esc(LL.Plants[p].name)}</option>`).join('')}</select>`}</div>
+            <div class="machine-head"><span class="eyebrow">Machine</span>${ch ? `<b>${esc(this.plant.name)}</b>` : `<select id="plant-sel" aria-label="Machine">${LL.PLANT_ORDER.map((p) => `<option value="${p}">${esc(LL.Plants[p].name)}</option>`).join('')}</select>`}<button class="btn small how-btn" data-a="how" title="How this machine works and its working program">ⓘ How it works</button></div>
             <canvas width="640" height="360" aria-label="Machine animation"></canvas>
             <p class="blurb"></p>
             <div class="dock desktop-only"></div>
@@ -832,6 +877,7 @@
         case 'c-del': { const s = this.sel; P.rungs[s.i].cells[s.r][s.c] = null; this.sel = null; this.commit(); break; }
         case 'c-link': { const s = this.sel, rung = P.rungs[s.i], b = s.c < P.cols - 1 ? s.c + 1 : P.cols - 1; if (s.r === rung.rows - 1) this.addRow(rung); rung.links[s.r][b] = !rung.links[s.r][b]; this.commit(); break; }
         case 'tests': this.runTests(); break;
+        case 'how': this.showGuide(); break;
         case 'lang-ld': case 'lang-st': { const l = a.slice(5); if (l !== this.lang) { S.lang.lab = l; saveNow(); current = ''; route(); } break; }
         case 'hint': this.hint++; this.renderTask(); break;
         case 'solution': this.askSolution(); break;
@@ -1033,6 +1079,35 @@
         if (k === 'import') { try { const p = LL.parseProgram($('#ptext', m).value); if (!p.rungs.length) p.rungs.push(LL.emptyRung(p.cols)); this.prog = p; this.sel = null; this.m.load(p); this.m.reset(); this.commit('Program imported'); m.remove(); } catch (err) { toast('Could not read it: ' + err.message); } }
         if (b.dataset.ex != null) { const e2 = ex[+b.dataset.ex]; openInLab(Object.assign({ name: e2.t }, e2.spec)); m.remove(); this.prog = LL.parseProgram(S.programs.lab); this.plantId = 'panel'; const ps = $('#plant-sel', this.el); if (ps) ps.value = 'panel'; this.sel = null; this.newMachine(); this.commit('Example loaded on the trainer panel'); }
       });
+    }
+
+    showGuide() {
+      const g = LL.MACHINE_GUIDE[this.plantId] || { how: [this.plant.blurb] };
+      const exCh = g.ex && LL.CH_BY_ID[g.ex], stCh = g.st && LL.CH_BY_ID[g.st];
+      const tags = this.tags();
+      const io = this.plant.inputs.map((d) => `<tr><td>${d.addr}</td><td>${esc(tags[d.addr] || d.name)}</td><td class="muted">${d.kind === 'pbnc' ? 'button wired NC: 1 until pressed' : d.kind === 'pb' ? 'button: 1 while pressed' : d.kind === 'sw' ? 'switch' : esc(d.note || 'sensor')}</td></tr>`)
+        .concat(this.plant.outputs.map((o) => `<tr><td>${o.addr}</td><td>${esc(tags[o.addr] || o.name)}</td><td class="muted">output</td></tr>`)).join('');
+      const proj = exCh || stCh;
+      const note = this.ch ? '<p class="muted">You are in a challenge: use <b>Hints</b> and <b>Solution</b> in the task panel.</p>'
+        : (proj || g.video) ? `<div class="callout tip" style="margin:12px 0 0">The working program below is the reference solution${proj ? ` of the project <a href="#ch-${proj.id}"><b>${esc(proj.title)}</b></a>` : ''}. Learning tip: try the project yourself first, then load this and compare. Every rung has a comment saying what it does.</div>` : '';
+      const btns = [];
+      if (!this.ch) {
+        if (g.video) btns.push({ label: 'Load working ladder (video circuit)', cls: 'primary', run: () => this.loadExample(null, 'video') });
+        if (exCh) btns.push({ label: 'Load working ladder program', cls: g.video ? '' : 'primary', run: () => this.loadExample(exCh, 'ld') });
+        if (stCh) btns.push({ label: 'Load working ST program', cls: exCh || g.video ? '' : 'primary', run: () => this.loadExample(stCh, 'st') });
+      }
+      btns.push({ label: 'Close' });
+      modal('How the ' + this.plant.name.toLowerCase() + ' works', `<ul class="guide">${g.how.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>${note}<details style="margin-top:12px"><summary class="panel-title" style="padding-left:0;cursor:pointer">I/O list (${this.plant.inputs.length + this.plant.outputs.length} signals)</summary><div class="tbl"><table>${io}</table></div></details>`, btns);
+    }
+    loadExample(ch, kind) {
+      if (kind === 'video') { S.programs.lab = LL.OPEN_PROGRAMS.video.program; S.lang.lab = 'ld'; S.plant.lab = 'cylinders'; }
+      else if (kind === 'st') { S.st.lab = ch.solution; S.lang.lab = 'st'; S.plant.lab = ch.plant; }
+      else {
+        const head = (/^NAME /m.test(ch.solution) ? '' : 'NAME ' + ch.title + ' (example)\n') + Object.keys(ch.tags || {}).map((a) => 'TAG ' + a + ' ' + ch.tags[a] + '\n').join('');
+        S.programs.lab = head + ch.solution; S.lang.lab = 'ld'; S.plant.lab = ch.plant;
+      }
+      saveNow(); current = ''; route();
+      toast('Working program loaded: press the buttons and watch it run');
     }
 
     fileMenuST() {
