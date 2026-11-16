@@ -488,6 +488,37 @@
       challenges: ['compare', 'math', 'stages-cmp'],
     },
     {
+      id: 'shift-registers', level: 4, title: 'Bit shifting & shift registers', min: 11,
+      summary: 'SHL, SHR and the bit shift register SHRB: moving bits one place at a time, and why every conveyor that inspects parts uses them.',
+      body: `
+<h3>What "shifting" means</h3>
+<p>A word is a row of 16 bits. <b>Shifting left</b> moves every bit one place up; the top bit falls out, a 0 comes in at the bottom. In binary that is the same as <b>×2</b>. <b>Shifting right</b> is <b>÷2</b>.</p>
+<pre class="code">0000 0101  (5)   SHL 1 →  0000 1010  (10)
+0000 0101  (5)   SHR 1 →  0000 0010  (2, the 1 fell out)
+1000 0001        ROL 1 →  0000 0011  (rotate: the top bit comes back at the bottom)</pre>
+<p>In the Lab: <b>SHL(IN, N, OUT)</b> and <b>SHR(IN, N, OUT)</b> on words; in ST the functions <b>SHL, SHR, ROL, ROR</b>. Siemens calls them SHL_W / SHR_W / ROL_W, Rockwell uses BSL/BSR for bit arrays.</p>
+<h3>The shift register (SHRB)</h3>
+<p>A shift register is a chain of <b>bits</b>. Each time it is clocked, every bit moves one place along and a new <b>DATA</b> bit enters the first place. <b>SHRB(DATA, START, N)</b>: START is the first bit (e.g. M10.0), N the length; a negative N shifts the other way. Try it: SW1 sets the data bit, every press of PB1 is one shift.</p>
+[[sim:sr]]
+<div class="callout warn"><b>The classic mistake:</b> SHRB shifts on <b>every scan</b> while its rung is true. A button held for half a second would shift hundreds of times. Always clock it with an <b>edge</b> (P) or a one-scan pulse.</div>
+<h3>Why conveyors need it: tracking</h3>
+<p>A camera judges a part at one place, but the reject jet is <b>six pockets</b> further on, and six other parts are in between. The PLC must remember six results at once, in the right order. Clock a shift register with the <b>pitch sensor</b> (one pulse per pocket): the result goes in at the camera, and after six pockets it arrives at the bit that belongs to the jet.</p>
+<pre class="code">P(pitch cam)  SHRB(bad_here, M10.0, 8)      M10.0 = pocket at the camera
+NO(pitch cam) NO(M10.6)  → air jet           M10.6 = pocket at the jet (+6)</pre>
+<ul>
+<li>Clock it on the <b>conveyor position</b> (pitch cam, encoder), never on time: if the line stops, the register stops too and the tracking stays right.</li>
+<li>One register per piece of information (bad, good, empty), or a word FIFO for part numbers and measurements.</li>
+<li>Several bits at once tell you about history: "three bad in a row" = three neighbouring bits.</li>
+</ul>
+<div class="callout where"><b>Where:</b> reject stations on bottling, packaging and electronics lines; labelling and marking; sorting conveyors with several outlets; running lights and display chasers; serial data and stepper patterns (rotate).</div>`,
+      sims: {
+        sr: { program: 'RUNG Shift once per press of PB1: SW1 is the data bit\nP(I0.0) SHRB(I0.4,Q0.0,8)', inputs: { 'I0.0': { name: 'PB1 shift', kind: 'pb' }, 'I0.4': { name: 'SW1 data', kind: 'sw' } }, outputs: { 'Q0.0': 'bit 0', 'Q0.1': 'bit 1', 'Q0.2': 'bit 2', 'Q0.3': 'bit 3', 'Q0.4': 'bit 4', 'Q0.5': 'bit 5', 'Q0.6': 'bit 6', 'Q0.7': 'bit 7' }, note: 'Set SW1, press PB1 a few times, then clear SW1 and press again: watch the 1s walk along. ↺ clears the register.' },
+      },
+      takeaways: ['SHL = ×2, SHR = ÷2 on a word; ROL/ROR rotate.', 'SHRB moves a chain of bits one place per clock and takes in a DATA bit.', 'Clock it with an edge, or it shifts every scan.', 'Tracking: clock with the pitch sensor; bit k = the part k pockets after the sensor.', 'Several neighbouring bits = history ("three in a row").'],
+      mistakes: ['Clocking the register without an edge.', 'Clocking it with a timer instead of the conveyor position.', 'Counting the stations wrongly (off by one): station +6 is bit 6 when the data enters bit 0.'],
+      challenges: ['shift-chaser', 'track-1', 'track-2', 'track-3', 'st-shift'],
+    },
+    {
       id: 'field-devices', level: 4, title: 'Field devices: sensors & actuators', min: 10,
       summary: 'What is actually wired to I and Q: proximity, photo-eyes, reed switches, contactors, valves.',
       body: `
@@ -1208,6 +1239,9 @@ END_REPEAT</pre>
     ['Fire service recall', 'Lift operation after a fire alarm or key switch: all calls cancelled, the car returns nonstop to the main floor and parks with the doors open for the fire brigade.'],
     ['Inspection operation', 'Maintenance mode for lifts: the car moves only while a button is held, at slow speed, with normal calls and automatic doors disabled.'],
     ['Safety chain', 'Series circuit of all safety contacts (doors, car stop switch, limits). If any opens, the drive stops regardless of the program.'],
+    ['Shift register', 'Chain of bits that moves one place along on every clock pulse while a new data bit enters at the start. Used to track parts on conveyors (SHRB in Siemens, BSL/BSR in Rockwell).'],
+    ['SHL / SHR / ROL / ROR', 'Word shift instructions: shift left (×2 per place), shift right (÷2 per place), rotate left/right (the bit that falls out comes back at the other end).'],
+    ['Pitch sensor', 'Sensor (cam, encoder or flag) that gives one pulse each time a conveyor moves one pocket or one product spacing. The clock for tracking.'],
     ['Watchdog / timeout', 'Timer that flags a fault when an expected event doesn\'t happen in time.'],
     ['Hysteresis', 'Switching on and off at different thresholds (low/high level) to prevent rapid cycling.'],
     ['HMI', 'Human-Machine Interface: touch panel showing machine state and accepting operator commands.'],

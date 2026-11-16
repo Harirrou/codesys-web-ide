@@ -966,6 +966,119 @@
     },
   };
 
+  // ───────────────────────── inspection conveyor with part tracking ─────────────────────────
+  // Pockets (cleats) one pitch apart. Stations measured in pitches after the load point:
+  // load 0, inspection 2, label printer 5 (= inspection + 3), reject jet 8 (= inspection + 6), end 11.
+  const TRK_PATTERN = 'GGBGEGBBGGEGBGGB';
+  const TRK = { insp: 2, label: 5, reject: 8, end: 11 };
+  P.tracking = {
+    id: 'tracking', name: 'Inspection conveyor (part tracking)', blurb: 'Parts ride in pockets on a conveyor. A camera checks each part, a printer must label the good ones 3 pockets later and an air jet must blow the bad ones off 6 pockets later, while other parts are still in between. The classic job for a shift register.',
+    inputs: [
+      { addr: 'I0.0', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'Pitch cam', kind: 'sensor', note: 'On while a pocket is aligned with the stations: one rising edge per pocket' },
+      { addr: 'I0.3', name: 'Part present', kind: 'sensor', note: 'At the inspection station, valid while the cam is on' },
+      { addr: 'I0.4', name: 'Part OK (camera)', kind: 'sensor', note: '1 = good part, valid while the cam is on' },
+      { addr: 'I0.5', name: 'RESET', kind: 'pb', color: 'black' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Conveyor motor', color: 'green' },
+      { addr: 'Q0.1', name: 'Label printer', color: 'blue' },
+      { addr: 'Q0.2', name: 'Reject air jet', color: 'amber' },
+      { addr: 'Q0.3', name: 'Running lamp', color: 'green' },
+      { addr: 'Q0.4', name: 'Alarm lamp', color: 'red' },
+    ],
+    actions: [
+      { id: 'badBatch', label: 'Bad batch (next 3 parts bad)', run(st) { st.queue.push('B', 'B', 'B'); } },
+      { id: 'gaps', label: 'Feed gaps (next 2 pockets empty)', run(st) { st.queue.push('E', 'E'); } },
+    ],
+    init() {
+      const st = { x: 0.35, pk: {}, lab: {}, labT: {}, air: {}, gone: {}, next: 0, queue: [], goodOut: 0, nolabel: 0, rejected: 0, inspG: 0, inspB: 0, err: 0, last: '', prevCam: 0, t: 0, fault: null };
+      for (let k = -11; k <= 0; k++) st.pk[k] = k >= -1 ? TRK_PATTERN[((k % 16) + 16) % 16] : 'E';
+      st.next = 1;
+      return st;
+    },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      if (Q['Q0.0']) st.x += s / 0.6;
+      while (st.next <= Math.floor(st.x)) { const k = st.next++; st.pk[k] = st.queue.length ? st.queue.shift() : TRK_PATTERN[k % 16]; }
+      const fr = st.x - Math.floor(st.x), cam = fr < 0.3 ? 1 : 0, base = Math.floor(st.x);
+      const at = (d) => base - d;          // pocket index aligned with a station d pitches after the load
+      const bad = (msg) => { st.err++; st.last = msg; };
+      if (cam && !st.prevCam) { const c = st.pk[at(TRK.insp)]; if (c === 'G') st.inspG++; if (c === 'B') st.inspB++; }
+      st.prevCam = cam;
+      // label printer
+      if (cam && Q['Q0.1']) {
+        const k = at(TRK.label);
+        st.labT[k] = (st.labT[k] || 0) + dt;
+        if (st.labT[k] >= 100 && !st.lab[k]) { st.lab[k] = true; if (st.pk[k] === 'B') bad('A BAD part was labelled.'); else if (st.pk[k] === 'E') bad('A label was printed into an empty pocket.'); }
+      }
+      // reject jet
+      if (cam && Q['Q0.2']) {
+        const k = at(TRK.reject);
+        st.air[k] = (st.air[k] || 0) + dt;
+        if (st.air[k] >= 60 && !st.gone[k] && st.pk[k] !== 'E') { st.gone[k] = true; if (st.pk[k] === 'B') st.rejected++; else bad('A GOOD part was blown off at the reject station.'); }
+      }
+      // end of the belt
+      Object.keys(st.pk).forEach((key) => {
+        const k = +key;
+        if (st.x - k < TRK.end) return;
+        const c = st.pk[k];
+        if (!st.gone[k]) {
+          if (c === 'G') { if (st.lab[k]) st.goodOut++; else { st.nolabel++; st.last = 'A good part left without a label.'; } }
+          if (c === 'B') bad('A BAD part escaped to the customer.');
+        }
+        delete st.pk[k]; delete st.lab[k]; delete st.labT[k]; delete st.air[k]; delete st.gone[k];
+      });
+      const o = devices(this, ctrl);
+      const ins = st.pk[at(TRK.insp)];
+      o['I0.2'] = cam; o['I0.3'] = cam && ins && ins !== 'E' ? 1 : 0; o['I0.4'] = cam && ins === 'G' ? 1 : 0;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const P0 = 30, PW = 52, belt = 210;
+      const X = (d) => P0 + d * PW;          // screen x of a position d pitches after the load point
+      // belt
+      c.fillStyle = th.metalDark; D.rr(c, X(-0.4), belt, X(TRK.end + 0.3) - X(-0.4), 16, 8); c.fill();
+      c.fillStyle = th.ground; c.fillRect(0, 300, 640, 6);
+      // stations
+      const stn = (d, name, sub, on) => { c.fillStyle = on ? th.amber : th.panel2; D.rr(c, X(d) - 22, 60, 44, 30, 6); c.fill(); c.strokeStyle = th.line; c.stroke(); D.text(c, name, X(d), 44, { size: 10, weight: 700, color: th.ink }); D.text(c, sub, X(d), 75, { size: 9, mono: true, color: on ? '#1d232a' : th.muted }); c.strokeStyle = th.line; c.setLineDash([3, 4]); c.beginPath(); c.moveTo(X(d), 92); c.lineTo(X(d), belt - 36); c.stroke(); c.setLineDash([]); };
+      stn(0, 'load', '', false);
+      stn(TRK.insp, 'camera', 'I0.3/4', !!I['I0.2'] && !!I['I0.3']);
+      stn(TRK.label, 'printer', 'Q0.1', !!Q['Q0.1']);
+      stn(TRK.reject, 'air jet', 'Q0.2', !!Q['Q0.2']);
+      D.text(c, '+3', X(TRK.label), 104, { size: 10, mono: true, weight: 700, color: th.muted }); D.text(c, '+6', X(TRK.reject), 104, { size: 10, mono: true, weight: 700, color: th.muted });
+      if (Q['Q0.2']) { c.strokeStyle = 'rgba(120,180,255,.8)'; c.lineWidth = 2; for (let i = -1; i <= 1; i++) { c.beginPath(); c.moveTo(X(TRK.reject) + i * 6, 96); c.lineTo(X(TRK.reject) + i * 12, belt - 30); c.stroke(); } }
+      // reject bin
+      c.fillStyle = th.panel2; c.fillRect(X(TRK.reject) - 26, belt + 34, 52, 50); c.strokeStyle = th.line; c.strokeRect(X(TRK.reject) - 26, belt + 34, 52, 50);
+      for (let i = 0; i < Math.min(st.rejected, 6); i++) { c.fillStyle = '#d9534f'; D.rr(c, X(TRK.reject) - 22 + (i % 3) * 15, belt + 70 - Math.floor(i / 3) * 12, 13, 10, 2); c.fill(); }
+      D.text(c, 'rejects ' + st.rejected, X(TRK.reject) + 32, belt + 62, { size: 10, mono: true, weight: 700, color: th.ink, align: 'left' });
+      // pockets and parts
+      Object.keys(st.pk).forEach((key) => {
+        const k = +key, d = st.x - k;
+        if (d < -0.4 || d > TRK.end + 0.3) return;
+        const px = X(d);
+        c.fillStyle = th.metal; c.fillRect(px - 24, belt - 6, 4, 8); c.fillRect(px + 20, belt - 6, 4, 8);
+        const ct = st.pk[k];
+        if (ct !== 'E' && !st.gone[k]) {
+          c.fillStyle = ct === 'G' ? '#7fb3d5' : '#d9534f'; D.rr(c, px - 16, belt - 28, 32, 26, 4); c.fill();
+          if (ct === 'B') { c.strokeStyle = '#fff'; c.lineWidth = 2; c.beginPath(); c.moveTo(px - 6, belt - 20); c.lineTo(px + 6, belt - 9); c.moveTo(px + 6, belt - 20); c.lineTo(px - 6, belt - 9); c.stroke(); }
+          if (st.lab[k]) { c.fillStyle = '#fff'; c.fillRect(px - 8, belt - 25, 16, 8); D.text(c, 'OK', px, belt - 20.5, { size: 7, weight: 800, color: '#1d232a' }); }
+        }
+      });
+      // sensors and lamps
+      D.sensorDot(c, th, X(TRK.insp) - 30, belt + 34, !!I['I0.2'], 'cam I0.2', 'left');
+      D.sensorDot(c, th, X(TRK.insp) + 10, belt + 34, !!I['I0.3'], 'part');
+      D.sensorDot(c, th, X(TRK.insp) + 10, belt + 52, !!I['I0.4'], 'OK');
+      D.lamp(c, th, 560, 40, 7, !!Q['Q0.3'], 'green', null); D.lamp(c, th, 586, 40, 7, !!Q['Q0.4'], 'red', null);
+      D.text(c, 'good out ' + st.goodOut + (st.nolabel ? '  unlabelled ' + st.nolabel : ''), 630, belt + 40, { size: 11, mono: true, weight: 700, color: th.ink, align: 'right' });
+      D.text(c, 'errors ' + st.err, 630, belt + 58, { size: 11, mono: true, weight: 700, color: st.err ? th.red : th.muted, align: 'right' });
+      if (st.last && st.err) D.text(c, st.last, 320, 332, { size: 11, weight: 700, color: th.red });
+      D.fault(c, th, st.fault);
+    },
+  };
+
   // ───────────────────────── box sorter ─────────────────────────
   const SORT_PATTERN = [1, 0, 0, 1, 1, 0, 1, 0, 0, 1];
   P.sorter = {
@@ -2384,7 +2497,7 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'carwash', 'pumps', 'atank', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
+  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
 
   // Outputs a plant sees: Q bits, AQW words, plus any memory words its HMI displays
   LL.plantOutputs = function (plant, m) {

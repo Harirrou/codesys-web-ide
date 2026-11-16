@@ -10,10 +10,10 @@
 
   // ───────────────────────── element catalogue ─────────────────────────
   const LOGIC = ['WIRE', 'NO', 'NC', 'P', 'N', 'NOT', 'CMP'];
-  const OUTPUT = ['COIL', 'NCOIL', 'SET', 'RST', 'TON', 'TOF', 'TP', 'RTO', 'CTU', 'CTD', 'MOV', 'ADD', 'SUB', 'MUL', 'DIV'];
+  const OUTPUT = ['COIL', 'NCOIL', 'SET', 'RST', 'TON', 'TOF', 'TP', 'RTO', 'CTU', 'CTD', 'MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'SHL', 'SHR', 'SHRB'];
   const TIMERS = ['TON', 'TOF', 'TP', 'RTO'];
   const COUNTERS = ['CTU', 'CTD'];
-  const MATH = ['ADD', 'SUB', 'MUL', 'DIV'];
+  const MATH = ['ADD', 'SUB', 'MUL', 'DIV', 'SHL', 'SHR'];
   const isOutput = (t) => OUTPUT.includes(t);
   const isLogic = (t) => LOGIC.includes(t);
 
@@ -62,6 +62,7 @@
     if (type === 'CMP') { c.a = c.a || 'MW0'; c.op = c.op || '=='; c.b = c.b == null ? '0' : c.b; }
     if (type === 'MOV') { c.src = c.src == null ? '0' : c.src; c.dst = c.dst || 'MW0'; }
     if (MATH.includes(type)) { c.a = c.a || 'MW0'; c.b = c.b == null ? '1' : c.b; c.dst = c.dst || 'MW0'; }
+    if (type === 'SHRB') { c.src = c.src || 'I0.0'; c.addr = c.addr || 'M10.0'; c.n = c.n == null ? 8 : c.n; }
     return c;
   }
   function cloneCell(c) { const n = Object.assign({}, c); n.id = UID++; return n; }
@@ -77,6 +78,16 @@
   }
 
   // Token → cell (or special markers)
+  /* Bits of a shift register: start M10.0, length 10 → M10.0 … M10.7, M11.0, M11.1 */
+  function shiftBits(start, len) {
+    const m = /^([QM])(\d{1,2})\.([0-7])$/.exec(start);
+    if (!m || !(len >= 1 && len <= 64)) return null;
+    const out = [];
+    let by = +m[2], bi = +m[3];
+    for (let k = 0; k < len; k++) { if (by > 99) return null; out.push(m[1] + by + '.' + bi); if (++bi > 7) { bi = 0; by++; } }
+    return out;
+  }
+
   function parseToken(tok) {
     if (tok === '-') return mkCell('WIRE');
     if (tok === '.') return null;
@@ -99,7 +110,8 @@
       case 'CTU': case 'CTD':
         return mkCell(t, { addr: norm(args[0]), pv: parseInt(args[1] || '5', 10) });
       case 'MOV': return mkCell('MOV', { src: norm(args[0]), dst: norm(args[1]) });
-      case 'ADD': case 'SUB': case 'MUL': case 'DIV':
+      case 'SHRB': return mkCell('SHRB', { src: norm(args[0]), addr: norm(args[1]), n: parseInt(args[2] || '8', 10) });
+      case 'ADD': case 'SUB': case 'MUL': case 'DIV': case 'SHL': case 'SHR':
         return mkCell(t, { a: norm(args[0]), b: norm(args[1]), dst: norm(args[2]) });
       default: throw new Error('Unknown element "' + t + '"');
     }
@@ -114,7 +126,8 @@
       case 'TON': case 'TOF': case 'TP': case 'RTO': return c.type + '(' + c.addr + ',' + fmtDuration(c.pt) + ')';
       case 'CTU': case 'CTD': return c.type + '(' + c.addr + ',' + c.pv + ')';
       case 'MOV': return 'MOV(' + c.src + ',' + c.dst + ')';
-      case 'ADD': case 'SUB': case 'MUL': case 'DIV': return c.type + '(' + c.a + ',' + c.b + ',' + c.dst + ')';
+      case 'ADD': case 'SUB': case 'MUL': case 'DIV': case 'SHL': case 'SHR': return c.type + '(' + c.a + ',' + c.b + ',' + c.dst + ')';
+      case 'SHRB': return 'SHRB(' + c.src + ',' + c.addr + ',' + c.n + ')';
       default: return c.type + '(' + (c.addr || '') + ')';
     }
   }
@@ -396,6 +409,13 @@
         case 'SUB': if (p) this.setWord(cell.dst, this.word(cell.a) - this.word(cell.b)); break;
         case 'MUL': if (p) this.setWord(cell.dst, this.word(cell.a) * this.word(cell.b)); break;
         case 'DIV': if (p) { const d = this.word(cell.b); this.setWord(cell.dst, d === 0 ? 0 : this.word(cell.a) / d); } break;
+        case 'SHL': case 'SHR': if (p) { const n = Math.max(0, Math.min(16, this.word(cell.b))); const x = this.word(cell.a) & 0xffff; let v = (cell.type === 'SHL' ? x << n : x >>> n) & 0xffff; if (v > 32767) v -= 65536; this.setWord(cell.dst, v); } break;
+        case 'SHRB': if (p) {
+          const bits = shiftBits(cell.addr, Math.abs(cell.n)), d = this.bit(cell.src);
+          if (!bits) break;
+          if (cell.n > 0) { for (let k = bits.length - 1; k > 0; k--) this.bits[bits[k]] = this.bits[bits[k - 1]] ? 1 : 0; this.bits[bits[0]] = d; }
+          else { for (let k = 0; k < bits.length - 1; k++) this.bits[bits[k]] = this.bits[bits[k + 1]] ? 1 : 0; this.bits[bits[bits.length - 1]] = d; }
+        } break;
       }
     }
 
@@ -506,6 +526,13 @@
         }
         if (c.type === 'MOV' && (!isWordAddr(c.src) || !isWritableWord(c.dst))) issues.push({ level: 'error', rung: n, msg: 'MOV copies a number or word into an MW or AQW word.' });
         if (MATH.includes(c.type) && (!isWordAddr(c.a) || !isWordAddr(c.b) || !isWritableWord(c.dst))) issues.push({ level: 'error', rung: n, msg: c.type + ' needs two operands and an MW or AQW destination.' });
+        if (c.type === 'SHRB') {
+          if (!isBitAddr(c.src)) issues.push({ level: 'error', rung: n, msg: 'SHRB: the data input must be a bit address, e.g. I0.3.' });
+          if (!/^[QM]\d{1,2}\.[0-7]$/.test(c.addr)) issues.push({ level: 'error', rung: n, msg: 'SHRB: the register must start at an M or Q bit, e.g. M10.0.' });
+          else if (!shiftBits(c.addr, Math.abs(c.n))) issues.push({ level: 'error', rung: n, msg: 'SHRB: length must be 1 … 64 (negative = shift the other way).' });
+          if (!rung.cells.some((rw) => rw.some((x) => x && (x.type === 'P' || x.type === 'N' || (x.type === 'NO' && /^[TC]\d/.test(x.addr || ''))))))
+            issues.push({ level: 'warn', rung: n, msg: 'SHRB shifts on EVERY scan while its rung is true. Put an edge (P) or a one-scan pulse in front so it shifts once per event.' });
+        }
         if (isOutput(c.type) && col !== rung.cols - 1) issues.push({ level: 'error', rung: n, msg: 'Outputs belong in the right-most column.' });
       }));
       for (let r = 0; r < rung.rows; r++) for (let col = 1; col < rung.cols; col++) {
@@ -639,6 +666,15 @@
           case 'CTU': used.counters[cell.addr] = 'CTU'; out.push(cell.addr + '(CU := ' + e + ', PV := ' + cell.pv + ');'); break;
           case 'CTD': used.counters[cell.addr] = used.counters[cell.addr] || 'CTD'; out.push(cell.addr + '(CD := ' + e + ', PV := ' + cell.pv + ');'); break;
           case 'MOV': out.push('IF ' + e + ' THEN ' + n(cell.dst) + ' := ' + n(cell.src) + '; END_IF'); break;
+          case 'SHL': case 'SHR': out.push('IF ' + e + ' THEN ' + n(cell.dst) + ' := ' + cell.type + '(' + n(cell.a) + ', ' + n(cell.b) + '); END_IF'); break;
+          case 'SHRB': {
+            const bits = shiftBits(cell.addr, Math.abs(cell.n)) || [];
+            const lines = [];
+            if (cell.n > 0) { for (let k = bits.length - 1; k > 0; k--) lines.push('  ' + n(bits[k]) + ' := ' + n(bits[k - 1]) + ';'); lines.push('  ' + n(bits[0]) + ' := ' + n(cell.src) + ';'); }
+            else { for (let k = 0; k < bits.length - 1; k++) lines.push('  ' + n(bits[k]) + ' := ' + n(bits[k + 1]) + ';'); lines.push('  ' + n(bits[bits.length - 1]) + ' := ' + n(cell.src) + ';'); }
+            out.push('IF ' + e + ' THEN  (* shift register ' + cell.addr + ', ' + cell.n + ' bits *)'); lines.forEach((l) => out.push(l)); out.push('END_IF');
+            break;
+          }
           default: {
             const op = { ADD: '+', SUB: '-', MUL: '*', DIV: '/' }[cell.type];
             out.push('IF ' + e + ' THEN ' + n(cell.dst) + ' := ' + n(cell.a) + ' ' + op + ' ' + n(cell.b) + '; END_IF');
@@ -667,7 +703,7 @@
   Object.assign(LL, {
     LOGIC, OUTPUT, TIMERS, COUNTERS, MATH, CMP_OPS, RE,
     isOutput, isLogic, isBitAddr, isWordAddr, isWritableBit, isWritableWord, norm,
-    parseDuration, fmtDuration, mkCell, cloneCell, emptyRung,
+    parseDuration, fmtDuration, shiftBits, mkCell, cloneCell, emptyRung,
     parseRung, rungToLines, parseProgram, programToText, cloneProgram, parseToken, cellToken,
     Machine, lint, toST, stName, usedAddrs,
   });

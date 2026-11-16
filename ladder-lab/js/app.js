@@ -596,6 +596,7 @@
     [['COIL', '( )'], ['SET', '(S)'], ['RST', '(R)'], ['NCOIL', '(/)']],
     [['TON', 'TON'], ['TOF', 'TOF'], ['TP', 'TP'], ['RTO', 'RTO'], ['CTU', 'CTU'], ['CTD', 'CTD']],
     [['MOV', 'MOV'], ['ADD', 'ADD'], ['SUB', 'SUB'], ['MUL', 'MUL'], ['DIV', 'DIV']],
+    [['SHRB', 'SHRB'], ['SHL', 'SHL'], ['SHR', 'SHR']],
   ];
   function toolIcon(k) {
     const s = 'stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"';
@@ -866,6 +867,7 @@
       if (LL.COUNTERS.includes(type)) { const u = this.usedNums(/^C(\d+)$/); let n = 0; while (u.has(n)) n++; return { addr: 'C' + n, pv: 5 }; }
       if (['COIL', 'NCOIL', 'SET', 'RST'].includes(type)) { const o = this.plant.outputs.find((x) => !used.has(x.addr)); return { addr: o ? o.addr : 'M0.0' }; }
       if (['NO', 'NC', 'P', 'N'].includes(type)) { const o = this.plant.inputs.find((x) => !used.has(x.addr)) || this.plant.inputs[0]; return { addr: o.addr }; }
+      if (type === 'SHRB') return { src: (this.plant.inputs.find((x) => x.kind === 'sensor') || this.plant.inputs[0]).addr, addr: 'M10.0', n: 8 };
       return {};
     }
 
@@ -1036,6 +1038,11 @@
         chips = this.quickChips('a', words);
       } else if (T === 'MOV') {
         fields += `<div class="field"><label for="f-src">Source</label><input id="f-src" class="mono" data-f="src" value="${esc(cell.src)}"></div><div class="field"><label for="f-dst">Destination</label><input id="f-dst" class="mono" data-f="dst" value="${esc(cell.dst)}"></div>`;
+      } else if (T === 'SHRB') {
+        fields += `<div class="field"><label for="f-src">DATA bit (enters the register)</label><input id="f-src" class="mono" data-f="src" value="${esc(cell.src)}"></div><div class="field"><label for="f-addr">START bit (first bit of the register)</label><input id="f-addr" class="mono" data-f="addr" value="${esc(cell.addr)}"></div><div class="field"><label for="f-n">Length N (negative = shift the other way)</label><input id="f-n" type="number" step="1" min="-64" max="64" data-f="n" value="${cell.n}"></div>`;
+        chips = this.quickChips('src', inputs.concat(mem));
+      } else if (T === 'SHL' || T === 'SHR') {
+        fields += `<div class="field"><label for="f-a">IN (word)</label><input id="f-a" class="mono" data-f="a" value="${esc(cell.a)}"></div><div class="field"><label for="f-b">N (bits to shift)</label><input id="f-b" class="mono" data-f="b" value="${esc(cell.b)}"></div><div class="field"><label for="f-dst">OUT (word)</label><input id="f-dst" class="mono" data-f="dst" value="${esc(cell.dst)}"></div>`;
       } else if (LL.MATH.includes(T)) {
         fields += `<div class="field"><label for="f-a">A</label><input id="f-a" class="mono" data-f="a" value="${esc(cell.a)}"></div><div class="field"><label for="f-b">B</label><input id="f-b" class="mono" data-f="b" value="${esc(cell.b)}"></div><div class="field"><label for="f-dst">Result</label><input id="f-dst" class="mono" data-f="dst" value="${esc(cell.dst)}"></div>`;
       }
@@ -1049,11 +1056,12 @@
         if (f === 'pt') { const ms = Math.round(parseFloat(v) * 1000); if (!(ms > 0)) { inp && inp.classList.add('bad'); return; } cell.pt = ms; }
         else if (f === 'pv') { const n = parseInt(v, 10); if (isNaN(n)) { inp && inp.classList.add('bad'); return; } cell.pv = n; }
         else if (f === 'op') cell.op = v;
+        else if (f === 'n') { const n = parseInt(v, 10); if (isNaN(n) || n === 0 || Math.abs(n) > 64) { inp && inp.classList.add('bad'); return; } cell.n = n; }
         else {
           let a = LL.norm(v);
           const byName = Object.keys(tags).find((k) => tags[k] && tags[k].toUpperCase() === String(v).trim().toUpperCase());
           if (byName) a = byName;
-          const ok = f === 'addr' ? (LL.TIMERS.includes(T) ? /^T\d{1,2}$/.test(a) : LL.COUNTERS.includes(T) ? /^C\d{1,2}$/.test(a) : LL.isBitAddr(a) || (T === 'RST' && LL.isWritableWord(a))) : f === 'dst' ? LL.isWritableWord(a) : LL.isWordAddr(a);
+          const ok = T === 'SHRB' ? (f === 'src' ? LL.isBitAddr(a) : /^[QM]\d{1,2}\.[0-7]$/.test(a)) : f === 'addr' ? (LL.TIMERS.includes(T) ? /^T\d{1,2}$/.test(a) : LL.COUNTERS.includes(T) ? /^C\d{1,2}$/.test(a) : LL.isBitAddr(a) || (T === 'RST' && LL.isWritableWord(a))) : f === 'dst' ? LL.isWritableWord(a) : LL.isWordAddr(a);
           inp && inp.classList.toggle('bad', !ok);
           if (!ok) return;
           cell[f] = a;

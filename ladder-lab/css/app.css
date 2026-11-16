@@ -520,3 +520,6 @@ ul.guide { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 6
 
 .fault-banner .btn { background: #fff; color: #7f1d1d; border-color: #fff; font-weight: 700; }
 .fault-banner .btn:hover { background: #fee2e2; }
+
+.ladder .sr-bit { fill: var(--surface-3); stroke: var(--line); stroke-width: 1; }
+.ladder .sr-bit.on { fill: var(--power); stroke: var(--power); }

@@ -19,7 +19,7 @@
     R_TRIG: { in: ['CLK'], out: ['Q'] }, F_TRIG: { in: ['CLK'], out: ['Q'] },
     RS: { in: ['S', 'R1'], out: ['Q1'] }, SR: { in: ['S1', 'R'], out: ['Q1'] },
   };
-  const FUNCS = ['ABS', 'MIN', 'MAX', 'LIMIT', 'SEL', 'SQRT', 'TRUNC'];
+  const FUNCS = ['ABS', 'MIN', 'MAX', 'LIMIT', 'SEL', 'SQRT', 'TRUNC', 'SHL', 'SHR', 'ROL', 'ROR'];
   const LOOP_LIMIT = 10000;
 
   class STError extends Error { constructor(line, msg) { super(msg); this.line = line; } }
@@ -446,6 +446,10 @@
             case 'ABS': return Math.abs(v[0]); case 'MIN': return Math.min(...v); case 'MAX': return Math.max(...v);
             case 'LIMIT': return Math.min(Math.max(v[1], v[0]), v[2]); case 'SEL': return v[0] ? v[2] : v[1];
             case 'SQRT': return Math.sqrt(v[0]); case 'TRUNC': return Math.trunc(v[0]);
+            case 'SHL': return ((v[0] & 0xffff) << Math.max(0, Math.min(16, v[1]))) & 0xffff;
+            case 'SHR': return (v[0] & 0xffff) >>> Math.max(0, Math.min(16, v[1]));
+            case 'ROL': { const n = ((v[1] % 16) + 16) % 16, x = v[0] & 0xffff; return ((x << n) | (x >>> (16 - n))) & 0xffff; }
+            case 'ROR': { const n = ((v[1] % 16) + 16) % 16, x = v[0] & 0xffff; return ((x >>> n) | (x << (16 - n))) & 0xffff; }
           }
         }
       }

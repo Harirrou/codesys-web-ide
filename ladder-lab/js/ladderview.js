@@ -33,6 +33,9 @@
     SUB: ['Subtract', 'dst = a − b while powered.'],
     MUL: ['Multiply', 'dst = a × b while powered.'],
     DIV: ['Divide', 'dst = a ÷ b (integer) while powered.'],
+    SHL: ['Shift left', 'OUT = IN shifted left by N bits (16-bit word). Each place = ×2. Runs every scan while powered.'],
+    SHR: ['Shift right', 'OUT = IN shifted right by N bits (16-bit word). Each place = ÷2. Runs every scan while powered.'],
+    SHRB: ['Shift register (bit)', 'Each time it runs, the bits from START move one place along (length N) and DATA enters the first bit. Negative N shifts the other way. Use an edge so it shifts once per event (one pocket, one part).'],
   };
 
   function symbolSVG(cell, x0, x1, cy, tags, isOut, xR) {
@@ -93,8 +96,14 @@
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 49}">CV</text>`;
     } else if (t === 'MOV') {
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 32}">${esc(trunc(cell.src, 10))} →</text><text class="bx-l bx-v" x="${bx0 + 7}" y="${by + 48}">${esc(cell.dst)} = <tspan data-v="dst">0</tspan></text>`;
+    } else if (t === 'SHRB') {
+      const bits = LL.shiftBits(cell.addr, Math.abs(cell.n)) || [];
+      s += `<text class="bx-addr" x="${bx1 - 7}" y="${by + 12.5}">${esc(cell.addr)}${cell.n < 0 ? ' ◀' : ' ▶'}</text>`;
+      s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 30}">DATA ${esc(trunc(cell.src, 6))}  N=${cell.n}</text>`;
+      const shown = bits.slice(0, 16), sq = Math.min(9, (bw - 14) / Math.max(1, shown.length) - 1.5);
+      shown.forEach((b, k) => { s += `<rect class="sr-bit" data-b="${b}" x="${bx0 + 7 + k * (sq + 1.5)}" y="${by + 39}" width="${sq}" height="9" rx="2"/>`; });
     } else {
-      const op = { ADD: '+', SUB: '−', MUL: '×', DIV: '÷' }[t];
+      const op = { ADD: '+', SUB: '−', MUL: '×', DIV: '÷', SHL: '«', SHR: '»' }[t];
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 32}">${esc(trunc(cell.a, 7))} ${op} ${esc(trunc(cell.b, 6))}</text><text class="bx-l bx-v" x="${bx0 + 7}" y="${by + 48}">→ ${esc(cell.dst)} = <tspan data-v="dst">0</tspan></text>`;
     }
     return { wi: `<line class="w wi" x1="${x0}" y1="${cy}" x2="${bx0}" y2="${cy}"/>`, wo: `<line class="w wo" x1="${bx1}" y1="${cy}" x2="${xR}" y2="${cy}"/>`, sym: s, box: true };
@@ -178,6 +187,7 @@
         p.g = g; p.wi = g.querySelector('.wi'); p.wo = g.querySelector('.wo');
         p.et = g.querySelector('[data-v="et"]'); p.bar = g.querySelector('[data-v="bar"]');
         p.cv = g.querySelector('[data-v="cv"]'); p.dst = g.querySelector('[data-v="dst"]');
+        p.reg = [...g.querySelectorAll('[data-b]')];
         p.st = {};
       });
       this.linkEls.forEach((l) => { l.el = this.svg.querySelector('#' + l.id); l.st = -1; });
@@ -231,6 +241,7 @@
         }
         if (p.cv) { const v = on ? m.word(cell.addr + '.CV') : 0; if (st.cv !== v) { p.cv.textContent = v; st.cv = v; } }
         if (p.dst) { const v = on ? m.word(cell.dst) : 0; if (st.dst !== v) { p.dst.textContent = v; st.dst = v; } }
+        if (p.reg && p.reg.length) { const v = on ? p.reg.map((r) => m.bit(r.dataset.b)).join('') : ''; if (st.reg !== v) { p.reg.forEach((r, k) => r.classList.toggle('on', v[k] === '1')); st.reg = v; } }
       }
       for (const l of this.linkEls) {
         const tr = m.trace[l.i];
