@@ -809,13 +809,13 @@
       this.devButtons = [];
       $$('.dock', this.el).forEach((dock) => {
         dock.innerHTML = '';
-        const hmiKeys = devs.filter((d) => d.group === 'hmi');
-        devs.filter((d) => d.group !== 'hmi').forEach((d) => { const b = deviceEl(Object.assign({}, d, { name: d.kind === 'sel3' ? d.name : tags[d.addr] || d.name }), this.ctrl); dock.appendChild(b); this.devButtons.push(b); });
-        if (hmiKeys.length) {
-          const det = h('<details class="hmikeys"><summary>HMI touch keys</summary><div class="hmikeys-in"></div></details>');
-          hmiKeys.forEach((d) => { const b = deviceEl(Object.assign({}, d, { name: tags[d.addr] || d.name }), this.ctrl); $('.hmikeys-in', det).appendChild(b); this.devButtons.push(b); });
+        devs.filter((d) => !d.group).forEach((d) => { const b = deviceEl(Object.assign({}, d, { name: d.kind === 'sel3' ? d.name : tags[d.addr] || d.name }), this.ctrl); dock.appendChild(b); this.devButtons.push(b); });
+        [...new Set(devs.filter((d) => d.group).map((d) => d.group))].forEach((g) => {
+          const title = (this.plant.groups && this.plant.groups[g]) || (g === 'hmi' ? 'HMI touch keys' : g);
+          const det = h(`<details class="hmikeys"><summary>${esc(title)}</summary><div class="hmikeys-in"></div></details>`);
+          devs.filter((d) => d.group === g).forEach((d) => { const b = deviceEl(Object.assign({}, d, { name: tags[d.addr] || d.name }), this.ctrl); $('.hmikeys-in', det).appendChild(b); this.devButtons.push(b); });
           dock.appendChild(det);
-        }
+        });
         this.plant.actions.forEach((a) => {
           const b = h(`<button class="dev act" type="button"><span class="lbl">${esc(a.label)}<span class="sub">${a.toggle ? 'toggle' : 'event'}</span></span></button>`);
           b.onclick = () => { a.run(this.pst); if (a.toggle) $$('.dev.act', this.el).filter((x) => x.textContent.startsWith(a.label)).forEach((x) => x.classList.toggle('down')); };

@@ -816,6 +816,156 @@
     },
   };
 
+  // ───────────────────────── building elevator (5 floors, collective control) ─────────────────────────
+  const LIFT_NAMES = ['G', '1', '2', '3', '4'];
+  const LIFT_Y = (k) => 12 + (4 - k) * 62;            // top of floor band k
+  const LIFT_COP = [[0, 4], [1, 4], [2, 4], [3, 4], [4, 4]];
+  P.lift = {
+    id: 'lift', name: 'Building elevator (5 floors)', blurb: 'A passenger lift for a 5-storey building: car buttons and up/down hall buttons with call lamps, two-speed hoist with slow-down vanes, a door operator with limit switches and a photo-eye, overload, inspection and fire service.',
+    hmi: ['MW20'],
+    groups: { car: 'Car operating panel', hall: 'Hall call buttons' },
+    inputs: [
+      ...LIFT_NAMES.map((n, k) => ({ addr: 'I0.' + k, name: 'Car button ' + n, kind: 'pb', color: 'black', group: 'car' })),
+      { addr: 'I0.5', name: 'Door open button', kind: 'pb', color: 'black', group: 'car' },
+      { addr: 'I0.6', name: 'Door close button', kind: 'pb', color: 'black', group: 'car' },
+      { addr: 'I0.7', name: 'Car stop switch', kind: 'pbnc', color: 'red', note: 'Part of the safety chain: 1 = OK, 0 = pressed' },
+      ...[0, 1, 2, 3].map((k) => ({ addr: 'I1.' + k, name: 'Hall ' + LIFT_NAMES[k] + ' UP', kind: 'pb', color: 'black', group: 'hall' })),
+      ...[1, 2, 3, 4].map((k) => ({ addr: 'I1.' + (k + 3), name: 'Hall ' + LIFT_NAMES[k] + ' DOWN', kind: 'pb', color: 'black', group: 'hall' })),
+      ...LIFT_NAMES.map((n, k) => ({ addr: 'I2.' + k, name: 'Level at ' + n, kind: 'sensor', note: 'Door-zone sensor: 1 only while the car is level with floor ' + n })),
+      { addr: 'I3.0', name: 'Slow-down vane UP', kind: 'sensor', note: '1 in the last 0.35 floor below every floor (travelling up)' },
+      { addr: 'I3.1', name: 'Slow-down vane DOWN', kind: 'sensor', note: '1 in the last 0.35 floor above every floor (travelling down)' },
+      { addr: 'I3.2', name: 'Overload', kind: 'sensor', note: 'Load weighing: 1 = too many passengers' },
+      { addr: 'I3.3', name: 'Door photo-eye clear', kind: 'sensor', note: '1 = nobody in the doorway' },
+      { addr: 'I3.4', name: 'Door open limit', kind: 'sensor' },
+      { addr: 'I3.5', name: 'Door closed limit', kind: 'sensor' },
+      { addr: 'I3.6', name: 'Fire service key', kind: 'sw' },
+      { addr: 'I3.7', name: 'Inspection mode', kind: 'sw' },
+      { addr: 'I4.0', name: 'Inspection UP', kind: 'pb', color: 'black' },
+      { addr: 'I4.1', name: 'Inspection DOWN', kind: 'pb', color: 'black' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Hoist UP', color: 'green' },
+      { addr: 'Q0.1', name: 'Hoist DOWN', color: 'green' },
+      { addr: 'Q0.2', name: 'FAST speed', color: 'amber' },
+      { addr: 'Q0.3', name: 'Door OPEN motor', color: 'blue' },
+      { addr: 'Q0.4', name: 'Door CLOSE motor', color: 'blue' },
+      { addr: 'Q0.5', name: 'Arrival gong', color: 'amber' },
+      { addr: 'Q0.6', name: 'Overload buzzer', color: 'red' },
+      { addr: 'Q0.7', name: 'Fire service lamp', color: 'red' },
+      { addr: 'Q1.0', name: 'Lantern UP', color: 'green' },
+      { addr: 'Q1.1', name: 'Lantern DOWN', color: 'green' },
+      ...LIFT_NAMES.map((n, k) => ({ addr: 'Q2.' + k, name: 'Car call lamp ' + n, color: 'white' })),
+      ...[0, 1, 2, 3].map((k) => ({ addr: 'Q3.' + k, name: 'Hall ' + LIFT_NAMES[k] + ' UP lamp', color: 'white' })),
+      ...[1, 2, 3, 4].map((k) => ({ addr: 'Q3.' + (k + 3), name: 'Hall ' + LIFT_NAMES[k] + ' DOWN lamp', color: 'white' })),
+    ],
+    actions: [
+      { id: 'block', label: 'Passenger blocks the door (2 s)', run(st) { if (st.door > 0.3) st.personT = 2000; } },
+      { id: 'overload', label: 'Overload (too many people)', toggle: true, run(st) { st.over = !st.over; } },
+    ],
+    hmiButtons(st) {
+      const b = [];
+      [0, 1, 2, 3].forEach((k) => b.push({ x: 108, y: LIFT_Y(k) + 18, w: 22, h: 22, addr: 'I1.' + k, label: '▲' }));
+      [1, 2, 3, 4].forEach((k) => b.push({ x: 134, y: LIFT_Y(k) + 18, w: 22, h: 22, addr: 'I1.' + (k + 3), label: '▼' }));
+      LIFT_NAMES.forEach((n, k) => b.push({ x: 392 + (k % 2) * 40, y: 110 + Math.floor(k / 2) * 36, w: 32, h: 30, addr: 'I0.' + k, label: n }));
+      b.push({ x: 392, y: 222, w: 32, h: 28, addr: 'I0.5', label: '◀▶' }, { x: 432, y: 222, w: 32, h: 28, addr: 'I0.6', label: '▶◀' });
+      return b;
+    },
+    init() { return { pos: 0, v: 0, door: 0, personT: 0, over: false, rough: 0, s0: 0, s1: 0, s2: 0, s3: 0, s4: 0, served: 0, opened: false, last: '', t: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000, up = Q['Q0.0'], dn = Q['Q0.1'];
+      const level = [0, 1, 2, 3, 4].find((k) => Math.abs(st.pos - k) < 0.02);
+      if (!st.fault) {
+        if (up && dn) st.fault = 'Hoist UP and DOWN energised together.';
+        if ((up || dn) && st.door > 0.01) st.fault = st.fault || 'The car moved with the door open!';
+        if (Q['Q0.3'] && Q['Q0.4']) st.fault = st.fault || 'Door OPEN and CLOSE motors on together.';
+        if (Q['Q0.3'] && level === undefined && st.door < 0.02) st.fault = st.fault || 'The door was opened between floors!';
+        // hoist with acceleration; two speeds
+        const want = up || dn ? (Q['Q0.2'] ? 1.0 : 0.25) : 0;
+        if (want === 0) { if (st.v > 0.45) { st.rough++; st.last = 'Hard stop from full speed near floor ' + LIFT_NAMES[Math.round(clamp(st.pos, 0, 4))] + '. Switch to slow speed at the slow-down vane.'; } st.v = 0; }
+        else st.v = st.v < want ? Math.min(want, st.v + 2 * s) : Math.max(want, st.v - 2 * s);
+        st.pos += (up ? 1 : dn ? -1 : 0) * st.v * s;
+        if (st.pos < -0.06) st.fault = st.fault || 'The car ran through floor G into the pit (final limit).';
+        if (st.pos > 4.06) st.fault = st.fault || 'The car ran past floor 4 into the headroom (final limit).';
+        // door operator
+        st.door = clamp(st.door + ((Q['Q0.3'] ? 1 : 0) - (Q['Q0.4'] ? 1 : 0)) * s / 1.2, 0, 1);
+        if (st.personT > 0) { st.personT -= dt; if (Q['Q0.4'] && st.door < 0.2) st.fault = st.fault || 'The door closed on a passenger! Reopen when the photo-eye is interrupted.'; }
+        const lv = [0, 1, 2, 3, 4].find((k) => Math.abs(st.pos - k) < 0.02);
+        if (st.door > 0.98 && !st.opened && lv !== undefined) { st.opened = true; st['s' + lv]++; st.served++; }
+        if (st.door < 0.5) st.opened = false;
+      }
+      const o = devices(this, ctrl);
+      const lv = [0, 1, 2, 3, 4].find((k) => Math.abs(st.pos - k) < 0.02);
+      for (let k = 0; k < 5; k++) o['I2.' + k] = lv === k ? 1 : 0;
+      o['I3.0'] = [1, 2, 3, 4].some((k) => st.pos > k - 0.35 && st.pos < k - 0.03) ? 1 : 0;
+      o['I3.1'] = [0, 1, 2, 3].some((k) => st.pos < k + 0.35 && st.pos > k + 0.03) ? 1 : 0;
+      o['I3.2'] = st.over ? 1 : 0;
+      o['I3.3'] = st.personT > 0 && st.door > 0.05 ? 0 : 1;
+      o['I3.4'] = st.door > 0.98 ? 1 : 0;
+      o['I3.5'] = st.door < 0.01 ? 1 : 0;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const sx = 204, sw = 92, fh = 62;
+      // building
+      c.fillStyle = th.inside; c.fillRect(sx, 12, sw, fh * 5);
+      for (let k = 0; k < 5; k++) {
+        const y = LIFT_Y(k);
+        c.fillStyle = th.wall; c.fillRect(10, y + fh - 4, sx - 10, 5); c.fillRect(sx + sw, y + fh - 4, 50, 5);
+        D.text(c, LIFT_NAMES[k], 22, y + 30, { size: 18, weight: 800, color: th.ink });
+        D.text(c, 'served ' + st['s' + k], 44, y + 30, { size: 9, mono: true, color: th.muted, align: 'left' });
+        // hall buttons with call lamps
+        const btn = (x, a, lamp, sym) => { c.fillStyle = th.bezel; c.beginPath(); c.arc(x + 11, y + 29, 11, 0, 7); c.fill(); c.fillStyle = Q[lamp] ? th.amber : (I[a] ? th.on : th.knob); c.beginPath(); c.arc(x + 11, y + 29, 8, 0, 7); c.fill(); D.text(c, sym, x + 11, y + 29.5, { size: 9, weight: 800, color: Q[lamp] ? '#1d232a' : '#fff' }); };
+        if (k < 4) btn(108, 'I1.' + k, 'Q3.' + k, '▲');
+        if (k > 0) btn(134, 'I1.' + (k + 3), 'Q3.' + (k + 3), '▼');
+        // hall lanterns at the floor where the car stands
+        const here = Math.abs(st.pos - k) < 0.02;
+        D.text(c, '▲', 176, y + 22, { size: 12, weight: 800, color: here && Q['Q1.0'] ? th.green : th.lampOff });
+        D.text(c, '▼', 176, y + 38, { size: 12, weight: 800, color: here && Q['Q1.1'] ? th.green : th.lampOff });
+        // shaft sensors
+        D.sensorDot(c, th, sx + sw + 12, y + fh - 22, !!I['I2.' + k], 'I2.' + k);
+        if (k < 4) { c.fillStyle = th.blue; c.globalAlpha = 0.25; c.fillRect(sx + sw + 2, y + fh + 2, 4, 0.35 * fh - 4); c.globalAlpha = 1; }
+        if (k > 0) { c.fillStyle = th.amber; c.globalAlpha = 0.25; c.fillRect(sx - 6, y + fh - 4 - 0.35 * fh + 2, 4, 0.35 * fh - 4); c.globalAlpha = 1; }
+      }
+      // car
+      const cy = 12 + (4 - st.pos) * fh;
+      c.strokeStyle = th.metalDark; c.lineWidth = 2; c.beginPath(); c.moveTo(sx + sw / 2, 0); c.lineTo(sx + sw / 2, cy + 4); c.stroke();
+      c.fillStyle = th.metal; D.rr(c, sx + 6, cy + 4, sw - 12, fh - 8, 5); c.fill();
+      const dw = (sw - 28) / 2 * (1 - st.door);
+      c.fillStyle = th.door; c.fillRect(sx + 14, cy + 10, dw, fh - 20); c.fillRect(sx + sw - 14 - dw, cy + 10, dw, fh - 20);
+      c.strokeStyle = th.metalDark; c.lineWidth = 1; c.strokeRect(sx + 14, cy + 10, sw - 28, fh - 20);
+      if (st.personT > 0 && st.door > 0.05) { c.fillStyle = th.red; c.beginPath(); c.arc(sx + sw / 2, cy + 22, 5, 0, 7); c.fill(); c.fillRect(sx + sw / 2 - 4, cy + 28, 8, 18); }
+      if (st.over) D.text(c, '⚖', sx + sw / 2, cy + fh / 2, { size: 18, color: th.red });
+      // car operating panel
+      c.fillStyle = th.panel2; D.rr(c, 380, 20, 96, 240, 10); c.fill(); c.strokeStyle = th.line; c.stroke();
+      c.fillStyle = '#0b1220'; D.rr(c, 392, 32, 72, 62, 6); c.fill();
+      const fl = Q['MW20'];
+      D.text(c, fl >= 0 && fl <= 4 ? LIFT_NAMES[fl] : '–', 440, 64, { size: 34, weight: 800, mono: true, color: '#ffb02e' });
+      D.text(c, Q['Q1.0'] ? '▲' : Q['Q1.1'] ? '▼' : '', 408, 64, { size: 14, weight: 800, color: '#ffb02e' });
+      D.text(c, 'MW20', 428, 102, { size: 8, mono: true, color: th.muted });
+      LIFT_NAMES.forEach((n, k) => {
+        const x = 392 + (k % 2) * 40, y = 110 + Math.floor(k / 2) * 36;
+        c.fillStyle = th.bezel; D.rr(c, x, y, 32, 30, 15); c.fill();
+        c.strokeStyle = Q['Q2.' + k] ? th.amber : th.line; c.lineWidth = 2; c.stroke();
+        D.text(c, n, x + 16, y + 15.5, { size: 12, weight: 800, color: Q['Q2.' + k] ? th.amber : (I['I0.' + k] ? th.on : '#e6e9ee') });
+      });
+      [['◀▶', 'I0.5', 392], ['▶◀', 'I0.6', 432]].forEach(([s2, a, x]) => { c.fillStyle = th.bezel; D.rr(c, x, 222, 32, 28, 6); c.fill(); D.text(c, s2, x + 16, 236, { size: 10, weight: 800, color: I[a] ? th.on : '#e6e9ee' }); });
+      // status column
+      const sp = Q['Q0.0'] || Q['Q0.1'] ? (Q['Q0.2'] ? 'FAST' : 'SLOW') : 'stopped';
+      D.text(c, 'hoist  ' + (Q['Q0.0'] ? '▲ ' : Q['Q0.1'] ? '▼ ' : '') + sp, 492, 30, { size: 11, mono: true, weight: 700, color: Q['Q0.0'] || Q['Q0.1'] ? th.on : th.muted, align: 'left' });
+      D.text(c, 'door   ' + (I['I3.5'] ? 'closed' : I['I3.4'] ? 'open' : Q['Q0.3'] ? 'opening' : Q['Q0.4'] ? 'closing' : 'stopped'), 492, 48, { size: 11, mono: true, weight: 700, color: th.ink, align: 'left' });
+      const dots = [['I3.0', 'slow-down ▲'], ['I3.1', 'slow-down ▼'], ['I3.4', 'door open lim'], ['I3.5', 'door closed lim'], ['I3.3', 'photo-eye clear'], ['I3.2', 'overload'], ['I0.7', 'car stop OK']];
+      dots.forEach(([a, n], i) => D.sensorDot(c, th, 500, 72 + i * 19, !!I[a], n));
+      D.lamp(c, th, 506, 222, 6, !!Q['Q0.5'], 'amber', null); D.text(c, 'gong', 520, 222, { size: 9, mono: true, color: th.muted, align: 'left' });
+      D.lamp(c, th, 506, 242, 6, !!Q['Q0.6'], 'red', null); D.text(c, 'overload', 520, 242, { size: 9, mono: true, color: th.muted, align: 'left' });
+      D.lamp(c, th, 576, 222, 6, !!Q['Q0.7'], 'red', null); D.text(c, 'fire', 590, 222, { size: 9, mono: true, color: th.muted, align: 'left' });
+      if (I['I3.7']) D.text(c, 'INSPECTION', 576, 244, { size: 9, mono: true, weight: 700, color: th.amber, align: 'left' });
+      if (I['I3.6']) D.text(c, 'FIRE SERVICE', 492, 270, { size: 11, mono: true, weight: 800, color: th.red, align: 'left' });
+      D.text(c, 'hard stops ' + st.rough, 632, 290, { size: 10, mono: true, weight: 700, color: st.rough ? th.red : th.muted, align: 'right' });
+      D.fault(c, th, st.fault);
+    },
+  };
+
   // ───────────────────────── box sorter ─────────────────────────
   const SORT_PATTERN = [1, 0, 0, 1, 1, 0, 1, 0, 0, 1];
   P.sorter = {
@@ -2234,7 +2384,7 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pumps', 'atank', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
+  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'carwash', 'pumps', 'atank', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
 
   // Outputs a plant sees: Q bits, AQW words, plus any memory words its HMI displays
   LL.plantOutputs = function (plant, m) {

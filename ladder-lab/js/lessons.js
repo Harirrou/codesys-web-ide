@@ -905,6 +905,41 @@ IF Tool = 0 THEN HmiAlarm := 2; Step := 90; END_IF   (* unknown tool *)</pre>
       mistakes: ['Starting to draw rungs before the sequence is written down.', 'Testing only the happy path.'],
       challenges: ['ped-crossing', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pump-station', 'level-control', 'drill-station', 'oven', 'traffic-night', 'washer', 'crane', 'indexer', 'auto-batching', 'gate', 'compressor', 'capline', 'palletizer'],
     },
+    {
+      id: 'lift-control', level: 6, title: 'Elevator control: how real lifts think', min: 14,
+      summary: 'Floor position, door operator, call memory, collective selective control, two-speed levelling, the safety chain, inspection and fire service: the whole logic of a passenger lift.',
+      body: `
+<h3>Why the elevator is the classic PLC project</h3>
+<p>A lift looks simple (go to a floor, open the door) but it combines almost everything: memory (calls), position tracking, a decision about direction, a sequence for the door, timers, speed control, and safety rules that must never be broken. Lift controllers in buildings do exactly this, often in a PLC or a dedicated controller with the same logic.</p>
+<h3>1. Where is the car?</h3>
+<p>Each floor has a <b>door-zone</b> sensor (a magnet or vane in the shaft) that is on only while the car is level. The PLC remembers the <b>last floor seen</b> in a word (MW0). Between floors the car is "after floor MW0". Big lifts use an absolute encoder instead, but the idea is the same.</p>
+<h3>2. The door operator</h3>
+<p>A door motor with OPEN and CLOSE and two limit switches, programmed as a small state machine: closed → opening → open (dwell) → closing → closed. The <b>photo-eye</b> (light curtain) and the open button reopen a closing door. The car may move <b>only</b> with the door closed: in real lifts the door contacts are part of the hard-wired <b>safety chain</b>.</p>
+<h3>3. Calls and direction</h3>
+<div class="tbl"><table>
+<tr><th>Term</th><th>Meaning</th></tr>
+<tr><td>Car call</td><td>Button inside the car: "take me to floor k". Stop in either direction.</td></tr>
+<tr><td>Hall call</td><td>Button on the landing, UP or DOWN: "I want to go up/down from here".</td></tr>
+<tr><td>Registered</td><td>Stored in memory and shown by the button lamp until served.</td></tr>
+<tr><td>Collective selective</td><td>Travelling up, stop for car calls and UP hall calls; on the way down, for car calls and DOWN hall calls. The highest DOWN call is served on the way up (the car turns there), the lowest UP call on the way down.</td></tr>
+</table></div>
+<p>The direction is a latch: keep going while calls are ahead, then reverse. <b>Hold the direction while the door is open</b>, or the car forgets why it stopped. Allow a start only if there are calls in that direction.</p>
+<h3>4. Two speeds and levelling</h3>
+<p>Fast travel, then a <b>slow-down point</b> before the stopping floor, then a slow approach and a stop on the door-zone sensor. The PLC decides at the slow-down vane: "does the next floor want a stop?" A call that arrives after that point is too late: the car passes and serves it later. Modern lifts do the same with a variable-frequency drive and a speed profile.</p>
+<h3>5. Special operations</h3>
+<ul>
+<li><b>Overload:</b> the weighing device stops the car from leaving; the door stays open and a buzzer sounds.</li>
+<li><b>Car stop switch / safety chain:</b> stop at once, independent of the program logic.</li>
+<li><b>Inspection:</b> for maintenance on the car roof: hold-to-run at slow speed, no calls, no automatic doors.</li>
+<li><b>Fire service recall (Phase I):</b> cancel all calls, return nonstop to the main floor, park with the door open for the fire brigade.</li>
+</ul>
+<div class="callout tip"><b>How these projects were tested:</b> besides the normal tests, the reference program was run against hundreds of random passengers pressing random buttons, with overloads, blocked doors, car-stop presses and fire alarms. That stress testing found real bugs, for example a car that forgot a DOWN call because its direction changed before the door opened. Commissioning engineers do the same: test the strange cases, not only the happy path.</div>
+<div class="callout where"><b>Where:</b> passenger and goods lifts, car-park lifts, stacker cranes and shuttles in warehouses (same "calls and direction" logic), and any machine that must serve requests from several places.</div>`,
+      sims: {},
+      takeaways: ['Door-zone sensors + "last floor seen" give the position.', 'The door is its own state machine; travel only with the door closed and nothing pending.', 'Calls are latched bits with lamps; served when the door opens there.', 'Collective selective: keep the direction while calls are ahead, then reverse.', 'Slow down at the vane before a stop; a late call is served later.', 'Overload, safety chain, inspection and fire service override normal operation.'],
+      mistakes: ['Changing direction before the door opens, so the call that caused the stop is forgotten.', 'Deciding "last call" from the car position instead of from the floor in question.', 'Stopping from full speed because the slow-down decision came too late.', 'Opening the door between floors or moving with it open.'],
+      challenges: ['lift-1', 'lift-2', 'lift-3', 'lift-4', 'lift-5', 'lift-6', 'lift-7', 'elevator'],
+    },
     // ═══════════════════════ LEVEL 7 · ST ═══════════════════════
     {
       id: 'st-basics', level: 7, title: 'Structured Text basics: VAR, :=, IF', min: 10,
@@ -1166,6 +1201,13 @@ END_REPEAT</pre>
     ['Step mode', 'Commissioning mode in which a sequence advances one step per button press, so every movement can be checked.'],
     ['Cycle stop', 'Stop request that lets the current cycle finish and stops the machine at its home position.'],
     ['Tracking', 'Remembering data about a part (type, measurement, good/bad) from the place where it was measured to the place where it is used.'],
+    ['Car call / hall call', 'Car call: a floor button inside the lift car. Hall call: an UP or DOWN button on a landing. Both are registered (stored and lit) until served.'],
+    ['Collective selective control', 'Standard passenger-lift logic: travelling up the car stops for car calls and UP hall calls, travelling down for car calls and DOWN hall calls, and reverses when no calls are left ahead.'],
+    ['Door zone (levelling)', 'The small zone around each floor where the car is level and the door may open; sensed by a magnet or vane in the shaft.'],
+    ['Hall lantern', 'Arrow light at the landing that shows in which direction the arriving lift will travel.'],
+    ['Fire service recall', 'Lift operation after a fire alarm or key switch: all calls cancelled, the car returns nonstop to the main floor and parks with the doors open for the fire brigade.'],
+    ['Inspection operation', 'Maintenance mode for lifts: the car moves only while a button is held, at slow speed, with normal calls and automatic doors disabled.'],
+    ['Safety chain', 'Series circuit of all safety contacts (doors, car stop switch, limits). If any opens, the drive stops regardless of the program.'],
     ['Watchdog / timeout', 'Timer that flags a fault when an expected event doesn\'t happen in time.'],
     ['Hysteresis', 'Switching on and off at different thresholds (low/high level) to prevent rapid cycling.'],
     ['HMI', 'Human-Machine Interface: touch panel showing machine state and accepting operator commands.'],
