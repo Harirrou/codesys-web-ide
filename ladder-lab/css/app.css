@@ -493,3 +493,27 @@ ul.guide { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 6
 .hmikeys-in { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; }
 .dock-sticky .hmikeys { width: auto; flex: none; }
 .dock-sticky .hmikeys-in { flex-wrap: nowrap; }
+
+/* guided path */
+.path-now { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px 16px; margin: 6px 0 26px; }
+.path-prog { min-width: 180px; flex: 1; display: grid; gap: 6px; }
+.read-first { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 10px; }
+.read-first .chip { text-decoration: none; color: var(--ink); }
+.read-first .chip svg { width: 14px; height: 14px; }
+.pathlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.pathlist a { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); text-decoration: none; color: var(--ink); }
+.pathlist a:hover { border-color: var(--ink-2); }
+.pathlist .pn { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-3); font: 700 .82rem var(--f-mono); flex: none; }
+.pathlist .pt { flex: 1; min-width: 0; display: grid; }
+.pathlist .pt span { font-size: .8rem; color: var(--muted); }
+.pathlist li.done .pn { background: var(--power-soft); color: var(--power); }
+.pathlist li.next a { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+.pathlist li.next .pn { background: var(--accent); color: #fff; }
+.path-banner { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 10px; margin: 0 0 16px; }
+.path-banner .card { padding: 12px 14px; display: grid; gap: 6px; text-decoration: none; color: var(--ink); }
+.path-banner .card:hover { border-color: var(--ink-2); }
+.path-banner .muted { font-size: .82rem; }
+.filters a { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 13px; font-weight: 600; font-size: .88rem; min-height: 36px; color: var(--ink-2); text-decoration: none; display: inline-flex; align-items: center; }
+.filters a span { font-family: var(--f-mono); font-size: .75rem; color: var(--muted); margin-left: 4px; }
+.filters a.on { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.filters a.on span { color: var(--surface); opacity: .75; }

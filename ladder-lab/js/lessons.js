@@ -648,7 +648,51 @@ END_CASE</pre>
       sims: { sm: { program: 'RUNG 0 → 1 on start\nCMP(MW0==0) P(I0.0) MOV(1,MW0)\nRUNG 1 → 2 after 2 s\nCMP(MW0==1) NO(T0) MOV(2,MW0)\nRUNG 2 → 0 after 2 s\nCMP(MW0==2) NO(T1) MOV(0,MW0)\nRUNG Step 1 timer\nCMP(MW0==1) TON(T0,2s)\nRUNG Step 2 timer\nCMP(MW0==2) TON(T1,2s)\nRUNG Lamp A in step 1\nCMP(MW0==1) COIL(Q0.0)\nRUNG Lamp B in step 2\nCMP(MW0==2) COIL(Q0.1)', inputs: { 'I0.0': pb('START') }, outputs: { 'Q0.0': 'Step 1', 'Q0.1': 'Step 2' }, note: 'Watch MW0 in the values panel: 0 → 1 → 2 → 0.' } },
       takeaways: ['One step word, transition rungs (CMP + MOV), action rungs (CMP → coil).', 'Same structure as SFC and a CASE statement.'],
       mistakes: ['Driving outputs inside transition rungs.', 'Several transitions out of one step without priority.'],
-      challenges: ['step-machine', 'cyl-cycle-stop', 'cyl-dwell', 'cyl-parallel', 'drill-station', 'oven', 'cyl-abba-c'],
+      challenges: ['cyl-once', 'cyl-repeat', 'step-machine', 'cyl-cycle-stop', 'cyl-dwell', 'cyl-parallel', 'drill-station', 'oven', 'cyl-abba-c'],
+    },
+    {
+      id: 'seq-tools', level: 5, title: 'Sequence toolkit: valves, sensors elsewhere, branches & recovery', min: 14,
+      summary: 'The techniques that turn "A+ B+ A− B−" into a real handling machine: which valve does what, moving until a sensor somewhere else, waiting, branching, remembering, and getting out of trouble.',
+      body: `
+<h3>1. Know your valve: it changes the program</h3>
+<div class="tbl"><table>
+<tr><th>Valve</th><th>Output pattern</th><th>On power loss</th><th>Used for</th></tr>
+<tr><td><b>5/2 monostable</b> (one coil + spring)</td><td>Coil ON for as long as the cylinder must be out</td><td>Goes back to its rest position</td><td>Ejectors, clamps, stoppers: "out only while commanded"</td></tr>
+<tr><td><b>5/2 bistable</b> (two coils, "memory valve")</td><td>A short pulse on the DOWN coil, later a pulse on the UP coil. <b>Never both together.</b></td><td>Stays where it was</td><td>Lifts and grippers that must not move by themselves</td></tr>
+<tr><td><b>5/3 closed centre</b> (two coils + centring springs)</td><td>LEFT coil or RIGHT coil; <b>both off = stop and hold</b> anywhere</td><td>Stops where it is</td><td>Axes that stop at several stations, positioned by sensors</td></tr>
+<tr><td><b>Vacuum generator + vacuum switch</b></td><td>Vacuum ON from gripping until the part is set down</td><td>Part may fall</td><td>Suction grippers. The vacuum switch proves the part is really held</td></tr>
+</table></div>
+<p>With a bistable valve the decoded output can be a single step: the coil only has to be on while the movement starts. With a monostable valve the coil must stay on through every step in which the cylinder has to stay out, so you decode a <b>range</b> of steps.</p>
+<h3>2. "Move until a sensor at another place"</h3>
+<p>A transition does not have to use the sensor of the cylinder that moves. It can use <b>any</b> signal on the machine: a station sensor along an axis, a photo-eye on a conveyor, a "part present" sensor, a vacuum switch, another station's ready bit.</p>
+<pre class="code">Step 6: X right             → leaves when "X at conveyor" (I1.2)
+Step 7: (no output) wait    → leaves when "place free" (I1.6), a photo-eye on another machine
+Output: X right = step 6 AND NOT at conveyor   ← stop on the sensor itself</pre>
+<p>Putting <b>NC(target sensor)</b> into the output rung makes the axis stop in the same scan in which it arrives, even if the step waits longer (step mode, interlocks).</p>
+<h3>3. Waiting is a step too</h3>
+<p>"Wait until the conveyor is free", "wait for the press to be up", "wait for the operator": these are steps <b>with no output</b>. They make the machine predictable: it is always in exactly one step, and the step number tells you what it is waiting for.</p>
+<h3>4. Branches: different parts, different sequences</h3>
+<p>A step can have <b>two exit rungs</b> with opposite conditions:</p>
+<pre class="code">CMP(MW0==5) NO(Z up) NO(metal)  MOV(6,MW0)    → to the conveyor block 6…11
+CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, which ends in 11</pre>
+<p>Give each branch its own range of step numbers and join them again at a common step. A loop is a branch back to an earlier step: "2 → 1 while fewer than 3 strokes, 2 → 3 when done".</p>
+<h3>5. Remember what you measured (tracking)</h3>
+<p>Many sensors only see a part at one place. The metal sensor sees the part at the pickup, not in the gripper. Store the result in a bit or word <b>while the part is there</b> and use the stored value later. Conveyor lines do the same with shift registers.</p>
+<h3>6. Interlocks in the transitions, not in timing</h3>
+<p>"Move X only when Z is up" belongs in the transition into the move step (wait for the Z-up sensor), never in a guess like "Z needs 0.6 s". Sensors keep working when the air pressure drops; timings don't.</p>
+<h3>7. When it goes wrong: watchdog, alarm, homing</h3>
+<ul>
+<li><b>Watchdog:</b> one timer restarts at every step change and runs while a movement is expected. If it expires, go to an alarm step and store <b>which step</b> got stuck. That number is gold for the maintenance team.</li>
+<li><b>Alarm step:</b> movements off, automatic off, red lamp, but <b>do not drop or release a part</b> (keep the vacuum or the clamp).</li>
+<li><b>Homing:</b> RESET brings the machine to its start position <b>in a safe order</b>: first the movement that removes collision risk (gripper up), then the axes. A part still held is put back first.</li>
+<li><b>Step mode</b> (commissioning): each START press advances one step. Gate the step update, keep the outputs of the current step, and switch the watchdog off.</li>
+<li><b>Cycle stop vs. stop:</b> a cycle stop finishes the part and stops at home. An emergency stop is a hard-wired safety function that does not wait for anything.</li>
+</ul>
+<div class="callout where"><b>Where:</b> pick &amp; place units, palletising grippers, assembly cells, press feeders, labelling machines, test benches: every handling machine is built from these few patterns.</div>`,
+      sims: {},
+      takeaways: ['Monostable: hold the coil. Bistable: pulse one coil, never both. 5/3: both off = stop where it is.', 'A transition can use any sensor on the machine, not only the moving cylinder\'s own.', 'Waiting is a step with no outputs.', 'Branch = two exit rungs with opposite conditions; give each branch its own step range.', 'Remember measurements while the part is at the sensor.', 'Watchdog per step, alarm keeps the part, homing in a safe order.'],
+      mistakes: ['Switching both coils of a bistable or 5/3 valve on together.', 'Moving an axis on a timer instead of waiting for "gripper up".', 'Reading the metal sensor after the part has left it.', 'Switching the vacuum off before the part is down.', 'Letting a step-mode wait run the axis past its sensor.'],
+      challenges: ['cyl-once', 'cyl-repeat', 'pp-feed', 'pp-axis', 'pp-pick', 'pp-cycle', 'bug-pp-crash', 'pp-sort', 'pp-auto', 'pp-home', 'pp-station'],
     },
     {
       id: 'safety', level: 5, title: 'Safety, E-stops, alarms & first scan', min: 10,
@@ -1113,6 +1157,15 @@ END_REPEAT</pre>
     ['Alternation (lead/lag)', 'Swapping the duty unit every cycle so both wear equally.'],
     ['Tracking', 'Remembering data about an item (measured upstream) until it reaches the station that acts on it.'],
     ['Debounce', 'Ignoring short glitches so a signal is believed only when stable (often a short TON).'],
+    ['Bistable valve (memory valve)', 'A 5/2 valve with two coils and no spring. A pulse on one coil switches it, and it stays there after the coil (or the power) goes off. Never energise both coils together.'],
+    ['Monostable valve', 'A valve with one coil and a return spring: the cylinder stays out only while the coil is on, and goes back on power loss.'],
+    ['5/3 closed-centre valve', 'Valve with two coils and a centre position that blocks both cylinder ports: both coils off = the cylinder stops and holds where it is. Used to stop an axis at sensors.'],
+    ['Vacuum gripper', 'Suction cup fed by a vacuum generator. A vacuum switch confirms the part is really held before the machine moves.'],
+    ['Pick and place', 'Handling unit that picks a part at one place and puts it down at another, usually with an X axis, a Z axis and a gripper.'],
+    ['Homing', 'Bringing a machine to its start position after a stop, alarm or power cut, in a safe order (e.g. gripper up first, then the axis).'],
+    ['Step mode', 'Commissioning mode in which a sequence advances one step per button press, so every movement can be checked.'],
+    ['Cycle stop', 'Stop request that lets the current cycle finish and stops the machine at its home position.'],
+    ['Tracking', 'Remembering data about a part (type, measurement, good/bad) from the place where it was measured to the place where it is used.'],
     ['Watchdog / timeout', 'Timer that flags a fault when an expected event doesn\'t happen in time.'],
     ['Hysteresis', 'Switching on and off at different thresholds (low/high level) to prevent rapid cycling.'],
     ['HMI', 'Human-Machine Interface: touch panel showing machine state and accepting operator commands.'],

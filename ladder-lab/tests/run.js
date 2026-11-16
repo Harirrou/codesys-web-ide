@@ -38,6 +38,16 @@ LL.CHALLENGES.forEach((ch) => {
   catch (e) { fail++; console.log('FAIL lesson sim', l.id, k, e.message); }
 }));
 Object.keys(LL.OPEN_PROGRAMS || {}).forEach((k) => { const o = LL.OPEN_PROGRAMS[k]; if (o.lang === 'st') { const p = LL.compileST(o.program); ok(p.ok, 'open program ' + k + ' ' + JSON.stringify(p.error)); } });
+// guided paths: every ladder challenge exactly once in the ladder path, every id exists, lessons exist
+(LL.PATHS || []).forEach((P) => P.stages.forEach((stg) => {
+  stg.ids.forEach((id) => ok(!!LL.CH_BY_ID[id], 'path ' + P.id + ' unknown challenge ' + id));
+  stg.lessons.forEach((l) => ok(LL.LESSONS.some((x) => x.id === l), 'path ' + P.id + ' unknown lesson ' + l));
+}));
+{
+  const lad = LL.PATH_BY_ID.ladder.all, st = LL.PATH_BY_ID.st.all;
+  LL.CHALLENGES.forEach((c) => { const n = (c.lang === 'st' ? st : lad).filter((x) => x === c.id).length; ok(n === 1, 'challenge ' + c.id + ' appears ' + n + ' times in its main path'); });
+}
+LL.LESSONS.forEach((l) => l.challenges.forEach((c) => ok(!!LL.CH_BY_ID[c], 'lesson ' + l.id + ' links unknown challenge ' + c)));
 console.log('ST sample:\n' + LL.toST(LL.parseProgram(LL.CH_BY_ID['permissive'].solution)));
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

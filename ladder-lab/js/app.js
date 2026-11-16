@@ -304,10 +304,11 @@
       </section>
       <div class="sec-head"><div><h2>Your progress</h2><p>${d.l}/${LL.LESSONS.length} lessons · ${d.c}/${LL.CHALLENGES.length} challenges passed</p></div></div>
       <div class="grid levels-strip"></div>
-      <div class="sec-head"><div><h2>Four ways to practise</h2><p>Mix them. Understanding comes from building and breaking things.</p></div></div>
+      <div class="sec-head"><div><h2>Five ways to practise</h2><p>Mix them. Understanding comes from building and breaking things.</p></div></div>
       <div class="grid paths">
         <a class="card path" href="#learn"><span class="ic">${I.learn}</span><h3>Lessons</h3><p>What, why and where, each with live examples you can press.</p></a>
         <a class="card path" href="#lab"><span class="ic">${I.lab}</span><h3>Lab</h3><p>Draw rungs and drive a motor, tank, conveyor, elevator, mixer, sorter, filling line or the 3 cylinders from your video.</p></a>
+        <a class="card path" href="#path"><span class="ic">${I.arrow}</span><h3>Guided path</h3><p>All tasks in the order to solve them, from your first contact to whole machines.</p></a>
         <a class="card path" href="#challenges"><span class="ic">${I.target}</span><h3>Challenges</h3><p>Real tasks with automatic tests, hints and bug hunts.</p></a>
         <a class="card path" href="#quiz"><span class="ic">${I.quiz}</span><h3>Quiz</h3><p>Concept questions plus endless "predict the output" drills.</p></a>
       </div>
@@ -370,10 +371,44 @@
     $('[data-done]', el).onclick = () => { S.lessons[l.id] = 1; save(); if (next) location.hash = 'lesson-' + next.id; else { toast('Course complete. Well done!'); location.hash = 'learn'; } };
   }
 
+  function pathState(P) {
+    const done = P.all.filter((id) => S.ch[id]).length;
+    const next = P.all.find((id) => !S.ch[id]);
+    return { done, next: next && LL.CH_BY_ID[next] };
+  }
+  function pagePath(pid) {
+    const P = LL.PATH_BY_ID[pid] || LL.PATHS[0];
+    S.path = P.id; save();
+    const ps = pathState(P);
+    const pct = Math.round((ps.done / P.all.length) * 100);
+    const el = h(`<div class="wrap"><span class="plate">Guided path</span><h1 style="margin:10px 0 6px">${esc(P.title)}</h1>
+      <p class="muted" style="margin:0 0 14px;max-width:66ch">${esc(P.blurb)}</p>
+      <div class="filters" role="group" aria-label="Path">${LL.PATHS.map((x) => `<a class="${x.id === P.id ? 'on' : ''}" href="#path-${x.id}">${esc(x.short)} <span>${x.all.filter((id) => S.ch[id]).length}/${x.all.length}</span></a>`).join('')}</div>
+      <div class="card path-now"><div class="path-prog"><span><b>${ps.done}/${P.all.length}</b> solved</span><div class="meter"><i style="width:${pct}%"></i></div></div>
+        ${ps.next ? `<a class="btn primary" href="#ch-${ps.next.id}">${ps.done ? 'Continue' : 'Start'}: ${esc(ps.next.title)} ${I.arrow}</a>` : '<span class="chip ok">✓ Path complete. Impressive!</span>'}</div>
+      <div class="stages"></div></div>`);
+    let n = 0;
+    P.stages.forEach((stg, k) => {
+      const sd = stg.ids.filter((id) => S.ch[id]).length;
+      const b = h(`<section class="level-block path-stage"><div class="level-head"><span class="big">${k + 1}</span><div><h2>${esc(stg.title)}</h2><p>${esc(stg.sub)} · ${sd}/${stg.ids.length} solved</p></div></div>
+        <div class="read-first">${stg.lessons.filter((l) => lessonIdx(l) >= 0).map((l) => { const L = LL.LESSONS[lessonIdx(l)]; return `<a class="chip" href="#lesson-${l}">${I.learn} ${esc(L.title)}${S.lessons[l] ? ' ✓' : ''}</a>`; }).join('')}</div>
+        <ol class="pathlist"></ol></section>`);
+      stg.ids.forEach((id) => {
+        const c = LL.CH_BY_ID[id]; n++;
+        if (!c) return;
+        const isNext = ps.next && ps.next.id === id;
+        $('.pathlist', b).appendChild(h(`<li class="${S.ch[id] ? 'done' : ''} ${isNext ? 'next' : ''}"><a href="#ch-${id}"><span class="pn">${S.ch[id] ? '✓' : n}</span><span class="pt"><b>${esc(c.title)}</b><span>${c.lang === 'st' ? 'ST · ' : ''}${esc(LL.Plants[c.plant].name)}</span></span>${isNext ? '<span class="chip">next</span>' : S.chTried[id] && !S.ch[id] ? '<span class="chip">in progress</span>' : ''}</a></li>`));
+      });
+      $('.stages', el).appendChild(b);
+    });
+    main().appendChild(el);
+  }
+
   const chKind = (c) => ({ st: c.lang === 'st', bug: /^(bug-|fix-|st-bug)/.test(c.id), project: c.level === 6 });
   function pageChallenges() {
     const total = LL.CHALLENGES.length, passed = LL.CHALLENGES.filter((c) => S.ch[c.id]).length;
     const el = h(`<div class="wrap"><span class="plate">Practice</span><h1 style="margin:10px 0 6px">Challenges &amp; exercises</h1><p class="muted" style="margin:0 0 14px;max-width:64ch">Each task gives you a machine and a job. Build the program, try it by hand, then press <b>Run tests</b>: the checker presses buttons, waits and checks the outputs like a commissioning engineer. Stuck? Hints first, solution last. <b>${passed}/${total}</b> passed.</p>
+      <div class="path-banner">${LL.PATHS.map((P) => { const ps = pathState(P); return `<a class="card" href="#path-${P.id}"><span class="eyebrow">Guided path</span><b>${esc(P.title)}</b><div class="meter"><i style="width:${Math.round((ps.done / P.all.length) * 100)}%"></i></div><span class="muted">${ps.done}/${P.all.length} · ${ps.next ? 'next: ' + esc(ps.next.title) : 'complete'}</span></a>`; }).join('')}</div>
       <div class="filters" role="group" aria-label="Filter"></div><div class="lv"></div></div>`);
     const F = [['all', 'All'], ['ld', 'Ladder'], ['st', 'Structured Text'], ['bug', '🐞 Bug hunts'], ['project', 'Projects'], ['todo', 'Not passed yet']];
     const cur = S.chFilter || 'all';
@@ -1046,7 +1081,8 @@
       const plant = this.plant;
       const io = plant.inputs.map((d) => d.kind === 'sel3' ? `<tr><td>${d.addr} / ${d.addr2}</td><td>${esc(d.name)} <span class="kind">selector: ${d.addr} = MANUAL, ${d.addr2} = AUTO</span></td></tr>` : `<tr><td>${d.addr}</td><td>${esc(tags[d.addr] || d.name)} <span class="kind">${d.kind === 'pbnc' ? 'NC button' : d.kind === 'pb' ? 'NO button' : d.kind === 'sw' ? 'switch' : 'sensor'}</span></td></tr>`)
         .concat(plant.outputs.map((o) => `<tr><td>${o.addr}</td><td>${esc(tags[o.addr] || o.name)} <span class="kind">output</span></td></tr>`)).join('');
-      box.innerHTML = `<div class="row" style="justify-content:space-between"><span class="plate">Challenge · Level ${ch.level}</span>${S.ch[ch.id] ? '<span class="chip ok">✓ passed</span>' : ''}</div>
+      const PP = this.pathOf(), pIdx = PP ? PP.all.indexOf(ch.id) : -1;
+      box.innerHTML = `<div class="row" style="justify-content:space-between"><span class="plate">Challenge · Level ${ch.level}</span>${PP ? `<a class="chip" href="#path-${PP.id}">${esc(PP.short)} · ${pIdx + 1}/${PP.all.length}</a>` : ''}${S.ch[ch.id] ? '<span class="chip ok">✓ passed</span>' : ''}</div>
         <h2>${esc(ch.title)}</h2>
         <p class="brief">${ch.brief}</p>
         <details class="card" style="background:var(--surface-2)"><summary class="panel-title" style="cursor:pointer">I/O list · ${esc(plant.name)}</summary><table class="iotable">${io}</table></details>
@@ -1064,14 +1100,15 @@
       const allOk = res.every((r) => r.ok);
       const box = $('.results', this.el);
       const tags = this.tags();
-      box.innerHTML = (allOk ? `<div class="passed-banner"><span>All ${res.length} tests passed. Machine commissioned!</span>${this.nextCh() ? `<a class="btn small" href="#ch-${this.nextCh().id}">Next challenge ${I.arrow}</a>` : ''}</div>` : '') +
+      box.innerHTML = (allOk ? `<div class="passed-banner"><span>All ${res.length} tests passed. Machine commissioned!</span>${this.nextCh() ? `<a class="btn small" href="#ch-${this.nextCh().id}">${this.pathOf() ? 'Next in the path' : 'Next challenge'}: ${esc(this.nextCh().title)} ${I.arrow}</a>` : ''}</div>` : '') +
         res.map((r, k) => `<div class="res ${r.ok ? 'ok' : 'bad'}"><span class="ri">${r.ok ? '✓' : '✕'}</span><div><b>${esc(r.name)}</b>${r.ok ? '' : `<div class="rm">${esc(r.msg)}</div><ol class="steps-list">${this.ch.tests[k].steps.map((st) => `<li>${esc(LL.describeStep(st, tags))}</li>`).join('')}</ol>`}</div></div>`).join('');
       if (allOk) { S.ch[this.ch.id] = 1; save(); this.renderTaskBadge(); toast('Challenge passed!'); }
       else toast(res.filter((r) => !r.ok).length + ' test(s) failed. See the details.');
       if (this.view !== 'task' && window.innerWidth <= 1000) this.setView('task');
     }
     renderTaskBadge() { const p = $('.chal .plate', this.el); if (p && !$('.chal .chip.ok', this.el)) p.insertAdjacentHTML('afterend', '<span class="chip ok">✓ passed</span>'); }
-    nextCh() { const i = LL.CHALLENGES.indexOf(this.ch); return LL.CHALLENGES[i + 1]; }
+    nextCh() { const P = this.pathOf(); if (P) { const ids = P.all, i = ids.indexOf(this.ch.id); const nx = ids.slice(i + 1).find((id) => !S.ch[id]) || ids[i + 1]; return nx ? LL.CH_BY_ID[nx] : null; } const i = LL.CHALLENGES.indexOf(this.ch); return LL.CHALLENGES[i + 1]; }
+    pathOf() { const pref = LL.PATH_BY_ID[S.path || 'ladder']; if (pref && pref.all.includes(this.ch.id)) return pref; return LL.PATHS.find((P) => P.all.includes(this.ch.id)); }
 
     askSolution() {
       modal('Load the solution?', '<p>Your current program will be replaced. You can get it back with <b>Undo</b>. Try one more hint first? Struggling a little is how it sticks.</p>', [
@@ -1228,12 +1265,14 @@
     if (hsh === 'learn' || hsh.startsWith('lesson-') || hsh === 'glossary') tab = 'learn';
     else if (hsh === 'lab') tab = 'lab';
     else if (hsh === 'challenges' || hsh.startsWith('ch-')) tab = 'challenges';
+    else if (hsh === 'path' || hsh.startsWith('path-')) tab = 'path';
     else if (hsh === 'quiz') tab = 'quiz';
     $$('[data-tab]').forEach((a) => a.classList.toggle('on', a.dataset.tab === tab));
     if (hsh === 'learn') pageLearn();
     else if (hsh.startsWith('lesson-')) pageLesson(hsh.slice(7));
     else if (hsh === 'lab') new Lab({});
     else if (hsh === 'challenges') pageChallenges();
+    else if (hsh === 'path' || hsh.startsWith('path-')) pagePath(hsh.slice(5) || S.path || 'ladder');
     else if (hsh.startsWith('ch-') && LL.CH_BY_ID[hsh.slice(3)]) new Lab({ challenge: LL.CH_BY_ID[hsh.slice(3)] });
     else if (hsh === 'quiz') pageQuiz();
     else if (hsh === 'glossary') pageGlossary();
@@ -1247,7 +1286,7 @@
     document.body.insertAdjacentHTML('afterbegin', `
       <header class="top"><div class="wrap">
         <a class="brand" href="#home" aria-label="Ladder Lab home">${BRAND_SVG}<span>Ladder <b>Lab</b></span></a>
-        <nav class="nav"><a data-tab="learn" href="#learn">Learn</a><a data-tab="lab" href="#lab">Lab</a><a data-tab="challenges" href="#challenges">Challenges</a><a data-tab="quiz" href="#quiz">Quiz</a><a href="#glossary">Glossary</a></nav>
+        <nav class="nav"><a data-tab="learn" href="#learn">Learn</a><a data-tab="lab" href="#lab">Lab</a><a data-tab="path" href="#path">Path</a><a data-tab="challenges" href="#challenges">Challenges</a><a data-tab="quiz" href="#quiz">Quiz</a><a href="#glossary">Glossary</a></nav>
         <span class="spacer"></span><span class="xp"></span>
         <button class="iconbtn" id="theme-btn" aria-label="Switch light or dark theme"></button>
       </div></header>

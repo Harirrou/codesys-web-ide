@@ -1855,6 +1855,183 @@
     },
   };
 
+  // ───────────────────────── pick & place handling station ─────────────────────────
+  // X axis: rodless cylinder with a 5/3 closed-centre valve (Q0.1 right, Q0.2 left, both off = stop where it is).
+  // Z axis: double-acting cylinder with a bistable 5/2 valve (Q0.3 down coil, Q0.4 up coil: the valve remembers).
+  // Ejector: spring-return cylinder (Q0.0). Vacuum gripper (Q0.5) with vacuum switch (I1.5).
+  const PP_X = [0, 1, 2];   // stations: 0 pickup, 1 reject chute, 2 conveyor
+  const PP_PATTERN = ['M', 'M', 'P', 'M', 'P', 'M'];
+  P.pickplace = {
+    id: 'pickplace', name: 'Pick & place station', blurb: 'An ejector pushes parts out of a magazine. A gantry with a vacuum gripper picks them up and puts metal parts on the conveyor and plastic parts into the reject chute. The axis stops wherever its station sensor tells you.',
+    inputs: [
+      { addr: 'I0.0', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'RESET', kind: 'pb', color: 'black' },
+      { addr: 'I0.3', name: 'A0 ejector home', kind: 'sensor' },
+      { addr: 'I0.4', name: 'A1 ejector out', kind: 'sensor' },
+      { addr: 'I0.5', name: 'Part at pickup', kind: 'sensor' },
+      { addr: 'I0.6', name: 'Magazine has parts', kind: 'sensor' },
+      { addr: 'I0.7', name: 'Metal part', kind: 'sensor', note: 'Inductive sensor at the pickup: 1 = the part there is metal. Only valid while the part sits at the pickup.' },
+      { addr: 'I1.0', name: 'X at pickup', kind: 'sensor' },
+      { addr: 'I1.1', name: 'X at chute', kind: 'sensor' },
+      { addr: 'I1.2', name: 'X at conveyor', kind: 'sensor' },
+      { addr: 'I1.3', name: 'Z up', kind: 'sensor' },
+      { addr: 'I1.4', name: 'Z down', kind: 'sensor' },
+      { addr: 'I1.5', name: 'Vacuum OK', kind: 'sensor', note: 'Vacuum switch: 1 = a part is held by the suction cup' },
+      { addr: 'I1.6', name: 'Conveyor place free', kind: 'sensor', note: 'Photo-eye at the place position: 1 = free' },
+      { addr: 'I1.7', name: 'Step mode', kind: 'sw' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Ejector valve', color: 'blue' },
+      { addr: 'Q0.1', name: 'X right', color: 'green' },
+      { addr: 'Q0.2', name: 'X left', color: 'green' },
+      { addr: 'Q0.3', name: 'Z down coil', color: 'blue' },
+      { addr: 'Q0.4', name: 'Z up coil', color: 'blue' },
+      { addr: 'Q0.5', name: 'Vacuum', color: 'red' },
+      { addr: 'Q0.6', name: 'Conveyor motor', color: 'green' },
+      { addr: 'Q0.7', name: 'Green lamp (running)', color: 'green' },
+      { addr: 'Q1.0', name: 'Red lamp (alarm)', color: 'red' },
+      { addr: 'Q1.1', name: 'Amber lamp (no parts)', color: 'amber' },
+    ],
+    actions: [
+      { id: 'refill', label: 'Refill magazine (6 parts)', run(st) { st.mag = st.mag.concat(PP_PATTERN); } },
+      { id: 'addM', label: 'Add a metal part to the magazine', run(st) { st.mag.push('M'); } },
+      { id: 'addP', label: 'Add a plastic part to the magazine', run(st) { st.mag.push('P'); } },
+      { id: 'empty', label: 'Empty the magazine', run(st) { st.mag = []; } },
+      { id: 'putM', label: 'Put a metal part at the pickup', run(st) { if (!st.pick && !(st.z > 0.3 && st.x < 0.05)) st.pick = 'M'; } },
+      { id: 'putP', label: 'Put a plastic part at the pickup', run(st) { if (!st.pick && !(st.z > 0.3 && st.x < 0.05)) st.pick = 'P'; } },
+      { id: 'take', label: 'Take the part from the pickup', run(st) { st.pick = null; } },
+      { id: 'jamA', label: 'Jam the magazine', toggle: true, run(st) { st.jamA = !st.jamA; } },
+      { id: 'jamX', label: 'Jam the X axis', toggle: true, run(st) { st.jamX = !st.jamX; } },
+      { id: 'jamConv', label: 'Block the conveyor', toggle: true, run(st) { st.jamConv = !st.jamConv; } },
+      { id: 'powercut', label: 'Power cut mid-cycle (gripper down at the chute)', run(st) { if (!st.held) { st.x = 1; st.z = 1; st.zv = 1; } } },
+      { id: 'between', label: 'Stopped between stations', run(st) { if (!st.held && st.z < 0.05) st.x = 1.5; } },
+    ],
+    init() { return { x: 0, z: 0, zv: 0, a: 0, mag: PP_PATTERN.slice(), pick: null, held: null, grip: 0, pushed: false, conv: [], onConv: 0, chute: 0, chuteList: [], good: 0, wrong: 0, out: 0, jamA: false, jamX: false, jamConv: false, t: 0, fault: null, last: '' }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      const near = (k) => Math.abs(st.x - k) < 0.02;
+      const station = () => PP_X.find((k) => Math.abs(st.x - k) < 0.03);
+      if (!st.fault) {
+        // ejector (spring return)
+        const aMax = st.jamA && st.mag.length ? 0.45 : 1;
+        st.a = clamp(st.a + (Q['Q0.0'] ? 1.25 : -1.25) * s, 0, aMax);
+        if (st.a > 0.97 && !st.pushed && st.mag.length) {
+          st.pushed = true;
+          if (st.pick) st.fault = 'The ejector pushed a part into the occupied pickup: jam!';
+          else if (st.x < 0.1 && st.z > 0.3) st.fault = 'The ejector pushed a part into the lowered gripper.';
+          else st.pick = st.mag.shift();
+        }
+        if (st.a < 0.03) st.pushed = false;
+        // X axis: 5/3 closed centre
+        const R = Q['Q0.1'], L = Q['Q0.2'];
+        if (R && L) st.fault = 'X right and X left were on together.';
+        else if ((R && st.x < 2) || (L && st.x > 0)) {
+          if (st.z > 0.05) st.fault = 'The axis moved with the gripper down: crash! Always wait for "Z up" before moving X.';
+          else if (!st.jamX) st.x = clamp(st.x + (R ? 0.8 : -0.8) * s, 0, 2);
+        }
+        // Z axis: bistable valve remembers the last coil
+        const Dn = Q['Q0.3'], Up = Q['Q0.4'];
+        if (Dn && Up) st.fault = 'Both coils of the bistable Z valve were on together. Switch on only one coil at a time.';
+        if (Dn && !Up) st.zv = 1;
+        if (Up && !Dn) st.zv = 0;
+        if (!st.fault) {
+          if (st.zv && station() === undefined && st.z < 0.05) st.fault = 'The gripper was lowered between two stations.';
+          st.z = clamp(st.z + (st.zv ? 1.6 : -1.6) * s, 0, 1);
+        }
+        // vacuum gripper
+        if (Q['Q0.5']) {
+          if (!st.held && st.z > 0.97 && near(0) && st.pick) { st.grip += dt; if (st.grip >= 150) { st.held = st.pick; st.pick = null; st.grip = 0; } }
+        } else {
+          st.grip = 0;
+          if (st.held) {
+            const k = station();
+            if (st.z < 0.95 || k === undefined) st.fault = 'The vacuum was switched off in mid-air: the part fell!';
+            else if (k === 0) { if (st.pick) st.fault = 'Part put down on top of another part.'; else st.pick = st.held; }
+            else if (k === 1) { st.chute++; st.chuteList.push(st.held); if (st.held === 'P') st.good++; else { st.wrong++; st.last = 'A metal part went into the reject chute.'; } }
+            else {
+              if (st.conv.some((p) => p.p < 0.25)) st.fault = 'Part put down on top of another part on the conveyor.';
+              else { st.conv.push({ p: 0, k: st.held }); st.onConv++; if (st.held === 'M') st.good++; else { st.wrong++; st.last = 'A plastic part went onto the conveyor.'; } }
+            }
+            st.held = null;
+          }
+        }
+        if (st.held && st.z < 0.97 && st.zv && Math.abs(st.x) < 0.03 && st.pick) st.fault = st.fault || 'Part put down on top of another part.';
+        // conveyor
+        if (Q['Q0.6'] && !st.jamConv) st.conv.forEach((p) => (p.p += 0.6 * s));
+        if (Q['Q0.6'] && st.z > 0.5 && near(2)) st.fault = st.fault || 'The conveyor ran while the gripper was down on it.';
+        const before = st.conv.length;
+        st.conv = st.conv.filter((p) => p.p < 1);
+        st.out += before - st.conv.length;
+      }
+      const o = devices(this, ctrl);
+      o['I0.3'] = st.a < 0.03 ? 1 : 0; o['I0.4'] = st.a > 0.97 ? 1 : 0;
+      o['I0.5'] = st.pick ? 1 : 0; o['I0.6'] = st.mag.length ? 1 : 0; o['I0.7'] = st.pick === 'M' ? 1 : 0;
+      o['I1.0'] = near(0) ? 1 : 0; o['I1.1'] = near(1) ? 1 : 0; o['I1.2'] = near(2) ? 1 : 0;
+      o['I1.3'] = st.z < 0.03 ? 1 : 0; o['I1.4'] = st.z > 0.97 ? 1 : 0;
+      o['I1.5'] = st.held && Q['Q0.5'] ? 1 : 0;
+      o['I1.6'] = st.conv.some((p) => p.p < 0.25) ? 0 : 1;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const PX = (x) => 150 + x * 170, beamY = 52, table = 236;
+      const part = (x, y, k) => {
+        c.fillStyle = k === 'M' ? '#9aa6b2' : '#e8833a'; D.rr(c, x - 19, y, 38, 22, 4); c.fill();
+        c.fillStyle = k === 'M' ? 'rgba(255,255,255,.45)' : 'rgba(255,255,255,.25)'; c.fillRect(x - 15, y + 4, 30, 4);
+        D.text(c, k === 'M' ? 'Fe' : 'PL', x, y + 15, { size: 8, mono: true, weight: 700, color: '#1d232a' });
+      };
+      // floor and frame
+      c.fillStyle = th.ground; c.fillRect(0, 296, 640, 8);
+      c.fillStyle = th.metalDark; c.fillRect(36, beamY - 8, 530, 14); c.fillRect(40, beamY, 8, 244); c.fillRect(554, beamY, 8, table - beamY);
+      // station sensors on the beam
+      [['pickup', 'I1.0'], ['chute', 'I1.1'], ['conveyor', 'I1.2']].forEach(([n, a], k) => { D.text(c, n, PX(k), 12, { size: 9, mono: true, weight: 700, color: th.muted }); D.sensorDot(c, th, PX(k) - 14, beamY - 22, !!I[a], a); });
+      // magazine + ejector
+      c.fillStyle = th.glass; c.fillRect(60, 92, 40, table - 92 - 2); c.strokeStyle = th.metalDark; c.lineWidth = 2; c.strokeRect(60, 92, 40, table - 92 - 2);
+      st.mag.slice(0, 6).forEach((k, i) => part(80, table - 24 - i * 23, k));
+      if (st.mag.length > 6) D.text(c, '+' + (st.mag.length - 6), 80, 84, { size: 10, mono: true, weight: 700, color: th.ink });
+      c.fillStyle = th.panel2; c.fillRect(52, table, 130, 10);
+      c.fillStyle = Q['Q0.0'] ? th.blue : th.metal; D.rr(c, 4, table - 28, 46, 24, 4); c.fill();
+      c.fillStyle = th.metalDark; c.fillRect(50, table - 20, 4 + st.a * 60, 8);
+      D.sensorDot(c, th, 14, table + 18, !!I['I0.3'], 'A0'); D.sensorDot(c, th, 14, table + 36, !!I['I0.4'], 'A1');
+      // pickup table
+      c.fillStyle = th.metal; c.fillRect(PX(0) - 26, table, 52, 10);
+      if (st.pick) part(PX(0), table - 22, st.pick);
+      D.sensorDot(c, th, PX(0) - 10, table + 24, !!I['I0.5'], 'part'); D.sensorDot(c, th, PX(0) - 10, table + 42, !!I['I0.7'], 'metal');
+      // reject chute
+      c.fillStyle = th.metal; c.beginPath(); c.moveTo(PX(1) - 30, table); c.lineTo(PX(1) + 30, table); c.lineTo(PX(1) + 18, 290); c.lineTo(PX(1) - 18, 290); c.closePath(); c.fill();
+      c.fillStyle = th.inside || th.panel2; c.fillRect(PX(1) - 16, table + 4, 32, 50);
+      st.chuteList.slice(-2).forEach((k, i) => part(PX(1), 266 - i * 24, k));
+      D.text(c, 'reject ' + st.chute, PX(1) + 40, table + 40, { size: 10, mono: true, weight: 700, color: th.ink, align: 'left' });
+      // conveyor
+      c.fillStyle = th.metalDark; D.rr(c, PX(2) - 36, table, 150, 14, 7); c.fill();
+      if (Q['Q0.6']) { c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 2; c.setLineDash([6, 8]); c.lineDashOffset = -st.t * 0.03; c.beginPath(); c.moveTo(PX(2) - 30, table + 7); c.lineTo(PX(2) + 108, table + 7); c.stroke(); c.setLineDash([]); }
+      st.conv.forEach((p) => part(PX(2) + p.p * 100, table - 22, p.k));
+      D.sensorDot(c, th, PX(2) - 26, table + 28, !I['I1.6'], 'place I1.6');
+      D.text(c, 'out ' + st.out, PX(2) + 112, table + 28, { size: 10, mono: true, weight: 700, color: th.ink, align: 'right' });
+      // carriage + Z cylinder + gripper
+      const cx = PX(st.x);
+      c.fillStyle = (Q['Q0.1'] || Q['Q0.2']) ? th.amber : th.metal; D.rr(c, cx - 30, beamY - 12, 60, 24, 5); c.fill();
+      D.text(c, Q['Q0.1'] ? '▶' : Q['Q0.2'] ? '◀' : '■', cx, beamY, { size: 11, weight: 700, color: th.ink });
+      c.fillStyle = th.metal; D.rr(c, cx - 12, beamY + 12, 24, 54, 4); c.fill();
+      const gy = beamY + 66 + st.z * (table - 22 - 16 - beamY - 66);
+      c.fillStyle = th.metalDark; c.fillRect(cx - 4, beamY + 60, 8, gy - beamY - 60);
+      c.fillStyle = Q['Q0.5'] ? th.red : th.metalDark; D.rr(c, cx - 22, gy, 44, 16, 4); c.fill();
+      if (st.held) part(cx, gy + 16, st.held);
+      // bistable Z valve on the carriage: two coils and the remembered position
+      c.fillStyle = Q['Q0.3'] ? th.blue : th.lampOff; c.fillRect(cx + 15, beamY + 18, 9, 9);
+      c.fillStyle = Q['Q0.4'] ? th.blue : th.lampOff; c.fillRect(cx + 15, beamY + 31, 9, 9);
+      D.text(c, st.zv ? '▼' : '▲', cx + 32, beamY + 30, { size: 10, weight: 700, color: th.muted });
+      // side panel: Z, vacuum, lamps, counters
+      D.sensorDot(c, th, 626, 80, !!I['I1.3'], 'Z up', 'left'); D.sensorDot(c, th, 626, 98, !!I['I1.4'], 'Z down', 'left'); D.sensorDot(c, th, 626, 116, !!I['I1.5'], 'vacuum', 'left');
+      D.lamp(c, th, 584, 150, 6, !!Q['Q0.7'], 'green'); D.lamp(c, th, 604, 150, 6, !!Q['Q1.0'], 'red'); D.lamp(c, th, 624, 150, 6, !!Q['Q1.1'], 'amber');
+      D.text(c, 'good ' + st.good, 632, 176, { size: 10, mono: true, weight: 700, color: th.ink, align: 'right' });
+      D.text(c, 'wrong ' + st.wrong, 632, 192, { size: 10, mono: true, weight: 700, color: st.wrong ? th.red : th.ink, align: 'right' });
+      if (I['I1.7']) D.text(c, 'STEP MODE', 632, 210, { size: 10, mono: true, weight: 700, color: th.amber, align: 'right' });
+      D.fault(c, th, st.fault);
+    },
+  };
+
   // ───────────────────────── flexible fixture station (2 tools, barcode, HMI) ─────────────────────────
   const TOOLS = {
     A: { name: 'Tool A', code: 1001, n: 3, groups: [[0], [1], [2]], unclamp: 'reverse', procT: 2000, color: '#5b8def' },
@@ -2057,7 +2234,7 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pumps', 'atank', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
+  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pumps', 'atank', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
 
   // Outputs a plant sees: Q bits, AQW words, plus any memory words its HMI displays
   LL.plantOutputs = function (plant, m) {
