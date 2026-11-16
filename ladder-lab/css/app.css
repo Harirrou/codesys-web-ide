@@ -523,3 +523,6 @@ ul.guide { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 6
 
 .ladder .sr-bit { fill: var(--surface-3); stroke: var(--line); stroke-width: 1; }
 .ladder .sr-bit.on { fill: var(--power); stroke: var(--power); }
+
+.tbl.compact th, .tbl.compact td { padding: 7px 6px; text-align: center; letter-spacing: 0; }
+.tbl.compact td:first-child, .tbl.compact th:first-child { text-align: left; white-space: nowrap; }

@@ -488,35 +488,71 @@
       challenges: ['compare', 'math', 'stages-cmp'],
     },
     {
-      id: 'shift-registers', level: 4, title: 'Bit shifting & shift registers', min: 11,
-      summary: 'SHL, SHR and the bit shift register SHRB: moving bits one place at a time, and why every conveyor that inspects parts uses them.',
+      id: 'shift-registers', level: 4, title: 'Bit shifting & shift registers', min: 16,
+      summary: 'What a shift register really is, how to read the rungs, when to use one (and when not), and the five jobs it does in real machines.',
       body: `
-<h3>What "shifting" means</h3>
-<p>A word is a row of 16 bits. <b>Shifting left</b> moves every bit one place up; the top bit falls out, a 0 comes in at the bottom. In binary that is the same as <b>×2</b>. <b>Shifting right</b> is <b>÷2</b>.</p>
-<pre class="code">0000 0101  (5)   SHL 1 →  0000 1010  (10)
-0000 0101  (5)   SHR 1 →  0000 0010  (2, the 1 fell out)
-1000 0001        ROL 1 →  0000 0011  (rotate: the top bit comes back at the bottom)</pre>
-<p>In the Lab: <b>SHL(IN, N, OUT)</b> and <b>SHR(IN, N, OUT)</b> on words; in ST the functions <b>SHL, SHR, ROL, ROR</b>. Siemens calls them SHL_W / SHR_W / ROL_W, Rockwell uses BSL/BSR for bit arrays.</p>
-<h3>The shift register (SHRB)</h3>
-<p>A shift register is a chain of <b>bits</b>. Each time it is clocked, every bit moves one place along and a new <b>DATA</b> bit enters the first place. <b>SHRB(DATA, START, N)</b>: START is the first bit (e.g. M10.0), N the length; a negative N shifts the other way. Try it: SW1 sets the data bit, every press of PB1 is one shift.</p>
+<h3>In one sentence</h3>
+<p>A shift register is a <b>row of memory bits that moves one place every time you give it a pulse</b>. It remembers <b>what happened, in order</b>, for a fixed number of steps.</p>
+<h3>Picture it: a line of people passing cards</h3>
+<p>Eight people stand in a row, each holding a card with 0 or 1. When the whistle blows (<b>the pulse</b>), everybody passes their card to the person on their right. The first person picks up a new card from the pile (<b>DATA</b>). The card of the last person falls on the floor. That is <b>one shift</b>. Nothing else happens until the next whistle.</p>
+<h3>Step by step</h3>
+<p>Register of 8 bits (b0 … b7), all 0. SW1 is the DATA card, each press of PB1 is the whistle:</p>
+<div class="tbl compact"><table>
+<tr><th></th><th>DATA</th><th>b0</th><th>b1</th><th>b2</th><th>b3</th><th>b4</th><th>b5</th><th>b6</th><th>b7</th></tr>
+<tr><td>start</td><td></td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>PB1 #1</td><td>1</td><td><b>1</b></td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>PB1 #2</td><td>0</td><td>0</td><td><b>1</b></td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>PB1 #3</td><td>1</td><td><b>1</b></td><td>0</td><td><b>1</b></td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>PB1 #4</td><td>0</td><td>0</td><td><b>1</b></td><td>0</td><td><b>1</b></td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+</table></div>
+<p>Read a column downwards: the 1 that went in at press 1 is in bit 3 after press 4. <b>Bit k always holds the DATA from k pulses ago.</b> That one rule is the whole secret.</p>
+<h3>Reading the two rungs of the example</h3>
+<p><b>Rung 1: <code>P(PB1) → SHRB(DATA = SW1, START = Q0.0, N = 8)</code></b>. Say it out loud: "<i>At the moment PB1 is pressed, shift the eight bits starting at Q0.0 one place, and put SW1 into the first one.</i>" The <b>P</b> matters: SHRB shifts on <b>every scan</b> while its rung is true. A press lasts maybe 200 ms = 20 scans, so without the edge you would get 20 shifts and the whole register fills at once.</p>
+<p><b>Rung 2: one PB2 contact, eight RST outputs below each other</b>. This is <b>one condition with many outputs in parallel</b>: "<i>while PB2 is pressed, reset Q0.0, and Q0.1, and … Q0.7.</i>" It does exactly the same as eight rungs with the same contact, just shorter. You will see this pattern everywhere: one reset button clearing many bits, one mode switch turning several things off, one alarm stopping several motors.</p>
 [[sim:sr]]
-<div class="callout warn"><b>The classic mistake:</b> SHRB shifts on <b>every scan</b> while its rung is true. A button held for half a second would shift hundreds of times. Always clock it with an <b>edge</b> (P) or a one-scan pulse.</div>
-<h3>Why conveyors need it: tracking</h3>
-<p>A camera judges a part at one place, but the reject jet is <b>six pockets</b> further on, and six other parts are in between. The PLC must remember six results at once, in the right order. Clock a shift register with the <b>pitch sensor</b> (one pulse per pocket): the result goes in at the camera, and after six pockets it arrives at the bit that belongs to the jet.</p>
-<pre class="code">P(pitch cam)  SHRB(bad_here, M10.0, 8)      M10.0 = pocket at the camera
-NO(pitch cam) NO(M10.6)  → air jet           M10.6 = pocket at the jet (+6)</pre>
-<ul>
-<li>Clock it on the <b>conveyor position</b> (pitch cam, encoder), never on time: if the line stops, the register stops too and the tracking stays right.</li>
-<li>One register per piece of information (bad, good, empty), or a word FIFO for part numbers and measurements.</li>
-<li>Several bits at once tell you about history: "three bad in a row" = three neighbouring bits.</li>
-</ul>
-<div class="callout where"><b>Where:</b> reject stations on bottling, packaging and electronics lines; labelling and marking; sorting conveyors with several outlets; running lights and display chasers; serial data and stepper patterns (rotate).</div>`,
+<h3>Why not a timer or a counter?</h3>
+<div class="tbl"><table>
+<tr><th>Tool</th><th>It knows…</th><th>It cannot tell you…</th></tr>
+<tr><td>Timer</td><td>how much time has passed</td><td>where a part is if the line stops or slows down</td></tr>
+<tr><td>Counter</td><td>how many parts passed</td><td>which one of them was bad</td></tr>
+<tr><td>One memory bit</td><td>about one part</td><td>about the second and third part in between</td></tr>
+<tr><td><b>Shift register</b></td><td><b>which</b> part had <b>what</b>, and <b>where</b> it is now, in order</td><td>(needs one pulse per step)</td></tr>
+</table></div>
+<h3>When to use one: three questions</h3>
+<ol>
+<li>Is something <b>measured at one place</b> and <b>used at another place later</b>?</li>
+<li>Do the objects move in <b>steps</b> (pockets, pallets, one bottle after the other, one test after the other) and can you get <b>one pulse per step</b>?</li>
+<li>Can there be <b>more than one</b> object between the measuring place and the using place?</li>
+</ol>
+<p>Three times "yes" → shift register. Only one object in between → one memory bit is enough (the box sorter). Parts at random distances with no pulse per part → you need positions from an encoder and a list (FIFO) instead.</p>
+<h3>How to design one: four answers</h3>
+<div class="tbl"><table>
+<tr><th>Question</th><th>Bottle example</th></tr>
+<tr><td>What is the <b>clock</b>? (one pulse per step)</td><td>"a bottle passed the checker", with an edge</td></tr>
+<tr><td>What is the <b>DATA</b>? (what must I remember)</td><td>"this bottle is bad"</td></tr>
+<tr><td>How many steps to where I use it? = <b>bit number</b></td><td>rejector 3 bottles later → bit 3</td></tr>
+<tr><td>How <b>long</b> must it be?</td><td>at least the farthest station + 1 (here 4; 8 is fine)</td></tr>
+</table></div>
+[[sim:delay]]
+<h3>Five jobs it does in real machines</h3>
+<ol>
+<li><b>Tracking:</b> carry a measurement down a conveyor to a reject jet, a label printer, a sorting gate.</li>
+<li><b>Delay by N events:</b> act on something N parts / N cycles later.</li>
+<li><b>History:</b> the last N results side by side ("three fails in a row").</li>
+<li><b>Sequencer:</b> one 1-bit walking round a ring = one active step at a time.</li>
+<li><b>Displays:</b> running lights, chasers, scrolling patterns.</li>
+</ol>
+<h3>Shifting a whole word: SHL, SHR, ROL, ROR</h3>
+<p>The same idea on one word: <b>SHL</b> moves all 16 bits one place up (= ×2), <b>SHR</b> down (= ÷2), <b>ROL/ROR</b> rotate so the bit that falls out comes back at the other end. <code>0000 0101 (5) SHL 1 = 0000 1010 (10)</code>. Use them for patterns and arithmetic; use SHRB when every bit means "one object".</p>
+<div class="callout warn"><b>The three classic mistakes:</b> no edge on the clock (it shifts every scan) · clocking a conveyor register with a timer instead of a pulse per pocket · counting stations wrongly: if DATA enters bit 0 at the sensor, the station N steps later is bit N.</div>
+<div class="callout where"><b>Where:</b> bottling and packaging lines, electronics test lines, sorting conveyors, labelling, car-body tracking in paint shops, and every running-light display.</div>`,
       sims: {
-        sr: { program: 'RUNG Shift once per press of PB1: SW1 is the data bit\nP(I0.0) SHRB(I0.4,Q0.0,8)', inputs: { 'I0.0': { name: 'PB1 shift', kind: 'pb' }, 'I0.4': { name: 'SW1 data', kind: 'sw' } }, outputs: { 'Q0.0': 'bit 0', 'Q0.1': 'bit 1', 'Q0.2': 'bit 2', 'Q0.3': 'bit 3', 'Q0.4': 'bit 4', 'Q0.5': 'bit 5', 'Q0.6': 'bit 6', 'Q0.7': 'bit 7' }, note: 'Set SW1, press PB1 a few times, then clear SW1 and press again: watch the 1s walk along. ↺ clears the register.' },
+        sr: { program: 'RUNG One shift per press of PB1: SW1 is the DATA bit\nP(I0.0) SHRB(I0.4,Q0.0,8)\nRUNG PB2 clears: one condition, eight outputs in parallel\nNO(I0.1) ~ | RST(Q0.0)\n. . . . . . | RST(Q0.1)\n. . . . . . | RST(Q0.2)\n. . . . . . | RST(Q0.3)\n. . . . . . | RST(Q0.4)\n. . . . . . | RST(Q0.5)\n. . . . . . | RST(Q0.6)\nRST(Q0.7)', inputs: { 'I0.0': { name: 'PB1 shift', kind: 'pb' }, 'I0.4': { name: 'SW1 data', kind: 'sw' }, 'I0.1': { name: 'PB2 clear', kind: 'pb' } }, outputs: { 'Q0.0': 'bit 0', 'Q0.1': 'bit 1', 'Q0.2': 'bit 2', 'Q0.3': 'bit 3', 'Q0.4': 'bit 4', 'Q0.5': 'bit 5', 'Q0.6': 'bit 6', 'Q0.7': 'bit 7' }, note: 'Do the table above: SW1 on, press PB1; SW1 off, press; SW1 on, press; SW1 off, press. Then PB2 to clear.' },
+        delay: { program: 'RUNG Each bottle (PB1) shifts once. SW1 = this bottle is bad\nP(I0.0) SHRB(I0.4,M10.0,8)\nRUNG Bottle at the checker\nNO(M10.0) COIL(Q0.0)\nRUNG 1 bottle later\nNO(M10.1) COIL(Q0.1)\nRUNG 2 bottles later\nNO(M10.2) COIL(Q0.2)\nRUNG Rejector: 3 bottles later = bit 3\nNO(M10.3) COIL(Q0.3)', inputs: { 'I0.0': { name: 'PB1 next bottle', kind: 'pb' }, 'I0.4': { name: 'SW1 bad bottle', kind: 'sw' } }, outputs: { 'Q0.0': 'checker', 'Q0.1': '+1', 'Q0.2': '+2', 'Q0.3': 'REJECT +3' }, note: 'SW1 on, press PB1 (a bad bottle), SW1 off, then press PB1 three more times: the reject lamp lights exactly when that bottle arrives.' },
       },
-      takeaways: ['SHL = ×2, SHR = ÷2 on a word; ROL/ROR rotate.', 'SHRB moves a chain of bits one place per clock and takes in a DATA bit.', 'Clock it with an edge, or it shifts every scan.', 'Tracking: clock with the pitch sensor; bit k = the part k pockets after the sensor.', 'Several neighbouring bits = history ("three in a row").'],
-      mistakes: ['Clocking the register without an edge.', 'Clocking it with a timer instead of the conveyor position.', 'Counting the stations wrongly (off by one): station +6 is bit 6 when the data enters bit 0.'],
-      challenges: ['shift-chaser', 'track-1', 'track-2', 'track-3', 'st-shift'],
+      takeaways: ['A shift register is a row of bits that moves one place per pulse; DATA enters the first bit.', 'Bit k holds the DATA from k pulses ago.', 'Clock it with an edge (P) or a one-scan pulse.', 'Use it when something measured here is needed there, several steps later.', 'One condition can drive many outputs in parallel: same as many rungs with the same contact.', 'SHL/SHR/ROL/ROR shift a whole word.'],
+      mistakes: ['Clocking without an edge: the register fills in a flash.', 'Clocking a conveyor register with a timer instead of one pulse per pocket.', 'Off by one: the station N steps after the sensor is bit N when DATA enters bit 0.', 'Checking "three in a row" every scan instead of once per pulse: the alarm comes back after reset.'],
+      challenges: ['sr-hand', 'bug-sr-edge', 'sr-clear', 'sr-delay', 'sr-history', 'sr-ring', 'shift-chaser', 'track-1', 'track-2', 'track-3', 'st-shift'],
     },
     {
       id: 'field-devices', level: 4, title: 'Field devices: sensors & actuators', min: 10,
@@ -1239,6 +1275,7 @@ END_REPEAT</pre>
     ['Fire service recall', 'Lift operation after a fire alarm or key switch: all calls cancelled, the car returns nonstop to the main floor and parks with the doors open for the fire brigade.'],
     ['Inspection operation', 'Maintenance mode for lifts: the car moves only while a button is held, at slow speed, with normal calls and automatic doors disabled.'],
     ['Safety chain', 'Series circuit of all safety contacts (doors, car stop switch, limits). If any opens, the drive stops regardless of the program.'],
+    ['Parallel outputs', 'Several output instructions drawn under each other at the end of one rung. They all get the same condition: one contact, many results (like one reset button clearing many bits).'],
     ['Shift register', 'Chain of bits that moves one place along on every clock pulse while a new data bit enters at the start. Used to track parts on conveyors (SHRB in Siemens, BSL/BSR in Rockwell).'],
     ['SHL / SHR / ROL / ROR', 'Word shift instructions: shift left (×2 per place), shift right (÷2 per place), rotate left/right (the bit that falls out comes back at the other end).'],
     ['Pitch sensor', 'Sensor (cam, encoder or flag) that gives one pulse each time a conveyor moves one pocket or one product spacing. The clock for tracking.'],
@@ -1251,6 +1288,14 @@ END_REPEAT</pre>
 
   // ───────────────────────── concept quiz ─────────────────────────
   LL.QUIZ = [
+    { l: 4, q: 'A shift register (SHRB) of length 8 gets one clock pulse. What happens?', a: ['All bits become the DATA value', 'Every bit moves one place, DATA enters the first bit and the last bit is lost', 'The register is cleared', 'Only the first bit changes'], c: 1, why: 'One pulse = one shift: everything moves one place along.' },
+    { l: 4, q: 'Why is SHRB almost always clocked through a P (edge) contact?', a: ['The syntax requires it', 'Otherwise it shifts on every scan while the rung is true', 'To make the PLC faster', 'To invert the data'], c: 1, why: 'A button held for 200 ms is about 20 scans: 20 shifts instead of one.' },
+    { l: 4, q: 'A checker puts "bad" into bit 0 of a register clocked once per bottle. The rejector is 5 bottles further on. Which bit drives it?', a: ['bit 0', 'bit 4', 'bit 5', 'bit 6'], c: 2, why: 'Bit k holds the data from k pulses ago: 5 bottles later = bit 5.' },
+    { l: 4, q: 'What should clock a tracking register on a conveyor?', a: ['A 1-second timer', 'One pulse per pocket from the conveyor (pitch cam or encoder)', 'The camera result', 'The reject output'], c: 1, why: 'Then the register stops when the conveyor stops, and the tracking stays right.' },
+    { l: 4, q: 'When is a shift register NOT the right tool?', a: ['Several parts sit between the sensor and the actuator', 'You need the last three test results', 'Parts arrive at random distances and nothing gives one pulse per part', 'You want a running light'], c: 2, why: 'A shift register needs one pulse per step. Random spacing needs positions (encoder) and a list (FIFO).' },
+    { l: 4, q: 'One PB2 contact drives eight RST outputs drawn in parallel in one rung. Pressing PB2…', a: ['resets only the first bit', 'resets all eight bits in the same scan', 'resets one bit per scan', 'is a double-coil error'], c: 1, why: 'Outputs in parallel all get the same power: one condition, many outputs.' },
+    { l: 4, q: 'SHL of the word 3 (0000 0011) by one place gives…', a: ['1', '6', '4', '12'], c: 1, why: 'Shifting left one place doubles the value: 0000 0110 = 6.' },
+    { l: 4, q: 'SHRB with a negative length…', a: ['is an error', 'shifts the other way: DATA enters the last bit', 'clears the register', 'shifts two places'], c: 1, why: 'Negative length reverses the direction (Siemens convention).' },
     { l: 1, q: 'In what order does a PLC scan work?', a: ['Write outputs → solve → read inputs', 'Read inputs → solve rungs top to bottom → write outputs', 'Solve rungs whenever an input changes', 'Solve rungs bottom to top'], c: 1, why: 'Inputs are copied first, rungs solved in order, outputs written at the end.' },
     { l: 1, q: 'A normally-open contact -| |- passes power when its bit is…', a: ['0', '1', 'changing', 'forced'], c: 1, why: 'NO contact = "is the bit 1?".' },
     { l: 1, q: 'Two contacts in series represent…', a: ['OR', 'AND', 'XOR', 'NOT'], c: 1, why: 'Power must pass through both.' },
