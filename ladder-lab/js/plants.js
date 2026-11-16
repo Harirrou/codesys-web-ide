@@ -1850,7 +1850,201 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pumps', 'atank', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer'];
+  // ───────────────────────── flexible fixture station (2 tools, barcode, HMI) ─────────────────────────
+  const TOOLS = {
+    A: { name: 'Tool A', code: 1001, n: 3, groups: [[0], [1], [2]], unclamp: 'reverse', procT: 2000, color: '#5b8def' },
+    B: { name: 'Tool B', code: 2002, n: 6, groups: [[0, 1], [2, 3], [4, 5]], unclamp: 'together', procT: 3000, color: '#3fae6b' },
+    X: { name: 'Tool X', code: 3003, n: 3, groups: [[0], [1], [2]], unclamp: 'reverse', procT: 2000, color: '#9b6bd6' },
+  };
+  const HMI_MSG = ['', 'Insert a tool', 'Reading tool barcode…', 'Tool A ready: load part, START', 'Tool B ready: load part, START', 'Clamping…', 'Processing…', 'Unclamping…', 'Remove the part', 'ALARM: press RESET'];
+  const HMI_ALM = ['', 'Barcode not readable', 'Unknown tool code', 'Clamp did not close in time', 'STOP pressed', 'Tool removed during cycle'];
+  LL.FIXTURE = { TOOLS, HMI_MSG, HMI_ALM };
+  P.fixture = {
+    id: 'fixture', name: 'Flexible fixture station (2 tools)', blurb: 'One station, two interchangeable tools identified by barcode. Tool A has 3 clamps, Tool B has 6, each with its own clamp sequence and process time. A small HMI shows the messages your program selects in MW20–MW26.',
+    hmi: ['MW20', 'MW21', 'MW22', 'MW24', 'MW25', 'MW26'],
+    hmiButtons: [{ x: 422, y: 280, w: 88, h: 32, addr: 'I0.0' }, { x: 522, y: 280, w: 88, h: 32, addr: 'I0.2' }],
+    inputs: [
+      { addr: 'I0.0', name: 'HMI START', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'HMI RESET', kind: 'pb', color: 'black' },
+      { addr: 'I0.3', name: 'Part present', kind: 'sensor' },
+      { addr: 'I0.4', name: 'Tool present', kind: 'sensor', note: 'Tool docked and locked' },
+      { addr: 'I0.5', name: 'Scanner read OK', kind: 'sensor', note: 'Valid while the trigger is on' },
+      { addr: 'I0.6', name: 'Scanner no read', kind: 'sensor', note: 'Valid while the trigger is on' },
+      { addr: 'AIW2', name: 'Barcode value', kind: 'sensor', note: '%IW2: the code read from the tool label (1001 = Tool A, 2002 = Tool B)' },
+      ...[0, 1, 2, 3, 4, 5].map((i) => ({ addr: 'I1.' + i, name: 'Clamp ' + (i + 1) + ' closed', kind: 'sensor' })),
+      ...[0, 1, 2, 3, 4, 5].map((i) => ({ addr: 'I2.' + i, name: 'Clamp ' + (i + 1) + ' open', kind: 'sensor' })),
+    ],
+    outputs: [
+      ...[0, 1, 2, 3, 4, 5].map((i) => ({ addr: 'Q0.' + i, name: 'Clamp ' + (i + 1) + ' valve', color: 'blue' })),
+      { addr: 'Q0.6', name: 'Process (screwdriver)', color: 'amber' },
+      { addr: 'Q0.7', name: 'Scanner trigger', color: 'red' },
+      { addr: 'Q1.0', name: 'Green lamp (ready)', color: 'green' },
+      { addr: 'Q1.1', name: 'Red lamp (alarm)', color: 'red' },
+      { addr: 'Q1.2', name: 'Amber lamp (operator)', color: 'amber' },
+    ],
+    actions: [
+      { id: 'toolA', label: 'Change to Tool A', run(st) { st.change('A', false); } },
+      { id: 'toolB', label: 'Change to Tool B', run(st) { st.change('B', false); } },
+      { id: 'toolX', label: 'Unknown tool', run(st) { st.change('X', false); } },
+      { id: 'toolBad', label: 'Tool A, damaged label', run(st) { st.change('A', true); } },
+      { id: 'load', label: 'Load part', run(st) { if (st.tool && !st.part) { st.part = true; st.cyc = { closeOn: {}, closedAt: {}, openOff: {}, openAt: {}, proc: 0, procOk: true, orderOk: null }; } } },
+      { id: 'remove', label: 'Remove part', run(st) { st.removeReq = true; } },
+      { id: 'jam', label: 'Jam clamp 2', toggle: true, run(st) { st.jam = !st.jam; } },
+    ],
+    init() {
+      const st = { tool: { type: 'A', bad: false }, next: null, chg: 0, part: false, pos: [0, 0, 0, 0, 0, 0], prevV: [0, 0, 0, 0, 0, 0], scanT: 0, result: null, code: 0, prevTrig: 0, jam: false, cyc: null, removeReq: false, goodA: 0, goodB: 0, bad: 0, last: '', proc: 0, t: 0, fault: null };
+      st.change = (type, bad) => {
+        if (st.pos.some((p) => p > 0.05)) { st.fault = st.fault || 'Tool removed while clamps were closed.'; return; }
+        if (st.part) { st.fault = st.fault || 'Remove the part before changing the tool.'; return; }
+        st.tool = null; st.next = { type, bad }; st.chg = 1500;
+      };
+      return st;
+    },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      if (st.chg > 0) { st.chg -= dt; if (st.chg <= 0) { st.tool = st.next; st.next = null; } }
+      const T = st.tool ? TOOLS[st.tool.type] : null;
+      const n = T ? T.n : 0;
+      // clamps
+      for (let i = 0; i < 6; i++) {
+        const v = Q['Q0.' + i] ? 1 : 0;
+        if (v && i >= n) st.fault = st.fault || (T ? T.name + ' has no clamp ' + (i + 1) + ': the valve blew air into an open port. Only drive the clamps the tool has.' : 'Clamp valve on with no tool fitted.');
+        const canClose = !(st.jam && i === 1);
+        if (i < n) st.pos[i] = clamp(st.pos[i] + (v ? (canClose ? 4 : 0.3) : -4) * s, 0, canClose ? 1 : 0.4);
+        if (st.cyc && v && !st.prevV[i]) st.cyc.closeOn[i] = st.cyc.closeOn[i] == null ? st.t : st.cyc.closeOn[i];
+        if (st.cyc && !v && st.prevV[i]) st.cyc.openOff[i] = st.t;
+        if (st.cyc && st.pos[i] > 0.97 && st.cyc.closedAt[i] == null) st.cyc.closedAt[i] = st.t;
+        if (st.cyc && st.cyc.openOff[i] != null && st.pos[i] < 0.03 && st.cyc.openAt[i] == null) st.cyc.openAt[i] = st.t;
+        st.prevV[i] = v;
+      }
+      // scanner
+      const trig = Q['Q0.7'] ? 1 : 0;
+      if (trig && !st.prevTrig) { st.scanT = 300; st.result = null; }
+      if (trig && st.scanT > 0) { st.scanT -= dt; if (st.scanT <= 0) { if (st.tool && !st.tool.bad) { st.result = 'ok'; st.code = T.code; } else { st.result = 'fail'; st.code = 0; } } }
+      if (!trig) st.result = null;
+      st.prevTrig = trig;
+      // process
+      if (Q['Q0.6']) {
+        if (!st.part) st.fault = st.fault || 'The screwdriver ran with no part in the fixture.';
+        else if (!T) st.fault = st.fault || 'Process ran with no tool.';
+        else {
+          const allClosed = [...Array(n).keys()].every((i) => st.pos[i] > 0.97);
+          if (!allClosed) st.cyc.procOk = false;
+          if (st.cyc.orderOk == null) {
+            let ok = true;
+            T.groups.forEach((g, k) => {
+              const on = g.map((i) => st.cyc.closeOn[i]);
+              if (on.some((x) => x == null)) ok = false;
+              else if (Math.max(...on) - Math.min(...on) > 60) ok = false;
+              if (k > 0 && ok) { const prevClosed = Math.max(...T.groups[k - 1].map((i) => st.cyc.closedAt[i] || Infinity)); if (Math.min(...on) < prevClosed - 15) ok = false; }
+            });
+            st.cyc.orderOk = ok;
+          }
+          st.cyc.proc += dt;
+        }
+      }
+      // part removal → grade
+      if (st.removeReq) {
+        st.removeReq = false;
+        if (st.part) {
+          if (st.pos.some((p) => p > 0.05)) st.fault = st.fault || 'Part pulled out of closed clamps.';
+          else if (st.cyc) {
+            const why = [];
+            if (!T) why.push('no tool');
+            else {
+              if (st.cyc.orderOk !== true) why.push('wrong clamp order');
+              if (!st.cyc.procOk) why.push('processed with a clamp open');
+              if (st.cyc.proc < T.procT - 50 || st.cyc.proc > T.procT + 600) why.push('process ' + (st.cyc.proc / 1000).toFixed(1) + ' s instead of ' + T.procT / 1000 + ' s');
+              const off = [...Array(n).keys()].map((i) => st.cyc.openOff[i]);
+              if (off.some((x) => x == null)) why.push('not unclamped');
+              else if (T.unclamp === 'together') { if (Math.max(...off) - Math.min(...off) > 60) why.push('clamps not released together'); }
+              else for (let i = n - 1; i > 0; i--) if (off[i - 1] < (st.cyc.openAt[i] || Infinity) - 15) why.push('unclamp order should be ' + [...Array(n).keys()].reverse().map((x) => x + 1).join(' → '));
+            }
+            if (why.length) { st.bad++; st.last = 'Bad part: ' + [...new Set(why)].join(', '); }
+            else { if (st.tool.type === 'A') st.goodA++; else st.goodB++; st.last = 'Good part (' + T.name + ')'; }
+          }
+          st.part = false; st.cyc = null;
+        }
+      }
+      if (Q['Q0.6']) st.proc += dt;
+      const o = devices(this, ctrl);
+      o['I0.3'] = st.part ? 1 : 0; o['I0.4'] = st.tool ? 1 : 0;
+      o['I0.5'] = trig && st.result === 'ok' ? 1 : 0; o['I0.6'] = trig && st.result === 'fail' ? 1 : 0;
+      o['AIW2'] = st.code;
+      for (let i = 0; i < 6; i++) { o['I1.' + i] = i < n && st.pos[i] > 0.97 ? 1 : 0; o['I2.' + i] = i < n && st.pos[i] < 0.03 ? 1 : 0; }
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const T = st.tool ? TOOLS[st.tool.type] : null;
+      // base
+      c.fillStyle = th.metalDark; D.rr(c, 20, 50, 350, 270, 12); c.fill();
+      if (T) {
+        c.fillStyle = T.color; c.globalAlpha = 0.85; D.rr(c, 34, 64, 322, 242, 10); c.fill(); c.globalAlpha = 1;
+        D.text(c, T.name.toUpperCase() + ' · ' + T.n + ' CLAMPS', 196, 82, { size: 12, weight: 800, color: '#fff' });
+        // barcode label
+        c.fillStyle = '#fff'; D.rr(c, 44, 270, 120, 30, 4); c.fill();
+        c.fillStyle = '#111'; const bars = String(T.code) + 'X7'; for (let i = 0; i < 26; i++) { const w = ((bars.charCodeAt(i % bars.length) + i) % 3) + 1; c.fillRect(50 + i * 4, 274, w, 16); }
+        D.text(c, String(T.code), 104, 296, { size: 8, mono: true, color: '#111' });
+        if (st.tool.bad) { c.strokeStyle = '#7f1d1d'; c.lineWidth = 3; c.beginPath(); c.moveTo(48, 272); c.lineTo(150, 298); c.moveTo(60, 298); c.lineTo(140, 274); c.stroke(); }
+      } else D.text(c, st.chg > 0 ? 'Tool change…' : 'No tool', 196, 185, { size: 16, weight: 700, color: th.lampOff });
+      // scanner
+      c.fillStyle = th.bezel; D.rr(c, 6, 252, 22, 40, 4); c.fill();
+      if (Q['Q0.7']) { c.strokeStyle = 'rgba(239,68,68,.85)'; c.lineWidth = 2; c.beginPath(); c.moveTo(28, 272); c.lineTo(104, 285); c.stroke(); }
+      // part
+      if (st.part) { c.fillStyle = th.box; D.rr(c, 90, 140, 212, 90, 6); c.fill(); c.strokeStyle = th.boxEdge; c.lineWidth = 2; c.stroke(); }
+      // clamps
+      const pos = (i) => [104 + (i % 3) * 92, i < 3 ? 118 : 252];
+      for (let i = 0; i < 6; i++) {
+        const [x, y] = pos(i), fitted = T && i < T.n;
+        if (!fitted) { c.strokeStyle = 'rgba(255,255,255,.35)'; c.setLineDash([3, 3]); c.strokeRect(x - 16, y - 12, 32, 24); c.setLineDash([]); continue; }
+        c.fillStyle = th.bezel; D.rr(c, x - 16, y - 12, 32, 24, 4); c.fill();
+        const arm = st.pos[i];
+        c.save(); c.translate(x, y + (i < 3 ? 10 : -10)); c.rotate((i < 3 ? 1 : -1) * (1 - arm) * 1.2);
+        c.fillStyle = Q['Q0.' + i] ? '#facc15' : '#cbd5e1'; c.fillRect(-4, 0, 8, (i < 3 ? 1 : -1) * 26); c.restore();
+        D.text(c, String(i + 1), x, y, { size: 11, weight: 800, color: '#fff' });
+        c.fillStyle = I['I1.' + i] ? th.red : th.lampOff; c.beginPath(); c.arc(x + 22, y - 6, 4, 0, 7); c.fill();
+        c.fillStyle = I['I2.' + i] ? th.green : th.lampOff; c.beginPath(); c.arc(x + 22, y + 6, 4, 0, 7); c.fill();
+      }
+      if (Q['Q0.6']) { c.fillStyle = 'rgba(250,204,21,.9)'; for (let k = 0; k < 8; k++) { const a = k * 0.785 + st.t / 120; c.beginPath(); c.arc(196 + Math.cos(a) * 18, 185 + Math.sin(a) * 18, 3, 0, 7); c.fill(); } }
+      // tower lamp
+      [['Q1.1', 'red'], ['Q1.2', 'amber'], ['Q1.0', 'green']].forEach(([a, col], k) => D.lamp(c, th, 386, 70 + k * 30, 9, !!Q[a], col));
+      c.fillStyle = th.metalDark; c.fillRect(383, 150, 6, 50);
+      // HMI
+      const hx = 404, hy = 34, hw = 226, hh = 292;
+      c.fillStyle = th.bezel; D.rr(c, hx, hy, hw, hh, 12); c.fill();
+      c.fillStyle = '#0f2233'; D.rr(c, hx + 10, hy + 10, hw - 20, hh - 64, 6); c.fill();
+      const txt = (s2, y, o) => D.text(c, s2, hx + 20, y, Object.assign({ size: 11, color: '#d6e6f5', align: 'left' }, o || {}));
+      txt('FIXTURE STATION · HMI', hy + 26, { size: 10, weight: 800, color: '#7fb3e6' });
+      const tool = Q['MW21'] || 0;
+      txt('Tool:  ' + (tool === 1 ? 'A' : tool === 2 ? 'B' : '—') + '     code ' + (I['AIW2'] || '—'), hy + 50, { mono: true });
+      txt('Step:  ' + (Q['MW22'] || 0), hy + 70, { mono: true });
+      const msg = HMI_MSG[Q['MW20'] || 0] || ('message ' + Q['MW20']);
+      c.fillStyle = '#16324a'; D.rr(c, hx + 16, hy + 84, hw - 32, 44, 5); c.fill();
+      txt(msg.length > 30 ? msg.slice(0, 29) + '…' : msg, hy + 106, { size: 12, weight: 700, color: '#fff' });
+      const alm = Q['MW26'] || 0;
+      if (alm) { c.fillStyle = '#b91c1c'; D.rr(c, hx + 16, hy + 136, hw - 32, 30, 5); c.fill(); txt('⚠ ' + (HMI_ALM[alm] || 'alarm ' + alm), hy + 151, { size: 11, weight: 700, color: '#fff' }); }
+      txt('Parts  A: ' + (Q['MW24'] || 0) + '    B: ' + (Q['MW25'] || 0), hy + 190, { mono: true });
+      txt('MW20 msg · MW21 tool · MW22 step', hy + 214, { size: 8, mono: true, color: '#6b8aa6' });
+      [['START', '#16a34a', !!I['I0.0']], ['RESET', '#475569', !!I['I0.2']]].forEach(([l, col, on], k) => {
+        const bx = hx + 18 + k * 100; c.fillStyle = on ? '#94a3b8' : col; D.rr(c, bx, hy + hh - 46, 88, 32, 6); c.fill();
+        D.text(c, l, bx + 44, hy + hh - 30, { size: 11, weight: 800, color: '#fff' });
+      });
+      D.text(c, 'A ' + st.goodA + ' · B ' + st.goodB + ' · bad ' + st.bad, 196, 340, { size: 11, mono: true, weight: 700, color: st.bad ? th.red : th.ink });
+      if (st.last) D.text(c, st.last.length > 52 ? st.last.slice(0, 51) + '…' : st.last, 196, 26, { size: 10, color: st.last.startsWith('Good') ? th.on : th.red });
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pumps', 'atank', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
+
+  // Outputs a plant sees: Q bits, AQW words, plus any memory words its HMI displays
+  LL.plantOutputs = function (plant, m) {
+    const o = m.outputs();
+    (plant.hmi || []).forEach((a) => (o[a] = m.word(a)));
+    return o;
+  };
 
   // ───────────────────────── automated test runner ─────────────────────────
   /* Test steps (strings):
@@ -1879,7 +2073,7 @@
     const condOk = (cs) => cs.every((x) => val(x.a) === x.v);
     const fmt = (v, a) => (LL.isBitAddr(a) || /^[IQM]\d+\.[0-7]$/.test(a) || /\.(Q|Q1)$/.test(a) ? (v ? 'ON' : 'OFF') : String(v));
     function tick() {
-      I = plant.step(st, ctrl, m.outputs(), dt);
+      I = plant.step(st, ctrl, LL.plantOutputs(plant, m), dt);
       m.setInputs(I);
       m.scan(dt);
       t += dt;

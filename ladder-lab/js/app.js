@@ -668,6 +668,12 @@
       this.ladder = new LL.LadderView($('.ladder-host', el), { editable: true, zoom: window.innerWidth < 700 ? 'fit' : undefined, onPick: (p) => this.pick(p) });
       this.canvas = $('canvas', el);
       this.ctx = this.canvas.getContext('2d');
+      // touch buttons drawn on a machine's HMI screen
+      const hmiAt = (e) => { const r = this.canvas.getBoundingClientRect(); const x = (e.clientX - r.left) * 640 / r.width, y = (e.clientY - r.top) * 360 / r.height; return (this.plant.hmiButtons || []).find((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h); };
+      this.canvas.addEventListener('pointerdown', (e) => { const b = hmiAt(e); if (!b) return; e.preventDefault(); this._hmi = { addr: b.addr, t: performance.now() }; this.ctrl[b.addr] = true; });
+      const hmiUp = () => { const h2 = this._hmi; if (!h2) return; this._hmi = null; setTimeout(() => { this.ctrl[h2.addr] = false; }, Math.max(0, 150 - (performance.now() - h2.t))); };
+      this.canvas.addEventListener('pointerup', hmiUp); this.canvas.addEventListener('pointerleave', hmiUp); this.canvas.addEventListener('pointercancel', hmiUp);
+      this.canvas.addEventListener('pointermove', (e) => { this.canvas.style.cursor = hmiAt(e) ? 'pointer' : ''; });
       // palette
       const pal = $('.palette', el);
       TOOL_GROUPS.forEach((g) => {
@@ -893,9 +899,9 @@
     scanText(t) { const e = $('.scanstate', this.el); if (e.textContent !== t) { e.textContent = t; e.classList.toggle('hot', t === this._notice && this._noticeUntil > performance.now()); } }
 
     stepPhase() {
-      if (this.lang === 'st') { this.I = this.plant.step(this.pst, this.ctrl, this.m.outputs(), 10); this.m.setInputs(this.I); this.m.scan(10); this.scanText('Scan ' + this.m.scanCount + ' done (one Step = one whole scan in ST)'); return; }
+      if (this.lang === 'st') { this.I = this.plant.step(this.pst, this.ctrl, LL.plantOutputs(this.plant, this.m), 10); this.m.setInputs(this.I); this.m.scan(10); this.scanText('Scan ' + this.m.scanCount + ' done (one Step = one whole scan in ST)'); return; }
       const n = this.prog.rungs.length;
-      if (this.m.phase === 0) { this.I = this.plant.step(this.pst, this.ctrl, this.m.outputs(), 10); this.m.setInputs(this.I); }
+      if (this.m.phase === 0) { this.I = this.plant.step(this.pst, this.ctrl, LL.plantOutputs(this.plant, this.m), 10); this.m.setInputs(this.I); }
       const ph = this.m.stepPhase(10);
       this.ladder.setActiveRung(ph >= 1 && ph <= n ? ph - 1 : -1);
       this.scanText(ph === 0 ? 'Scan ' + this.m.scanCount + ' · ① read inputs' : ph <= n ? '② solved rung ' + ph + ' of ' + n : '③ wrote outputs');
@@ -1137,7 +1143,7 @@
         this.acc += dt * this.speed;
         let n = 0;
         while (this.acc >= 10 && n < 30) {
-          this.I = this.plant.step(this.pst, this.ctrl, this.m.outputs(), 10);
+          this.I = this.plant.step(this.pst, this.ctrl, LL.plantOutputs(this.plant, this.m), 10);
           this.m.setInputs(this.I);
           this.m.scan(10);
           this.acc -= 10; n++;
@@ -1190,7 +1196,7 @@
       c.fillStyle = getComputedStyle(this.canvas).backgroundColor || '#fff';
       c.clearRect(0, 0, this.canvas.width, this.canvas.height);
       c.setTransform(sc, 0, 0, sc, 0, 0);
-      this.plant.draw(c, this.pst, th, this.m.outputs(), this.I || {}, this.tags());
+      this.plant.draw(c, this.pst, th, LL.plantOutputs(this.plant, this.m), this.I || {}, this.tags());
     }
   }
 

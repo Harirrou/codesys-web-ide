@@ -734,6 +734,54 @@ Lamp := T0.Q;</pre>
     },
     // ═══════════════════════ LEVEL 6 ═══════════════════════
     {
+      id: 'tool-id', level: 6, title: 'Tool identification, recipes & HMI', min: 14,
+      summary: 'One machine, many tools: read the tool\'s barcode, check it against a table, run that tool\'s sequence, and talk to the operator through an HMI.',
+      body: `
+<h3>Where you find this in industry</h3>
+<p>Flexible machines run several product variants with <b>interchangeable tooling</b>: welding and assembly fixtures in car-body shops, press dies, injection moulds, robot grippers (end-of-arm tools), test adapters. Each tool carries an identity: a <b>barcode</b> or 2D code, or an <b>RFID tag</b> (Balluff, SICK, Siemens RF, Pepperl+Fuchs…). The PLC reads it, looks it up, and only runs the sequence that belongs to that tool. This is <b>poka-yoke</b> (mistake-proofing): the wrong tool or an unknown tool simply cannot start a cycle.</p>
+<h3>1. The scanner handshake</h3>
+<ol>
+<li>PLC sets the <b>trigger</b> output (Q0.7).</li>
+<li>The scanner reads and answers with a status bit, <b>read OK</b> or <b>no read</b>, and puts the code in a <b>data word</b> (%IW2).</li>
+<li>PLC evaluates the result <b>only while the status is valid</b>, then drops the trigger.</li>
+</ol>
+<p>Real scanners talk over PROFINET / EtherNet/IP / IO-Link with exactly this pattern: trigger, busy/done/error bits and a data area. Always handle the error case and add a timeout.</p>
+<h3>2. Validate the code</h3>
+<p>Never trust a read blindly. Compare it with a <b>table of known tools</b>: in ladder with CMP rungs, in ST with a FOR loop over an array. An unknown code is an alarm, not "probably Tool A".</p>
+<pre class="code">Tool := 0;
+FOR i := 1 TO 2 DO
+  IF Barcode = ToolCode[i] THEN Tool := i; END_IF
+END_FOR
+IF Tool = 0 THEN HmiAlarm := 2; Step := 90; END_IF   (* unknown tool *)</pre>
+<h3>3. Two ways to program the variants</h3>
+<div class="tbl"><table>
+<tr><th></th><th>Dedicated sequence per tool</th><th>Recipe-driven (data tables)</th></tr>
+<tr><td>Idea</td><td>Tool A steps 10–18, Tool B steps 30–38</td><td>One generic sequence; what differs is data: clamp groups, fitted clamps, process time</td></tr>
+<tr><td>Good for</td><td>2–3 very different tools; easy to read in ladder</td><td>Many similar tools; adding Tool C = adding table data</td></tr>
+<tr><td>Risk</td><td>Copy-paste errors, programs grow with every tool</td><td>Table mistakes; needs validation and good HMI display</td></tr>
+</table></div>
+<p>The fixture station projects let you build both: part 2 in ladder, part 3 recipe-driven in ST.</p>
+<h3>4. Talking to the HMI</h3>
+<p>An HMI does not run your logic. It <b>reads and writes PLC tags</b>. The usual pattern:</p>
+<ul>
+<li><b>Status words</b> the PLC writes and the HMI displays: message number (MW20), tool (MW21), step (MW22), counters, alarm number (MW26). The HMI has a text list that turns each number into a sentence, possibly in several languages.</li>
+<li><b>Command bits</b> the HMI writes and the PLC reads: START, RESET, mode selection. Treat them like push buttons, and use edges when they must act once.</li>
+<li>Keep safety-related functions (STOP, E-stop) on <b>real hard-wired buttons</b>, never only on the touch screen.</li>
+</ul>
+<h3>5. Alarms and safe states</h3>
+<ul>
+<li>Every move gets a <b>watchdog</b>: a clamp that does not close in time is an alarm with a clear text.</li>
+<li>On an alarm: valves to the safe state, red lamp, message, wait for <b>RESET</b>, then re-identify the tool.</li>
+<li><b>Tool change</b> only with clamps open and no part, then always <b>read the tool again</b>. The PLC must never assume the old tool is still there.</li>
+<li>Only drive outputs the current tool actually has (a <b>fitted mask</b>), so a missing clamp never gets air.</li>
+</ul>
+<div class="callout where"><b>Try it:</b> Lab → machine "Flexible fixture station" → <b>ⓘ How it works</b>. Then do the three projects in order: identify the tool → two sequences in ladder → recipe-driven in ST.</div>`,
+      sims: {},
+      takeaways: ['Trigger → status bit → data word; evaluate only while valid, handle no-read.', 'Validate the code against a table; unknown = alarm.', 'Dedicated sequences per tool or one recipe-driven sequence.', 'HMI = status words + command bits; STOP stays hard-wired.'],
+      mistakes: ['Assuming the tool did not change after a tool change.', 'Driving clamps the current tool does not have.', 'Putting STOP only on the touch screen.'],
+      challenges: ['fixture-id', 'fixture', 'st-fixture'],
+    },
+    {
       id: 'project-method', level: 6, title: 'How to plan a real project', min: 10,
       summary: 'From a machine description to a working, tested program in seven steps.',
       body: `
@@ -920,6 +968,12 @@ END_REPEAT</pre>
       challenges: ['st-for-bargraph', 'st-while-slot', 'st-average', 'st-elevator'],
     },
   ];
+
+  // keep "How to plan a real project" first in level 6, then tool identification
+  (function () {
+    const L = LL.LESSONS, i = L.findIndex((l) => l.id === 'tool-id');
+    if (i >= 0) { const [t] = L.splice(i, 1); L.splice(L.findIndex((l) => l.id === 'project-method') + 1, 0, t); }
+  })();
 
   // Programs opened in the full simulator from lessons
   LL.OPEN_PROGRAMS = {
@@ -1140,6 +1194,13 @@ END_REPEAT</pre>
     { l: 7, q: 'Why call timer blocks every scan, not inside an IF?', a: ['So they see IN go FALSE and reset', 'It is faster', 'IF cannot contain blocks', 'To save memory'], c: 0, why: 'A block that is not called is frozen.' },
     { l: 7, q: 'WHILE i < 4 AND Occ[i] DO … faults when i reaches 4 because…', a: ['ST evaluates both sides of AND and reads Occ[4] out of range', 'WHILE cannot use AND', 'i is a BOOL', 'arrays start at 1'], c: 0, why: 'No short-circuit evaluation.' },
     { l: 7, q: 'Which type holds the literal T#3s?', a: ['TIME', 'INT', 'BOOL', 'REAL'], c: 0, why: 'Durations are TIME.' },
+    { l: 6, q: 'A barcode scanner on a tool fixture is triggered by the PLC. When should the PLC evaluate the code word?', a: ['While the "read OK" status bit is on', 'Immediately when it sets the trigger', 'Any time, the word is always valid', 'Only after power-up'], c: 0, why: 'The data is only valid together with its status bit.' },
+    { l: 6, q: 'The scanner reads code 3003, which is not in the tool table. The PLC should…', a: ['raise an "unknown tool" alarm and not start', 'run the Tool A sequence', 'ignore it and wait', 'run the last tool\'s sequence'], c: 0, why: 'Poka-yoke: unknown means stop and tell the operator.' },
+    { l: 6, q: 'After a tool change, the PLC must…', a: ['read the tool identity again before any cycle', 'keep the old tool number', 'start immediately', 'reset the part counters'], c: 0, why: 'Never assume the tool did not change.' },
+    { l: 6, q: 'Recipe-driven programming means…', a: ['one generic sequence; tool differences live in data tables', 'one program per tool', 'the HMI runs the sequence', 'using only timers'], c: 0, why: 'Adding a tool = adding data, not a new sequence.' },
+    { l: 6, q: 'An HMI shows "Tool B ready". Where does that text usually come from?', a: ['The PLC writes a message number; the HMI text list turns it into words', 'The PLC sends the text letter by letter', 'The scanner', 'The HMI decides on its own'], c: 0, why: 'Status words + text lists.' },
+    { l: 6, q: 'Why keep STOP as a hard-wired button even on a machine with a touch HMI?', a: ['Safety functions must not depend on a screen or network', 'Touch screens cannot have buttons', 'It is cheaper', 'HMIs are read-only'], c: 0, why: 'Hard-wired is independent and always available.' },
+    { l: 6, q: 'Tool A has 3 clamps, Tool B has 6. What protects the missing clamp ports on Tool A?', a: ['A "fitted" mask so only existing clamps are driven', 'Nothing is needed', 'A slower scan', 'An HMI message'], c: 0, why: 'Only drive what the tool actually has.' },
     { l: 7, q: 'In a CASE state machine, why can a button press not jump two states in one scan?', a: ['CASE runs only one branch per scan', 'Buttons are too slow', 'CASE has a delay', 'It can'], c: 0, why: 'One branch, then the scan continues after END_CASE.' },
   ];
 })(typeof window !== 'undefined' ? window : globalThis);
