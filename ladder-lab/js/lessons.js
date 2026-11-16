@@ -179,7 +179,7 @@
       },
       takeaways: ['Series = AND, parallel branch = OR.', 'Branch only around the OR-ed part.'],
       mistakes: ['Closing a branch in the wrong place, which ORs more than intended.', 'Forgetting the branch must rejoin before the coil.'],
-      challenges: ['two-hand', 'hall-light', 'permissive'],
+      challenges: ['two-hand', 'hall-light', 'permissive', 'xor-stairs', 'majority', 'bug-or'],
     },
     {
       id: 'field-vs-program', level: 1, title: 'Real NO/NC wiring vs program contacts', min: 9,
@@ -231,7 +231,7 @@
       sims: { latch: { program: 'RUNG Start/stop latch with seal-in\nNO(I0.0) | NO(I0.3) COIL(Q0.0)\nNO(Q0.0)', inputs: { 'I0.0': pb('START'), 'I0.3': nc('STOP') }, outputs: { 'Q0.0': 'Motor' }, note: 'Tap START and release it: the Q0.0 contact on the branch keeps the rung alive.' } },
       takeaways: ['Seal-in = output contact in parallel with START.', 'STOP in series → stop-dominant.', 'No restart after a power cut.'],
       mistakes: ['Putting STOP inside the branch, where it only breaks one path.', 'Sealing in with the START button instead of the output.'],
-      challenges: ['start-stop', 'fix-stop'],
+      challenges: ['start-stop', 'fix-stop', 'two-station', 'jog-run', 'bug-latch'],
     },
     {
       id: 'set-reset', level: 2, title: 'Set / reset coils', min: 7,
@@ -371,7 +371,7 @@
       sims: { ton: { program: 'RUNG 3 s on-delay\nNO(I0.4) TON(T0,3s)\nRUNG Lamp when done\nNO(T0) COIL(Q0.0)', inputs: { 'I0.4': sw('Switch') }, outputs: { 'Q0.0': 'Lamp' }, note: 'Switch on and watch ET count up. Switch off early and ET jumps back to 0.' } },
       takeaways: ['TON: on after PT of continuous input; resets instantly.', 'Use T0 (done) contacts elsewhere.'],
       mistakes: ['Expecting TON to remember time across interruptions (that is RTO).'],
-      challenges: ['delay-on'],
+      challenges: ['delay-on', 'cascade', 'warning-horn'],
     },
     {
       id: 'tof-tp-rto', level: 3, title: 'Off-delay, pulse & retentive timers', min: 10,
@@ -400,7 +400,7 @@
       },
       takeaways: ['TOF = delay the OFF.', 'TP = fixed pulse.', 'RTO = remembers time; needs RESET.'],
       mistakes: ['Forgetting the RESET for a retentive timer, so it is "done" forever.'],
-      challenges: ['fan-overrun', 'one-pulse', 'service-hours'],
+      challenges: ['fan-overrun', 'one-pulse', 'service-hours', 'stair-timer'],
     },
     {
       id: 'timer-patterns', level: 3, title: 'Timer tricks: flashers, debounce, timeouts', min: 9,
@@ -422,7 +422,7 @@
       },
       takeaways: ['Two cross-reset timers = oscillator.', 'TON on a sensor = debounce.', 'Timeouts turn silent hangs into clear alarms.'],
       mistakes: ['Flasher timers that never reset because the reset contact is on the wrong timer.'],
-      challenges: ['flasher'],
+      challenges: ['flasher', 'bug-flasher'],
     },
     {
       id: 'timed-sequences', level: 3, title: 'Timed sequences: traffic light & star-delta', min: 10,
@@ -444,7 +444,7 @@
       open: [{ label: 'Open traffic crossing', plant: 'traffic', program: 'traffic' }, { label: 'Open star-delta starter', plant: 'stardelta', program: 'star-delta' }],
       takeaways: ['Timer chain: each done bit starts the next timer; the last resets the first.', 'Interlock contactors that must never close together.'],
       mistakes: ['Using timers where a sensor confirmation is needed.'],
-      challenges: ['traffic', 'star-delta'],
+      challenges: ['traffic', 'star-delta', 'traffic-night'],
     },
 
     // ═══════════════════════ LEVEL 4 ═══════════════════════
@@ -463,7 +463,7 @@
       sims: { ctu: { program: 'RUNG Count presses\nNO(I0.0) CTU(C0,5)\nRUNG Reset\nNO(I0.1) RST(C0)\nRUNG Done lamp\nNO(C0) COIL(Q0.0)', inputs: { 'I0.0': pb('Count'), 'I0.1': pb('Reset') }, outputs: { 'Q0.0': '5 reached' } } },
       takeaways: ['CTU/CTD count rising edges.', 'Done bit at preset; RESET clears.', 'Share a number for up/down counting.'],
       mistakes: ['Forgetting the reset, so the batch is "done" forever.', 'Resetting with a level signal that stays on and blocks counting.'],
-      challenges: ['count-boxes', 'parking'],
+      challenges: ['count-boxes', 'parking', 'ctd-batch'],
     },
     {
       id: 'compare-math', level: 4, title: 'Words, compare, MOV & math', min: 9,
@@ -485,7 +485,7 @@
       sims: { cmp: { program: 'RUNG Count presses\nNO(I0.0) CTU(C1,100)\nRUNG Clear\nNO(I0.1) RST(C1)\nRUNG Lamp 1 at ≥ 3\nCMP(C1.CV>=3) COIL(Q0.0)\nRUNG Lamp 2 at ≥ 6\nCMP(C1.CV>=6) COIL(Q0.1)', inputs: { 'I0.0': pb('Count'), 'I0.1': pb('Clear') }, outputs: { 'Q0.0': '≥ 3', 'Q0.1': '≥ 6' } } },
       takeaways: ['Compare contacts test numbers.', 'MOV/ADD run every scan while powered: use edges.'],
       mistakes: ['Comparing ms (T0.ET) with seconds.', 'Integer division surprises.'],
-      challenges: ['compare', 'math'],
+      challenges: ['compare', 'math', 'stages-cmp'],
     },
     {
       id: 'field-devices', level: 4, title: 'Field devices: sensors & actuators', min: 10,
@@ -648,7 +648,7 @@ END_CASE</pre>
       sims: { sm: { program: 'RUNG 0 → 1 on start\nCMP(MW0==0) P(I0.0) MOV(1,MW0)\nRUNG 1 → 2 after 2 s\nCMP(MW0==1) NO(T0) MOV(2,MW0)\nRUNG 2 → 0 after 2 s\nCMP(MW0==2) NO(T1) MOV(0,MW0)\nRUNG Step 1 timer\nCMP(MW0==1) TON(T0,2s)\nRUNG Step 2 timer\nCMP(MW0==2) TON(T1,2s)\nRUNG Lamp A in step 1\nCMP(MW0==1) COIL(Q0.0)\nRUNG Lamp B in step 2\nCMP(MW0==2) COIL(Q0.1)', inputs: { 'I0.0': pb('START') }, outputs: { 'Q0.0': 'Step 1', 'Q0.1': 'Step 2' }, note: 'Watch MW0 in the values panel: 0 → 1 → 2 → 0.' } },
       takeaways: ['One step word, transition rungs (CMP + MOV), action rungs (CMP → coil).', 'Same structure as SFC and a CASE statement.'],
       mistakes: ['Driving outputs inside transition rungs.', 'Several transitions out of one step without priority.'],
-      challenges: ['step-machine', 'cyl-cycle-stop', 'cyl-dwell', 'cyl-parallel'],
+      challenges: ['step-machine', 'cyl-cycle-stop', 'cyl-dwell', 'cyl-parallel', 'drill-station', 'oven'],
     },
     {
       id: 'safety', level: 5, title: 'Safety, E-stops, alarms & first scan', min: 10,
@@ -770,7 +770,7 @@ Lamp := T0.Q;</pre>
       sims: {},
       takeaways: ['I/O list → step table → safety → transitions → outputs → test normal → test abnormal.', 'The step table is the program.', 'Remember measured data until the item reaches the station that uses it.'],
       mistakes: ['Starting to draw rungs before the sequence is written down.', 'Testing only the happy path.'],
-      challenges: ['ped-crossing', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pump-station', 'level-control'],
+      challenges: ['ped-crossing', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pump-station', 'level-control', 'drill-station', 'oven', 'traffic-night'],
     },
     // ═══════════════════════ LEVEL 7 · ST ═══════════════════════
     {
@@ -812,7 +812,7 @@ END_PROGRAM</pre>
       sims: { latch: { lang: 'st', program: "VAR\n  Start  AT %IX0.0 : BOOL;\n  StopOK AT %IX0.3 : BOOL;   (* wired NC *)\n  Motor  AT %QX0.0 : BOOL;\n  Lamp   AT %QX0.1 : BOOL;\n  Speed  : INT;\nEND_VAR\n\n(* the seal-in rung in one line *)\nMotor := (Start OR Motor) AND StopOK;\n\nIF Motor THEN\n  Speed := 1450;\n  Lamp := TRUE;\nELSE\n  Speed := 0;\n  Lamp := FALSE;\nEND_IF", inputs: { 'I0.0': pb('START'), 'I0.3': nc('STOP') }, outputs: { 'Q0.0': 'Motor', 'Q0.1': 'Lamp' }, note: 'Same behaviour as the ladder seal-in: tap START, then STOP. Watch Speed in the values.' } },
       takeaways: ['VAR … END_VAR with a type for everything.', ':= assigns, = compares, ; ends a statement.', 'AND/OR/NOT are the series, parallel and NC contacts.'],
       mistakes: ['Writing = instead of :=.', 'IF without ELSE accidentally latching an output.'],
-      challenges: ['st-latch'],
+      challenges: ['st-latch', 'st-bug-latch'],
     },
     {
       id: 'st-fb', level: 7, title: 'Timers, counters & edges in ST', min: 9,
@@ -841,7 +841,7 @@ IF Edge.Q THEN Presses := Presses + 1; END_IF   (* once per press *)</pre>
       sims: { fb: { lang: 'st', program: "VAR\n  PB  AT %IX0.0 : BOOL;\n  SW  AT %IX0.4 : BOOL;\n  L1  AT %QX0.0 : BOOL;\n  L2  AT %QX0.1 : BOOL;\n  Delay : TON;\n  Blink : TON;\n  Edge  : R_TRIG;\n  Presses : INT;\nEND_VAR\n\nDelay(IN := SW, PT := T#2s);\nL1 := Delay.Q;\n\nEdge(CLK := PB);\nIF Edge.Q THEN Presses := Presses + 1; END_IF\n\n(* self-restarting timer = pulse every 0.5 s *)\nBlink(IN := NOT Blink.Q, PT := T#500ms);\nIF Blink.Q THEN L2 := NOT L2; END_IF", inputs: { 'I0.0': pb('Count'), 'I0.4': sw('Switch') }, outputs: { 'Q0.0': 'Delayed', 'Q0.1': 'Flasher' } } },
       takeaways: ['Declare an instance, call it every scan, read .Q / .ET / .CV.', 'R_TRIG gives one scan per press.'],
       mistakes: ['Calling a timer only inside an IF.', 'Sharing one timer instance between two jobs.'],
-      challenges: ['st-timers'],
+      challenges: ['st-timers', 'st-bug-timer'],
     },
     {
       id: 'st-case', level: 7, title: 'CASE: state machines in ST', min: 11,
@@ -872,7 +872,7 @@ END_CASE</pre>
       sims: { traffic: { lang: 'st', program: "VAR\n  Run    AT %IX0.4 : BOOL;\n  Red    AT %QX0.4 : BOOL;\n  Yellow AT %QX0.2 : BOOL;\n  Green  AT %QX0.0 : BOOL;\n  State  : INT := 0;\n  T      : TON;\nEND_VAR\n\nCASE State OF\n  0: (* red *)\n     T(IN := Run, PT := T#3s);\n     IF T.Q THEN T(IN := FALSE); State := 1; END_IF\n  1: (* green *)\n     T(IN := TRUE, PT := T#3s);\n     IF T.Q THEN T(IN := FALSE); State := 2; END_IF\n  2: (* yellow *)\n     T(IN := TRUE, PT := T#1s);\n     IF T.Q THEN T(IN := FALSE); State := 0; END_IF\nEND_CASE\n\nRed := State = 0;\nGreen := State = 1;\nYellow := State = 2;", inputs: { 'I0.4': sw('RUN') }, outputs: { 'Q0.4': 'Red', 'Q0.2': 'Yellow', 'Q0.0': 'Green' }, note: 'One timer, reused in every state. Switch RUN on and watch State in the values.' } },
       takeaways: ['CASE runs one branch per scan; steps wait by not changing Step.', 'Transitions inside CASE, outputs decoded after it.', 'Number steps 10, 20, 30…'],
       mistakes: ['Writing WHILE NOT sensor DO inside a step (see next lesson).', 'Setting outputs inside branches and forgetting to reset them.'],
-      challenges: ['st-case-abc', 'st-repeat-count'],
+      challenges: ['st-case-abc', 'st-repeat-count', 'st-traffic', 'st-mixer'],
     },
     {
       id: 'st-loops', level: 7, title: 'FOR, WHILE, REPEAT & arrays', min: 12,
@@ -917,7 +917,7 @@ END_REPEAT</pre>
       },
       takeaways: ['FOR = known count, WHILE = condition first, REPEAT = at least once, EXIT = leave.', 'Loops finish inside one scan, so never wait for inputs in a loop.', 'Array index out of range = PLC fault.'],
       mistakes: ['WHILE i < 4 AND Occ[i] … reads Occ[4], because ST evaluates both sides of AND.', 'Waiting for a sensor in WHILE: watchdog stop.'],
-      challenges: ['st-for-bargraph', 'st-while-slot'],
+      challenges: ['st-for-bargraph', 'st-while-slot', 'st-average'],
     },
   ];
 

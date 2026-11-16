@@ -358,18 +358,33 @@
     $('[data-done]', el).onclick = () => { S.lessons[l.id] = 1; save(); if (next) location.hash = 'lesson-' + next.id; else { toast('Course complete. Well done!'); location.hash = 'learn'; } };
   }
 
+  const chKind = (c) => ({ st: c.lang === 'st', bug: /^(bug-|fix-|st-bug)/.test(c.id), project: c.level === 6 });
   function pageChallenges() {
-    const el = h(`<div class="wrap"><span class="plate">Practice</span><h1 style="margin:10px 0 6px">Challenges</h1><p class="muted" style="margin:0 0 20px;max-width:64ch">Each challenge gives you a machine and a job. Build the ladder, test it by hand, then press <b>Run tests</b>: the checker presses buttons, waits, and verifies the outputs like a commissioning engineer. Stuck? Hints first, solution last.</p><div class="lv"></div></div>`);
+    const total = LL.CHALLENGES.length, passed = LL.CHALLENGES.filter((c) => S.ch[c.id]).length;
+    const el = h(`<div class="wrap"><span class="plate">Practice</span><h1 style="margin:10px 0 6px">Challenges &amp; exercises</h1><p class="muted" style="margin:0 0 14px;max-width:64ch">Each task gives you a machine and a job. Build the program, try it by hand, then press <b>Run tests</b>: the checker presses buttons, waits and checks the outputs like a commissioning engineer. Stuck? Hints first, solution last. <b>${passed}/${total}</b> passed.</p>
+      <div class="filters" role="group" aria-label="Filter"></div><div class="lv"></div></div>`);
+    const F = [['all', 'All'], ['ld', 'Ladder'], ['st', 'Structured Text'], ['bug', '🐞 Bug hunts'], ['project', 'Projects'], ['todo', 'Not passed yet']];
+    const cur = S.chFilter || 'all';
+    const fl = $('.filters', el);
+    F.forEach(([k, l]) => {
+      const n = LL.CHALLENGES.filter((c) => match(c, k)).length;
+      const b = h(`<button class="${k === cur ? 'on' : ''}">${l} <span>${n}</span></button>`);
+      b.onclick = () => { S.chFilter = k; save(); main().innerHTML = ''; pageChallenges(); };
+      fl.appendChild(b);
+    });
+    function match(c, k) { const t = chKind(c); return k === 'all' || (k === 'ld' && !t.st) || (k === 'st' && t.st) || (k === 'bug' && t.bug) || (k === 'project' && t.project) || (k === 'todo' && !S.ch[c.id]); }
     LL.LEVELS.forEach((L) => {
-      const list = LL.CHALLENGES.filter((c) => c.level === L.n);
+      const list = LL.CHALLENGES.filter((c) => c.level === L.n && match(c, cur));
       if (!list.length) return;
-      const b = h(`<section class="level-block"><div class="level-head"><span class="big">${L.n}</span><div><h2>${esc(L.name)}</h2></div></div><div class="ch-grid"></div></section>`);
+      const b = h(`<section class="level-block"><div class="level-head"><span class="big">${L.n}</span><div><h2>${esc(L.name)}</h2><p>${list.length} task${list.length > 1 ? 's' : ''}</p></div></div><div class="ch-grid"></div></section>`);
       list.forEach((c) => {
         const plain = c.brief.replace(/<[^>]+>/g, '');
-        $('.ch-grid', b).appendChild(h(`<a class="card ch-card" href="#ch-${c.id}"><div class="top-line"><span class="eyebrow">${c.lang === 'st' ? 'ST · ' : ''}${esc(LL.Plants[c.plant].name)}</span>${S.ch[c.id] ? '<span class="chip ok">✓ passed</span>' : S.chTried[c.id] ? '<span class="chip">in progress</span>' : ''}</div><h4>${esc(c.title)}</h4><p>${esc(plain.length > 130 ? plain.slice(0, 128) + '…' : plain)}</p></a>`));
+        const t = chKind(c);
+        $('.ch-grid', b).appendChild(h(`<a class="card ch-card" href="#ch-${c.id}"><div class="top-line"><span class="eyebrow">${t.st ? 'ST · ' : ''}${esc(LL.Plants[c.plant].name)}</span>${S.ch[c.id] ? '<span class="chip ok">✓ passed</span>' : S.chTried[c.id] ? '<span class="chip">in progress</span>' : t.bug ? '<span class="chip">bug hunt</span>' : ''}</div><h4>${esc(c.title)}</h4><p>${esc(plain.length > 130 ? plain.slice(0, 128) + '…' : plain)}</p></a>`));
       });
       $('.lv', el).appendChild(b);
     });
+    if (!$('.lv', el).children.length) $('.lv', el).innerHTML = '<p class="muted">Nothing here. All passed? Try another filter.</p>';
     main().appendChild(el);
   }
 

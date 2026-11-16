@@ -537,7 +537,244 @@
         { name: 'All taken → FULL', steps: ['on I0.4', 'on I0.5', 'on I0.6', 'on I0.7', 'expect Q0.4=1 Q0.0=0 Q0.1=0 Q0.2=0 Q0.3=0'] },
       ],
     },
+    // ═════════════ Exercise pack 2 ═════════════
+    // Level 1
+    {
+      id: 'xor-stairs', level: 1, plant: 'panel', title: 'Staircase light (two-way switching)',
+      tags: { 'I0.4': 'Downstairs SW', 'I0.5': 'Upstairs SW', 'Q0.0': 'Stair light' },
+      brief: 'A stair light has a switch at the bottom (SW1) and the top (SW2). Flipping <b>either</b> switch must change the light. That is <b>exclusive OR</b>: on when exactly one switch is on.',
+      hints: ['XOR = (A AND NOT B) OR (NOT A AND B).', 'Two rows, each with one NO and one NC contact, joined before the coil.'],
+      solution: 'RUNG Light = SW1 XOR SW2\nNO(I0.4) NC(I0.5) | COIL(Q0.0)\nNC(I0.4) NO(I0.5)',
+      tests: [
+        { name: 'Both off → dark', steps: ['expect Q0.0=0'] },
+        { name: 'Either switch flips it', steps: ['on I0.4', 'expect Q0.0=1', 'on I0.5', 'expect Q0.0=0', 'off I0.4', 'expect Q0.0=1', 'off I0.5', 'expect Q0.0=0'] },
+      ],
+    },
+    {
+      id: 'majority', level: 1, plant: 'panel', title: '2-out-of-3 safety voting',
+      tags: { 'I0.4': 'Sensor A', 'I0.5': 'Sensor B', 'I0.6': 'Sensor C', 'Q0.0': 'Trip' },
+      brief: 'Three pressure sensors watch the same vessel. One sensor alone may be faulty, so the plant <b>trips</b> (L1) only when <b>at least two</b> of the three (SW1, SW2, SW3) agree. This is used in real safety systems ("2oo3").',
+      hints: ['Trip = (A AND B) OR (A AND C) OR (B AND C).', 'Three parallel rows with two contacts each.'],
+      solution: 'RUNG 2-out-of-3\nNO(I0.4) NO(I0.5) | COIL(Q0.0)\nNO(I0.4) NO(I0.6) |\nNO(I0.5) NO(I0.6)',
+      tests: [
+        { name: 'One sensor is not enough', steps: ['on I0.4', 'expect Q0.0=0', 'off I0.4', 'on I0.5', 'expect Q0.0=0', 'off I0.5', 'on I0.6', 'expect Q0.0=0'] },
+        { name: 'Any two trip', steps: ['on I0.4', 'on I0.6', 'expect Q0.0=1', 'off I0.4', 'on I0.5', 'expect Q0.0=1'] },
+        { name: 'All three trip', steps: ['on I0.4', 'on I0.5', 'on I0.6', 'expect Q0.0=1'] },
+      ],
+    },
+    {
+      id: 'bug-or', level: 1, plant: 'panel', title: '🐞 Bug hunt: pump runs in manual',
+      tags: { 'I0.4': 'Auto mode', 'I0.0': 'Local run', 'I0.5': 'Remote run', 'Q0.0': 'Pump' },
+      brief: 'The pump (L1) must only run in <b>Auto</b> (SW1), and then when <b>Local</b> (PB1) or <b>Remote</b> (SW2) asks. Operators complain that Remote starts the pump even in manual. Find the wrongly placed branch and fix it.',
+      starter: 'RUNG Pump\nNO(I0.4) NO(I0.0) | COIL(Q0.0)\nNO(I0.5)',
+      hints: ['Read the rung as Boolean: right now it is (Auto AND Local) OR Remote.', 'The branch must go around Local only, so Auto stays in series with both.'],
+      solution: 'RUNG Pump = Auto AND (Local OR Remote)\nNO(I0.4) | NO(I0.0) | COIL(Q0.0)\n. NO(I0.5)',
+      tests: [
+        { name: 'Remote alone does nothing', steps: ['on I0.5', 'expect Q0.0=0'] },
+        { name: 'Auto + remote runs', steps: ['on I0.4', 'on I0.5', 'expect Q0.0=1'] },
+        { name: 'Auto + local runs', steps: ['on I0.4', 'press I0.0', 'expect Q0.0=1'] },
+      ],
+    },
+    // Level 2
+    {
+      id: 'jog-run', level: 2, plant: 'motor', title: 'Jog and run',
+      tags: { 'I0.1': 'JOG' },
+      brief: '<b>FWD</b> starts the motor and it keeps running (latched). The <b>JOG</b> button (I0.1) runs the same contactor K1 only <b>while held</b>, for setting up the machine. STOP and the overload stop everything. Jogging must never latch.',
+      hints: ['If you seal in with the output Q0.0 itself, a jog press would latch too. Seal in with a memory bit instead.', 'Run latch: M0.0 = (FWD OR M0.0) AND STOP AND OL. K1 = M0.0 OR (JOG AND STOP AND OL).'],
+      solution: 'RUNG Run latch (memory bit, not the output)\nNO(I0.0) | NO(I0.2) NO(I0.3) COIL(M0.0)\nNO(M0.0)\nRUNG K1 = run OR jog\nNO(M0.0) - - | COIL(Q0.0)\nNO(I0.1) NO(I0.2) NO(I0.3)',
+      tests: [
+        { name: 'Jog only while held', steps: ['press I0.1', 'expect Q0.0=1', 'release I0.1', 'wait 100', 'expect Q0.0=0'] },
+        { name: 'Run latches', steps: ['tap I0.0', 'wait 300', 'expect Q0.0=1', 'tap I0.2', 'expect Q0.0=0'] },
+        { name: 'Overload stops jog', steps: ['action trip', 'press I0.1', 'expect Q0.0=0'] },
+      ],
+    },
+    {
+      id: 'two-station', level: 2, plant: 'panel', title: 'Start/stop from two stations',
+      tags: { 'I0.0': 'Start A', 'I0.1': 'Start B', 'I0.2': 'Stop B (NO)', 'I0.3': 'Stop A (NC)', 'Q0.0': 'Motor' },
+      brief: 'A long conveyor has a control station at each end. <b>Start A</b> or <b>Start B</b> starts the motor (L1). <b>Stop A</b> (wired NC) or <b>Stop B</b> (an old button wired NO) stops it. Stops win over starts.',
+      hints: ['Starts in parallel with the seal-in contact; stops in series.', 'Stop A reads 1 when OK (NO contact), Stop B reads 1 when pressed (NC contact).'],
+      solution: 'RUNG Two starts in parallel, two stops in series\nNO(I0.0) | NO(I0.3) NC(I0.2) COIL(Q0.0)\nNO(I0.1) |\nNO(Q0.0)',
+      tests: [
+        { name: 'Start A, stop B', steps: ['tap I0.0', 'expect Q0.0=1', 'tap I0.2', 'expect Q0.0=0'] },
+        { name: 'Start B, stop A', steps: ['tap I0.1', 'expect Q0.0=1', 'tap I0.3', 'expect Q0.0=0'] },
+        { name: 'Stops win', steps: ['press I0.2', 'press I0.0', 'expect Q0.0=0'] },
+      ],
+    },
+    {
+      id: 'bug-latch', level: 2, plant: 'motor', title: '🐞 Bug hunt: STOP doesn\'t always stop',
+      brief: 'A safety audit found that holding <b>FWD</b> keeps the motor running even while <b>STOP</b> is pressed. Find out why and fix the rung so STOP always wins.',
+      starter: 'RUNG Start/stop\nNO(I0.0) - | NO(I0.3) COIL(Q0.0)\nNO(Q0.0) NO(I0.2)',
+      hints: ['Follow the power path through the FWD contact: does it pass through STOP?', 'STOP must be in series with the whole start OR seal-in branch.'],
+      solution: 'RUNG Start/stop, STOP in series with everything\nNO(I0.0) | NO(I0.2) NO(I0.3) COIL(Q0.0)\nNO(Q0.0)',
+      tests: [
+        { name: 'Start and stop', steps: ['tap I0.0', 'expect Q0.0=1', 'tap I0.2', 'expect Q0.0=0'] },
+        { name: 'STOP wins while FWD is held', steps: ['press I0.0', 'press I0.2', 'expect Q0.0=0'] },
+      ],
+    },
+    // Level 3
+    {
+      id: 'stair-timer', level: 3, plant: 'panel', title: 'Staircase timer (retrigger)',
+      tags: { 'I0.0': 'Button floor 1', 'I0.1': 'Button floor 2', 'Q0.0': 'Stair light' },
+      brief: 'A press on <b>either</b> floor button lights the stairs (L1) for <b>5 s</b> after the button is released. Pressing again while it is on <b>restarts</b> the 5 s.',
+      hints: ['An off-delay timer (TOF) restarts every time its input comes on again.'],
+      solution: 'RUNG 5 s after the last press\nNO(I0.0) | TOF(T0,5s)\nNO(I0.1)\nRUNG Light\nNO(T0) COIL(Q0.0)',
+      tests: [
+        { name: 'On for 5 s', steps: ['tap I0.0', 'expect Q0.0=1', 'wait 4500', 'expect Q0.0=1', 'wait 700', 'expect Q0.0=0'] },
+        { name: 'Second press restarts', steps: ['tap I0.0', 'wait 4000', 'tap I0.1', 'wait 4000', 'expect Q0.0=1', 'wait 1500', 'expect Q0.0=0'] },
+      ],
+    },
+    {
+      id: 'cascade', level: 3, plant: 'panel', title: 'Cascade start of three conveyors',
+      tags: { 'I0.0': 'START', 'Q0.0': 'Conveyor 1', 'Q0.1': 'Conveyor 2', 'Q0.2': 'Conveyor 3' },
+      brief: 'Starting three big motors at once trips the supply. <b>START</b> runs conveyor 1 at once, conveyor 2 <b>2 s later</b> and conveyor 3 <b>4 s later</b>. <b>STOP</b> stops all three immediately.',
+      hints: ['One run latch M0.0, then two TON timers on M0.0 (2 s and 4 s).'],
+      solution: 'RUNG Run latch\nNO(I0.0) | NO(I0.3) COIL(M0.0)\nNO(M0.0)\nRUNG Conveyor 1\nNO(M0.0) COIL(Q0.0)\nRUNG 2 s delay\nNO(M0.0) TON(T0,2s)\nRUNG Conveyor 2\nNO(T0) COIL(Q0.1)\nRUNG 4 s delay\nNO(M0.0) TON(T1,4s)\nRUNG Conveyor 3\nNO(T1) COIL(Q0.2)',
+      tests: [
+        { name: 'Staggered start', steps: ['tap I0.0', 'expect Q0.0=1 Q0.1=0', 'wait 1500', 'expect Q0.1=0', 'wait 500', 'expect Q0.1=1 Q0.2=0', 'wait 2000', 'expect Q0.2=1'] },
+        { name: 'STOP stops all', steps: ['tap I0.0', 'wait 4500', 'tap I0.3', 'expect Q0.0=0 Q0.1=0 Q0.2=0'] },
+      ],
+    },
+    {
+      id: 'warning-horn', level: 3, plant: 'conveyor', title: 'Pre-start warning horn',
+      tags: { 'Q0.1': 'Warning horn' },
+      brief: 'Before a long conveyor moves, people nearby must be warned. <b>START</b> sounds the horn (Q0.1) for <b>3 s</b> with the belt still stopped. Then the horn stops and the belt runs (latched). <b>STOP</b> stops it, and every restart warns again.',
+      hints: ['Latch a "start request" bit. A TON on it gives the 3 s warning.', 'Horn = request AND NOT timer done. Belt = timer done.'],
+      solution: 'RUNG Start request\nNO(I0.0) | NO(I0.1) COIL(M0.0)\nNO(M0.0)\nRUNG 3 s warning\nNO(M0.0) TON(T0,3s)\nRUNG Horn\nNO(M0.0) NC(T0) COIL(Q0.1)\nRUNG Belt\nNO(T0) COIL(Q0.0)',
+      tests: [
+        { name: 'Warns, then runs', steps: ['tap I0.0', 'expect Q0.1=1 Q0.0=0', 'wait 2500', 'expect Q0.0=0', 'wait 500', 'expect Q0.0=1 Q0.1=0'] },
+        { name: 'Restart warns again', steps: ['tap I0.0', 'wait 3500', 'tap I0.1', 'expect Q0.0=0', 'tap I0.0', 'expect Q0.1=1 Q0.0=0'] },
+      ],
+    },
+    {
+      id: 'bug-flasher', level: 3, plant: 'panel', title: '🐞 Bug hunt: beacon barely flickers',
+      tags: { 'I0.4': 'Alarm active', 'Q0.4': 'Beacon' },
+      brief: 'The beacon (L5) should flash about <b>0.5 s on, 0.5 s off</b> while SW1 is on. The current program makes it flicker for a single scan. Find out why and fix it.',
+      starter: 'RUNG Flash timer\nNO(I0.4) NC(T1) TON(T1,500ms)\nRUNG Beacon\nNO(T1) COIL(Q0.4)',
+      hints: ['A timer that resets itself is done for exactly one scan.', 'Use two timers: one for the off time, one for the on time, and let the second reset the first.'],
+      solution: 'RUNG Off time, reset by the on timer\nNO(I0.4) NC(T2) TON(T1,500ms)\nRUNG On time\nNO(T1) TON(T2,500ms)\nRUNG Beacon\nNO(I0.4) NO(T1) COIL(Q0.4)',
+      tests: [
+        { name: 'Flashes ~1 Hz', steps: ['on I0.4', 'pulses Q0.4 4000 3 5'] },
+        { name: 'Lamp stays on about half the time', steps: ['on I0.4', 'waitfor Q0.4=1 2000', 'stays Q0.4=1 400'] },
+      ],
+    },
+    // Level 4
+    {
+      id: 'ctd-batch', level: 4, plant: 'conveyor', title: 'Count-down batch (CTD)',
+      brief: 'Use a <b>down counter</b>. START reloads the counter with <b>4</b> and runs the belt. Each box at the photo-eye counts <b>down</b>. At 0 the belt stops and Batch done (Q0.1) lights.',
+      hints: ['CTD(C0,4) starts at the preset and is done at CV ≤ 0.', 'A RESET coil on a down counter reloads the preset.'],
+      solution: 'RUNG Belt stops when the count reaches 0\nNO(I0.0) | NO(I0.1) NC(C0) COIL(Q0.0)\nNO(Q0.0)\nRUNG Count down\nNO(I0.2) CTD(C0,4)\nRUNG Batch done\nNO(C0) COIL(Q0.1)\nRUNG Reload on START\nNO(I0.0) RST(C0)',
+      tests: [
+        { name: 'Counts down to 0', steps: ['tap I0.0', 'expect C0.CV=4', 'action box', 'wait 1200', 'action box', 'wait 1200', 'action box', 'wait 1200', 'wait 2500', 'expect Q0.0=1 C0.CV=1', 'action box', 'wait 4000', 'expect Q0.0=0 Q0.1=1 C0.CV=0'] },
+        { name: 'START reloads', steps: ['tap I0.0', 'action box', 'wait 4000', 'tap I0.0', 'expect C0.CV=4'] },
+      ],
+    },
+    {
+      id: 'stages-cmp', level: 4, plant: 'panel', title: 'Three stages from one timer',
+      tags: { 'I0.0': 'Hold', 'Q0.0': 'After 1 s', 'Q0.1': 'After 2 s', 'Q0.2': 'After 3 s' },
+      brief: 'While PB1 is held, light L1 after <b>1 s</b>, L2 after <b>2 s</b> and L3 after <b>3 s</b>, using <b>one</b> TON and compares on its elapsed time (T0.ET is in ms). Releasing PB1 turns all off.',
+      hints: ['TON(T0, 10s) on PB1, then CMP(T0.ET>=1000) → L1, and so on.'],
+      solution: 'RUNG One timer\nNO(I0.0) TON(T0,10s)\nRUNG Stage 1\nCMP(T0.ET>=1000) COIL(Q0.0)\nRUNG Stage 2\nCMP(T0.ET>=2000) COIL(Q0.1)\nRUNG Stage 3\nCMP(T0.ET>=3000) COIL(Q0.2)',
+      tests: [
+        { name: 'Stages', steps: ['press I0.0', 'wait 900', 'expect Q0.0=0', 'wait 200', 'expect Q0.0=1 Q0.1=0', 'wait 1000', 'expect Q0.1=1 Q0.2=0', 'wait 1000', 'expect Q0.2=1'] },
+        { name: 'Release resets', steps: ['press I0.0', 'wait 3200', 'release I0.0', 'expect Q0.0=0 Q0.1=0 Q0.2=0'] },
+      ],
+    },
+    // Level 5
+    {
+      id: 'drill-station', level: 5, plant: 'drill', title: 'Drilling station sequence',
+      brief: 'START (part present, drill up, clamp open): ① <b>clamp</b> until clamped ② <b>spindle on + feed down</b> to the bottom limit ③ <b>feed up</b> (spindle still on) to the top limit ④ <b>unclamp</b>, wait 0.6 s ⑤ <b>eject</b> for 1 s, done. Cycle lamp on during the cycle. <b>STOP</b> during a cycle: spindle and feed down off, drill returns up, unclamp. The next cycle needs a new part.',
+      hints: ['Step number MW0 0–5, plus step 6 = "retract after STOP".', 'Clamp in steps 1–3, spindle in 2–3, feed down in 2, feed up in 3 and 6, ejector in 5.', 'Interlock feed down and feed up with NC contacts of each other.'],
+      never: [{ when: 'Q0.2=1 Q0.3=1', msg: 'Feed down and up together.' }],
+      solution: 'NAME Drilling station\nRUNG 0 → 1: START with a part, drill up, clamp open\nCMP(MW0==0) P(I0.0) NO(I0.2) NO(I0.4) NC(I0.3) MOV(1,MW0)\nRUNG 1 → 2: clamped\nCMP(MW0==1) NO(I0.3) MOV(2,MW0)\nRUNG 2 → 3: hole depth reached\nCMP(MW0==2) NO(I0.5) MOV(3,MW0)\nRUNG 3 → 4: drill back up\nCMP(MW0==3) NO(I0.4) MOV(4,MW0)\nRUNG 4 → 5: clamp opened\nCMP(MW0==4) NO(T0) MOV(5,MW0)\nRUNG 5 → 0: ejected\nCMP(MW0==5) NO(T1) MOV(0,MW0)\nRUNG STOP during a cycle → retract\nNC(I0.1) CMP(MW0>=1) CMP(MW0<=5) MOV(6,MW0)\nRUNG 6 → 0: drill is up\nCMP(MW0==6) NO(I0.4) MOV(0,MW0)\nRUNG Unclamp time\nCMP(MW0==4) TON(T0,600ms)\nRUNG Eject time\nCMP(MW0==5) TON(T1,1s)\nRUNG Clamp in steps 1–3\nCMP(MW0>=1) CMP(MW0<=3) COIL(Q0.0)\nRUNG Spindle in steps 2–3\nCMP(MW0>=2) CMP(MW0<=3) COIL(Q0.1)\nRUNG Feed down in step 2\nCMP(MW0==2) NC(Q0.3) COIL(Q0.2)\nRUNG Feed up in steps 3 and 6\nCMP(MW0==3) | NC(Q0.2) COIL(Q0.3)\nCMP(MW0==6)\nRUNG Ejector in step 5\nCMP(MW0==5) COIL(Q0.4)\nRUNG Cycle lamp\nCMP(MW0>=1) CMP(MW0<=5) COIL(Q0.5)',
+      tests: [
+        { name: 'Drills and ejects a part', steps: ['tap I0.0', 'expect Q0.0=1 Q0.5=1', 'waitfor Q0.1=1 2000', 'expect Q0.2=1', 'waitfor I0.5=1 6000', 'wait 50', 'expect Q0.3=1 Q0.2=0 Q0.1=1', 'waitfor Q0.4=1 6000', 'waitfor MW0=0 3000', 'plant good=1 bad=0'] },
+        { name: 'Needs a new part', steps: ['tap I0.0', 'waitfor Q0.4=1 12000', 'waitfor MW0=0 3000', 'tap I0.0', 'expect MW0=0 Q0.0=0', 'action load', 'tap I0.0', 'expect Q0.0=1'] },
+        { name: 'STOP retracts the drill', steps: ['tap I0.0', 'waitfor Q0.2=1 2000', 'wait 2000', 'tap I0.1', 'expect Q0.1=0 Q0.2=0 Q0.3=1', 'waitfor I0.4=1 3000', 'wait 50', 'expect MW0=0 Q0.3=0 Q0.0=0'] },
+      ],
+    },
+    {
+      id: 'oven', level: 5, plant: 'oven', title: 'Industrial oven bake cycle',
+      brief: 'START (door closed): ① <b>preheat</b> to 180 °C ② <b>bake 10 s</b>, holding 170–180 °C (heater on below 170, off at 180) ③ heater off, <b>buzzer</b> until the door is opened. The <b>fan</b> runs whenever heating and for <b>5 s after</b>. Opening the door or STOP during heating aborts (heater off at once). Baking lamp on during ①–②.',
+      hints: ['Steps: 0 idle, 1 preheat, 2 bake (TON 10 s), 3 done.', 'Hysteresis bit: SET below 170 °C, RESET at 180 °C. Heater = that bit AND door closed (interlock in the heater rung).', 'Fan: a TOF of 5 s fed by "step 1 or 2".'],
+      solution: 'NAME Oven\nRUNG 0 → 1: START with the door closed\nCMP(MW0==0) P(I0.0) NO(I0.2) MOV(1,MW0)\nRUNG 1 → 2: preheated\nCMP(MW0==1) NO(I0.3) MOV(2,MW0)\nRUNG 2 → 3: baked 10 s\nCMP(MW0==2) NO(T0) MOV(3,MW0)\nRUNG 3 → 0: door opened, tray taken\nCMP(MW0==3) NC(I0.2) MOV(0,MW0)\nRUNG Abort: STOP, or door opened while heating\nNC(I0.1) - | MOV(0,MW0)\nNC(I0.2) CMP(MW0<=2)\nRUNG Bake time\nCMP(MW0==2) TON(T0,10s)\nRUNG Heat request ON below 170 °C (steps 1–2)\nCMP(MW0>=1) CMP(MW0<=2) NC(I0.4) SET(M0.0)\nRUNG Heat request OFF at 180 °C or outside steps 1–2\nNO(I0.3) | RST(M0.0)\nCMP(MW0==0) |\nCMP(MW0==3)\nRUNG Heater with door interlock\nNO(M0.0) NO(I0.2) COIL(Q0.0)\nRUNG Fan during heating + 5 s\nCMP(MW0>=1) CMP(MW0<=2) TOF(T1,5s)\nRUNG Fan\nNO(T1) COIL(Q0.1)\nRUNG Baking lamp\nCMP(MW0>=1) CMP(MW0<=2) COIL(Q0.2)\nRUNG Buzzer when done\nCMP(MW0==3) COIL(Q0.3)',
+      tests: [
+        { name: 'Bakes a good tray', steps: ['tap I0.0', 'expect Q0.0=1 Q0.1=1 Q0.2=1', 'waitfor Q0.3=1 30000', 'expect Q0.0=0', 'action door', 'wait 200', 'plant good=1 bad=0', 'expect Q0.3=0'] },
+        { name: 'Fan runs on 5 s', steps: ['tap I0.0', 'waitfor Q0.3=1 30000', 'expect Q0.1=1', 'wait 5300', 'expect Q0.1=0'] },
+        { name: 'Door interlock', steps: ['tap I0.0', 'wait 2000', 'action door', 'wait 50', 'expect Q0.0=0 MW0=0'] },
+        { name: 'No start with the door open', steps: ['action door', 'tap I0.0', 'expect MW0=0 Q0.0=0'] },
+      ],
+    },
+    // Level 6
+    {
+      id: 'traffic-night', level: 6, plant: 'traffic', title: 'Traffic light with night mode',
+      brief: 'RUN on (day): the normal cycle Green 5 s → Yellow 2 s → Red 5 s, Walk during red. RUN off (night): <b>yellow flashes</b> about 1 Hz and every other lamp is dark, pedestrian lamps included.',
+      hints: ['Start from the traffic-light solution.', 'Yellow = (day yellow phase) OR (NOT RUN AND SM0.5).', 'Red and Don\'t walk now need RUN in series.'],
+      never: [{ when: 'Q0.2=1 Q0.3=1', msg: 'Walk was on while cars had green!' }],
+      solution: 'RUNG Green time\nNO(I0.0) NC(T3) TON(T1,5s)\nRUNG Yellow time\nNO(T1) TON(T2,2s)\nRUNG Red time\nNO(T2) TON(T3,5s)\nRUNG Green\nNO(I0.0) NC(T1) COIL(Q0.2)\nRUNG Yellow: day phase or night flashing\nNO(T1) NC(T2) | COIL(Q0.1)\nNC(I0.0) NO(SM0.5)\nRUNG Red\nNO(T2) COIL(Q0.0)\nRUNG Walk\nNO(T2) COIL(Q0.3)\nRUNG Don\'t walk (day only)\nNO(I0.0) NC(Q0.3) COIL(Q0.4)',
+      tests: [
+        { name: 'Night: yellow flashes', steps: ['pulses Q0.1 4000 3 5', 'expect Q0.0=0 Q0.2=0 Q0.3=0 Q0.4=0'] },
+        { name: 'Day cycle', steps: ['on I0.0', 'expect Q0.2=1 Q0.1=0', 'wait 5200', 'expect Q0.1=1 Q0.2=0', 'wait 2000', 'expect Q0.0=1 Q0.3=1', 'wait 5000', 'expect Q0.2=1 Q0.4=1'] },
+      ],
+    },
+    // Level 7 · ST
+    {
+      id: 'st-bug-latch', level: 7, lang: 'st', plant: 'panel', title: '🐞 ST bug hunt: lamp stays on',
+      brief: 'L1 should be on <b>only while PB1 is held</b>. In this program it stays on forever after the first press. Why? Fix it.',
+      starter: 'PROGRAM PLC_PRG\nVAR\n  PB1 AT %IX0.0 : BOOL;\n  L1  AT %QX0.0 : BOOL;\nEND_VAR\n\n(* BUG: L1 should follow PB1 *)\nIF PB1 THEN\n  L1 := TRUE;\nEND_IF',
+      hints: ['An IF without ELSE only ever writes TRUE. Nothing writes FALSE, so it behaves like a SET coil.', 'Write the plain assignment L1 := PB1; or add an ELSE.'],
+      solution: 'PROGRAM PLC_PRG\nVAR\n  PB1 AT %IX0.0 : BOOL;\n  L1  AT %QX0.0 : BOOL;\nEND_VAR\n\nL1 := PB1;',
+      tests: [{ name: 'Follows the button', steps: ['press I0.0', 'expect Q0.0=1', 'release I0.0', 'expect Q0.0=0', 'press I0.0', 'expect Q0.0=1'] }],
+    },
+    {
+      id: 'st-bug-timer', level: 7, lang: 'st', plant: 'panel', title: '🐞 ST bug hunt: timer won\'t reset',
+      tags: { 'I0.4': 'Run request', 'Q0.0': 'Running' },
+      brief: 'L1 should come on 3 s after SW1 is switched on and go off <b>immediately</b> when SW1 goes off. Here it stays on after SW1 goes off, and the next delay is wrong. Fix it.',
+      starter: 'PROGRAM PLC_PRG\nVAR\n  SW1 AT %IX0.4 : BOOL;\n  L1  AT %QX0.0 : BOOL;\n  Delay : TON;\nEND_VAR\n\n(* BUG: L1 does not go off when SW1 goes off *)\nIF SW1 THEN\n  Delay(IN := SW1, PT := T#3s);\nEND_IF\nL1 := Delay.Q;',
+      hints: ['When SW1 is off the timer is never called, so it never sees IN = FALSE.', 'Call function blocks unconditionally, every scan.'],
+      solution: 'PROGRAM PLC_PRG\nVAR\n  SW1 AT %IX0.4 : BOOL;\n  L1  AT %QX0.0 : BOOL;\n  Delay : TON;\nEND_VAR\n\nDelay(IN := SW1, PT := T#3s);   (* every scan *)\nL1 := Delay.Q;',
+      tests: [
+        { name: 'Delay 3 s', steps: ['on I0.4', 'wait 2800', 'expect Q0.0=0', 'wait 400', 'expect Q0.0=1'] },
+        { name: 'Off immediately, and re-times', steps: ['on I0.4', 'wait 3300', 'off I0.4', 'wait 50', 'expect Q0.0=0', 'on I0.4', 'wait 1000', 'expect Q0.0=0'] },
+      ],
+    },
+    {
+      id: 'st-traffic', level: 7, lang: 'st', plant: 'traffic', title: 'ST: pedestrian crossing with CASE',
+      brief: 'Rewrite "Pedestrian crossing on request" in ST: with RUN on, green until the button is pressed (remember a short tap), then <b>yellow 2 s</b>, <b>red + Walk 5 s</b>, back to green. RUN off: red. Use a CASE on a <b>State</b> variable and one TON.',
+      hints: ['IF PedBtn THEN Request := TRUE; END_IF before the CASE.', 'In each timed state: T(IN := TRUE, PT := …); IF T.Q THEN T(IN := FALSE); State := next; END_IF', 'Decode lamps after the CASE: Green := RunSw AND State = 0; …'],
+      never: [{ when: 'Q0.2=1 Q0.3=1', msg: 'Walk was on while cars had green!' }, { when: 'Q0.1=1 Q0.3=1', msg: 'Walk was on during yellow!' }],
+      solution: 'PROGRAM PLC_PRG\nVAR\n  RunSw  AT %IX0.0 : BOOL;\n  PedBtn AT %IX0.1 : BOOL;\n  Red    AT %QX0.0 : BOOL;\n  Yellow AT %QX0.1 : BOOL;\n  Green  AT %QX0.2 : BOOL;\n  Walk   AT %QX0.3 : BOOL;\n  DontWalk AT %QX0.4 : BOOL;\n  State : INT := 0;\n  Request : BOOL;\n  T : TON;\nEND_VAR\n\nIF PedBtn THEN Request := TRUE; END_IF\n\nCASE State OF\n  0: (* green, wait for a request *)\n     IF Request THEN State := 1; END_IF\n  1: (* yellow 2 s *)\n     T(IN := TRUE, PT := T#2s);\n     IF T.Q THEN T(IN := FALSE); State := 2; END_IF\n  2: (* red + walk 5 s *)\n     T(IN := TRUE, PT := T#5s);\n     IF T.Q THEN T(IN := FALSE); Request := FALSE; State := 0; END_IF\nEND_CASE\n\nIF NOT RunSw THEN State := 0; Request := FALSE; T(IN := FALSE); END_IF\n\nGreen := RunSw AND State = 0;\nYellow := State = 1;\nRed := State = 2 OR NOT RunSw;\nWalk := State = 2;\nDontWalk := NOT Walk;',
+      tests: [
+        { name: 'Green waits for a request', steps: ['on I0.0', 'expect Q0.2=1', 'stays Q0.2=1 6000'] },
+        { name: 'Short tap starts the cycle', steps: ['on I0.0', 'wait 1000', 'tap I0.1 80', 'expect Q0.1=1 Q0.2=0', 'wait 2000', 'expect Q0.0=1 Q0.3=1', 'wait 5000', 'expect Q0.2=1 Q0.3=0 Q0.4=1', 'stays Q0.2=1 4000'] },
+        { name: 'RUN off is red', steps: ['wait 100', 'expect Q0.0=1 Q0.2=0 Q0.4=1'] },
+      ],
+    },
+    {
+      id: 'st-mixer', level: 7, lang: 'st', plant: 'mixer', title: 'ST: batch mixer with CASE',
+      brief: 'Rewrite the batch-mixer recipe in ST with a <b>Step</b> variable: 0 idle → 10 valve A to 40 % → 20 valve B to 80 % (mixer on) → 30 mix 5 s and heat to 60 °C (heater only below 60 °C) → 40 drain until empty → 50 done lamp 2 s → 0. START only when empty; STOP aborts to 0.',
+      hints: ['Call the timers before the CASE: MixTime(IN := Step = 30, PT := T#5s);', 'Transitions only inside the CASE; decode outputs after it: ValveA := Step = 10; Heater := Step = 30 AND NOT TempOK; …'],
+      solution: 'PROGRAM PLC_PRG\nVAR\n  Start  AT %IX0.0 : BOOL;\n  StopOK AT %IX0.1 : BOOL;\n  L40 AT %IX0.2 : BOOL;\n  L80 AT %IX0.3 : BOOL;\n  NotEmpty AT %IX0.4 : BOOL;\n  TempOK AT %IX0.5 : BOOL;\n  ValveA AT %QX0.0 : BOOL;\n  ValveB AT %QX0.1 : BOOL;\n  Mixer  AT %QX0.2 : BOOL;\n  Heater AT %QX0.3 : BOOL;\n  Drain  AT %QX0.4 : BOOL;\n  Done   AT %QX0.5 : BOOL;\n  Step : INT := 0;\n  StartEdge : R_TRIG;\n  MixTime, DoneTime : TON;\nEND_VAR\n\nStartEdge(CLK := Start);\nMixTime(IN := Step = 30, PT := T#5s);\nDoneTime(IN := Step = 50, PT := T#2s);\n\nCASE Step OF\n  0:  IF StartEdge.Q AND NOT NotEmpty THEN Step := 10; END_IF\n  10: IF L40 THEN Step := 20; END_IF\n  20: IF L80 THEN Step := 30; END_IF\n  30: IF MixTime.Q AND TempOK THEN Step := 40; END_IF\n  40: IF NOT NotEmpty THEN Step := 50; END_IF\n  50: IF DoneTime.Q THEN Step := 0; END_IF\nEND_CASE\n\nIF NOT StopOK THEN Step := 0; END_IF\n\nValveA := Step = 10;\nValveB := Step = 20;\nMixer := Step = 20 OR Step = 30;\nHeater := Step = 30 AND NOT TempOK;\nDrain := Step = 40;\nDone := Step = 50;',
+      tests: [
+        { name: 'Uses Step = 10 for valve A', steps: ['tap I0.0', 'expect STEP=10 Q0.0=1'] },
+        { name: 'Makes a good batch', steps: ['tap I0.0', 'waitfor Q0.5=1 35000', 'wait 200', 'plant good=1 bad=0'] },
+        { name: 'STOP aborts', steps: ['tap I0.0', 'wait 3000', 'tap I0.1', 'expect STEP=0 Q0.0=0 Q0.2=0 Q0.3=0'] },
+      ],
+    },
+    {
+      id: 'st-average', level: 7, lang: 'st', plant: 'atank', title: 'ST: moving average with a ring buffer',
+      brief: 'Noisy or wavy levels make alarms flicker, so alarm on the <b>average</b> instead. Scale the level to % in <b>Level</b>. Every <b>500 ms</b> store it in a ring buffer <b>ARRAY[0..9] OF INT</b>. Compute <b>Avg</b> of the 10 samples with a <b>FOR</b> loop. High alarm (Q0.0) when Avg ≥ 60. (Open the bypass to fill the tank.)',
+      hints: ['Level := (LevelRaw − 6400) / 256; with LevelRaw AT %IW0 : INT.', 'Sample clock: Clock(IN := NOT Clock.Q, PT := T#500ms); IF Clock.Q THEN Samples[Idx] := Level; Idx := (Idx + 1) MOD 10; END_IF', 'Sum := 0; FOR i := 0 TO 9 DO Sum := Sum + Samples[i]; END_FOR Avg := Sum / 10;'],
+      solution: 'PROGRAM PLC_PRG\nVAR\n  LevelRaw  AT %IW0 : INT;\n  HighAlarm AT %QX0.0 : BOOL;\n  Level : INT;\n  Samples : ARRAY[0..9] OF INT;\n  Idx, i, Sum, Avg : INT;\n  Clock : TON;\nEND_VAR\n\nLevel := (LevelRaw - 6400) / 256;\n\nClock(IN := NOT Clock.Q, PT := T#500ms);\nIF Clock.Q THEN\n  Samples[Idx] := Level;\n  Idx := (Idx + 1) MOD 10;\nEND_IF\n\nSum := 0;\nFOR i := 0 TO 9 DO\n  Sum := Sum + Samples[i];\nEND_FOR\nAvg := Sum / 10;\n\nHighAlarm := Avg >= 60;',
+      tests: [
+        { name: 'Scales the level', steps: ['wait 20', 'expect LEVEL=20'] },
+        { name: 'Average lags the level', steps: ['action bypass', 'wait 8000', 'range AVG 40 58', 'expect Q0.0=0'] },
+        { name: 'Alarm on the average', steps: ['action bypass', 'waitfor Q0.0=1 15000', 'plant lvlPct>=65'] },
+      ],
+    },
   ];
+
+  // keep levels together (stable sort)
+  LL.CHALLENGES.sort((a, b) => a.level - b.level);
 
   LL.CH_BY_ID = {};
   LL.CHALLENGES.forEach((c) => (LL.CH_BY_ID[c.id] = c));

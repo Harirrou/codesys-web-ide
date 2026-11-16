@@ -1091,7 +1091,153 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pumps', 'atank'];
+  // ───────────────────────── drilling station ─────────────────────────
+  P.drill = {
+    id: 'drill', name: 'Drilling station', blurb: 'A part is clamped, drilled with a spindle on a feed slide, and ejected. Drilling needs the spindle running and the part clamped.',
+    inputs: [
+      { addr: 'I0.0', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'Part present', kind: 'sensor' },
+      { addr: 'I0.3', name: 'Clamped', kind: 'sensor' },
+      { addr: 'I0.4', name: 'Drill up', kind: 'sensor', note: 'Top limit of the feed slide' },
+      { addr: 'I0.5', name: 'Drill down', kind: 'sensor', note: 'Bottom limit: hole depth reached' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Clamp', color: 'blue' },
+      { addr: 'Q0.1', name: 'Spindle', color: 'green' },
+      { addr: 'Q0.2', name: 'Feed down', color: 'amber' },
+      { addr: 'Q0.3', name: 'Feed up', color: 'amber' },
+      { addr: 'Q0.4', name: 'Ejector', color: 'blue' },
+      { addr: 'Q0.5', name: 'Cycle lamp', color: 'green' },
+    ],
+    actions: [{ id: 'load', label: 'Load a part', run(st) { if (!st.part) { st.part = true; st.drilled = false; } } }],
+    init() { return { part: true, drilled: false, clamp: 0, z: 0, ej: 0, ejT: 0, ang: 0, good: 0, bad: 0, stall: 0, t: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      const dn = Q['Q0.2'], up = Q['Q0.3'];
+      if (dn && up) st.fault = st.fault || 'Feed down and feed up together.';
+      st.clamp = clamp(st.clamp + (Q['Q0.0'] ? 2 : -2) * s, 0, 1);
+      if (!st.fault) st.z = clamp(st.z + ((dn ? 0.25 : 0) - (up ? 0.5 : 0)) * s, 0, 1);
+      if (dn && st.z >= 1) st.stall += dt; else st.stall = 0;
+      if (st.stall > 500) st.fault = st.fault || 'Feed kept pushing at the bottom: use the "drill down" limit switch.';
+      if (st.z > 0.4 && st.part && dn) {
+        if (!Q['Q0.1']) st.fault = st.fault || 'Drill bit broke: it fed into the part without the spindle running.';
+        if (st.clamp < 0.97) st.fault = st.fault || 'The part spun loose: it was not clamped while drilling.';
+      }
+      if (st.z >= 0.98 && st.part && Q['Q0.1']) st.drilled = true;
+      if (Q['Q0.4']) {
+        if (st.clamp > 0.05 && st.part) st.fault = st.fault || 'The ejector hit a part that was still clamped.';
+        if (st.z > 0.05) st.fault = st.fault || 'The ejector hit the drill: retract it first.';
+        st.ejT += dt;
+        if (st.ejT >= 300 && st.part) { st.part = false; if (st.drilled) st.good++; else st.bad++; }
+      } else st.ejT = 0;
+      st.ej += ((Q['Q0.4'] ? 1 : 0) - st.ej) * Math.min(1, s * 8);
+      if (Q['Q0.1']) st.ang += dt * 0.05;
+      const o = devices(this, ctrl);
+      o['I0.2'] = st.part ? 1 : 0; o['I0.3'] = st.part && st.clamp > 0.97 ? 1 : 0;
+      o['I0.4'] = st.z <= 0.01 ? 1 : 0; o['I0.5'] = st.z >= 0.99 ? 1 : 0;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const tx = 180, ty = 250;
+      c.fillStyle = th.metalDark; c.fillRect(tx - 60, ty, 300, 18);
+      c.fillStyle = th.metal; c.fillRect(tx + 160, 30, 26, ty - 30);
+      // drill head
+      const hy = 60 + st.z * 110;
+      c.fillStyle = Q['Q0.1'] ? th.on : th.metal; D.rr(c, tx + 40, hy, 120, 46, 6); c.fill();
+      D.text(c, 'SPINDLE', tx + 100, hy + 23, { size: 11, weight: 700, color: Q['Q0.1'] ? th.onInk : th.ink });
+      c.fillStyle = th.metalDark; c.fillRect(tx + 94, hy + 46, 12, 40);
+      c.save(); c.translate(tx + 100, hy + 92); c.strokeStyle = th.ink; c.lineWidth = 3; c.beginPath();
+      for (let i = 0; i < 4; i++) { c.moveTo(-5, i * 8); c.lineTo(5, i * 8 + 4 * Math.sin(st.ang + i)); } c.stroke(); c.restore();
+      // part
+      if (st.part) {
+        const ex = st.ej * 160;
+        c.fillStyle = th.box; D.rr(c, tx + 50 + ex, ty - 50, 100, 50, 4); c.fill(); c.strokeStyle = th.boxEdge; c.lineWidth = 1.5; c.stroke();
+        if (st.drilled) { c.fillStyle = th.inside; c.fillRect(tx + 94 + ex, ty - 50, 12, 40); }
+      }
+      // clamp
+      c.fillStyle = Q['Q0.0'] ? th.blue : th.metal; c.fillRect(tx - 40 + st.clamp * 88, ty - 40, 14, 30);
+      c.fillStyle = th.metalDark; c.fillRect(tx - 60, ty - 30, 20 + st.clamp * 88, 10);
+      // ejector
+      c.fillStyle = Q['Q0.4'] ? th.amber : th.metal; c.fillRect(tx - 60 + st.ej * 100, ty - 22, 16, 18);
+      D.sensorDot(c, th, tx + 210, 70, !!I['I0.4'], 'up I0.4');
+      D.sensorDot(c, th, tx + 210, 180, !!I['I0.5'], 'down I0.5');
+      D.sensorDot(c, th, tx + 60, ty + 34, !!I['I0.2'], 'part I0.2');
+      D.sensorDot(c, th, tx - 50, ty - 60, !!I['I0.3'], 'clamped I0.3');
+      D.lamp(c, th, 50, 60, 12, !!Q['Q0.5'], 'green', 'Cycle', 'Q0.5');
+      D.text(c, 'good ' + st.good + '  bad ' + st.bad, 620, 300, { size: 12, mono: true, weight: 700, color: st.bad ? th.red : th.ink, align: 'right' });
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  // ───────────────────────── industrial oven ─────────────────────────
+  P.oven = {
+    id: 'oven', name: 'Industrial oven', blurb: 'A baking oven with heater, circulation fan and door switch. Two thermostats: 170 °C and 180 °C. Each tray taken out is checked: 10 s at baking temperature, never above 205 °C.',
+    inputs: [
+      { addr: 'I0.0', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'Door closed', kind: 'sensor' },
+      { addr: 'I0.3', name: 'Temp ≥ 180 °C', kind: 'sensor' },
+      { addr: 'I0.4', name: 'Temp ≥ 170 °C', kind: 'sensor' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Heater', color: 'red' },
+      { addr: 'Q0.1', name: 'Fan', color: 'blue' },
+      { addr: 'Q0.2', name: 'Baking lamp', color: 'amber' },
+      { addr: 'Q0.3', name: 'Buzzer', color: 'green' },
+    ],
+    actions: [{ id: 'door', label: 'Open / close door', toggle: true, run(st) { st.open = !st.open; if (st.open) st.check = true; } }],
+    init() { return { temp: 20, open: false, bakeT: 0, maxT: 20, noFan: 0, good: 0, bad: 0, last: '', ang: 0, check: false, t: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      if (Q['Q0.0'] && st.open) { st.openHeat = (st.openHeat || 0) + dt; if (st.openHeat > 200) st.fault = st.fault || 'Heater on with the door open: the operator got burned.'; } else st.openHeat = 0;
+      if (Q['Q0.0'] && !Q['Q0.1']) { st.noFan += dt; if (st.noFan > 2000) st.fault = st.fault || 'Heater element overheated: the fan must run whenever the heater is on.'; } else st.noFan = 0;
+      st.temp += ((Q['Q0.0'] ? 25 : 0) - (st.temp - 20) * (st.open ? 0.3 : 0.04)) * s;
+      if (st.temp > 250) st.fault = st.fault || 'Oven overheated.';
+      st.maxT = Math.max(st.maxT, st.temp);
+      if (!st.open && st.temp >= 165) st.bakeT += dt;
+      if (st.check) {
+        st.check = false;
+        if (st.bakeT > 500 || st.maxT > 100) {
+          const why = [];
+          if (st.bakeT < 9500) why.push('under-baked (' + (st.bakeT / 1000).toFixed(1) + ' s)');
+          if (st.maxT > 205) why.push('burned (' + Math.round(st.maxT) + ' °C)');
+          if (why.length) { st.bad++; st.last = 'Bad tray: ' + why.join(', '); } else { st.good++; st.last = 'Good tray'; }
+        }
+        st.bakeT = 0; st.maxT = st.temp;
+      }
+      if (Q['Q0.1']) st.ang += dt * 0.03;
+      const o = devices(this, ctrl);
+      o['I0.2'] = st.open ? 0 : 1; o['I0.3'] = st.temp >= 180 ? 1 : 0; o['I0.4'] = st.temp >= 170 ? 1 : 0;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const ox = 150, oy = 40, ow = 300, oh = 230;
+      c.fillStyle = th.metal; D.rr(c, ox, oy, ow, oh, 12); c.fill();
+      const glow = Math.max(0, Math.min(1, (st.temp - 20) / 200));
+      c.fillStyle = th.inside; D.rr(c, ox + 20, oy + 20, ow - 40, oh - 40, 8); c.fill();
+      c.fillStyle = 'rgba(255,120,30,' + (glow * 0.55).toFixed(2) + ')'; D.rr(c, ox + 20, oy + 20, ow - 40, oh - 40, 8); c.fill();
+      c.strokeStyle = Q['Q0.0'] ? th.red : th.metalDark; c.lineWidth = 4; c.beginPath();
+      for (let i = 0; i <= 14; i++) c.lineTo(ox + 40 + i * 16, oy + oh - 40 + (i % 2 ? -8 : 8)); c.stroke();
+      c.save(); c.translate(ox + ow / 2, oy + 70); c.rotate(st.ang); c.fillStyle = th.metalDark; for (let i = 0; i < 4; i++) { c.rotate(Math.PI / 2); D.rr(c, -4, 0, 8, 26, 4); c.fill(); } c.restore();
+      c.fillStyle = th.box; D.rr(c, ox + 90, oy + 120, 120, 26, 6); c.fill();
+      if (st.open) { c.fillStyle = th.door; c.globalAlpha = 0.9; c.fillRect(ox + ow, oy + 10, 60, oh - 20); c.globalAlpha = 1; D.text(c, 'DOOR OPEN', ox + ow + 30, oy + oh / 2, { size: 10, weight: 700, color: th.ink }); }
+      else { c.strokeStyle = th.metalDark; c.lineWidth = 3; D.rr(c, ox + 14, oy + 14, ow - 28, oh - 28, 10); c.stroke(); }
+      D.text(c, Math.round(st.temp) + ' °C', 560, 70, { size: 22, mono: true, weight: 700, color: st.temp >= 170 ? th.red : th.ink });
+      D.sensorDot(c, th, 520, 104, !!I['I0.3'], '≥180 I0.3');
+      D.sensorDot(c, th, 520, 124, !!I['I0.4'], '≥170 I0.4');
+      D.sensorDot(c, th, 520, 144, !!I['I0.2'], 'door I0.2');
+      D.lamp(c, th, 70, 70, 12, !!Q['Q0.2'], 'amber', 'Baking', 'Q0.2');
+      D.lamp(c, th, 70, 150, 12, !!Q['Q0.3'] && st.t % 500 < 300, 'green', 'Buzzer', 'Q0.3');
+      D.text(c, 'good ' + st.good + '  bad ' + st.bad, 20, 250, { size: 12, mono: true, weight: 700, color: st.bad ? th.red : th.ink, align: 'left' });
+      if (st.last) D.text(c, st.last.length > 40 ? st.last.slice(0, 39) + '…' : st.last, 20, 300, { size: 10, color: st.last.startsWith('Good') ? th.on : th.red, align: 'left' });
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pumps', 'atank', 'drill', 'oven'];
 
   // ───────────────────────── automated test runner ─────────────────────────
   /* Test steps (strings):
@@ -1178,6 +1324,11 @@
             if (n < mn || n > mx) throw new Error(name(a) + ' switched on ' + n + ' times in ' + win / 1000 + ' s; expected ' + (mn === mx ? mn : mn + '–' + mx) + '.');
             break;
           }
+          case 'range': {
+            const a = LL.norm(p[1]), lo = +p[2], hi = +p[3], v = val(a);
+            if (!(v >= lo && v <= hi)) throw new Error(name(a) + ' is ' + v + ', expected between ' + lo + ' and ' + hi + '.');
+            break;
+          }
           case 'plant': {
             p.slice(1).forEach((cond) => {
               const m2 = /^(\w+)(>=|<=|=|>|<)(-?\d+)$/.exec(cond);
@@ -1211,6 +1362,7 @@
       case 'stays': return p.slice(1, -1).map(cond).join(', ') + ' for ' + (+p[p.length - 1] / 1000) + ' s';
       case 'order': return 'sequence ' + p.slice(1, -1).map((s) => n(s.slice(0, -1)) + (s.endsWith('+') ? '↑' : '↓')).join(' → ');
       case 'plant': return 'check the machine: ' + p.slice(1).join(', ');
+      case 'range': return 'check ' + n(p[1]) + ' is ' + p[2] + '…' + p[3];
       case 'pulses': return n(p[1]) + ' flashes ' + (p[3] === p[4] ? p[3] : p[3] + '–' + p[4]) + '× in ' + (+p[2] / 1000) + ' s';
     }
     return step;

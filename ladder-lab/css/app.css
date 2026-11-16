@@ -474,3 +474,9 @@ pre.st-code { margin: 0; padding: 12px 14px; font-family: var(--f-mono); font-si
 .mini-err { padding: 10px 14px; background: var(--danger); color: #fff; font-weight: 600; font-size: .88rem; }
 @media (max-width: 1000px) { .st-gutter, .st-ed { height: 48vh; } }
 .lab[data-lang="st"][data-view="program"] .dock-sticky, .lab[data-lang="st"][data-view="task"] .dock-sticky { display: none !important; }
+
+.filters { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 22px; }
+.filters button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 13px; font-weight: 600; font-size: .88rem; cursor: pointer; min-height: 36px; color: var(--ink-2); }
+.filters button span { font-family: var(--f-mono); font-size: .75rem; color: var(--muted); margin-left: 4px; }
+.filters button.on { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.filters button.on span { color: var(--surface); opacity: .75; }
