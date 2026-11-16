@@ -107,6 +107,15 @@
   // Renders operator devices for a list [{addr,name,kind,color}] bound to ctrl
   function deviceEl(d, ctrl, onChange) {
     const kind = d.kind;
+    if (kind === 'sel3') {
+      const labels = d.labels || ['OFF', 'MAN', 'AUTO'];
+      const cur = () => (ctrl[d.addr] === undefined ? d.def || 0 : +ctrl[d.addr]);
+      const el = h(`<span class="dev sel3" role="radiogroup" aria-label="${esc(d.name)}"><span class="lbl">${esc(d.name)}<span class="sub">${esc(d.addr)} MAN · ${esc(d.addr2)} AUTO</span></span><span class="segs">${labels.map((l, k) => `<button type="button" role="radio" data-k="${k}">${esc(l)}</button>`).join('')}</span></span>`);
+      const sync = () => $$('button', el).forEach((b) => { const on = +b.dataset.k === cur(); b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
+      $$('button', el).forEach((b) => (b.onclick = () => { ctrl[d.addr] = +b.dataset.k; sync(); onChange && onChange(); }));
+      sync(); el._sync = sync;
+      return el;
+    }
     if (kind === 'ana') {
       const mn = d.min == null ? 6400 : d.min, mx = d.max == null ? 32000 : d.max;
       if (ctrl[d.addr] == null) ctrl[d.addr] = d.value == null ? mn : d.value;
@@ -669,7 +678,7 @@
       this.canvas = $('canvas', el);
       this.ctx = this.canvas.getContext('2d');
       // touch buttons drawn on a machine's HMI screen
-      const hmiAt = (e) => { const r = this.canvas.getBoundingClientRect(); const x = (e.clientX - r.left) * 640 / r.width, y = (e.clientY - r.top) * 360 / r.height; return (this.plant.hmiButtons || []).find((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h); };
+      const hmiAt = (e) => { const r = this.canvas.getBoundingClientRect(); const x = (e.clientX - r.left) * 640 / r.width, y = (e.clientY - r.top) * 360 / r.height; const hb = typeof this.plant.hmiButtons === 'function' ? this.plant.hmiButtons(this.pst, this.I || {}) : this.plant.hmiButtons || []; return hb.find((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h); };
       this.canvas.addEventListener('pointerdown', (e) => { const b = hmiAt(e); if (!b) return; e.preventDefault(); this._hmi = { addr: b.addr, t: performance.now() }; this.ctrl[b.addr] = true; });
       const hmiUp = () => { const h2 = this._hmi; if (!h2) return; this._hmi = null; setTimeout(() => { this.ctrl[h2.addr] = false; }, Math.max(0, 150 - (performance.now() - h2.t))); };
       this.canvas.addEventListener('pointerup', hmiUp); this.canvas.addEventListener('pointerleave', hmiUp); this.canvas.addEventListener('pointercancel', hmiUp);
@@ -765,7 +774,13 @@
       this.devButtons = [];
       $$('.dock', this.el).forEach((dock) => {
         dock.innerHTML = '';
-        devs.forEach((d) => { const b = deviceEl(Object.assign({}, d, { name: tags[d.addr] || d.name }), this.ctrl); dock.appendChild(b); this.devButtons.push(b); });
+        const hmiKeys = devs.filter((d) => d.group === 'hmi');
+        devs.filter((d) => d.group !== 'hmi').forEach((d) => { const b = deviceEl(Object.assign({}, d, { name: d.kind === 'sel3' ? d.name : tags[d.addr] || d.name }), this.ctrl); dock.appendChild(b); this.devButtons.push(b); });
+        if (hmiKeys.length) {
+          const det = h('<details class="hmikeys"><summary>HMI touch keys</summary><div class="hmikeys-in"></div></details>');
+          hmiKeys.forEach((d) => { const b = deviceEl(Object.assign({}, d, { name: tags[d.addr] || d.name }), this.ctrl); $('.hmikeys-in', det).appendChild(b); this.devButtons.push(b); });
+          dock.appendChild(det);
+        }
         this.plant.actions.forEach((a) => {
           const b = h(`<button class="dev act" type="button"><span class="lbl">${esc(a.label)}<span class="sub">${a.toggle ? 'toggle' : 'event'}</span></span></button>`);
           b.onclick = () => { a.run(this.pst); if (a.toggle) $$('.dev.act', this.el).filter((x) => x.textContent.startsWith(a.label)).forEach((x) => x.classList.toggle('down')); };
@@ -778,7 +793,7 @@
       this.lampEls = $$('.dock .lamp', this.el);
       $('.blurb', this.el).textContent = this.plant.blurb;
       // IO table
-      const rows = this.plant.inputs.map((d) => `<tr><td>${d.addr}</td><td>${esc(tags[d.addr] || d.name)}<span class="kind">${d.kind === 'pbnc' ? 'button, wired NC' : d.kind === 'pb' ? 'button, NO' : d.kind === 'sw' ? 'switch' : 'sensor'}</span>${d.note ? `<div class="kind" style="margin:0">${esc(d.note)}</div>` : ''}</td><td data-io="${d.addr}">0</td></tr>`)
+      const rows = this.plant.inputs.flatMap((d) => d.kind === 'sel3' ? [d.addr, d.addr2].map((a, k) => `<tr><td>${a}</td><td>${esc(d.name)} ${k ? 'AUTO' : 'MANUAL'}<span class="kind">selector position</span></td><td data-io="${a}">0</td></tr>`) : [`<tr><td>${d.addr}</td><td>${esc(tags[d.addr] || d.name)}<span class="kind">${d.kind === 'pbnc' ? 'button, wired NC' : d.kind === 'pb' ? 'button, NO' : d.kind === 'sw' ? 'switch' : 'sensor'}</span>${d.note ? `<div class="kind" style="margin:0">${esc(d.note)}</div>` : ''}</td><td data-io="${d.addr}">0</td></tr>`])
         .concat(this.plant.outputs.map((o) => `<tr><td>${o.addr}</td><td>${esc(tags[o.addr] || o.name)}<span class="kind">output</span></td><td data-io="${o.addr}">0</td></tr>`));
       $('.iotable', this.el).innerHTML = rows.join('') + '<tbody class="valrows"></tbody>';
       this.ioCells = $$('[data-io]', this.el);
@@ -864,7 +879,7 @@
       switch (a) {
         case 'run': this.running = !this.running; if (this.running) { this.ladder.setActiveRung(-1); this.scanText(''); } this.updateRunBtn(); break;
         case 'step': this.running = false; this.updateRunBtn(); this.stepPhase(); break;
-        case 'reset': this.m.reset(); this.pst = this.plant.init(); this.acc = 0; Object.keys(this.ctrl).forEach((k) => (this.ctrl[k] = false)); $$('.dev', this.el).forEach((d) => d.classList.remove('down')); this.ladder.setActiveRung(-1); this.scanText(''); toast('PLC memory and machine reset'); break;
+        case 'reset': this.m.reset(); this.pst = this.plant.init(); this.acc = 0; this.ctrl = {}; this.buildDevices(); this.ladder.setActiveRung(-1); this.scanText(''); toast('PLC memory and machine reset'); break;
         case 'speed': this.speed = this.speed === 1 ? 0.25 : this.speed === 0.25 ? 0.1 : 1; btn.textContent = this.speed === 1 ? '1×' : this.speed === 0.25 ? '¼×' : '⅒×'; toast('Simulation speed ' + btn.textContent); break;
         case 'zoom': this.ladder.opts.zoom = this.ladder.opts.zoom === 'fit' ? 1 : 'fit'; this.ladder.fit(); toast(this.ladder.opts.zoom === 'fit' ? 'Zoom: fit width' : 'Zoom: 100 %'); break;
         case 'undo': if (this.hi > 0) { this.hi--; this.restore(this.hist[this.hi]); } break;
@@ -1029,7 +1044,7 @@
       if (!box) return;
       const tags = this.tags();
       const plant = this.plant;
-      const io = plant.inputs.map((d) => `<tr><td>${d.addr}</td><td>${esc(tags[d.addr] || d.name)} <span class="kind">${d.kind === 'pbnc' ? 'NC button' : d.kind === 'pb' ? 'NO button' : d.kind === 'sw' ? 'switch' : 'sensor'}</span></td></tr>`)
+      const io = plant.inputs.map((d) => d.kind === 'sel3' ? `<tr><td>${d.addr} / ${d.addr2}</td><td>${esc(d.name)} <span class="kind">selector: ${d.addr} = MANUAL, ${d.addr2} = AUTO</span></td></tr>` : `<tr><td>${d.addr}</td><td>${esc(tags[d.addr] || d.name)} <span class="kind">${d.kind === 'pbnc' ? 'NC button' : d.kind === 'pb' ? 'NO button' : d.kind === 'sw' ? 'switch' : 'sensor'}</span></td></tr>`)
         .concat(plant.outputs.map((o) => `<tr><td>${o.addr}</td><td>${esc(tags[o.addr] || o.name)} <span class="kind">output</span></td></tr>`)).join('');
       box.innerHTML = `<div class="row" style="justify-content:space-between"><span class="plate">Challenge · Level ${ch.level}</span>${S.ch[ch.id] ? '<span class="chip ok">✓ passed</span>' : ''}</div>
         <h2>${esc(ch.title)}</h2>
@@ -1091,7 +1106,7 @@
       const g = LL.MACHINE_GUIDE[this.plantId] || { how: [this.plant.blurb] };
       const exCh = g.ex && LL.CH_BY_ID[g.ex], stCh = g.st && LL.CH_BY_ID[g.st];
       const tags = this.tags();
-      const io = this.plant.inputs.map((d) => `<tr><td>${d.addr}</td><td>${esc(tags[d.addr] || d.name)}</td><td class="muted">${d.kind === 'pbnc' ? 'button wired NC: 1 until pressed' : d.kind === 'pb' ? 'button: 1 while pressed' : d.kind === 'sw' ? 'switch' : esc(d.note || 'sensor')}</td></tr>`)
+      const io = this.plant.inputs.map((d) => d.kind === 'sel3' ? `<tr><td>${d.addr} / ${d.addr2}</td><td>${esc(d.name)} selector</td><td class="muted">OFF = both 0, MAN = ${d.addr} on, AUTO = ${d.addr2} on</td></tr>` : `<tr><td>${d.addr}</td><td>${esc(tags[d.addr] || d.name)}</td><td class="muted">${d.kind === 'pbnc' ? 'button wired NC: 1 until pressed' : d.kind === 'pb' ? 'button: 1 while pressed' : d.kind === 'sw' ? 'switch' : esc(d.note || 'sensor')}</td></tr>`)
         .concat(this.plant.outputs.map((o) => `<tr><td>${o.addr}</td><td>${esc(tags[o.addr] || o.name)}</td><td class="muted">output</td></tr>`)).join('');
       const proj = exCh || stCh;
       const note = this.ch ? '<p class="muted">You are in a challenge: use <b>Hints</b> and <b>Solution</b> in the task panel.</p>'

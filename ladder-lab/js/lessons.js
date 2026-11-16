@@ -674,6 +674,47 @@ END_CASE</pre>
       challenges: ['tank', 'garage', 'gate', 'compressor'],
     },
     {
+      id: 'modes', level: 5, title: 'Operating modes: OFF / MANUAL / AUTO & changeover', min: 12,
+      summary: 'Every production machine has modes. What each mode may do, how to switch safely, homing, and automatic changeover between products.',
+      body: `
+<h3>Why modes?</h3>
+<p>A machine spends most of its life in <b>AUTO</b>, but people also have to set it up, clear a jam, test a clamp or change a tool. Those jobs need <b>MANUAL</b> control of single movements. Mixing the two without rules is how machines crash and people get hurt, so the mode is a <b>deliberate choice</b>: a key switch or selector, often with password levels on the HMI.</p>
+<div class="tbl"><table>
+<tr><th>Mode</th><th>What may happen</th><th>Typical rules</th></tr>
+<tr><td><b>OFF</b></td><td>Nothing moves. Controls powered, outputs off.</td><td>Machine safe for cleaning or inspection (real lock-out still needs isolators).</td></tr>
+<tr><td><b>MANUAL</b> (setup, jog)</td><td>One movement per button, <b>only while the button is held</b> (hold-to-run) or one toggle per press on an HMI.</td><td>START does nothing. <b>Interlocks stay active</b>: "B only when A is out", "no clamp the tool does not have", "screw only when clamped". Often reduced speed.</td></tr>
+<tr><td><b>AUTO</b></td><td>The sequence runs by itself after START.</td><td>Jog buttons do nothing. START only from the <b>home position</b>. Leaving AUTO stops or aborts the cycle.</td></tr>
+</table></div>
+<h3>One coil per output, two sources</h3>
+<p>The classic beginner mistake is writing each valve twice: once in the sequence and once for jogging (a double coil, see "Scan traps"). Instead, let the sequence set "AUTO wants" bits, and combine:</p>
+<pre class="code">Valve A = (AUTO AND step wants A) OR (MANUAL AND Jog A)
+Valve B = (AUTO AND step wants B) OR (MANUAL AND Jog B AND A is out)   ← interlock</pre>
+<h3>Switching modes safely</h3>
+<ul>
+<li><b>AUTO → MANUAL during a cycle</b>: stop the sequence, but do <b>not</b> blindly switch everything off. A clamp holding a part should stay closed, otherwise the part falls. Raise a message ("Mode changed during cycle") so the operator knows the cycle was interrupted.</li>
+<li><b>MANUAL → AUTO</b>: the sequence assumes it starts from <b>home</b>. If the machine is not home, refuse START and offer a <b>homing</b> function ("RESET = go home") that moves everything to its rest position in a safe order.</li>
+<li><b>Any → OFF</b>: step to 0, outputs to their safe state.</li>
+<li>Never let a mode change <b>start</b> a movement by itself. Movement always needs an operator action.</li>
+</ul>
+<h3>Reading a 3-position selector</h3>
+<p>A selector OFF / MAN / AUTO usually has two contacts: one closes in MAN, the other in AUTO, none in OFF. In the simulator: cylinders I1.0 = MAN, I1.1 = AUTO; fixture I4.0 = MAN, I4.1 = AUTO. Both on at once is a wiring fault: treat it as OFF.</p>
+<h3>Changeover (product change)</h3>
+<p>Flexible lines run <b>production orders</b>: "200 × product A, then 50 × B". When an order is finished the machine must be <b>changed over</b>: new tool, new recipe, sometimes new settings. The PLC's job:</p>
+<ol>
+<li>Count good parts per order and detect "order complete".</li>
+<li>Stop accepting START and tell the operator <b>which tool to fit</b> (HMI message, amber lamp).</li>
+<li>After the change, <b>identify the new tool</b> (barcode/RFID) and <b>compare it with the order</b>. The wrong tool is refused: that is <b>poka-yoke</b>.</li>
+<li>Load the recipe for the new tool and continue automatically.</li>
+</ol>
+<p>Shortening this time is a whole discipline: <b>SMED</b> (Single-Minute Exchange of Die). Automatic tool identification and recipe loading are a big part of it.</p>
+<div class="callout tip"><b>PackML:</b> in packaging and many other industries, modes and states follow the standard <b>ISA-TR88 / PackML</b> model: modes <i>Production, Maintenance, Manual</i>, and states such as <i>Idle, Starting, Execute, Holding, Held, Stopping, Aborted, Clearing, Resetting</i>. The pattern here (mode selector + step number + alarm + reset) is the same idea in a smaller size.</div>
+<div class="callout where"><b>Where:</b> every assembly cell, press, packaging machine, palletizer, CNC loader and test bench. Car-body welding fixtures, moulds and press dies are changed over many times a day with exactly the tool-check described above.</div>`,
+      sims: {},
+      takeaways: ['OFF = nothing moves, MANUAL = one movement while held, AUTO = sequence after START.', 'One coil per output: (AUTO AND step) OR (MANUAL AND jog).', 'Interlocks stay active in MANUAL.', 'AUTO starts only from home; leaving AUTO stops the cycle without dropping the part.', 'Changeover: order complete → ask for the tool → verify it → load its recipe.'],
+      mistakes: ['Writing each output twice (sequence and jog): double coil.', 'Disabling interlocks in manual "because the operator knows what he does".', 'Restarting AUTO from wherever the machine was left in manual.', 'Trusting the operator to fit the right tool without checking its code.'],
+      challenges: ['cyl-modes', 'fixture-modes', 'st-fixture-c', 'fixture-changeover'],
+    },
+    {
       id: 'structure', level: 5, title: 'Program structure & troubleshooting', min: 9,
       summary: 'How to lay out a program others can maintain, and how to find faults fast.',
       body: `

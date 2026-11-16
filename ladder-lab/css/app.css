@@ -483,3 +483,13 @@ pre.st-code { margin: 0; padding: 12px 14px; font-family: var(--f-mono); font-si
 
 .machine-head .how-btn { margin-left: auto; }
 ul.guide { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 64ch; }
+
+.dev.sel3 { cursor: default; gap: 10px; padding: 6px 8px 6px 12px; }
+.dev.sel3 .segs { display: inline-flex; background: var(--surface-3); border-radius: 8px; padding: 2px; gap: 2px; }
+.dev.sel3 .segs button { border: 0; background: transparent; font: 700 .76rem var(--f-mono); padding: 6px 9px; border-radius: 6px; cursor: pointer; color: var(--muted); min-height: 32px; }
+.dev.sel3 .segs button.on { background: var(--ink); color: var(--surface); }
+.hmikeys { width: 100%; }
+.hmikeys summary { cursor: pointer; font: 700 .78rem var(--f-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 4px 2px; }
+.hmikeys-in { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; }
+.dock-sticky .hmikeys { width: auto; flex: none; }
+.dock-sticky .hmikeys-in { flex-wrap: nowrap; }

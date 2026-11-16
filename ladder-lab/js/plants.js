@@ -16,6 +16,7 @@
       const on = !!ctrl[i.addr];
       if (i.kind === 'pb' || i.kind === 'sw') o[i.addr] = on ? 1 : 0;
       else if (i.kind === 'pbnc') o[i.addr] = on ? 0 : 1;
+      else if (i.kind === 'sel3') { const v = ctrl[i.addr] === undefined ? i.def || 0 : +ctrl[i.addr]; o[i.addr] = v === 1 ? 1 : 0; o[i.addr2] = v === 2 ? 1 : 0; }
     });
     return o;
   }
@@ -394,6 +395,10 @@
       { addr: 'I0.5', name: 'B1 B out', kind: 'sensor' },
       { addr: 'I0.6', name: 'C0 C home', kind: 'sensor' },
       { addr: 'I0.7', name: 'C1 C out', kind: 'sensor' },
+      { addr: 'I1.0', addr2: 'I1.1', name: 'Mode', kind: 'sel3', labels: ['OFF', 'MAN', 'AUTO'], def: 2 },
+      { addr: 'I1.2', name: 'Jog A', kind: 'pb', color: 'black' },
+      { addr: 'I1.3', name: 'Jog B', kind: 'pb', color: 'black' },
+      { addr: 'I1.4', name: 'Jog C', kind: 'pb', color: 'black' },
     ],
     outputs: [
       { addr: 'Q0.0', name: 'Y1 valve A', color: 'blue' },
@@ -1854,15 +1859,20 @@
   const TOOLS = {
     A: { name: 'Tool A', code: 1001, n: 3, groups: [[0], [1], [2]], unclamp: 'reverse', procT: 2000, color: '#5b8def' },
     B: { name: 'Tool B', code: 2002, n: 6, groups: [[0, 1], [2, 3], [4, 5]], unclamp: 'together', procT: 3000, color: '#3fae6b' },
+    C: { name: 'Tool C', code: 4004, n: 4, groups: [[0, 1], [2], [3]], unclamp: 'together', procT: 1500, color: '#e08a2c' },
     X: { name: 'Tool X', code: 3003, n: 3, groups: [[0], [1], [2]], unclamp: 'reverse', procT: 2000, color: '#9b6bd6' },
   };
-  const HMI_MSG = ['', 'Insert a tool', 'Reading tool barcode…', 'Tool A ready: load part, START', 'Tool B ready: load part, START', 'Clamping…', 'Processing…', 'Unclamping…', 'Remove the part', 'ALARM: press RESET'];
-  const HMI_ALM = ['', 'Barcode not readable', 'Unknown tool code', 'Clamp did not close in time', 'STOP pressed', 'Tool removed during cycle'];
+  const HMI_MSG = ['', 'Insert a tool', 'Reading tool barcode…', 'Tool A ready: load part, START', 'Tool B ready: load part, START', 'Clamping…', 'Processing…', 'Unclamping…', 'Remove the part', 'ALARM: press RESET', 'MANUAL: use the clamp keys', 'Not home: RESET = go home', 'Changeover: fit Tool A', 'Changeover: fit Tool B', 'Changeover: fit Tool C', 'Tool C ready: load part, START', 'Order list complete', 'Machine OFF'];
+  const HMI_ALM = ['', 'Barcode not readable', 'Unknown tool code', 'Clamp did not close in time', 'STOP pressed', 'Tool removed during cycle', 'Wrong tool for this order', 'Mode changed during cycle'];
   LL.FIXTURE = { TOOLS, HMI_MSG, HMI_ALM };
   P.fixture = {
-    id: 'fixture', name: 'Flexible fixture station (2 tools)', blurb: 'One station, two interchangeable tools identified by barcode. Tool A has 3 clamps, Tool B has 6, each with its own clamp sequence and process time. A small HMI shows the messages your program selects in MW20–MW26.',
-    hmi: ['MW20', 'MW21', 'MW22', 'MW24', 'MW25', 'MW26'],
-    hmiButtons: [{ x: 422, y: 280, w: 88, h: 32, addr: 'I0.0' }, { x: 522, y: 280, w: 88, h: 32, addr: 'I0.2' }],
+    id: 'fixture', name: 'Flexible fixture station (3 tools)', blurb: 'One station, interchangeable tools identified by barcode. Tool A has 3 clamps, Tool B has 6, Tool C has 4, each with its own clamp sequence and process time. Mode selector OFF / MAN / AUTO, and a small HMI that shows the messages your program selects in MW20–MW32.',
+    hmi: ['MW20', 'MW21', 'MW22', 'MW24', 'MW25', 'MW26', 'MW27', 'MW30', 'MW31', 'MW32'],
+    hmiButtons(st, I) {
+      const b = [{ x: 414, y: 280, w: 64, h: 32, addr: 'I0.0', label: 'START' }, { x: 484, y: 280, w: 64, h: 32, addr: 'I0.2', label: 'RESET' }, { x: 554, y: 280, w: 64, h: 32, addr: 'I3.7', label: 'C/O' }];
+      if (I && I['I4.0']) { for (let i = 0; i < 6; i++) b.push({ x: 414 + i * 34, y: 170, w: 30, h: 26, addr: 'I3.' + i, label: 'C' + (i + 1) }); b.push({ x: 414, y: 202, w: 98, h: 26, addr: 'I3.6', label: 'SCREW (hold)' }); }
+      return b;
+    },
     inputs: [
       { addr: 'I0.0', name: 'HMI START', kind: 'pb', color: 'green' },
       { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
@@ -1871,9 +1881,13 @@
       { addr: 'I0.4', name: 'Tool present', kind: 'sensor', note: 'Tool docked and locked' },
       { addr: 'I0.5', name: 'Scanner read OK', kind: 'sensor', note: 'Valid while the trigger is on' },
       { addr: 'I0.6', name: 'Scanner no read', kind: 'sensor', note: 'Valid while the trigger is on' },
-      { addr: 'AIW2', name: 'Barcode value', kind: 'sensor', note: '%IW2: the code read from the tool label (1001 = Tool A, 2002 = Tool B)' },
+      { addr: 'AIW2', name: 'Barcode value', kind: 'sensor', note: '%IW2: the code read from the tool label (1001 = Tool A, 2002 = Tool B, 4004 = Tool C)' },
       ...[0, 1, 2, 3, 4, 5].map((i) => ({ addr: 'I1.' + i, name: 'Clamp ' + (i + 1) + ' closed', kind: 'sensor' })),
       ...[0, 1, 2, 3, 4, 5].map((i) => ({ addr: 'I2.' + i, name: 'Clamp ' + (i + 1) + ' open', kind: 'sensor' })),
+      { addr: 'I4.0', addr2: 'I4.1', name: 'Mode', kind: 'sel3', labels: ['OFF', 'MAN', 'AUTO'], def: 2 },
+      ...[0, 1, 2, 3, 4, 5].map((i) => ({ addr: 'I3.' + i, name: 'HMI clamp ' + (i + 1), kind: 'pb', color: 'black', group: 'hmi' })),
+      { addr: 'I3.6', name: 'HMI screw (hold)', kind: 'pb', color: 'black', group: 'hmi' },
+      { addr: 'I3.7', name: 'HMI changeover', kind: 'pb', color: 'black', group: 'hmi' },
     ],
     outputs: [
       ...[0, 1, 2, 3, 4, 5].map((i) => ({ addr: 'Q0.' + i, name: 'Clamp ' + (i + 1) + ' valve', color: 'blue' })),
@@ -1886,6 +1900,7 @@
     actions: [
       { id: 'toolA', label: 'Change to Tool A', run(st) { st.change('A', false); } },
       { id: 'toolB', label: 'Change to Tool B', run(st) { st.change('B', false); } },
+      { id: 'toolC', label: 'Change to Tool C', run(st) { st.change('C', false); } },
       { id: 'toolX', label: 'Unknown tool', run(st) { st.change('X', false); } },
       { id: 'toolBad', label: 'Tool A, damaged label', run(st) { st.change('A', true); } },
       { id: 'load', label: 'Load part', run(st) { if (st.tool && !st.part) { st.part = true; st.cyc = { closeOn: {}, closedAt: {}, openOff: {}, openAt: {}, proc: 0, procOk: true, orderOk: null }; } } },
@@ -1893,7 +1908,7 @@
       { id: 'jam', label: 'Jam clamp 2', toggle: true, run(st) { st.jam = !st.jam; } },
     ],
     init() {
-      const st = { tool: { type: 'A', bad: false }, next: null, chg: 0, part: false, pos: [0, 0, 0, 0, 0, 0], prevV: [0, 0, 0, 0, 0, 0], scanT: 0, result: null, code: 0, prevTrig: 0, jam: false, cyc: null, removeReq: false, goodA: 0, goodB: 0, bad: 0, last: '', proc: 0, t: 0, fault: null };
+      const st = { tool: { type: 'A', bad: false }, next: null, chg: 0, part: false, pos: [0, 0, 0, 0, 0, 0], prevV: [0, 0, 0, 0, 0, 0], scanT: 0, result: null, code: 0, prevTrig: 0, jam: false, cyc: null, removeReq: false, goodA: 0, goodB: 0, goodC: 0, bad: 0, last: '', proc: 0, t: 0, fault: null };
       st.change = (type, bad) => {
         if (st.pos.some((p) => p > 0.05)) { st.fault = st.fault || 'Tool removed while clamps were closed.'; return; }
         if (st.part) { st.fault = st.fault || 'Remove the part before changing the tool.'; return; }
@@ -1963,7 +1978,7 @@
               else for (let i = n - 1; i > 0; i--) if (off[i - 1] < (st.cyc.openAt[i] || Infinity) - 15) why.push('unclamp order should be ' + [...Array(n).keys()].reverse().map((x) => x + 1).join(' → '));
             }
             if (why.length) { st.bad++; st.last = 'Bad part: ' + [...new Set(why)].join(', '); }
-            else { if (st.tool.type === 'A') st.goodA++; else st.goodB++; st.last = 'Good part (' + T.name + ')'; }
+            else { st['good' + st.tool.type] = (st['good' + st.tool.type] || 0) + 1; st.last = 'Good part (' + T.name + ')'; }
           }
           st.part = false; st.cyc = null;
         }
@@ -2018,20 +2033,25 @@
       const txt = (s2, y, o) => D.text(c, s2, hx + 20, y, Object.assign({ size: 11, color: '#d6e6f5', align: 'left' }, o || {}));
       txt('FIXTURE STATION · HMI', hy + 26, { size: 10, weight: 800, color: '#7fb3e6' });
       const tool = Q['MW21'] || 0;
-      txt('Tool:  ' + (tool === 1 ? 'A' : tool === 2 ? 'B' : '—') + '     code ' + (I['AIW2'] || '—'), hy + 50, { mono: true });
-      txt('Step:  ' + (Q['MW22'] || 0), hy + 70, { mono: true });
+      txt('Tool:  ' + (['—', 'A', 'B', 'C'][tool] || '—') + '     code ' + (I['AIW2'] || '—'), hy + 50, { mono: true });
+      const mode = I['I4.1'] ? 'AUTO' : I['I4.0'] ? 'MANUAL' : 'OFF';
+      txt('Step:  ' + (Q['MW22'] || 0) + '     Mode: ' + mode, hy + 70, { mono: true, color: mode === 'MANUAL' ? '#fbbf24' : '#d6e6f5' });
       const msg = HMI_MSG[Q['MW20'] || 0] || ('message ' + Q['MW20']);
       c.fillStyle = '#16324a'; D.rr(c, hx + 16, hy + 84, hw - 32, 44, 5); c.fill();
       txt(msg.length > 30 ? msg.slice(0, 29) + '…' : msg, hy + 106, { size: 12, weight: 700, color: '#fff' });
       const alm = Q['MW26'] || 0;
       if (alm) { c.fillStyle = '#b91c1c'; D.rr(c, hx + 16, hy + 136, hw - 32, 30, 5); c.fill(); txt('⚠ ' + (HMI_ALM[alm] || 'alarm ' + alm), hy + 151, { size: 11, weight: 700, color: '#fff' }); }
-      txt('Parts  A: ' + (Q['MW24'] || 0) + '    B: ' + (Q['MW25'] || 0), hy + 190, { mono: true });
-      txt('MW20 msg · MW21 tool · MW22 step', hy + 214, { size: 8, mono: true, color: '#6b8aa6' });
-      [['START', '#16a34a', !!I['I0.0']], ['RESET', '#475569', !!I['I0.2']]].forEach(([l, col, on], k) => {
-        const bx = hx + 18 + k * 100; c.fillStyle = on ? '#94a3b8' : col; D.rr(c, bx, hy + hh - 46, 88, 32, 6); c.fill();
-        D.text(c, l, bx + 44, hy + hh - 30, { size: 11, weight: 800, color: '#fff' });
+      if (!I['I4.0']) {
+        txt('Parts  A: ' + (Q['MW24'] || 0) + '  B: ' + (Q['MW25'] || 0) + '  C: ' + (Q['MW27'] || 0), hy + 186, { mono: true });
+        if (Q['MW30']) txt('Order: Tool ' + (['—', 'A', 'B', 'C'][Q['MW30']] || '?') + '   ' + (Q['MW31'] || 0) + ' / ' + (Q['MW32'] || 0), hy + 206, { mono: true, color: '#fbbf24' });
+        txt('MW20 msg · MW21 tool · MW22 step', hy + 226, { size: 8, mono: true, color: '#6b8aa6' });
+      }
+      this.hmiButtons(st, I).forEach((b) => {
+        const on = !!I[b.addr], col = b.addr === 'I0.0' ? '#16a34a' : b.addr === 'I3.7' ? '#a16207' : '#475569';
+        c.fillStyle = on ? '#94a3b8' : col; D.rr(c, b.x, b.y, b.w, b.h, 5); c.fill();
+        D.text(c, b.label, b.x + b.w / 2, b.y + b.h / 2, { size: b.h < 30 ? 9 : 11, weight: 800, color: '#fff' });
       });
-      D.text(c, 'A ' + st.goodA + ' · B ' + st.goodB + ' · bad ' + st.bad, 196, 340, { size: 11, mono: true, weight: 700, color: st.bad ? th.red : th.ink });
+      D.text(c, 'A ' + st.goodA + ' · B ' + st.goodB + ' · C ' + st.goodC + ' · bad ' + st.bad, 196, 340, { size: 11, mono: true, weight: 700, color: st.bad ? th.red : th.ink });
       if (st.last) D.text(c, st.last.length > 52 ? st.last.slice(0, 51) + '…' : st.last, 196, 26, { size: 10, color: st.last.startsWith('Good') ? th.on : th.red });
       D.fault(c, th, st.fault);
     },
@@ -2090,6 +2110,7 @@
       try {
         switch (cmd) {
           case 'press': case 'on': ctrl[p[1]] = true; run(30); break;
+          case 'set': ctrl[p[1]] = +p[2]; run(30); break;
           case 'release': case 'off': ctrl[p[1]] = false; run(30); break;
           case 'tap': ctrl[p[1]] = true; run(+(p[2] || 150)); ctrl[p[1]] = false; run(150); break;
           case 'wait': run(+p[1]); break;
@@ -2158,6 +2179,7 @@
     const cond = (s) => { const [a, v] = s.split('='); const bit = LL.isBitAddr(a) || /\.(Q|Q1)$/i.test(a); return n(a) + (!bit ? ' = ' + v : v === '1' ? ' ON' : ' OFF'); };
     switch (p[0]) {
       case 'press': return 'press and hold ' + n(p[1]);
+      case 'set': return 'turn ' + n(p[1]).replace(/ MANUAL$/, '') + ' to ' + (['OFF', 'MANUAL', 'AUTO'][+p[2]] || p[2]);
       case 'release': return 'release ' + n(p[1]);
       case 'on': return 'switch ' + n(p[1]) + ' on';
       case 'off': return 'switch ' + n(p[1]) + ' off';
@@ -2189,7 +2211,7 @@
   LL.plantTags = function (id) {
     const p = P[id], o = {};
     if (!p) return o;
-    p.inputs.concat(p.outputs).forEach((x) => (o[x.addr] = x.name));
+    p.inputs.concat(p.outputs).forEach((x) => { if (x.kind === 'sel3') { o[x.addr] = x.name + ' MANUAL'; o[x.addr2] = x.name + ' AUTO'; } else o[x.addr] = x.name; });
     return o;
   };
   LL.runTest = runTest;

@@ -601,6 +601,7 @@
     const iec = (a) => /^AIW(\d+)/.test(a) ? '%IW' + a.slice(3) : /^AQW(\d+)/.test(a) ? '%QW' + a.slice(3) : '%' + a[0] + 'X' + a.slice(1);
     const lines = ['VAR'];
     plant.inputs.concat(plant.outputs).forEach((d) => {
+      if (d.kind === 'sel3') { lines.push('  ' + ident(d.name + 'Manual') + ' AT ' + iec(d.addr) + ' : BOOL;   (* selector in MAN *)'); lines.push('  ' + ident(d.name + 'Auto') + ' AT ' + iec(d.addr2) + ' : BOOL;   (* selector in AUTO *)'); return; }
       const nm = ident((tags && tags[d.addr]) || d.name);
       const ty = /^A[IQ]W/.test(d.addr) ? 'INT' : 'BOOL';
       lines.push('  ' + nm + ' AT ' + iec(d.addr) + ' : ' + ty + ';' + (d.kind === 'pbnc' ? '   (* wired NC: TRUE when not pressed *)' : ''));
