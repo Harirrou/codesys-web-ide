@@ -25,3 +25,6 @@ unity/Wispbloom/obj/
 # OS
 .DS_Store
 Thumbs.db
+
+# Ladder Lab build output
+ladder-lab/dist/
