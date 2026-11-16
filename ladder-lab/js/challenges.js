@@ -771,6 +771,102 @@
         { name: 'Alarm on the average', steps: ['action bypass', 'waitfor Q0.0=1 15000', 'plant lvlPct>=65'] },
       ],
     },
+    // ═════════════ Project pack 3 ═════════════
+    {
+      id: 'washer', level: 6, plant: 'washer', title: 'Washing machine program',
+      brief: 'START (door closed): ① <b>lock the door</b> until locked ② <b>fill</b> to wash level ③ <b>heat</b> to 40 °C ④ <b>wash 12 s</b>, drum turning <b>2 s left / 2 s right</b> ⑤ <b>drain</b> until empty ⑥ <b>spin 4 s</b> (drum right + spin, drain pump on) ⑦ unlock, <b>End lamp</b> until the door is opened. <b>STOP</b> during a cycle: drain first, then unlock. The door must stay locked whenever there is water inside.',
+      hints: ['Steps 0–7 in MW0, plus step 9 "drain after STOP" that goes to 7.', 'Drum rhythm: two cross-resetting timers (the flasher pattern) while in step 4. Interlock left/right with NC contacts.', 'Door lock is on in steps 1–6 and 9. Drain pump in 5, 6 and 9.'],
+      never: [{ when: 'Q0.3=1 Q0.4=1', msg: 'Drum left and right together.' }],
+      solution: 'NAME Washing machine\nRUNG 0 → 1: START with the door closed\nCMP(MW0==0) P(I0.0) NO(I0.2) MOV(1,MW0)\nRUNG 1 → 2: door locked\nCMP(MW0==1) NO(I0.3) MOV(2,MW0)\nRUNG 2 → 3: filled\nCMP(MW0==2) NO(I0.4) MOV(3,MW0)\nRUNG 3 → 4: hot\nCMP(MW0==3) NO(I0.6) MOV(4,MW0)\nRUNG 4 → 5: washed\nCMP(MW0==4) NO(T0) MOV(5,MW0)\nRUNG 5 → 6: drained\nCMP(MW0==5) NO(I0.5) MOV(6,MW0)\nRUNG 6 → 7: spun\nCMP(MW0==6) NO(T3) MOV(7,MW0)\nRUNG 7 → 0: door opened, laundry out\nCMP(MW0==7) NC(I0.2) MOV(0,MW0)\nRUNG STOP: drain first (step 9)\nNC(I0.1) CMP(MW0>=1) CMP(MW0<=6) MOV(9,MW0)\nRUNG 9 → 7: drained after STOP\nCMP(MW0==9) NO(I0.5) MOV(7,MW0)\nRUNG Wash time\nCMP(MW0==4) TON(T0,12s)\nRUNG Drum rhythm: left phase\nCMP(MW0==4) NC(T2) TON(T1,2s)\nRUNG Drum rhythm: right phase\nNO(T1) TON(T2,2s)\nRUNG Spin time\nCMP(MW0==6) TON(T3,4s)\nRUNG Door lock in steps 1–6 and 9\nCMP(MW0>=1) CMP(MW0<=6) | COIL(Q0.0)\nCMP(MW0==9) -\nRUNG Water valve\nCMP(MW0==2) COIL(Q0.1)\nRUNG Heater\nCMP(MW0==3) COIL(Q0.2)\nRUNG Drum left\nCMP(MW0==4) NC(T1) NC(Q0.4) COIL(Q0.3)\nRUNG Drum right: wash rhythm or spin\nCMP(MW0==4) NO(T1) | NC(Q0.3) COIL(Q0.4)\nCMP(MW0==6) -\nRUNG Drain pump in steps 5, 6, 9\nCMP(MW0==5) | COIL(Q0.5)\nCMP(MW0==6) |\nCMP(MW0==9)\nRUNG Spin\nCMP(MW0==6) COIL(Q0.6)\nRUNG End lamp\nCMP(MW0==7) COIL(Q0.7)',
+      tests: [
+        { name: 'Washes a clean load', steps: ['tap I0.0', 'expect Q0.0=1', 'waitfor Q0.1=1 2000', 'waitfor Q0.2=1 8000', 'waitfor Q0.3=1 8000', 'waitfor Q0.5=1 16000', 'waitfor Q0.7=1 12000', 'expect Q0.0=0', 'wait 600', 'action door', 'wait 200', 'plant clean=1 dirty=0', 'expect MW0=0'] },
+        { name: 'Drum reverses', steps: ['tap I0.0', 'waitfor Q0.3=1 12000', 'waitfor Q0.4=1 3000', 'waitfor Q0.3=1 3000'] },
+        { name: 'STOP drains before unlocking', steps: ['tap I0.0', 'waitfor Q0.3=1 12000', 'tap I0.1', 'expect Q0.3=0 Q0.4=0 Q0.5=1 Q0.0=1', 'waitfor I0.5=1 6000', 'wait 100', 'expect Q0.0=0 Q0.7=1'] },
+        { name: 'No start with the door open', steps: ['action door', 'tap I0.0', 'expect MW0=0 Q0.0=0'] },
+      ],
+    },
+    {
+      id: 'crane', level: 6, plant: 'crane', title: 'Overhead crane: deliver A → C',
+      brief: 'START (crane at A, hook up, load waiting): lower the hook, switch the <b>magnet</b> on, wait 0.5 s, raise, <b>travel to C</b>, lower, magnet off, wait 0.5 s, raise, travel back to A. Never travel with the hook down. <b>STOP pauses</b> all motion while held, and the magnet must <b>keep holding</b> the load. The beacon flashes during a cycle.',
+      hints: ['Nine steps: 0 idle, 1 down, 2 grip, 3 up, 4 travel right, 5 down, 6 release, 7 up, 8 travel left.', 'Put NO(STOP) only in the motion rungs, not in the step logic or the magnet rung. That is how you get "pause".', 'Magnet = steps 2–5.'],
+      never: [{ when: 'Q0.0=1 Q0.1=1', msg: 'Travel left and right together.' }, { when: 'Q0.2=1 Q0.3=1', msg: 'Hoist up and down together.' }],
+      solution: 'NAME Overhead crane\nRUNG 0 → 1: START at A, hook up, load waiting\nCMP(MW0==0) P(I0.0) NO(I0.2) NO(I0.5) NO(I0.7) MOV(1,MW0)\nRUNG 1 → 2: hook down on the load\nCMP(MW0==1) NO(I0.6) MOV(2,MW0)\nRUNG 2 → 3: gripped\nCMP(MW0==2) NO(T0) MOV(3,MW0)\nRUNG 3 → 4: hook up\nCMP(MW0==3) NO(I0.5) MOV(4,MW0)\nRUNG 4 → 5: at C\nCMP(MW0==4) NO(I0.4) MOV(5,MW0)\nRUNG 5 → 6: hook down at C\nCMP(MW0==5) NO(I0.6) MOV(6,MW0)\nRUNG 6 → 7: released\nCMP(MW0==6) NO(T1) MOV(7,MW0)\nRUNG 7 → 8: hook up\nCMP(MW0==7) NO(I0.5) MOV(8,MW0)\nRUNG 8 → 0: back at A\nCMP(MW0==8) NO(I0.2) MOV(0,MW0)\nRUNG Grip time\nCMP(MW0==2) TON(T0,500ms)\nRUNG Release time\nCMP(MW0==6) TON(T1,500ms)\nRUNG Hoist down in steps 1, 5 (STOP pauses)\nCMP(MW0==1) | NO(I0.1) NC(Q0.2) COIL(Q0.3)\nCMP(MW0==5)\nRUNG Hoist up in steps 3, 7\nCMP(MW0==3) | NO(I0.1) NC(Q0.3) COIL(Q0.2)\nCMP(MW0==7)\nRUNG Travel right in step 4\nCMP(MW0==4) NO(I0.1) NC(Q0.0) COIL(Q0.1)\nRUNG Travel left in step 8\nCMP(MW0==8) NO(I0.1) NC(Q0.1) COIL(Q0.0)\nRUNG Magnet holds in steps 2–5, even during STOP\nCMP(MW0>=2) CMP(MW0<=5) COIL(Q0.4)\nRUNG Beacon\nCMP(MW0>=1) NO(SM0.5) COIL(Q0.5)',
+      tests: [
+        { name: 'Delivers a load', steps: ['tap I0.0', 'expect Q0.3=1', 'waitfor Q0.1=1 5000', 'waitfor I0.4=1 6000', 'waitfor Q0.4=0 5000', 'waitfor MW0=0 10000', 'expect I0.2=1', 'plant delivered=1'] },
+        { name: 'STOP pauses, magnet holds', steps: ['tap I0.0', 'waitfor Q0.1=1 5000', 'wait 1000', 'press I0.1', 'wait 100', 'expect Q0.1=0 Q0.4=1', 'wait 1000', 'release I0.1', 'expect Q0.1=1'] },
+        { name: 'No load, no start', steps: ['tap I0.0', 'waitfor Q0.0=1 15000', 'waitfor MW0=0 6000', 'tap I0.0', 'expect MW0=0 Q0.3=0', 'action place', 'tap I0.0', 'expect Q0.3=1'] },
+      ],
+    },
+    {
+      id: 'indexer', level: 6, plant: 'indexer', title: 'Rotary indexing table',
+      brief: 'With <b>AUTO</b> on and the table in position, work the stations: <b>press</b> a part under the press (down to the bottom, then let it spring up), and <b>eject</b> a part at the eject station. When the press is up, nothing is left at eject and the ejector is home, <b>index</b> the table one position. Only index when there is a part at any station. Every part must be pressed before it is ejected.',
+      hints: ['Steps: 0 wait, 1 station work, 2 indexing. 0 → 1 when in position AND a part at load, press or eject.', 'Remember "pressed this dwell" in M0.0 (SET at press down, RESET while indexing). Press = step 1 AND part at press AND NOT M0.0.', 'Step 2 ends on the rising edge P(I0.1) of "in position", because the table starts in position.'],
+      solution: 'NAME Indexing table\nRUNG 0 → 1: in position with a part at any station\nCMP(MW0==0) NO(I0.0) NO(I0.1) | NO(I0.2) | MOV(1,MW0)\n. . . | NO(I0.3) |\n. . . NO(I0.6)\nRUNG Press a part that is not pressed yet\nCMP(MW0==1) NO(I0.3) NC(M0.0) COIL(Q0.1)\nRUNG Pressed → remember\nCMP(MW0==1) NO(I0.5) SET(M0.0)\nRUNG Eject the part at the eject station\nCMP(MW0==1) NO(I0.6) COIL(Q0.2)\nRUNG 1 → 2: stations done\nCMP(MW0==1) | NC(I0.3) | NO(I0.4) NC(I0.6) NO(I0.7) MOV(2,MW0)\n. NO(M0.0)\nRUNG 2 → 0: arrived at the next position\nCMP(MW0==2) P(I0.1) MOV(0,MW0)\nRUNG Forget "pressed" while indexing\nCMP(MW0==2) RST(M0.0)\nRUNG Index motor\nCMP(MW0==2) COIL(Q0.0)\nRUNG Running lamp\nNO(I0.0) COIL(Q0.3)',
+      tests: [
+        { name: 'Presses and ejects three parts', steps: ['on I0.0', 'action load', 'waitfor I0.2=0 4000', 'waitfor I0.1=1 2000', 'action load', 'waitfor I0.2=0 4000', 'waitfor I0.1=1 2000', 'action load', 'wait 12000', 'plant good=3 bad=0'] },
+        { name: 'Idle without parts', steps: ['on I0.0', 'wait 2000', 'expect Q0.0=0 Q0.1=0'] },
+        { name: 'Press holds the table', steps: ['on I0.0', 'action load', 'waitfor Q0.1=1 4000', 'expect Q0.0=0', 'waitfor I0.5=1 1000', 'expect Q0.0=0'] },
+      ],
+    },
+    {
+      id: 'auto-batching', level: 6, plant: 'conveyor', title: 'Automatic batching line',
+      tags: { 'Q0.1': 'Carton closing', 'Q0.2': 'Feeder' },
+      brief: 'START runs the belt <b>and the feeder</b> (which drops a box every 1.5 s); STOP stops both. Count boxes at the photo-eye. After every <b>5 boxes</b>: stop belt and feeder for <b>3 s</b> while the carton closes (Q0.1 on), then continue with a new batch. Count finished batches in <b>MW10</b>.',
+      hints: ['CTU(C0,5) on the photo-eye; C0 done starts a 3 s TON.', 'When the TON is done: ADD 1 to MW10 on its rising edge, and RST C0. That ends the pause by itself.', 'One rung can drive two coils: branch at the output column.'],
+      solution: 'NAME Automatic batching\nRUNG Line running\nNO(I0.0) | NO(I0.1) COIL(M0.0)\nNO(M0.0)\nRUNG Count boxes\nNO(I0.2) CTU(C0,5)\nRUNG Pause 3 s after a batch\nNO(C0) TON(T0,3s)\nRUNG Carton closing lamp\nNO(C0) COIL(Q0.1)\nRUNG Belt and feeder run unless pausing\nNO(M0.0) NC(C0) ~ | COIL(Q0.0)\nCOIL(Q0.2)\nRUNG Count the batch once\nP(T0) ADD(MW10,1,MW10)\nRUNG Start the next batch\nNO(T0) RST(C0)',
+      tests: [
+        { name: 'Pauses after 5 boxes', steps: ['tap I0.0', 'expect Q0.0=1 Q0.2=1', 'waitfor Q0.1=1 15000', 'expect Q0.0=0 Q0.2=0', 'wait 3200', 'expect Q0.0=1 Q0.1=0 MW10=1'] },
+        { name: 'Keeps batching', steps: ['tap I0.0', 'wait 26000', 'range MW10 2 3', 'plant bin>=8'] },
+        { name: 'STOP', steps: ['tap I0.0', 'wait 2000', 'tap I0.1', 'expect Q0.0=0 Q0.2=0'] },
+      ],
+    },
+    {
+      id: 'cyl-abba-c', level: 5, plant: 'cylinders', title: 'Cylinders: A+ B+ B− A− C+ C−',
+      brief: 'One cycle per START (from home): <b>A out, B out, B back, A back, C out, C back</b>. Each move waits for its sensor. STOP aborts.',
+      hints: ['Six motion steps in MW0. Y1 is on in steps 1–3, Y2 in step 2, Y3 in step 5.'],
+      solution: 'NAME A+ B+ B− A− C+ C−\nRUNG 0 → 1\nCMP(MW0==0) P(I0.0) NO(I0.2) NO(I0.4) NO(I0.6) MOV(1,MW0)\nRUNG 1 → 2: A out\nCMP(MW0==1) NO(I0.3) MOV(2,MW0)\nRUNG 2 → 3: B out\nCMP(MW0==2) NO(I0.5) MOV(3,MW0)\nRUNG 3 → 4: B home\nCMP(MW0==3) NO(I0.4) MOV(4,MW0)\nRUNG 4 → 5: A home\nCMP(MW0==4) NO(I0.2) MOV(5,MW0)\nRUNG 5 → 6: C out\nCMP(MW0==5) NO(I0.7) MOV(6,MW0)\nRUNG 6 → 0: C home\nCMP(MW0==6) NO(I0.6) MOV(0,MW0)\nRUNG STOP\nNC(I0.1) MOV(0,MW0)\nRUNG Y1 in steps 1–3\nCMP(MW0>=1) CMP(MW0<=3) COIL(Q0.0)\nRUNG Y2 in step 2\nCMP(MW0==2) COIL(Q0.1)\nRUNG Y3 in step 5\nCMP(MW0==5) COIL(Q0.2)',
+      tests: [
+        { name: 'Sequence', steps: ['tap I0.0', 'expect Q0.0=1', 'order Q0.1+ Q0.1- Q0.0- Q0.2+ Q0.2- 10000', 'waitfor MW0=0 2000'] },
+        { name: 'STOP', steps: ['tap I0.0', 'wait 1500', 'tap I0.1', 'expect Q0.0=0 Q0.1=0 Q0.2=0 MW0=0'] },
+      ],
+    },
+    {
+      id: 'st-greenhouse', level: 7, lang: 'st', plant: 'greenhouse', title: 'ST: greenhouse climate control',
+      brief: 'In AUTO, keep the greenhouse at <b>20–26 °C</b>. Scale <b>AIW0</b> (0–50 °C) to whole degrees in <b>TempC</b>. <b>Heater</b> on below 20 °C, off at 22 °C. <b>Vent</b>: open fully above 26 °C, close fully below 23 °C (stop each motor at its limit). <b>Fan</b> whenever the heater is on or the vent is not closed. <b>Irrigation</b>: a 4 s pulse when the soil is dry. <b>Alarm</b> below 10 °C or above 35 °C. AUTO off: heater, vent motors and irrigation off.',
+      hints: ['TempC := (TempRaw − 6400) / 512;', 'Hysteresis in ST: IF TempC < 20 THEN Heater := TRUE; ELSIF TempC >= 22 THEN Heater := FALSE; END_IF', 'Irrigate : TP; then Irrigate(IN := AutoSw AND SoilDry, PT := T#4s);'],
+      solution: 'PROGRAM PLC_PRG\nVAR\n  AutoSw     AT %IX0.0 : BOOL;\n  TempRaw    AT %IW0  : INT;\n  VentOpen   AT %IX0.2 : BOOL;\n  VentClosed AT %IX0.3 : BOOL;\n  SoilDry    AT %IX0.4 : BOOL;\n  Heater     AT %QX0.0 : BOOL;\n  VentOpenCmd  AT %QX0.1 : BOOL;\n  VentCloseCmd AT %QX0.2 : BOOL;\n  Fan        AT %QX0.3 : BOOL;\n  Water      AT %QX0.4 : BOOL;\n  Alarm      AT %QX0.5 : BOOL;\n  TempC : INT;\n  Venting : BOOL;\n  Irrigate : TP;\nEND_VAR\n\nTempC := (TempRaw - 6400) / 512;\n\nIF AutoSw THEN\n  (* heater 20 / 22 *)\n  IF TempC < 20 THEN Heater := TRUE; ELSIF TempC >= 22 THEN Heater := FALSE; END_IF\n  (* vent 26 / 23 *)\n  IF TempC > 26 THEN Venting := TRUE; ELSIF TempC < 23 THEN Venting := FALSE; END_IF\n  VentOpenCmd := Venting AND NOT VentOpen;\n  VentCloseCmd := NOT Venting AND NOT VentClosed;\nELSE\n  Heater := FALSE; Venting := FALSE;\n  VentOpenCmd := FALSE; VentCloseCmd := FALSE;\nEND_IF\n\nFan := Heater OR NOT VentClosed;\n\nIrrigate(IN := AutoSw AND SoilDry, PT := T#4s);\nWater := Irrigate.Q;\n\nAlarm := TempC < 10 OR TempC > 35;',
+      tests: [
+        { name: 'Scales the temperature', steps: ['wait 20', 'expect TEMPC=15'] },
+        { name: 'Heats on a cold night', steps: ['on I0.0', 'action cold', 'wait 25000', 'plant tC>=19 tC<=23'] },
+        { name: 'Vents on a sunny day', steps: ['on I0.0', 'action sunny', 'wait 40000', 'plant tC>=21 tC<=28'] },
+        { name: 'Irrigates dry soil', steps: ['on I0.0', 'wait 100', 'expect Q0.4=1', 'wait 4500', 'expect Q0.4=0', 'plant moistPct>=60 moistPct<=95'] },
+        { name: 'Manual: outputs off', steps: ['action cold', 'wait 2000', 'expect Q0.0=0 Q0.4=0 Q0.1=0'] },
+      ],
+    },
+    {
+      id: 'st-elevator', level: 7, lang: 'st', plant: 'elevator', title: 'ST: elevator with arrays and FOR',
+      brief: 'Rewrite the 3-floor elevator in ST using <b>arrays</b>: Calls : ARRAY[1..3] OF BOOL and AtFloor : ARRAY[1..3] OF BOOL. Use <b>FOR</b> loops to find the current floor, whether the car is serving a call, and whether there is a call <b>above</b> or <b>below</b>. Same rules as the ladder project: door open 3 s, never move with the door open.',
+      hints: ['First FOR: IF AtFloor[i] THEN Floor := i; IF Calls[i] THEN Serving := TRUE; END_IF END_IF', 'Second FOR: IF Calls[i] AND i > Floor THEN CallAbove := TRUE; END_IF', 'Clear the served call with Calls[Floor] := FALSE; when the door timer is done.'],
+      never: [{ when: 'Q0.0=1 Q0.1=1', msg: 'UP and DOWN together.' }],
+      solution: 'PROGRAM PLC_PRG\nVAR\n  Call1 AT %IX0.0 : BOOL;  Call2 AT %IX0.1 : BOOL;  Call3 AT %IX0.2 : BOOL;\n  At1 AT %IX0.3 : BOOL;  At2 AT %IX0.4 : BOOL;  At3 AT %IX0.5 : BOOL;\n  DoorClosed AT %IX0.6 : BOOL;\n  Up AT %QX0.0 : BOOL;  Down AT %QX0.1 : BOOL;  DoorOpen AT %QX0.2 : BOOL;\n  Calls   : ARRAY[1..3] OF BOOL;\n  AtFloor : ARRAY[1..3] OF BOOL;\n  Floor : INT := 1;      (* last floor seen *)\n  i : INT;\n  Serving, CallAbove, CallBelow : BOOL;\n  DoorTimer : TON;\nEND_VAR\n\nAtFloor[1] := At1;  AtFloor[2] := At2;  AtFloor[3] := At3;\nIF Call1 THEN Calls[1] := TRUE; END_IF\nIF Call2 THEN Calls[2] := TRUE; END_IF\nIF Call3 THEN Calls[3] := TRUE; END_IF\n\nServing := FALSE;\nFOR i := 1 TO 3 DO\n  IF AtFloor[i] THEN\n    Floor := i;\n    IF Calls[i] THEN Serving := TRUE; END_IF\n  END_IF\nEND_FOR\n\nCallAbove := FALSE;  CallBelow := FALSE;\nFOR i := 1 TO 3 DO\n  IF Calls[i] AND i > Floor THEN CallAbove := TRUE; END_IF\n  IF Calls[i] AND i < Floor THEN CallBelow := TRUE; END_IF\nEND_FOR\n\nDoorOpen := Serving AND NOT Up AND NOT Down;\nDoorTimer(IN := DoorOpen, PT := T#3s);\nIF DoorTimer.Q THEN Calls[Floor] := FALSE; END_IF\n\nUp   := DoorClosed AND NOT Serving AND NOT DoorOpen AND NOT Down AND CallAbove;\nDown := DoorClosed AND NOT Serving AND NOT DoorOpen AND NOT Up AND CallBelow;',
+      tests: [
+        { name: 'Call at the current floor opens the door', steps: ['tap I0.0', 'waitfor Q0.2=1 1000', 'waitfor Q0.2=0 5000', 'waitfor I0.6=1 2000'] },
+        { name: 'Goes up to floor 3 and serves it', steps: ['tap I0.2', 'expect Q0.0=1', 'waitfor I0.5=1 6000', 'wait 100', 'expect Q0.0=0 Q0.2=1', 'waitfor I0.6=1 6000', 'plant s3=1'] },
+        { name: 'Comes back down to floor 1', steps: ['tap I0.2', 'waitfor I0.5=1 6000', 'waitfor Q0.2=1 1000', 'waitfor Q0.2=0 5000', 'waitfor I0.6=1 2000', 'tap I0.0', 'expect Q0.1=1', 'waitfor I0.3=1 6000', 'wait 100', 'expect Q0.2=1', 'waitfor I0.6=1 6000', 'plant s1=1'] },
+        { name: 'Remembers two calls', steps: ['tap I0.1', 'tap I0.2', 'wait 16000', 'plant s2=1 s3=1', 'expect Q0.0=0 Q0.1=0'] },
+      ],
+    },
+    {
+      id: 'st-bottling', level: 7, lang: 'st', plant: 'bottling', title: 'ST: bottle filling with CASE',
+      brief: 'Rewrite the bottle filling line in ST. A <b>Running</b> latch (START/STOP), an <b>R_TRIG</b> on "bottle in place", and a CASE with steps 0 idle, 10 index (conveyor), 20 fill (valve until full). Running lamp while running.',
+      hints: ['Running := (Start OR Running) AND StopOK;', 'Arrived(CLK := InPlace); then in step 10: IF Arrived.Q THEN Step := 20; END_IF', 'Valve := Step = 20 AND NOT Full;'],
+      solution: 'PROGRAM PLC_PRG\nVAR\n  Start   AT %IX0.0 : BOOL;\n  StopOK  AT %IX0.1 : BOOL;\n  InPlace AT %IX0.2 : BOOL;\n  Full    AT %IX0.3 : BOOL;\n  Conveyor AT %QX0.0 : BOOL;\n  Valve    AT %QX0.1 : BOOL;\n  RunLamp  AT %QX0.2 : BOOL;\n  Running : BOOL;\n  Step : INT := 0;\n  Arrived : R_TRIG;\nEND_VAR\n\nRunning := (Start OR Running) AND StopOK;\nArrived(CLK := InPlace);\n\nCASE Step OF\n  0:  IF Running THEN Step := 10; END_IF       (* idle *)\n  10: IF Arrived.Q THEN Step := 20; END_IF     (* move to the next bottle *)\n  20: IF Full THEN Step := 10; END_IF          (* fill *)\nEND_CASE\nIF NOT Running THEN Step := 0; END_IF\n\nConveyor := Step = 10;\nValve := Step = 20 AND NOT Full;\nRunLamp := Running;',
+      tests: [
+        { name: 'Stops and fills the first bottle', steps: ['tap I0.0', 'waitfor I0.2=1 3000', 'wait 50', 'expect Q0.0=0 Q0.1=1', 'waitfor I0.3=1 3000', 'wait 50', 'expect Q0.1=0 Q0.0=1'] },
+        { name: 'Fills a run of bottles', steps: ['tap I0.0', 'wait 16000', 'plant filled>=3 under=0'] },
+        { name: 'STOP mid-fill', steps: ['tap I0.0', 'waitfor Q0.1=1 3000', 'wait 500', 'tap I0.1', 'expect Q0.0=0 Q0.1=0 Q0.2=0'] },
+      ],
+    },
   ];
 
   // keep levels together (stable sort)

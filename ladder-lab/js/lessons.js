@@ -547,7 +547,7 @@ level % = (AIW0 − 6400) × 100 ÷ 25600
       sims: { scale: { program: 'RUNG Remove the 4 mA live zero\nNO(SM0.0) SUB(AIW0,6400,MW0)\nRUNG 256 counts per percent\nNO(SM0.0) DIV(MW0,256,MW0)\nRUNG High alarm ≥ 90 %\nCMP(MW0>=90) COIL(Q0.0)\nRUNG Wire break: below 4 mA\nCMP(AIW0<6000) COIL(Q0.1)', inputs: { 'AIW0': { name: 'Level transmitter', kind: 'ana', min: 0, max: 32000, value: 19200 } }, plant: 'atank', outputs: { 'Q0.0': 'High alarm', 'Q0.1': 'Sensor fault' }, note: 'Drag the slider: 19200 = 12 mA = 50 %. Slide below 4 mA to see the wire-break fault.' } },
       takeaways: ['4–20 mA → 6400…32000 counts; 4 mA = 0 %.', 'Scale with (raw − 6400) ÷ 256 for percent.', 'Below 4 mA means a sensor or wire fault.'],
       mistakes: ['Multiplying before dividing and overflowing 16 bits.', 'Treating 0 mA as "empty" instead of "broken".'],
-      challenges: ['analog-scale'],
+      challenges: ['analog-scale', 'st-greenhouse'],
     },
 
     // ═══════════════════════ LEVEL 5 ═══════════════════════
@@ -579,7 +579,7 @@ level % = (AIW0 − 6400) × 100 ÷ 25600
       sims: {},
       takeaways: ['Error = SP − PV.', 'P leaves an offset, I removes it, D damps.', 'Clamp the output and use anti-windup.'],
       mistakes: ['Expecting a P controller to reach the setpoint exactly.', 'Running PID in the normal scan with a changing cycle time.'],
-      challenges: ['level-control', 'tank'],
+      challenges: ['level-control', 'tank', 'st-greenhouse'],
     },
     {
       id: 'video-circuit', level: 5, title: 'Your video, decoded: 3-cylinder sequence', min: 12,
@@ -648,7 +648,7 @@ END_CASE</pre>
       sims: { sm: { program: 'RUNG 0 → 1 on start\nCMP(MW0==0) P(I0.0) MOV(1,MW0)\nRUNG 1 → 2 after 2 s\nCMP(MW0==1) NO(T0) MOV(2,MW0)\nRUNG 2 → 0 after 2 s\nCMP(MW0==2) NO(T1) MOV(0,MW0)\nRUNG Step 1 timer\nCMP(MW0==1) TON(T0,2s)\nRUNG Step 2 timer\nCMP(MW0==2) TON(T1,2s)\nRUNG Lamp A in step 1\nCMP(MW0==1) COIL(Q0.0)\nRUNG Lamp B in step 2\nCMP(MW0==2) COIL(Q0.1)', inputs: { 'I0.0': pb('START') }, outputs: { 'Q0.0': 'Step 1', 'Q0.1': 'Step 2' }, note: 'Watch MW0 in the values panel: 0 → 1 → 2 → 0.' } },
       takeaways: ['One step word, transition rungs (CMP + MOV), action rungs (CMP → coil).', 'Same structure as SFC and a CASE statement.'],
       mistakes: ['Driving outputs inside transition rungs.', 'Several transitions out of one step without priority.'],
-      challenges: ['step-machine', 'cyl-cycle-stop', 'cyl-dwell', 'cyl-parallel', 'drill-station', 'oven'],
+      challenges: ['step-machine', 'cyl-cycle-stop', 'cyl-dwell', 'cyl-parallel', 'drill-station', 'oven', 'cyl-abba-c'],
     },
     {
       id: 'safety', level: 5, title: 'Safety, E-stops, alarms & first scan', min: 10,
@@ -770,7 +770,7 @@ Lamp := T0.Q;</pre>
       sims: {},
       takeaways: ['I/O list → step table → safety → transitions → outputs → test normal → test abnormal.', 'The step table is the program.', 'Remember measured data until the item reaches the station that uses it.'],
       mistakes: ['Starting to draw rungs before the sequence is written down.', 'Testing only the happy path.'],
-      challenges: ['ped-crossing', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pump-station', 'level-control', 'drill-station', 'oven', 'traffic-night'],
+      challenges: ['ped-crossing', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pump-station', 'level-control', 'drill-station', 'oven', 'traffic-night', 'washer', 'crane', 'indexer', 'auto-batching'],
     },
     // ═══════════════════════ LEVEL 7 · ST ═══════════════════════
     {
@@ -872,7 +872,7 @@ END_CASE</pre>
       sims: { traffic: { lang: 'st', program: "VAR\n  Run    AT %IX0.4 : BOOL;\n  Red    AT %QX0.4 : BOOL;\n  Yellow AT %QX0.2 : BOOL;\n  Green  AT %QX0.0 : BOOL;\n  State  : INT := 0;\n  T      : TON;\nEND_VAR\n\nCASE State OF\n  0: (* red *)\n     T(IN := Run, PT := T#3s);\n     IF T.Q THEN T(IN := FALSE); State := 1; END_IF\n  1: (* green *)\n     T(IN := TRUE, PT := T#3s);\n     IF T.Q THEN T(IN := FALSE); State := 2; END_IF\n  2: (* yellow *)\n     T(IN := TRUE, PT := T#1s);\n     IF T.Q THEN T(IN := FALSE); State := 0; END_IF\nEND_CASE\n\nRed := State = 0;\nGreen := State = 1;\nYellow := State = 2;", inputs: { 'I0.4': sw('RUN') }, outputs: { 'Q0.4': 'Red', 'Q0.2': 'Yellow', 'Q0.0': 'Green' }, note: 'One timer, reused in every state. Switch RUN on and watch State in the values.' } },
       takeaways: ['CASE runs one branch per scan; steps wait by not changing Step.', 'Transitions inside CASE, outputs decoded after it.', 'Number steps 10, 20, 30…'],
       mistakes: ['Writing WHILE NOT sensor DO inside a step (see next lesson).', 'Setting outputs inside branches and forgetting to reset them.'],
-      challenges: ['st-case-abc', 'st-repeat-count', 'st-traffic', 'st-mixer'],
+      challenges: ['st-case-abc', 'st-repeat-count', 'st-traffic', 'st-mixer', 'st-bottling'],
     },
     {
       id: 'st-loops', level: 7, title: 'FOR, WHILE, REPEAT & arrays', min: 12,
@@ -917,7 +917,7 @@ END_REPEAT</pre>
       },
       takeaways: ['FOR = known count, WHILE = condition first, REPEAT = at least once, EXIT = leave.', 'Loops finish inside one scan, so never wait for inputs in a loop.', 'Array index out of range = PLC fault.'],
       mistakes: ['WHILE i < 4 AND Occ[i] … reads Occ[4], because ST evaluates both sides of AND.', 'Waiting for a sensor in WHILE: watchdog stop.'],
-      challenges: ['st-for-bargraph', 'st-while-slot', 'st-average'],
+      challenges: ['st-for-bargraph', 'st-while-slot', 'st-average', 'st-elevator'],
     },
   ];
 

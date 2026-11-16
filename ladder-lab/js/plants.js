@@ -1237,7 +1237,320 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pumps', 'atank', 'drill', 'oven'];
+  // ───────────────────────── washing machine ─────────────────────────
+  P.washer = {
+    id: 'washer', name: 'Washing machine', blurb: 'Door lock, water valve, heater, a drum that turns left/right, a drain pump and high-speed spin. Each load is checked when the door is opened.',
+    inputs: [
+      { addr: 'I0.0', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'Door closed', kind: 'sensor' },
+      { addr: 'I0.3', name: 'Door locked', kind: 'sensor' },
+      { addr: 'I0.4', name: 'Water level OK', kind: 'sensor', note: '1 when the drum is filled to wash level (60 %)' },
+      { addr: 'I0.5', name: 'Drum empty', kind: 'sensor', note: '1 when the water is drained' },
+      { addr: 'I0.6', name: 'Water ≥ 40 °C', kind: 'sensor' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Door lock', color: 'amber' },
+      { addr: 'Q0.1', name: 'Water valve', color: 'blue' },
+      { addr: 'Q0.2', name: 'Heater', color: 'red' },
+      { addr: 'Q0.3', name: 'Drum left', color: 'green' },
+      { addr: 'Q0.4', name: 'Drum right', color: 'green' },
+      { addr: 'Q0.5', name: 'Drain pump', color: 'blue' },
+      { addr: 'Q0.6', name: 'Spin (fast)', color: 'amber' },
+      { addr: 'Q0.7', name: 'End lamp', color: 'green' },
+    ],
+    actions: [{ id: 'door', label: 'Open / close door', toggle: true, run(st) { if (st.lock > 0.5) { st.note = 'The door is locked'; return; } st.open = !st.open; if (st.open) st.check = true; } }],
+    init() { return { open: false, lock: 0, water: 0, temp: 20, ang: 0, washT: 0, spinT: 0, dirs: 0, lastDir: 0, clean: 0, dirty: 0, last: '', note: '', check: false, t: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000, L = Q['Q0.3'], R = Q['Q0.4'];
+      st.lock = clamp(st.lock + (Q['Q0.0'] && !st.open ? 1 : -1) * 2 * s, 0, 1);
+      const locked = st.lock > 0.95 && !st.open;
+      if (L && R) st.fault = st.fault || 'Drum motor driven left and right together.';
+      if ((L || R) && !locked) st.fault = st.fault || 'The drum turned with the door not locked.';
+      if (Q['Q0.1'] && !locked) st.fault = st.fault || 'Water valve opened with the door unlocked: water on the floor.';
+      if (Q['Q0.2'] && st.water < 0.5) st.fault = st.fault || 'Heater switched on without enough water: it burned out.';
+      if (Q['Q0.6'] && st.water > 0.1) st.fault = st.fault || 'Spun with water in the drum: the machine walked across the room.';
+      if (!Q['Q0.0'] && st.water > 0.05) st.fault = st.fault || 'Door unlocked with water in the drum: flood!';
+      st.water += ((Q['Q0.1'] ? 0.12 : 0) - (Q['Q0.5'] ? 0.2 : 0)) * s;
+      if (st.water >= 1) st.fault = st.fault || 'The drum overflowed.';
+      st.water = clamp(st.water, 0, 1);
+      st.temp += ((Q['Q0.2'] && st.water > 0.5 ? 5 : 0) - (st.temp - 20) * 0.01) * s;
+      if (st.water < 0.05) st.temp += (20 - st.temp) * Math.min(1, s * 0.5);
+      const dir = L ? -1 : R ? 1 : 0;
+      if (dir && dir !== st.lastDir && st.lastDir) st.dirs++;
+      if (dir) st.lastDir = dir;
+      if (dir && st.water >= 0.5 && st.temp >= 35) st.washT += dt;
+      if (Q['Q0.6'] && R && st.water < 0.05) st.spinT += dt;
+      st.ang += dir * dt * (Q['Q0.6'] ? 0.04 : 0.006);
+      if (st.check) {
+        st.check = false;
+        if (st.washT > 0 || st.spinT > 0) {
+          const why = [];
+          if (st.washT < 8000) why.push('washed ' + (st.washT / 1000).toFixed(1) + ' s');
+          if (st.dirs < 2) why.push('drum never reversed');
+          if (st.spinT < 3000) why.push('spun ' + (st.spinT / 1000).toFixed(1) + ' s');
+          if (why.length) { st.dirty++; st.last = 'Dirty load: ' + why.join(', '); } else { st.clean++; st.last = 'Clean load'; }
+        }
+        st.washT = 0; st.spinT = 0; st.dirs = 0; st.lastDir = 0;
+      }
+      const o = devices(this, ctrl);
+      o['I0.2'] = st.open ? 0 : 1; o['I0.3'] = locked ? 1 : 0; o['I0.4'] = st.water >= 0.6 ? 1 : 0; o['I0.5'] = st.water < 0.02 ? 1 : 0; o['I0.6'] = st.temp >= 40 ? 1 : 0;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const cx = 280, cy = 170, R = 105;
+      c.fillStyle = th.panel2; D.rr(c, cx - 150, 30, 300, 290, 16); c.fill(); c.strokeStyle = th.line; c.lineWidth = 2; c.stroke();
+      c.fillStyle = th.inside; c.beginPath(); c.arc(cx, cy, R, 0, 7); c.fill();
+      c.save(); c.beginPath(); c.arc(cx, cy, R - 6, 0, 7); c.clip();
+      c.fillStyle = th.water; c.globalAlpha = 0.75; c.fillRect(cx - R, cy + R - st.water * 2 * R, 2 * R, st.water * 2 * R); c.globalAlpha = 1;
+      c.translate(cx, cy); c.rotate(st.ang); c.fillStyle = th.box;
+      for (let i = 0; i < 5; i++) { c.rotate((Math.PI * 2) / 5); D.rr(c, 20, -14, 46, 28, 8); c.fill(); }
+      c.restore();
+      c.strokeStyle = st.open ? th.amber : th.metalDark; c.lineWidth = 10; c.beginPath(); c.arc(cx, cy, R + 4, 0, 7); c.stroke();
+      if (st.open) D.text(c, 'DOOR OPEN', cx, cy, { size: 14, weight: 800, color: th.amber });
+      D.text(c, st.lock > 0.95 ? '🔒 locked' : 'unlocked', cx, 52, { size: 11, mono: true, weight: 700, color: st.lock > 0.95 ? th.amber : th.muted });
+      D.text(c, Math.round(st.water * 100) + '% water · ' + Math.round(st.temp) + ' °C', cx, 300, { size: 12, mono: true, weight: 600, color: th.ink });
+      D.text(c, Q['Q0.3'] ? '↺ LEFT' : Q['Q0.4'] ? (Q['Q0.6'] ? '↻ SPIN' : '↻ RIGHT') : '', cx + 140, 60, { size: 12, mono: true, weight: 700, color: th.on, align: 'right' });
+      D.sensorDot(c, th, 470, 70, !!I['I0.4'], 'level I0.4');
+      D.sensorDot(c, th, 470, 92, !!I['I0.5'], 'empty I0.5');
+      D.sensorDot(c, th, 470, 114, !!I['I0.6'], '40°C I0.6');
+      D.sensorDot(c, th, 470, 136, !!I['I0.3'], 'locked I0.3');
+      D.lamp(c, th, 500, 200, 11, !!Q['Q0.7'], 'green', 'End', 'Q0.7');
+      D.text(c, 'clean ' + st.clean + '  dirty ' + st.dirty, 630, 290, { size: 12, mono: true, weight: 700, color: st.dirty ? th.red : th.ink, align: 'right' });
+      if (st.last) D.text(c, st.last.length > 30 ? st.last.slice(0, 29) + '…' : st.last, 630, 310, { size: 10, color: st.last.startsWith('Clean') ? th.on : th.red, align: 'right' });
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  // ───────────────────────── overhead crane ─────────────────────────
+  P.crane = {
+    id: 'crane', name: 'Overhead crane', blurb: 'A crane bridge travels between stations A, B and C. Its hook has a lifting magnet. Loads arrive at A and must be delivered to C.',
+    inputs: [
+      { addr: 'I0.0', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'At station A', kind: 'sensor' },
+      { addr: 'I0.3', name: 'At station B', kind: 'sensor' },
+      { addr: 'I0.4', name: 'At station C', kind: 'sensor' },
+      { addr: 'I0.5', name: 'Hook up', kind: 'sensor' },
+      { addr: 'I0.6', name: 'Hook down', kind: 'sensor' },
+      { addr: 'I0.7', name: 'Load waiting at A', kind: 'sensor' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Travel left', color: 'green' },
+      { addr: 'Q0.1', name: 'Travel right', color: 'green' },
+      { addr: 'Q0.2', name: 'Hoist up', color: 'blue' },
+      { addr: 'Q0.3', name: 'Hoist down', color: 'blue' },
+      { addr: 'Q0.4', name: 'Magnet', color: 'red' },
+      { addr: 'Q0.5', name: 'Beacon', color: 'amber' },
+    ],
+    actions: [{ id: 'place', label: 'Place a load at A', run(st) { if (!st.loadA && !(st.hook && st.x < 0.2)) st.loadA = true; } }],
+    init() { return { x: 0.1, z: 0, loadA: true, hook: false, loadC: 0, delivered: 0, t: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000, Lf = Q['Q0.0'], Rt = Q['Q0.1'], Up = Q['Q0.2'], Dn = Q['Q0.3'];
+      if (Lf && Rt) st.fault = st.fault || 'Travel left and right together.';
+      if (Up && Dn) st.fault = st.fault || 'Hoist up and down together.';
+      if ((Lf || Rt) && st.z > 0.03) st.fault = st.fault || 'The crane travelled with the hook lowered: the load swung into the racks.';
+      if (!st.fault) {
+        st.x += ((Rt ? 1 : 0) - (Lf ? 1 : 0)) * 0.2 * s;
+        st.z = clamp(st.z + ((Dn ? 1 : 0) - (Up ? 1 : 0)) * 0.5 * s, 0, 1);
+      }
+      if (st.x < 0 || st.x > 1) st.fault = st.fault || 'The crane hit the end stop of the runway.';
+      const at = (p) => Math.abs(st.x - p) < 0.01;
+      if (Q['Q0.4'] && st.z >= 0.98 && !st.hook) {
+        if (at(0.1) && st.loadA) { st.loadA = false; st.hook = true; }
+      }
+      if (!Q['Q0.4'] && st.hook) {
+        if (st.z < 0.95) st.fault = st.fault || 'The magnet let go in mid-air: the load was dropped!';
+        else if (at(0.9)) { st.hook = false; st.delivered++; st.loadC = 1500; }
+        else if (at(0.1)) { st.hook = false; st.loadA = true; }
+        else { st.hook = false; st.fault = st.fault || 'Load set down in the aisle, not at a station.'; }
+      }
+      if (st.loadC > 0) st.loadC -= dt;
+      const o = devices(this, ctrl);
+      o['I0.2'] = at(0.1) ? 1 : 0; o['I0.3'] = at(0.5) ? 1 : 0; o['I0.4'] = at(0.9) ? 1 : 0;
+      o['I0.5'] = st.z <= 0.01 ? 1 : 0; o['I0.6'] = st.z >= 0.99 ? 1 : 0; o['I0.7'] = st.loadA ? 1 : 0;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const x0 = 40, W = 560, top = 40, floor = 290;
+      c.fillStyle = th.metalDark; c.fillRect(x0 - 10, top - 10, W + 20, 12);
+      c.fillStyle = th.ground; c.fillRect(0, floor, 640, 12);
+      [['A', 0.1, 'I0.2'], ['B', 0.5, 'I0.3'], ['C', 0.9, 'I0.4']].forEach(([n, p, a]) => {
+        const xx = x0 + p * W;
+        D.text(c, 'Station ' + n, xx, floor + 26, { size: 11, weight: 700, color: th.ink });
+        D.sensorDot(c, th, xx, top - 22, !!I[a], a);
+      });
+      if (st.loadA) { c.fillStyle = th.box; D.rr(c, x0 + 0.1 * W - 26, floor - 40, 52, 40, 4); c.fill(); }
+      if (st.loadC > 0) { c.fillStyle = th.box; D.rr(c, x0 + 0.9 * W - 26, floor - 40, 52, 40, 4); c.fill(); }
+      const bx = x0 + st.x * W;
+      c.fillStyle = (Q['Q0.0'] || Q['Q0.1']) ? th.amber : th.metal; D.rr(c, bx - 40, top, 80, 24, 5); c.fill();
+      const hy = top + 30 + st.z * (floor - top - 100);
+      c.strokeStyle = th.metalDark; c.lineWidth = 2; c.beginPath(); c.moveTo(bx - 8, top + 24); c.lineTo(bx - 8, hy); c.moveTo(bx + 8, top + 24); c.lineTo(bx + 8, hy); c.stroke();
+      c.fillStyle = Q['Q0.4'] ? th.red : th.metalDark; D.rr(c, bx - 30, hy, 60, 14, 4); c.fill();
+      if (st.hook) { c.fillStyle = th.box; D.rr(c, bx - 26, hy + 14, 52, 40, 4); c.fill(); }
+      if (Q['Q0.5']) D.lamp(c, th, bx, top + 12, 5, true, 'amber');
+      D.sensorDot(c, th, 600, 80, !!I['I0.5'], 'up I0.5', 'left');
+      D.sensorDot(c, th, 600, 100, !!I['I0.6'], 'down I0.6', 'left');
+      D.text(c, 'delivered ' + st.delivered, 600, 130, { size: 12, mono: true, weight: 700, color: th.ink, align: 'right' });
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  // ───────────────────────── rotary indexing table ─────────────────────────
+  P.indexer = {
+    id: 'indexer', name: 'Rotary indexing table', blurb: 'A turntable with 3 pockets moves parts from the load station to a press and then to an ejector. It must only index when every station is clear.',
+    inputs: [
+      { addr: 'I0.0', name: 'AUTO', kind: 'sw' },
+      { addr: 'I0.1', name: 'Table in position', kind: 'sensor', note: 'Index cam: 1 when a pocket is exactly at each station' },
+      { addr: 'I0.2', name: 'Part at load', kind: 'sensor' },
+      { addr: 'I0.3', name: 'Part at press', kind: 'sensor' },
+      { addr: 'I0.4', name: 'Press up', kind: 'sensor' },
+      { addr: 'I0.5', name: 'Press down', kind: 'sensor' },
+      { addr: 'I0.6', name: 'Part at eject', kind: 'sensor' },
+      { addr: 'I0.7', name: 'Ejector home', kind: 'sensor' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Index motor', color: 'green' },
+      { addr: 'Q0.1', name: 'Press down', color: 'red' },
+      { addr: 'Q0.2', name: 'Ejector', color: 'amber' },
+      { addr: 'Q0.3', name: 'Running lamp', color: 'green' },
+    ],
+    actions: [{ id: 'load', label: 'Load a part', run(st) { const k = st.slot(0); if (st.inPos() && !st.pk[k]) st.pk[k] = { pressed: false }; } }],
+    init() {
+      const st = { a: 0, pk: [null, null, null], press: 0, ej: 0, ejT: 0, good: 0, bad: 0, t: 0, fault: null };
+      st.inPos = () => { const f = st.a - Math.floor(st.a); return f < 0.015 || f > 0.985; };
+      st.slot = (station) => ((station - Math.round(st.a)) % 3 + 3) % 3;
+      return st;
+    },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      if (Q['Q0.0']) {
+        if (st.press > 0.05) st.fault = st.fault || 'The table turned while the press was down: crash!';
+        if (st.ej > 0.05) st.fault = st.fault || 'The table turned with the ejector out.';
+        if (!st.fault) st.a += s / 1.2;
+      }
+      st.press = clamp(st.press + (Q['Q0.1'] ? 2 : -2) * s, 0, 1);
+      st.ej = clamp(st.ej + (Q['Q0.2'] ? 4 : -4) * s, 0, 1);
+      if (Q['Q0.1'] && !st.inPos()) st.fault = st.fault || 'Press came down between stations.';
+      const pp = st.pk[st.slot(1)];
+      if (st.press > 0.97 && pp && st.inPos()) pp.pressed = true;
+      const pe = st.slot(2);
+      if (Q['Q0.2'] && st.inPos() && st.pk[pe]) { st.ejT += dt; if (st.ejT >= 200) { if (st.pk[pe].pressed) st.good++; else st.bad++; st.pk[pe] = null; } } else st.ejT = 0;
+      const o = devices(this, ctrl);
+      const ip = st.inPos();
+      o['I0.1'] = ip ? 1 : 0;
+      o['I0.2'] = ip && st.pk[st.slot(0)] ? 1 : 0; o['I0.3'] = ip && st.pk[st.slot(1)] ? 1 : 0; o['I0.6'] = ip && st.pk[st.slot(2)] ? 1 : 0;
+      o['I0.4'] = st.press < 0.03 ? 1 : 0; o['I0.5'] = st.press > 0.97 ? 1 : 0; o['I0.7'] = st.ej < 0.03 ? 1 : 0;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const cx = 300, cy = 175, R = 110;
+      c.fillStyle = th.metal; c.beginPath(); c.arc(cx, cy, R, 0, 7); c.fill();
+      c.strokeStyle = th.metalDark; c.lineWidth = 3; c.stroke();
+      const stAng = [Math.PI / 2, Math.PI / 2 + 2.094, Math.PI / 2 + 4.189];
+      ['LOAD', 'PRESS', 'EJECT'].forEach((n, i) => { const a = stAng[i]; D.text(c, n, cx + Math.cos(a) * (R + 38), cy + Math.sin(a) * (R + 38), { size: 11, weight: 800, color: th.ink }); });
+      for (let k = 0; k < 3; k++) {
+        const a = stAng[0] + (k + st.a) * 2.094;
+        const px = cx + Math.cos(a) * 70, py = cy + Math.sin(a) * 70;
+        c.fillStyle = th.inside; c.beginPath(); c.arc(px, py, 24, 0, 7); c.fill();
+        const part = st.pk[k];
+        if (part) { c.fillStyle = part.pressed ? th.on : th.box; D.rr(c, px - 16, py - 16, 32, 32, 5); c.fill(); }
+      }
+      // press at station 1, ejector at station 2
+      const pa = stAng[1], ex = cx + Math.cos(pa) * 70, ey = cy + Math.sin(pa) * 70;
+      c.fillStyle = Q['Q0.1'] ? th.red : th.metalDark; c.globalAlpha = 0.4 + 0.6 * st.press; c.beginPath(); c.arc(ex, ey, 14 + st.press * 8, 0, 7); c.fill(); c.globalAlpha = 1;
+      const ea = stAng[2], jx = cx + Math.cos(ea) * (R + 6), jy = cy + Math.sin(ea) * (R + 6);
+      c.fillStyle = Q['Q0.2'] ? th.amber : th.metalDark; c.fillRect(jx - 8 - st.ej * 20, jy - 6, 22, 12);
+      D.sensorDot(c, th, 560, 60, !!I['I0.1'], 'in pos I0.1', 'left');
+      D.sensorDot(c, th, 560, 82, !!I['I0.4'], 'press up I0.4', 'left');
+      D.sensorDot(c, th, 560, 104, !!I['I0.5'], 'press dn I0.5', 'left');
+      D.sensorDot(c, th, 560, 126, !!I['I0.7'], 'ejector home I0.7', 'left');
+      D.text(c, 'good ' + st.good + '  bad ' + st.bad, 620, 300, { size: 12, mono: true, weight: 700, color: st.bad ? th.red : th.ink, align: 'right' });
+      D.text(c, Q['Q0.0'] ? 'INDEXING ↻' : '', 40, 40, { size: 12, mono: true, weight: 700, color: th.on, align: 'left' });
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  // ───────────────────────── greenhouse ─────────────────────────
+  P.greenhouse = {
+    id: 'greenhouse', name: 'Greenhouse climate', blurb: 'Temperature transmitter (0–50 °C as 4–20 mA, AIW0), heater, roof vent with open/closed limits, circulation fan and drip irrigation with a soil-dry sensor.',
+    inputs: [
+      { addr: 'I0.0', name: 'AUTO', kind: 'sw' },
+      { addr: 'AIW0', name: 'Temperature', kind: 'sensor', note: '0 °C = 6400, 50 °C = 32000 (512 counts per °C)' },
+      { addr: 'I0.2', name: 'Vent open', kind: 'sensor' },
+      { addr: 'I0.3', name: 'Vent closed', kind: 'sensor' },
+      { addr: 'I0.4', name: 'Soil dry', kind: 'sensor' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Heater', color: 'red' },
+      { addr: 'Q0.1', name: 'Vent open motor', color: 'blue' },
+      { addr: 'Q0.2', name: 'Vent close motor', color: 'blue' },
+      { addr: 'Q0.3', name: 'Fan', color: 'green' },
+      { addr: 'Q0.4', name: 'Irrigation valve', color: 'blue' },
+      { addr: 'Q0.5', name: 'Temp alarm', color: 'amber' },
+    ],
+    actions: [
+      { id: 'sunny', label: 'Sunny day', toggle: true, run(st) { st.sunny = !st.sunny; } },
+      { id: 'cold', label: 'Cold night', toggle: true, run(st) { st.cold = !st.cold; } },
+    ],
+    init() { return { T: 15, vent: 0, moist: 0.25, sunny: false, cold: false, stall: 0, ang: 0, tC: 15, moistPct: 25, hist: [], ht: 0, t: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000, op = Q['Q0.1'], cl = Q['Q0.2'];
+      if (op && cl) st.fault = st.fault || 'Vent motor driven open and close together.';
+      st.vent = clamp(st.vent + ((op ? 1 : 0) - (cl ? 1 : 0)) * 0.25 * s, 0, 1);
+      if ((op && st.vent >= 1) || (cl && st.vent <= 0)) st.stall += dt; else st.stall = 0;
+      if (st.stall > 1500) st.fault = st.fault || 'Vent motor stalled at the end: stop it with the limit switch.';
+      const To = st.cold ? 5 : 18;
+      st.T += ((Q['Q0.0'] ? 1.5 : 0) + (st.sunny ? 0.6 : 0) - (st.T - To) * (0.01 + 0.08 * st.vent)) * s;
+      st.moist += ((Q['Q0.4'] ? 0.15 : 0) - (st.sunny ? 0.03 : 0.015)) * s;
+      if (st.moist > 1) st.fault = st.fault || 'Over-watered: the beds are flooded.';
+      st.moist = clamp(st.moist, 0, 1);
+      if (Q['Q0.3']) st.ang += dt * 0.03;
+      st.tC = Math.round(st.T); st.moistPct = Math.round(st.moist * 100);
+      st.ht += dt; if (st.ht >= 250) { st.ht = 0; st.hist.push(st.T); if (st.hist.length > 120) st.hist.shift(); }
+      const o = devices(this, ctrl);
+      o['AIW0'] = Math.round(6400 + clamp(st.T, 0, 50) * 512);
+      o['I0.2'] = st.vent >= 0.99 ? 1 : 0; o['I0.3'] = st.vent <= 0.01 ? 1 : 0; o['I0.4'] = st.moist < 0.3 ? 1 : 0;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const x = 40, y = 90, w = 300, h = 190;
+      c.fillStyle = st.sunny ? 'rgba(253,230,138,.55)' : th.panel; D.rr(c, 10, 10, 360, 320, 10); c.fill();
+      if (st.sunny) { c.fillStyle = '#f59e0b'; c.beginPath(); c.arc(330, 36, 20, 0, 7); c.fill(); }
+      c.fillStyle = th.glass; c.beginPath(); c.moveTo(x, y); c.lineTo(x + w / 2, y - 60); c.lineTo(x + w, y); c.lineTo(x + w, y + h); c.lineTo(x, y + h); c.closePath(); c.fill();
+      c.strokeStyle = th.metalDark; c.lineWidth = 3; c.stroke();
+      // vent flap on the right roof slope
+      c.save(); c.translate(x + w / 2, y - 60); c.rotate(-st.vent * 0.6); c.fillStyle = Q['Q0.1'] || Q['Q0.2'] ? th.blue : th.metal; c.fillRect(0, -4, 90, 8); c.restore();
+      // plants
+      for (let i = 0; i < 6; i++) { const px = x + 30 + i * 45; c.fillStyle = st.moist < 0.3 ? '#a16207' : '#16a34a'; c.beginPath(); c.ellipse(px, y + h - 30, 14, 20, 0, 0, 7); c.fill(); }
+      if (Q['Q0.4']) { c.fillStyle = th.water; for (let i = 0; i < 12; i++) c.fillRect(x + 20 + i * 24, y + h - 70 + ((st.t / 10 + i * 7) % 30), 2, 6); }
+      if (Q['Q0.0']) { c.fillStyle = th.red; D.rr(c, x + 10, y + h - 14, 60, 8, 3); c.fill(); }
+      c.save(); c.translate(x + w - 40, y + 30); c.rotate(st.ang); c.fillStyle = Q['Q0.3'] ? th.on : th.metalDark; for (let i = 0; i < 3; i++) { c.rotate(2.094); D.rr(c, -3, 0, 6, 18, 3); c.fill(); } c.restore();
+      D.text(c, st.T.toFixed(1) + ' °C', 190, 140, { size: 20, mono: true, weight: 700, color: th.ink });
+      D.text(c, 'soil ' + st.moistPct + '%', 190, 164, { size: 11, mono: true, color: th.muted });
+      D.sensorDot(c, th, 400, 262, !!I['I0.2'], 'vent open I0.2');
+      D.sensorDot(c, th, 400, 282, !!I['I0.3'], 'vent closed I0.3');
+      D.sensorDot(c, th, 400, 302, !!I['I0.4'], 'soil dry I0.4');
+      // trend
+      const gx = 390, gy = 40, gw = 230, gh = 200;
+      c.fillStyle = th.panel; D.rr(c, gx, gy, gw, gh, 8); c.fill(); c.strokeStyle = th.line; c.lineWidth = 1; c.stroke();
+      const yy = (v) => gy + gh - ((v - 0) / 40) * gh;
+      c.fillStyle = 'rgba(34,197,94,.14)'; c.fillRect(gx, yy(26), gw, yy(20) - yy(26));
+      [10, 20, 26, 35].forEach((v) => D.text(c, v + '°', gx - 4, yy(v), { size: 9, mono: true, color: th.muted, align: 'right' }));
+      c.strokeStyle = th.red; c.lineWidth = 2.5; c.beginPath();
+      st.hist.forEach((v, i) => { const px = gx + (i / 119) * gw, py = yy(clamp(v, 0, 40)); i ? c.lineTo(px, py) : c.moveTo(px, py); }); c.stroke();
+      D.text(c, 'temperature · 30 s · band 20–26 °C', gx + 6, gy + 12, { size: 9, weight: 600, color: th.muted, align: 'left' });
+      D.lamp(c, th, 600, 290, 10, !!Q['Q0.5'], 'amber', 'Alarm', 'Q0.5');
+      D.text(c, (st.cold ? 'COLD NIGHT ' : '') + (st.sunny ? 'SUNNY' : ''), 520, 262, { size: 10, mono: true, weight: 700, color: th.blue, align: 'left' });
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pumps', 'atank', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse'];
 
   // ───────────────────────── automated test runner ─────────────────────────
   /* Test steps (strings):
