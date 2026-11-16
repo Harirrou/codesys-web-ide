@@ -328,13 +328,14 @@
       brief: 'OPEN runs the motor UP until the upper limit. CLOSE runs it DOWN until the lower limit. STOP halts it. The warning light flashes while the door moves. If the <b>safety beam</b> is blocked while closing, the door must stop and <b>reverse to fully open</b>. UP and DOWN must never be on together.',
       hints: ['Two latched rungs with limit switches and interlocks, like the reversing motor.', 'Remember the "reverse" request in a memory bit, because the DOWN coil is already off on the next scan.', 'Flash: SM0.5 AND (UP OR DOWN).'],
       never: [{ when: 'Q0.0=1 Q0.1=1', msg: 'UP and DOWN were on together.' }],
-      solution: 'RUNG Beam blocked while closing → remember to reverse\nNO(Q0.1) NC(I0.5) SET(M0.0)\nRUNG Clear reverse request at top or on STOP\nNO(I0.3) | RST(M0.0)\nNC(I0.2)\nRUNG Motor DOWN\nNO(I0.1) | NO(I0.2) NC(I0.4) NO(I0.5) NC(Q0.0) NC(M0.0) COIL(Q0.1)\nNO(Q0.1)\nRUNG Motor UP\nNO(I0.0) | NO(I0.2) NC(I0.3) NC(Q0.1) COIL(Q0.0)\nNO(Q0.0) |\nNO(M0.0)\nRUNG Warning light flashes while moving\nNO(SM0.5) NO(Q0.0) | COIL(Q0.2)\n. NO(Q0.1)',
+      solution: 'RUNG Beam blocked while closing → remember to reverse\nNO(Q0.1) NC(I0.5) SET(M0.0)\nRUNG Clear reverse request at top or on STOP\nNO(I0.3) | RST(M0.0)\nNC(I0.2)\nRUNG Motor DOWN\nNO(I0.1) | NO(I0.2) NC(I0.4) NO(I0.5) NC(Q0.0) NC(M0.0) COIL(Q0.1)\nNO(Q0.1)\nRUNG Motor UP\nNO(I0.0) | NO(I0.2) NC(I0.3) NC(Q0.1) COIL(Q0.0)\nNO(Q0.0) |\nNO(M0.0)\nRUNG Warning light flashes while moving\nNO(SM0.5) | NO(Q0.0) | COIL(Q0.2)\n. NO(Q0.1)',
       tests: [
         { name: 'Opens to the limit', steps: ['tap I0.0', 'expect Q0.0=1', 'waitfor I0.3=1 6000', 'wait 50', 'expect Q0.0=0'] },
         { name: 'Closes to the limit', steps: ['tap I0.0', 'waitfor I0.3=1 6000', 'tap I0.1', 'expect Q0.1=1', 'waitfor I0.4=1 6000', 'wait 50', 'expect Q0.1=0'] },
         { name: 'STOP halts', steps: ['tap I0.0', 'wait 1000', 'tap I0.2', 'expect Q0.0=0', 'wait 1000', 'expect Q0.0=0'] },
         { name: 'Safety beam reverses', steps: ['tap I0.0', 'waitfor I0.3=1 6000', 'tap I0.1', 'wait 1500', 'action obstacle', 'wait 50', 'expect Q0.1=0 Q0.0=1', 'waitfor I0.3=1 6000'] },
         { name: 'Warning light flashes', steps: ['tap I0.0', 'pulses Q0.2 3000 2 4'] },
+        { name: 'Warning light flashes while closing too', steps: ['tap I0.0', 'waitfor I0.3=1 6000', 'tap I0.1', 'pulses Q0.2 3000 2 4'] },
       ],
     },
     {

@@ -48,6 +48,15 @@ Object.keys(LL.OPEN_PROGRAMS || {}).forEach((k) => { const o = LL.OPEN_PROGRAMS[
   LL.CHALLENGES.forEach((c) => { const n = (c.lang === 'st' ? st : lad).filter((x) => x === c.id).length; ok(n === 1, 'challenge ' + c.id + ' appears ' + n + ' times in its main path'); });
 }
 LL.LESSONS.forEach((l) => l.challenges.forEach((c) => ok(!!LL.CH_BY_ID[c], 'lesson ' + l.id + ' links unknown challenge ' + c)));
+// no shipped ladder program may contain an element that is not connected on its left
+{
+  const progs = [];
+  LL.LESSONS.forEach((l) => Object.keys(l.sims || {}).forEach((k) => { if (l.sims[k].lang !== 'st') progs.push(['lesson ' + l.id, l.sims[k].program]); }));
+  LL.CHALLENGES.filter((c) => c.lang !== 'st').forEach((c) => { progs.push(['solution ' + c.id, c.solution]); });
+  const app = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const re = /program: '((?:[^'\\]|\\.)*)'/g; let mm; while ((mm = re.exec(app))) progs.push(['app.js', mm[1].replace(/\\n/g, '\n')]);
+  progs.forEach(([name, src]) => ok(!LL.lint(LL.parseProgram(src)).some((x) => /not connected on its left/.test(x.msg)), 'unconnected element in ' + name));
+}
 console.log('ST sample:\n' + LL.toST(LL.parseProgram(LL.CH_BY_ID['permissive'].solution)));
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

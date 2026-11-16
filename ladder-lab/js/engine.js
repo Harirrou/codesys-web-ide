@@ -508,6 +508,12 @@
         if (MATH.includes(c.type) && (!isWordAddr(c.a) || !isWordAddr(c.b) || !isWritableWord(c.dst))) issues.push({ level: 'error', rung: n, msg: c.type + ' needs two operands and an MW or AQW destination.' });
         if (isOutput(c.type) && col !== rung.cols - 1) issues.push({ level: 'error', rung: n, msg: 'Outputs belong in the right-most column.' });
       }));
+      for (let r = 0; r < rung.rows; r++) for (let col = 1; col < rung.cols; col++) {
+        const c = rung.cells[r][col];
+        if (!c || rung.cells[r][col - 1] || rung.links[r][col] || (r > 0 && rung.links[r - 1][col])) continue;
+        issues.push({ level: 'warn', rung: n, msg: 'Row ' + (r + 1) + ': ' + (c.addr || c.type) + ' is not connected on its left side, so it never gets power. Add a vertical link (Branch tool) or a wire.' });
+        break;
+      }
       if (hasAny && !hasOut) issues.push({ level: 'warn', rung: n, msg: 'This rung has no output, so it does nothing.' });
     });
     for (const a in coils) if (coils[a].length > 1)

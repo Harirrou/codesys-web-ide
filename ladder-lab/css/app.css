@@ -517,3 +517,6 @@ ul.guide { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 6
 .filters a span { font-family: var(--f-mono); font-size: .75rem; color: var(--muted); margin-left: 4px; }
 .filters a.on { background: var(--ink); border-color: var(--ink); color: var(--surface); }
 .filters a.on span { color: var(--surface); opacity: .75; }
+
+.fault-banner .btn { background: #fff; color: #7f1d1d; border-color: #fff; font-weight: 700; }
+.fault-banner .btn:hover { background: #fee2e2; }

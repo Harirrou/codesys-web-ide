@@ -36,6 +36,7 @@
     undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>',
     redo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg>',
     code: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
     file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>',
     arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
@@ -314,7 +315,7 @@
       </div>
     </div>`);
     main().appendChild(el);
-    new MiniSim($('.demo', el), { program: 'RUNG Start/stop with seal-in\nNO(I0.3) NO(I0.0) | COIL(Q0.0)\n. NO(Q0.0)', inputs: { 'I0.0': { name: 'START', kind: 'pb' }, 'I0.3': { name: 'STOP', kind: 'pbnc' } }, outputs: { 'Q0.0': 'Motor' } }, { label: 'Live rung', noOpen: true });
+    new MiniSim($('.demo', el), { program: 'RUNG Start/stop with seal-in\nNO(I0.3) | NO(I0.0) | COIL(Q0.0)\n. NO(Q0.0)', inputs: { 'I0.0': { name: 'START', kind: 'pb' }, 'I0.3': { name: 'STOP', kind: 'pbnc' } }, outputs: { 'Q0.0': 'Motor' } }, { label: 'Live rung', noOpen: true });
     const strip = $('.levels-strip', el);
     LL.LEVELS.forEach((lv) => {
       const ls = LL.LESSONS.filter((l) => l.level === lv.n), dn = ls.filter((l) => S.lessons[l.id]).length;
@@ -677,6 +678,7 @@
             <button class="btn small ld-only" data-a="undo" title="Undo">${I.undo}</button>
             <button class="btn small ld-only" data-a="redo" title="Redo">${I.redo}</button>
             <button class="btn small ld-only" data-a="st" title="Show this ladder as Structured Text">${I.code} as ST</button>
+            <button class="btn small" data-a="clear" title="Empty the editor">${I.trash}<span class="hide-s">Clear</span></button>
             <button class="btn small" data-a="file" title="New, examples, import/export">${I.file} File</button>
             <span class="scanstate"></span>
           </div>
@@ -734,7 +736,7 @@
       $$('.seg button', el).forEach((b) => (b.onclick = () => this.setView(b.dataset.v)));
       this.setView(ch ? 'task' : 'program');
       const ps = $('#plant-sel', el);
-      if (ps) { ps.value = this.plantId; ps.onchange = () => { this.plantId = ps.value; S.plant.lab = ps.value; save(); this.newMachine(); toast('Machine: ' + this.plant.name); }; }
+      if (ps) { ps.value = this.plantId; ps.onchange = () => { this.plantId = ps.value; S.plant.lab = ps.value; save(); this.newMachine(); toast('Machine: ' + this.plant.name + '. Your program is kept: press Clear for an empty editor, or ⓘ How it works for its working program.'); }; }
       if (ch) this.renderTask();
       this.updateRunBtn();
       this.resizeCanvas();
@@ -921,6 +923,7 @@
         case 'redo': if (this.hi < this.hist.length - 1) { this.hi++; this.restore(this.hist[this.hi]); } break;
         case 'st': modal('Structured Text', `<p class="muted" style="margin:0 0 10px">The same logic written as IEC 61131-3 Structured Text, as in CODESYS. Reading both side by side is a great way to learn.</p><pre>${esc(LL.toST(Object.assign({}, P, { tags: this.tags() })))}</pre>`, [{ label: 'Close' }]); break;
         case 'file': this.fileMenu(); break;
+        case 'clear': this.clearEditor(); break;
         // rung ops
         case 'r-add': { const i = this.sel.i; P.rungs.splice(i + 1, 0, LL.emptyRung(P.cols)); this.sel = { kind: 'rung', i: i + 1 }; this.commit('Rung added'); break; }
         case 'r-above': { const i = this.sel.i; P.rungs.splice(i, 0, LL.emptyRung(P.cols)); this.sel = { kind: 'rung', i }; this.commit('Rung added'); break; }
@@ -1107,6 +1110,19 @@
       if (this.view !== 'task' && window.innerWidth <= 1000) this.setView('task');
     }
     renderTaskBadge() { const p = $('.chal .plate', this.el); if (p && !$('.chal .chip.ok', this.el)) p.insertAdjacentHTML('afterend', '<span class="chip ok">✓ passed</span>'); }
+    clearEditor() {
+      if (this.lang === 'st') {
+        modal('Empty the ST editor?', '<p>Your Structured Text is replaced by an empty program with the I/O of this machine. Copy it first (File) if you want to keep it.</p>', [
+          { label: 'Cancel' },
+          { label: 'Empty it', cls: 'primary', run: () => { const t = this.stTemplate(); this.src = t; S.st[this.key] = t; saveNow(); $('#st-src', this.el).value = t; this._gutter(); this.compile(); toast('ST editor emptied'); } },
+        ]);
+        return;
+      }
+      this.prog = LL.parseProgram('NAME ' + (this.ch ? this.ch.title : 'New program') + '\nRUNG\n');
+      this.sel = null; this.m.load(this.prog); this.m.reset(); this.pst = this.plant.init(); this.ctrl = {}; this.buildDevices();
+      this.commit('Editor emptied');
+      toast('Editor emptied. Undo (↶) brings your program back.');
+    }
     nextCh() { const P = this.pathOf(); if (P) { const ids = P.all, i = ids.indexOf(this.ch.id); const nx = ids.slice(i + 1).find((id) => !S.ch[id]) || ids[i + 1]; return nx ? LL.CH_BY_ID[nx] : null; } const i = LL.CHALLENGES.indexOf(this.ch); return LL.CHALLENGES[i + 1]; }
     pathOf() { const pref = LL.PATH_BY_ID[S.path || 'ladder']; if (pref && pref.all.includes(this.ch.id)) return pref; return LL.PATHS.find((P) => P.all.includes(this.ch.id)); }
 
