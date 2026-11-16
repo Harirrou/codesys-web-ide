@@ -16,6 +16,7 @@
       const on = !!ctrl[i.addr];
       if (i.kind === 'pb' || i.kind === 'sw') o[i.addr] = on ? 1 : 0;
       else if (i.kind === 'pbnc') o[i.addr] = on ? 0 : 1;
+      else if (i.kind === 'ana') o[i.addr] = ctrl[i.addr] == null ? (i.value == null ? 0 : i.value) : +ctrl[i.addr];
       else if (i.kind === 'sel3') { const v = ctrl[i.addr] === undefined ? i.def || 0 : +ctrl[i.addr]; o[i.addr] = v === 1 ? 1 : 0; o[i.addr2] = v === 2 ? 1 : 0; }
     });
     return o;
@@ -1075,6 +1076,162 @@
       D.text(c, 'good out ' + st.goodOut + (st.nolabel ? '  unlabelled ' + st.nolabel : ''), 630, belt + 40, { size: 11, mono: true, weight: 700, color: th.ink, align: 'right' });
       D.text(c, 'errors ' + st.err, 630, belt + 58, { size: 11, mono: true, weight: 700, color: st.err ? th.red : th.muted, align: 'right' });
       if (st.last && st.err) D.text(c, st.last, 320, 332, { size: 11, weight: 700, color: th.red });
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  // ───────────────────────── heat-treatment furnace (PT100, setpoint pot, blower VFD) ─────────────────────────
+  const wob = (t, a) => Math.round(a * Math.sin(t / 370) + a * 0.6 * Math.sin(t / 133));   // deterministic sensor noise
+  P.furnace = {
+    id: 'furnace', name: 'Heat-treatment furnace (analog)', blurb: 'An electric furnace with a PT100 temperature sensor (read in 0.1 °C), a setpoint potentiometer (0–10 V), a heater contactor, a safety trip and a cooling blower on a variable-speed drive (analog output).',
+    inputs: [
+      { addr: 'I0.0', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'RESET', kind: 'pb', color: 'black' },
+      { addr: 'I0.3', name: 'Door closed', kind: 'sensor', note: '1 = door closed' },
+      { addr: 'AIW4', name: 'Temperature (PT100)', kind: 'sensor', note: 'RTD module: value in 0.1 °C (253 = 25.3 °C). Wire break = 32767, short circuit = −32768.' },
+      { addr: 'AIW6', name: 'Setpoint knob', kind: 'ana', min: 0, max: 27648, value: 18432, unit: 'V', note: '0–10 V = 0–27648 = 0–300 °C' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Heater contactor', color: 'red' },
+      { addr: 'Q0.1', name: 'Circulation fan', color: 'green' },
+      { addr: 'Q0.2', name: 'Alarm lamp', color: 'red' },
+      { addr: 'Q0.3', name: 'Ready lamp', color: 'green' },
+      { addr: 'Q0.4', name: 'Safety trip', color: 'amber' },
+      { addr: 'AQW4', name: 'Cooling blower speed', color: 'blue' },
+    ],
+    actions: [
+      { id: 'door', label: 'Open / close the door', toggle: true, run(st) { st.door = !st.door; } },
+      { id: 'wire', label: 'Sensor wire break', toggle: true, run(st) { st.wire = !st.wire; } },
+      { id: 'short', label: 'Sensor short circuit', toggle: true, run(st) { st.short = !st.short; } },
+      { id: 'weld', label: 'Heater contactor welded', toggle: true, run(st) { st.weld = !st.weld; } },
+    ],
+    init() { return { T: 20, Ts: 20, door: false, wire: false, short: false, weld: false, maxT: 20, t: 0, fault: null, last: '' }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      const heat = !Q['Q0.4'] && (Q['Q0.0'] || st.weld) ? 12 : 0;
+      const blower = Math.max(0, Math.min(27648, +Q['AQW4'] || 0)) / 27648;
+      if (!st.fault) {
+        st.T += (heat - (0.015 + (Q['Q0.1'] ? 0.004 : 0) + blower * 0.06 + (st.door ? 0.05 : 0)) * (st.T - 20)) * s;
+        st.Ts += (st.T - st.Ts) * Math.min(1, s / 1.2);            // sensor lag 1.2 s
+        st.maxT = Math.max(st.maxT, st.T);
+        if (st.T > 400) st.fault = 'The furnace overheated (over 400 °C): the parts are ruined.';
+      }
+      const o = devices(this, ctrl);
+      o['I0.3'] = st.door ? 0 : 1;
+      o['AIW4'] = st.wire ? 32767 : st.short ? -32768 : Math.round(st.Ts * 10) + wob(st.t, 3);
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const x = 150, y = 40, w = 230, h = 220;
+      c.fillStyle = th.metalDark; D.rr(c, x - 14, y - 14, w + 28, h + 28, 14); c.fill();
+      const glow = Math.max(0, Math.min(1, (st.T - 60) / 300));
+      c.fillStyle = `rgb(${Math.round(40 + 200 * glow)},${Math.round(40 + 70 * glow)},${Math.round(45 + 10 * glow)})`; D.rr(c, x, y, w, h, 8); c.fill();
+      // heater coils
+      c.strokeStyle = !Q['Q0.4'] && (Q['Q0.0'] || st.weld) ? '#ff7a2f' : th.metal; c.lineWidth = 4;
+      for (let k = 0; k < 2; k++) { c.beginPath(); for (let i = 0; i <= 20; i++) { const xx = x + 18 + i * ((w - 36) / 20); c.lineTo(xx, y + (k ? h - 22 : 22) + (i % 2 ? 7 : -7)); } c.stroke(); }
+      // parts on a tray
+      c.fillStyle = th.metal; c.fillRect(x + 40, y + 150, w - 80, 8);
+      for (let i = 0; i < 4; i++) { c.fillStyle = glow > 0.5 ? '#ffb070' : '#8c96a0'; D.rr(c, x + 50 + i * 36, y + 124, 26, 26, 3); c.fill(); }
+      // door
+      if (st.door) { c.fillStyle = th.panel2; c.globalAlpha = 0.85; c.fillRect(x + w + 14, y - 10, 30, h + 20); c.globalAlpha = 1; D.text(c, 'DOOR OPEN', x + w / 2, y + h / 2, { size: 14, weight: 800, color: '#fff' }); }
+      // fan + blower
+      const fanOn = !!Q['Q0.1'], bl = Math.max(0, Math.min(27648, +Q['AQW4'] || 0));
+      c.save(); c.translate(x + w / 2, y + 70); c.rotate(fanOn ? st.t / 60 : 0); c.fillStyle = fanOn ? th.green : th.metal; for (let k = 0; k < 4; k++) { c.rotate(Math.PI / 2); c.fillRect(-3, 0, 6, 20); } c.restore();
+      D.text(c, 'circulation fan Q0.1', x + w / 2, y + 102, { size: 9, mono: true, color: '#e6e9ee' });
+      c.fillStyle = bl ? th.blue : th.metal; D.rr(c, x - 110, y + 150, 70, 46, 6); c.fill();
+      D.text(c, 'blower', x - 75, y + 164, { size: 10, weight: 700, color: '#fff' });
+      D.text(c, Math.round(bl / 27648 * 100) + ' %  AQW4', x - 75, y + 182, { size: 9, mono: true, color: '#fff' });
+      if (bl) { c.strokeStyle = 'rgba(120,180,255,.7)'; c.lineWidth = 2; for (let i = 0; i < 3; i++) { c.beginPath(); c.moveTo(x - 40, y + 160 + i * 12); c.lineTo(x - 4, y + 160 + i * 12); c.stroke(); } }
+      // instruments
+      const raw = I['AIW4'];
+      c.fillStyle = '#0b1220'; D.rr(c, 420, 30, 200, 92, 8); c.fill();
+      D.text(c, raw === 32767 ? 'WIRE BREAK' : raw === -32768 ? 'SHORT' : (raw / 10).toFixed(1) + ' °C', 520, 62, { size: 24, weight: 800, mono: true, color: raw === 32767 || raw === -32768 ? '#ff6b6b' : '#ffb02e' });
+      D.text(c, 'AIW4 = ' + raw, 520, 92, { size: 11, mono: true, color: '#9fb0c4' });
+      D.text(c, 'real ' + st.T.toFixed(0) + ' °C · max ' + st.maxT.toFixed(0), 520, 110, { size: 9, mono: true, color: '#6c7f95' });
+      const sp = +I['AIW6'] || 0;
+      D.text(c, 'setpoint knob AIW6 = ' + sp + '  (' + (sp / 2764.8).toFixed(1) + ' V)', 420, 140, { size: 10, mono: true, color: th.ink, align: 'left' });
+      D.lamp(c, th, 440, 180, 8, !!Q['Q0.3'], 'green', 'ready'); D.lamp(c, th, 490, 180, 8, !!Q['Q0.2'], 'red', 'alarm');
+      D.lamp(c, th, 540, 180, 8, !!Q['Q0.4'], 'amber', 'trip'); D.lamp(c, th, 590, 180, 8, !!Q['Q0.0'], 'red', 'heater');
+      D.sensorDot(c, th, 440, 236, !!I['I0.3'], 'door closed I0.3');
+      if (st.weld) D.text(c, 'contactor welded!', 520, 262, { size: 11, weight: 700, color: th.red });
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  // ───────────────────────── bag-filling scale (load cell) ─────────────────────────
+  const BAG_TARE = [80, 90, 70, 85, 100, 75];   // empty bag weights in 10 g units
+  P.weigher = {
+    id: 'weigher', name: 'Bag-filling scale (load cell)', blurb: 'A load cell weighs the bag while two gates feed material: a coarse gate for speed and a fine gate for accuracy. Material still falling when a gate closes ("in flight") lands in the bag afterwards. Every bag must hold 25.00 kg ± 0.05 kg net.',
+    inputs: [
+      { addr: 'I0.0', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'RESET', kind: 'pb', color: 'black' },
+      { addr: 'I0.3', name: 'Bag in place', kind: 'sensor' },
+      { addr: 'AIW8', name: 'Weight (load cell)', kind: 'sensor', note: 'Weighing module: gross weight in 10 g units (2534 = 25.34 kg), bag included' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Coarse gate', color: 'amber' },
+      { addr: 'Q0.1', name: 'Fine gate', color: 'amber' },
+      { addr: 'Q0.2', name: 'Release bag', color: 'blue' },
+      { addr: 'Q0.3', name: 'OK lamp', color: 'green' },
+      { addr: 'Q0.4', name: 'Out of tolerance lamp', color: 'red' },
+    ],
+    actions: [
+      { id: 'faster', label: 'Wetter material (flows faster)', toggle: true, run(st) { st.fast = !st.fast; } },
+    ],
+    init() { return { bag: true, tare: BAG_TARE[0], n: 0, w: 0, pipe: [], relT: 0, newT: 0, fast: false, good: 0, bad: 0, lastNet: 0, last: '', t: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000, k = st.fast ? 1.5 : 1;
+      // material leaving the gates now lands 0.3 s later (in flight)
+      st.pipe.push({ t: st.t, c: Q['Q0.0'] ? 300 * k * s : 0, f: Q['Q0.1'] ? 40 * k * s : 0 });
+      while (st.pipe.length && st.t - st.pipe[0].t >= 300) { const p = st.pipe.shift(), m = p.c + p.f; if (m) { if (st.bag) st.w += m; else st.fault = st.fault || 'Material poured onto the floor: no bag under the spout.'; } }
+      if (st.bag && st.w > 4000) st.fault = st.fault || 'The bag overflowed (over 40 kg).';
+      if (Q['Q0.2'] && st.bag) { st.relT += dt; if (st.relT >= 300) {
+        const net = Math.round(st.w);
+        st.lastNet = net;
+        if (Math.abs(net - 2500) <= 5) st.good++; else { st.bad++; st.last = 'Bag with ' + (net / 100).toFixed(2) + ' kg net (25.00 ± 0.05 required).'; }
+        st.bag = false; st.w = 0; st.relT = 0; st.newT = 1500;
+      } } else st.relT = 0;
+      if (!st.bag && st.newT > 0) { st.newT -= dt; if (st.newT <= 0) { st.bag = true; st.n++; st.tare = BAG_TARE[st.n % BAG_TARE.length]; } }
+      const o = devices(this, ctrl);
+      o['I0.3'] = st.bag ? 1 : 0;
+      const coarse = st.pipe.some((p) => p.c > 0);      // the coarse stream shakes the reading
+      o['AIW8'] = st.bag ? Math.round(st.tare + st.w + (coarse ? wob(st.t * 3, 6) : 0)) : 0;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      // hopper
+      c.fillStyle = th.metal; c.beginPath(); c.moveTo(150, 20); c.lineTo(330, 20); c.lineTo(260, 110); c.lineTo(220, 110); c.closePath(); c.fill();
+      c.fillStyle = '#b8a07a'; c.beginPath(); c.moveTo(160, 30); c.lineTo(320, 30); c.lineTo(300, 55); c.lineTo(180, 55); c.closePath(); c.fill();
+      // gates
+      c.fillStyle = Q['Q0.0'] ? th.amber : th.metalDark; c.fillRect(214, 112, 26, 12); D.text(c, 'coarse', 200, 118, { size: 9, mono: true, color: th.muted, align: 'right' });
+      c.fillStyle = Q['Q0.1'] ? th.amber : th.metalDark; c.fillRect(244, 112, 16, 12); D.text(c, 'fine', 266, 118, { size: 9, mono: true, color: th.muted, align: 'left' });
+      // falling material
+      st.pipe.forEach((p) => { const yy = 128 + (st.t - p.t) / 300 * 70; c.fillStyle = '#b8a07a'; if (p.c) c.fillRect(220, yy, 16, 3); if (p.f) c.fillRect(248, yy, 6, 3); });
+      // bag on the scale
+      if (st.bag) {
+        const fill = Math.min(1, st.w / 3000);
+        c.fillStyle = '#e9e1cf'; D.rr(c, 190, 230 - 30, 100, 70, 10); c.fill();
+        c.fillStyle = '#b8a07a'; c.fillRect(196, 266 - fill * 60, 88, fill * 60);
+        D.text(c, 'bag', 240, 214, { size: 10, weight: 700, color: '#6b5a3a' });
+      }
+      c.fillStyle = th.metalDark; c.fillRect(160, 272, 160, 12); c.fillRect(170, 284, 10, 20); c.fillRect(300, 284, 10, 20);
+      D.text(c, 'load cell', 240, 296, { size: 9, mono: true, color: th.muted });
+      if (Q['Q0.2']) D.text(c, '→ release', 340, 240, { size: 12, weight: 700, color: th.blue, align: 'left' });
+      // indicator
+      c.fillStyle = '#0b1220'; D.rr(c, 400, 30, 220, 96, 8); c.fill();
+      const raw = I['AIW8'] || 0;
+      D.text(c, (raw / 100).toFixed(2) + ' kg', 510, 64, { size: 26, weight: 800, mono: true, color: '#7CFC9A' });
+      D.text(c, 'AIW8 = ' + raw + '  (gross)', 510, 96, { size: 11, mono: true, color: '#9fb0c4' });
+      D.text(c, 'empty bag ' + (st.tare / 100).toFixed(2) + ' kg', 510, 114, { size: 9, mono: true, color: '#6c7f95' });
+      D.lamp(c, th, 430, 160, 8, !!Q['Q0.3'], 'green', 'OK'); D.lamp(c, th, 480, 160, 8, !!Q['Q0.4'], 'red', 'tolerance');
+      D.sensorDot(c, th, 540, 160, !!I['I0.3'], 'bag I0.3');
+      D.text(c, 'good ' + st.good + '   bad ' + st.bad, 620, 210, { size: 12, mono: true, weight: 700, color: st.bad ? th.red : th.ink, align: 'right' });
+      D.text(c, 'last bag ' + (st.lastNet / 100).toFixed(2) + ' kg net', 620, 230, { size: 10, mono: true, color: th.muted, align: 'right' });
+      if (st.fast) D.text(c, 'material flows faster', 620, 250, { size: 10, mono: true, weight: 700, color: th.amber, align: 'right' });
       D.fault(c, th, st.fault);
     },
   };
@@ -2497,7 +2654,7 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
+  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
 
   // Outputs a plant sees: Q bits, AQW words, plus any memory words its HMI displays
   LL.plantOutputs = function (plant, m) {

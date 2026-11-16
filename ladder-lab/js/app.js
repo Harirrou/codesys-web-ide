@@ -122,7 +122,7 @@
       if (ctrl[d.addr] == null) ctrl[d.addr] = d.value == null ? mn : d.value;
       const el = h(`<label class="dev ana"><span class="lbl">${esc(d.name)}<span class="sub">${esc(d.addr)} = <b data-v>0</b> · <i data-ma></i></span></span><input type="range" min="${mn}" max="${mx}" step="64" value="${ctrl[d.addr]}" aria-label="${esc(d.name)}"></label>`);
       const inp = el.querySelector('input');
-      const show = () => { el.querySelector('[data-v]').textContent = ctrl[d.addr]; el.querySelector('[data-ma]').textContent = (ctrl[d.addr] / 1600).toFixed(1) + ' mA'; };
+      const show = () => { el.querySelector('[data-v]').textContent = ctrl[d.addr]; el.querySelector('[data-ma]').textContent = d.unit === 'V' ? (ctrl[d.addr] / 2764.8).toFixed(1) + ' V' : (ctrl[d.addr] / 1600).toFixed(1) + ' mA'; };
       inp.addEventListener('input', () => { ctrl[d.addr] = +inp.value; show(); onChange && onChange(); });
       show();
       el._sync = show;
@@ -341,7 +341,7 @@
     if (i < 0) return pageLearn();
     const l = LL.LESSONS[i], prev = LL.LESSONS[i - 1], next = LL.LESSONS[i + 1];
     const lvl = LL.LEVELS[l.level - 1];
-    let body = l.body.replace(/\[\[sim:(\w+)\]\]/g, (m, k) => `<div class="sim-ph" data-sim="${k}"></div>`);
+    let body = l.body.replace(/\[\[sim:(\w+)\]\]/g, (m, k) => `<div class="sim-ph" data-sim="${k}"></div>`).replace(/\[\[mem:explorer\]\]/g, '<div class="mem-ph"></div>');
     const el = h(`<div class="wrap"><div class="lesson">
       <article>
         <a class="btn small ghost" href="#learn">${I.back} All lessons</a>
@@ -362,6 +362,7 @@
       </div></aside>
     </div></div>`);
     main().appendChild(el);
+    $$('.mem-ph', el).forEach((ph) => memExplorer(ph));
     $$('.sim-ph', el).forEach((ph) => { const spec = l.sims[ph.dataset.sim]; if (spec) new MiniSim(ph, Object.assign({ name: l.title }, spec)); });
     $$('[data-open]', el).forEach((o) => {
       const spec = LL.OPEN_PROGRAMS[o.dataset.open];
@@ -403,6 +404,31 @@
       $('.stages', el).appendChild(b);
     });
     main().appendChild(el);
+  }
+
+  // interactive bit / byte / word explorer (Siemens layout: MW10 = MB10 high byte + MB11 low byte)
+  function memExplorer(host) {
+    const bits = new Array(16).fill(0);    // index 0..7 = M10.7..M10.0, 8..15 = M11.7..M11.0
+    const el = h(`<div class="card memx"><div class="memx-head"><span class="eyebrow">Memory explorer · tap the bits</span><span class="row"><button class="btn small" data-x="clr">all 0</button><button class="btn small" data-x="inc">+1</button><button class="btn small" data-x="shl">SHL</button></span></div>
+      <div class="memx-bytes">${[10, 11].map((b, bi) => `<div class="memx-byte"><div class="memx-lbl">MB${b} ${bi ? '(low byte)' : '(high byte)'}</div><div class="memx-bits">${[7, 6, 5, 4, 3, 2, 1, 0].map((k) => `<button class="memx-bit" data-i="${bi * 8 + (7 - k)}"><b>0</b><small>M${b}.${k}</small><i>${1 << k}</i></button>`).join('')}</div><div class="memx-val" data-b="${bi}"></div></div>`).join('')}</div>
+      <div class="memx-word"></div></div>`);
+    host.replaceWith(el);
+    const draw = () => {
+      $$('.memx-bit', el).forEach((b) => { const v = bits[+b.dataset.i]; b.classList.toggle('on', !!v); b.querySelector('b').textContent = v; });
+      const byte = (bi) => bits.slice(bi * 8, bi * 8 + 8).reduce((a, v) => a * 2 + v, 0);
+      [0, 1].forEach((bi) => { const v = byte(bi); $(`[data-b="${bi}"]`, el).innerHTML = `= <b>${v}</b> · 16#${v.toString(16).toUpperCase().padStart(2, '0')}`; });
+      const w = byte(0) * 256 + byte(1), si = w > 32767 ? w - 65536 : w;
+      $('.memx-word', el).innerHTML = `<b>MW10</b> = MB10 × 256 + MB11 = <b>${w}</b> as WORD · <b>${si}</b> as INT · 16#${w.toString(16).toUpperCase().padStart(4, '0')}<br><span class="muted">binary ${bits.slice(0, 8).join('')} ${bits.slice(8).join('')}</span>`;
+    };
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('.memx-bit'); if (b) { const i = +b.dataset.i; bits[i] = bits[i] ? 0 : 1; draw(); return; }
+      const x = e.target.closest('[data-x]'); if (!x) return;
+      let w = bits.reduce((a, v) => a * 2 + v, 0);
+      if (x.dataset.x === 'clr') w = 0; if (x.dataset.x === 'inc') w = (w + 1) & 0xffff; if (x.dataset.x === 'shl') w = (w << 1) & 0xffff;
+      for (let i = 15; i >= 0; i--) { bits[i] = w & 1; w >>= 1; }
+      draw();
+    });
+    draw();
   }
 
   const chKind = (c) => ({ st: c.lang === 'st', bug: /^(bug-|fix-|st-bug)/.test(c.id), project: c.level === 6 });

@@ -526,3 +526,18 @@ ul.guide { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 6
 
 .tbl.compact th, .tbl.compact td { padding: 7px 6px; text-align: center; letter-spacing: 0; }
 .tbl.compact td:first-child, .tbl.compact th:first-child { text-align: left; white-space: nowrap; }
+
+/* memory explorer */
+.memx { padding: 14px; margin: 16px 0; display: grid; gap: 12px; }
+.memx-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.memx-bytes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.memx-lbl { font: 700 .78rem var(--f-mono); color: var(--muted); margin-bottom: 6px; }
+.memx-bits { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
+.memx-bit { border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 6px 0 4px; display: grid; justify-items: center; gap: 1px; cursor: pointer; color: var(--ink); min-width: 0; }
+.memx-bit b { font: 800 1.1rem var(--f-mono); }
+.memx-bit small { font: 600 .58rem var(--f-mono); color: var(--muted); }
+.memx-bit i { font: 600 .6rem var(--f-mono); color: var(--muted); font-style: normal; }
+.memx-bit.on { background: var(--power); border-color: var(--power); color: #fff; }
+.memx-bit.on small, .memx-bit.on i { color: rgba(255,255,255,.85); }
+.memx-val { font: 600 .9rem var(--f-mono); margin-top: 6px; }
+.memx-word { font: 600 .92rem var(--f-mono); background: var(--surface-2); border-radius: 8px; padding: 10px 12px; line-height: 1.6; }

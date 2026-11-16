@@ -111,6 +111,43 @@
       challenges: [],
     },
     {
+      id: 'data-sizes', level: 1, title: 'Bits, bytes & words: how PLC memory is organised', min: 12,
+      summary: 'What "bit memory", byte, word and double word mean, how big each one is, what you store in it, and how they sit on top of each other.',
+      body: `
+<h3>The bit: one yes / no</h3>
+<p>The smallest thing a PLC stores is a <b>bit</b>: 0 or 1, off or on, false or true (data type <b>BOOL</b>). A push button, a sensor, a lamp, a motor contactor: each is one bit. <code>I0.3</code> is an input bit, <code>Q0.0</code> an output bit, <code>M0.1</code> a memory bit.</p>
+<h3>"Bit memory": the M area</h3>
+<p><b>Bit memory</b> is Siemens' English name for the <b>M</b> area (German: <i>Merker</i>, "marker"). It is a block of bits inside the PLC that are <b>not wired</b> to anything: the PLC's own <b>auxiliary relays</b>. Your program writes them and reads them to remember things: "the motor was started", "step 3 is active", "an alarm happened". Other brands call the same idea internal relays, internal bits (Rockwell B3 / BOOL tags) or %MX (CODESYS).</p>
+<div class="tbl"><table>
+<tr><th>Area</th><th>Letter</th><th>What lives there</th><th>Who writes it</th></tr>
+<tr><td>Inputs</td><td>I</td><td>buttons, switches, sensors (and analog inputs AIW / IW)</td><td>the field, copied at the start of every scan</td></tr>
+<tr><td>Outputs</td><td>Q</td><td>lamps, contactors, valves (and analog outputs AQW / QW)</td><td>your program, sent out at the end of every scan</td></tr>
+<tr><td><b>Bit memory</b></td><td><b>M</b></td><td>flags, latches, steps, intermediate results; words MW for numbers</td><td>your program only</td></tr>
+<tr><td>Timers / counters</td><td>T / C</td><td>timer and counter status bits and values</td><td>the timer and counter instructions</td></tr>
+<tr><td>Data blocks</td><td>DB</td><td>bigger structured data (S7-300/1200/1500)</td><td>your program</td></tr>
+</table></div>
+<h3>Byte, word, double word</h3>
+<div class="tbl"><table>
+<tr><th>Size</th><th>Bits</th><th>Address example</th><th>Range</th><th>Typical use</th></tr>
+<tr><td><b>Bit</b> (BOOL)</td><td>1</td><td>M10.3</td><td>0 / 1</td><td>button, lamp, flag</td></tr>
+<tr><td><b>Byte</b> (BYTE)</td><td>8</td><td>MB10 = M10.0 … M10.7</td><td>0 … 255</td><td>8 inputs at once, a small code</td></tr>
+<tr><td><b>Word</b> (WORD / INT)</td><td>16</td><td>MW10 = MB10 + MB11</td><td>0 … 65535 / −32768 … 32767</td><td>analog values, counters, step numbers, setpoints</td></tr>
+<tr><td><b>Double word</b> (DWORD / DINT / REAL)</td><td>32</td><td>MD10 = MW10 + MW12</td><td>±2 147 483 647, or decimals (REAL)</td><td>big counts, flow totals, scaled values with decimals</td></tr>
+</table></div>
+<p>That is why addresses look like <code>I0.3</code>: <b>byte 0, bit 3</b>. A byte has 8 bits (0 … 7), so after I0.7 comes I1.0.</p>
+<h3>Numbers are bits too</h3>
+<p>Each bit of a byte or word has a <b>weight</b>: 1, 2, 4, 8, 16, 32, 64, 128 … The value is the sum of the weights of the bits that are 1. <code>0000 0101</code> = 4 + 1 = <b>5</b>. Programmers often write it in <b>hex</b> (groups of 4 bits): <code>16#05</code>. Switch the bits below and watch the byte and word values change.</p>
+[[mem:explorer]]
+<h3>The trap on real PLCs: addresses overlap</h3>
+<p>On a Siemens PLC the areas sit on top of each other: <b>MW10 is MB10 and MB11</b>, which are <b>M10.0 … M11.7</b>. Writing M10.0 changes MW10! And <b>MW10 and MW11 share MB11</b>, so two words next to each other destroy each other. That is why real programs use <b>even</b> word numbers: MW10, MW12, MW14 (and MD10, MD14 for double words). In Siemens the <b>first</b> byte is the <b>high</b> byte of the word (shown above).</p>
+<div class="callout tip"><b>In Ladder Lab</b> the bits (M10.0) and the words (MW10) are kept apart, so a beginner cannot break a counter by writing a bit, and the projects sometimes use MW20, MW21, MW22 next to each other. On a real S7 PLC you would number them MW20, MW22, MW24. CODESYS numbers %MW by words (%MW1 = bytes 2 and 3) and Rockwell uses named tags, so there the overlap looks different, but the idea is the same.</div>
+<div class="callout where"><b>Where you meet this:</b> every I/O list (byte.bit addresses), every analog value (a word), every HMI tag (BOOL, INT, REAL), and every time you read a PLC manual's "memory map".</div>`,
+      sims: {},
+      takeaways: ['Bit = 0/1; byte = 8 bits; word = 16 bits; double word = 32 bits.', 'Bit memory (M, Merker) = the PLC\'s internal relays for your own flags and values.', 'I0.3 = byte 0, bit 3. After bit 7 comes the next byte.', 'Bits have weights 1, 2, 4, 8 …; a number is the sum.', 'On real Siemens PLCs MW10 = MB10 + MB11 = M10.0 … M11.7: use even word numbers.'],
+      mistakes: ['Using MW10 and MW11 together on a real S7 (they overlap).', 'Writing a bit (M10.0) that is part of a word you also use.', 'Expecting a word to hold more than 32767 (INT).'],
+      challenges: ['binary-switches', 'math', 'compare'],
+    },
+    {
       id: 'no-contact', level: 1, title: 'Normally-open contact & coil', min: 5,
       summary: '-| |- passes power when its bit is 1. -( )- copies the rung result to a bit.',
       body: `
@@ -647,6 +684,44 @@ level % = (AIW0 − 6400) × 100 ÷ 25600
       takeaways: ['Error = SP − PV.', 'P leaves an offset, I removes it, D damps.', 'Clamp the output and use anti-windup.'],
       mistakes: ['Expecting a P controller to reach the setpoint exactly.', 'Running PID in the normal scan with a changing cycle time.'],
       challenges: ['level-control', 'tank', 'st-greenhouse'],
+    },
+    {
+      id: 'analog-practice', level: 5, title: 'Analog sensors in practice: temperature, weight, knobs & drives', min: 14,
+      summary: 'Different sensors deliver their values differently. How to scale them without overflow, keep noisy values calm, catch sensor faults and drive analog outputs.',
+      body: `
+<h3>Not every analog value looks the same</h3>
+<div class="tbl"><table>
+<tr><th>Signal</th><th>What the PLC reads</th><th>Example in the Lab</th></tr>
+<tr><td>4–20 mA transmitter (level, pressure, flow)</td><td>raw counts, e.g. 0 … 27648 (S7-1200) or 6400 … 32000 (S7-200 style)</td><td>analog tank AIW0</td></tr>
+<tr><td>0–10 V (potentiometer, drive feedback)</td><td>0 … 27648</td><td>setpoint knob AIW6</td></tr>
+<tr><td>PT100 / thermocouple on a temperature module</td><td>temperature directly, in 0.1 °C</td><td>furnace AIW4</td></tr>
+<tr><td>Load cell on a weighing module</td><td>weight directly (here 10 g units), gross</td><td>scale AIW8</td></tr>
+<tr><td>Analog output to a drive / valve</td><td>you write 0 … 27648 = 0 … 100 %</td><td>blower AQW4, tank valve AQW0</td></tr>
+</table></div>
+<p>First question for every analog signal: <b>what does the raw number mean?</b> The module manual tells you.</p>
+<h3>Scaling without overflow</h3>
+<p>Straight line: <code>value = raw × (max − min) / raw_span + min</code>. With 16-bit words the trap is the multiplication: 27648 × 300 is far above 32767 and the result is garbage. Divide first (27648 / 300 ≈ 92), or use 32-bit / REAL maths (<b>NORM_X + SCALE_X</b> in TIA Portal, <b>SCP</b> in Rockwell, REAL in CODESYS ST).</p>
+<h3>Noisy values: hysteresis, settling, filtering</h3>
+<ul>
+<li><b>Hysteresis</b>: switch on and off at two different values, so noise around one value cannot make the output chatter (thermostat 195 / 205 °C).</li>
+<li><b>Settling time</b>: judge a value only when it is calm (a scale after the gate has closed).</li>
+<li><b>Filtering</b>: average several readings (the ST moving-average project).</li>
+</ul>
+<h3>Sensor faults: fail safe</h3>
+<p>A broken wire or a short circuit gives an impossible value (Siemens: 32767 and −32768; 4–20 mA: below 3.6 mA). Check the <b>raw</b> value and treat it as a fault. Think about which way it fails: a shorted temperature sensor looks <b>cold</b>, so a program that does not check it heats forever. Important limits get an <b>independent</b> shutdown (safety trip / temperature limiter), because the normal output can fail too (a welded contactor).</p>
+<h3>Weighing words</h3>
+<ul>
+<li><b>Gross</b> = everything on the scale, <b>tare</b> = the empty container, <b>net</b> = gross − tare.</li>
+<li><b>Coarse / fine</b>: fill fast, finish slowly for accuracy.</li>
+<li><b>In-flight (preact)</b>: material still falling when the gate closes. Close early by that amount, and let the controller <b>learn</b> it from the error of each fill.</li>
+</ul>
+<h3>Analog outputs</h3>
+<p>Speed references for drives, valve positions, heater power. Calculate the value in a word, <b>clamp</b> it to 0 … 27648, and write it to the output every scan. A straight line between two points (here 20 % at 50 °C, 100 % at 150 °C) covers most jobs.</p>
+<div class="callout where"><b>Where:</b> furnaces and ovens, kilns, plastic machines (zone temperatures), filling and bagging lines, batching plants, dosing pumps, HVAC fans and pumps on drives.</div>`,
+      sims: {},
+      takeaways: ['Know what the raw value means: counts, 0.1 °C, 10 g …', 'Scale without overflow: divide first or use 32-bit / REAL.', 'Hysteresis and settling time tame noisy values.', 'Check impossible raw values for wire break / short; fail safe; add an independent trip.', 'Net = gross − tare; coarse/fine; learn the in-flight amount.', 'Analog outputs: calculate, clamp, write every scan.'],
+      mistakes: ['Multiplying a raw value before dividing (overflow).', 'Using one switching point on a noisy value (chatter).', 'Trusting the sensor: a short circuit can look like "cold" or "empty".', 'Judging a weight while material is still falling.'],
+      challenges: ['furn-1', 'furn-2', 'furn-3', 'furn-4', 'weigh-1', 'weigh-2', 'analog-scale', 'level-control'],
     },
     {
       id: 'video-circuit', level: 5, title: 'Your video, decoded: 3-cylinder sequence', min: 12,
@@ -1279,6 +1354,14 @@ END_REPEAT</pre>
     ['Shift register', 'Chain of bits that moves one place along on every clock pulse while a new data bit enters at the start. Used to track parts on conveyors (SHRB in Siemens, BSL/BSR in Rockwell).'],
     ['SHL / SHR / ROL / ROR', 'Word shift instructions: shift left (×2 per place), shift right (÷2 per place), rotate left/right (the bit that falls out comes back at the other end).'],
     ['Pitch sensor', 'Sensor (cam, encoder or flag) that gives one pulse each time a conveyor moves one pocket or one product spacing. The clock for tracking.'],
+    ['Bit memory (M, Merker)', 'The PLC\'s internal bits, not wired to anything: auxiliary relays your program uses to remember flags, steps and results. Siemens calls the area "bit memory".'],
+    ['Byte / word / double word', 'Groups of 8, 16 and 32 bits. MB10 = M10.0 … M10.7; MW10 = MB10 + MB11; MD10 = MW10 + MW12 (Siemens).'],
+    ['INT / DINT / REAL', 'Number types: 16-bit integer (−32768 … 32767), 32-bit integer, and 32-bit floating point with decimals.'],
+    ['PT100 (RTD)', 'Platinum resistance temperature sensor, 100 Ω at 0 °C. A temperature module turns it into °C, often in 0.1 °C steps.'],
+    ['Load cell', 'Weight sensor (a strain gauge) under a scale. A weighing module turns its tiny signal into a weight value.'],
+    ['Tare / gross / net', 'Tare = the empty container, gross = everything on the scale, net = gross − tare.'],
+    ['In-flight (preact)', 'Material still falling after a feed gate closes. The gate is closed early by this amount.'],
+    ['Wire break detection', 'Recognising a broken sensor cable from an impossible analog value (e.g. 32767, or below 3.6 mA on 4–20 mA).'],
     ['Watchdog / timeout', 'Timer that flags a fault when an expected event doesn\'t happen in time.'],
     ['Hysteresis', 'Switching on and off at different thresholds (low/high level) to prevent rapid cycling.'],
     ['HMI', 'Human-Machine Interface: touch panel showing machine state and accepting operator commands.'],
@@ -1288,6 +1371,17 @@ END_REPEAT</pre>
 
   // ───────────────────────── concept quiz ─────────────────────────
   LL.QUIZ = [
+    { l: 1, q: 'What is "bit memory" (M) in a Siemens PLC?', a: ['The program memory', 'Internal bits (auxiliary relays) your program uses to remember things', 'The input image', 'A memory card'], c: 1, why: 'M = Merker = bit memory: internal flags, not wired to anything.' },
+    { l: 1, q: 'How many bits are in a word?', a: ['8', '16', '32', '4'], c: 1, why: 'Byte = 8, word = 16, double word = 32.' },
+    { l: 1, q: 'The byte 0000 0101 has the value…', a: ['5', '101', '10', '3'], c: 0, why: 'Bit weights 4 + 1 = 5.' },
+    { l: 1, q: 'On a real Siemens PLC, why do programs use MW10, MW12, MW14 and not MW10, MW11?', a: ['Odd numbers are not allowed', 'MW10 and MW11 overlap: both contain byte MB11', 'It is faster', 'Habit only'], c: 1, why: 'MW10 = MB10 + MB11 and MW11 = MB11 + MB12.' },
+    { l: 1, q: 'The biggest value an INT (16-bit signed word) can hold is…', a: ['255', '1000', '32767', '65535'], c: 2, why: '−32768 … 32767.' },
+    { l: 5, q: 'A PT100 module returns AIW4 = 1875. The temperature is…', a: ['1875 °C', '187.5 °C', '18.75 °C', 'unknown'], c: 1, why: 'Temperature modules give 0.1 °C units.' },
+    { l: 5, q: 'Why is AIW6 × 300 / 27648 a bad idea with 16-bit words?', a: ['Division is not allowed', 'AIW6 × 300 overflows (more than 32767)', 'It is too slow', 'It rounds up'], c: 1, why: 'Divide first or use 32-bit / REAL maths.' },
+    { l: 5, q: 'A temperature sensor is short-circuited and reads −32768. A program that does not check this will…', a: ['stop heating', 'heat forever, because it looks cold', 'show 0 °C', 'nothing happens'], c: 1, why: 'Always check impossible raw values and fail safe.' },
+    { l: 5, q: 'Gross 26.10 kg, empty bag 0.85 kg. Net weight?', a: ['26.95 kg', '25.25 kg', '26.10 kg', '0.85 kg'], c: 1, why: 'Net = gross − tare.' },
+    { l: 5, q: 'What is "in-flight" (preact) on a filling scale?', a: ['A bag on a conveyor', 'Material still falling when the gate closes, so the gate must close early', 'The empty bag weight', 'Vibration'], c: 1, why: 'Close the gate early by the in-flight amount; good controllers learn it.' },
+    { l: 5, q: 'Why does a thermostat switch on at 195 °C and off at 205 °C instead of both at 200 °C?', a: ['To save energy', 'Hysteresis: noise around one point would make the heater chatter', 'It is required by law', 'Sensors cannot read 200'], c: 1, why: 'Two switching points = calm switching.' },
     { l: 4, q: 'A shift register (SHRB) of length 8 gets one clock pulse. What happens?', a: ['All bits become the DATA value', 'Every bit moves one place, DATA enters the first bit and the last bit is lost', 'The register is cleared', 'Only the first bit changes'], c: 1, why: 'One pulse = one shift: everything moves one place along.' },
     { l: 4, q: 'Why is SHRB almost always clocked through a P (edge) contact?', a: ['The syntax requires it', 'Otherwise it shifts on every scan while the rung is true', 'To make the PLC faster', 'To invert the data'], c: 1, why: 'A button held for 200 ms is about 20 scans: 20 shifts instead of one.' },
     { l: 4, q: 'A checker puts "bad" into bit 0 of a register clocked once per bottle. The rejector is 5 bottles further on. Which bit drives it?', a: ['bit 0', 'bit 4', 'bit 5', 'bit 6'], c: 2, why: 'Bit k holds the data from k pulses ago: 5 bottles later = bit 5.' },
