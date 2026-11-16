@@ -11,6 +11,7 @@
     { n: 3, name: 'Timers', sub: 'On-delay, off-delay, pulse, retentive, timed sequences' },
     { n: 4, name: 'Counters & data', sub: 'Counting, comparing, words, field devices' },
     { n: 5, name: 'Sequences & pro practice', sub: 'Step logic, state machines, safety, structure' },
+    { n: 6, name: 'Real-world projects', sub: 'Whole machines: filling line, batch mixer, elevator, sorter' },
   ];
 
   const pb = (name) => ({ name, kind: 'pb' });
@@ -669,6 +670,46 @@ Lamp := T0.Q;</pre>
       takeaways: ['LD for logic, ST for math, SFC for sequences.', 'Every rung has a Boolean equivalent.'],
       mistakes: ['Forcing everything into ladder when ST would be clearer, or the other way round.'],
       challenges: [],
+    },
+    // ═══════════════════════ LEVEL 6 ═══════════════════════
+    {
+      id: 'project-method', level: 6, title: 'How to plan a real project', min: 10,
+      summary: 'From a machine description to a working, tested program in seven steps.',
+      body: `
+<p>The Level 6 projects are whole machines. Nobody writes those rung by rung from the top. Engineers follow a routine, and the routine is the skill that transfers to every PLC brand.</p>
+<h3>1. Understand the machine</h3>
+<p>Watch it (open the project and play with the buttons with an empty program). What moves? What can be sensed? What can go wrong or hurt someone?</p>
+<h3>2. Write the I/O list</h3>
+<p>Address, name, type (NO/NC button, sensor), and what <b>1</b> means. The I/O list in each project task is your starting point.</p>
+<h3>3. Describe the sequence in words, then as a step table</h3>
+<p>Example for the bottle filling line:</p>
+<div class="tbl"><table>
+<tr><th>Step</th><th>Outputs on</th><th>Go to next step when</th></tr>
+<tr><td>0 Idle</td><td>none</td><td>START pressed → 1</td></tr>
+<tr><td>1 Index</td><td>Conveyor</td><td>a bottle <b>arrives</b> (rising edge of "in place") → 2</td></tr>
+<tr><td>2 Fill</td><td>Fill valve</td><td>"bottle full" → 1</td></tr>
+<tr><td>any</td><td>none</td><td>STOP → 0</td></tr>
+</table></div>
+<p>The step table is the program. Each row becomes one transition rung, and each output column becomes one output rung.</p>
+<h3>4. Safety and interlocks first</h3>
+<p>List what must <b>never</b> happen: valve open without a bottle, motor up and down together, heater on in an empty tank, car moving with the door open. Make sure every one is blocked by logic before you add any convenience.</p>
+<h3>5. Build: transitions, then outputs</h3>
+<p>Write the step logic (memory bits or a step number in MW0), then one rung per output decoded from the steps. One coil per output.</p>
+<h3>6. Test the normal cycle with Step and slow motion</h3>
+<p>Use <b>¼×</b> speed and watch the step word in the values table. Does each step end exactly when you planned?</p>
+<h3>7. Test the abnormal cases</h3>
+<ul>
+<li>STOP in the middle of every step.</li>
+<li>A sensor that never comes (does the machine wait safely, or raise an alarm?).</li>
+<li>Pressing buttons at the wrong time, or two at once.</li>
+<li>Power loss and restart (press Reset): no surprise movement.</li>
+</ul>
+<div class="callout tip"><b>Tracking trick (sorter project):</b> when an item is measured at one place and acted on further down the line, the PLC must <b>remember</b> the result until the item arrives. With one item in between, a single bit is enough. With several, real machines use a shift register or a FIFO of words.</div>
+<div class="callout where"><b>Where:</b> this is how commissioning engineers work on packaging lines, process skids, lifts and warehouse sorters, whatever the PLC brand.</div>`,
+      sims: {},
+      takeaways: ['I/O list → step table → safety → transitions → outputs → test normal → test abnormal.', 'The step table is the program.', 'Remember measured data until the item reaches the station that uses it.'],
+      mistakes: ['Starting to draw rungs before the sequence is written down.', 'Testing only the happy path.'],
+      challenges: ['ped-crossing', 'bottling', 'mixer', 'elevator', 'sorter'],
     },
   ];
 

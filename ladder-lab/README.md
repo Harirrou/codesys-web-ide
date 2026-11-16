@@ -5,9 +5,9 @@ A zero-dependency web app (works offline, installable on phones as a PWA).
 
 | Section | What you get |
 |---|---|
-| **Learn** | 25 lessons in 5 levels (Foundations → Memory & motor control → Timers → Counters & data → Sequences & pro practice). Each covers *what / why / where*, with live examples you can press, common mistakes and takeaways. |
-| **Lab** | A ladder editor + PLC simulator (real scan cycle, step-by-step scan mode, power-flow monitoring, lint for double coils, etc.) driving 9 animated machines: trainer panel, reversing motor, conveyor, tank, traffic crossing, 3 pneumatic cylinders, garage door, parking lot, star-delta starter. One-click **Structured Text** translation (IEC 61131-3 / CODESYS style). |
-| **Challenges** | 27 tasks checked by automated tests that press buttons, wait and verify outputs like a commissioning engineer. Hints, bug hunts, reference solutions. |
+| **Learn** | 26 lessons in 6 levels (Foundations → Memory & motor control → Timers → Counters & data → Sequences & pro practice → Real-world projects). Each covers *what / why / where*, with live examples you can press, common mistakes and takeaways. |
+| **Lab** | A ladder editor + PLC simulator (real scan cycle, step-by-step scan mode, power-flow monitoring, lint for double coils, etc.) driving 13 animated machines: trainer panel, reversing motor, conveyor, tank, traffic crossing, 3 pneumatic cylinders, garage door, parking lot, star-delta starter, bottle filling line, batch mixer, 3-floor elevator, box sorter. One-click **Structured Text** translation (IEC 61131-3 / CODESYS style). |
+| **Challenges** | 32 tasks (including 5 whole-machine projects) checked by automated tests that press buttons, wait and verify outputs like a commissioning engineer. Hints, bug hunts, reference solutions. |
 | **Quiz** | Endless "predict the output" rungs + a 45-question concept bank. |
 | **Glossary** | 76 terms in plain words. |
 

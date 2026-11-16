@@ -252,7 +252,7 @@
         <div>
           <span class="plate">PLC · Ladder logic trainer</span>
           <h1>Learn ladder logic by <em>wiring it</em>, not memorising it.</h1>
-          <p class="lead">Twenty-five short lessons from your first contact to state machines, a PLC simulator with nine animated machines, and challenges that test your program like a commissioning engineer would.</p>
+          <p class="lead">${LL.LESSONS.length} short lessons from your first contact to whole-machine projects, a PLC simulator with ${LL.PLANT_ORDER.length} animated machines, and ${LL.CHALLENGES.length} challenges that test your program like a commissioning engineer would.</p>
           <div class="row">
             <a class="btn primary" href="#lesson-${next.id}">${d.l ? 'Continue: ' + esc(next.title) : 'Start lesson 1'} ${I.arrow}</a>
             <a class="btn" href="#lab">${I.lab} Open the Lab</a>
@@ -265,7 +265,7 @@
       <div class="sec-head"><div><h2>Four ways to practise</h2><p>Mix them. Understanding comes from building and breaking things.</p></div></div>
       <div class="grid paths">
         <a class="card path" href="#learn"><span class="ic">${I.learn}</span><h3>Lessons</h3><p>What, why and where, each with live examples you can press.</p></a>
-        <a class="card path" href="#lab"><span class="ic">${I.lab}</span><h3>Lab</h3><p>Draw rungs and drive a motor, tank, conveyor, traffic light or the 3 cylinders from your video.</p></a>
+        <a class="card path" href="#lab"><span class="ic">${I.lab}</span><h3>Lab</h3><p>Draw rungs and drive a motor, tank, conveyor, elevator, mixer, sorter, filling line or the 3 cylinders from your video.</p></a>
         <a class="card path" href="#challenges"><span class="ic">${I.target}</span><h3>Challenges</h3><p>Real tasks with automatic tests, hints and bug hunts.</p></a>
         <a class="card path" href="#quiz"><span class="ic">${I.quiz}</span><h3>Quiz</h3><p>Concept questions plus endless "predict the output" drills.</p></a>
       </div>

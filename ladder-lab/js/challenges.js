@@ -323,6 +323,66 @@
         { name: 'Warning light flashes', steps: ['tap I0.0', 'pulses Q0.2 3000 2 4'] },
       ],
     },
+    // ───────────── Level 6 · Real-world projects ─────────────
+    {
+      id: 'ped-crossing', level: 6, plant: 'traffic', title: 'Pedestrian crossing on request',
+      brief: 'With <b>RUN</b> on, cars keep <b>green</b> until a pedestrian presses the button (a short tap must be remembered). Then: <b>yellow 2 s</b> → <b>red + Walk 5 s</b> → back to green and wait for the next request. Don\'t walk whenever Walk is off. RUN off: red.',
+      hints: ['Latch a "request" memory bit with the button; drop it when the red phase timer is done.', 'Request starts a 2 s yellow timer; its done bit starts a 5 s red timer.', 'Green = RUN AND NOT request. Yellow = request AND NOT yellow-timer-done. Walk = yellow timer done.'],
+      never: [{ when: 'Q0.2=1 Q0.3=1', msg: 'Walk was on while cars had green!' }, { when: 'Q0.1=1 Q0.3=1', msg: 'Walk was on during yellow!' }],
+      solution: 'RUNG Remember the request until the red phase has finished\nNO(I0.1) | NO(I0.0) NC(T2) COIL(M0.0)\nNO(M0.0)\nRUNG Yellow time\nNO(M0.0) TON(T1,2s)\nRUNG Red time\nNO(T1) TON(T2,5s)\nRUNG Green until a request\nNO(I0.0) NC(M0.0) COIL(Q0.2)\nRUNG Yellow\nNO(M0.0) NC(T1) COIL(Q0.1)\nRUNG Red\nNO(T1) | COIL(Q0.0)\nNC(I0.0)\nRUNG Walk\nNO(T1) COIL(Q0.3)\nRUNG Don\'t walk\nNC(Q0.3) COIL(Q0.4)',
+      tests: [
+        { name: 'Green waits for a request', steps: ['on I0.0', 'expect Q0.2=1', 'stays Q0.2=1 6000'] },
+        { name: 'Short tap starts the cycle', steps: ['on I0.0', 'wait 1000', 'tap I0.1 80', 'expect Q0.1=1 Q0.2=0', 'wait 2000', 'expect Q0.0=1 Q0.3=1', 'wait 5000', 'expect Q0.2=1 Q0.3=0 Q0.4=1', 'stays Q0.2=1 4000'] },
+        { name: 'RUN off is red', steps: ['wait 100', 'expect Q0.0=1 Q0.2=0 Q0.4=1'] },
+      ],
+    },
+    {
+      id: 'bottling', level: 6, plant: 'bottling', title: 'Bottle filling line',
+      brief: '<b>START</b> runs the line (STOP stops everything). The conveyor brings bottles to the filler. When a bottle <b>arrives</b> in position: stop the conveyor, open the fill valve until the bottle is <b>full</b>, close it, then move on to the next bottle. No spills, no overfilling, no under-filled bottles. Running lamp on while the line runs.',
+      hints: ['Latch a "line running" memory bit.', 'The bottle stays in place after filling, so start the fill on the rising edge P(I0.2) of "bottle in place", not on the level.', 'Fill step: SET on arrival, RESET when full. Conveyor = running AND NOT filling. Valve = filling AND NOT full.'],
+      solution: 'RUNG Line running latch\nNO(I0.0) | NO(I0.1) COIL(M0.0)\nNO(M0.0)\nRUNG New bottle arrived → filling step\nNO(M0.0) P(I0.2) SET(M0.1)\nRUNG Full or line stopped → end of filling\nNO(I0.3) | RST(M0.1)\nNC(M0.0)\nRUNG Fill valve\nNO(M0.1) NC(I0.3) COIL(Q0.1)\nRUNG Conveyor only when not filling\nNO(M0.0) NC(M0.1) COIL(Q0.0)\nRUNG Running lamp\nNO(M0.0) COIL(Q0.2)',
+      tests: [
+        { name: 'Stops and fills the first bottle', steps: ['tap I0.0', 'waitfor I0.2=1 3000', 'wait 50', 'expect Q0.0=0 Q0.1=1', 'waitfor I0.3=1 3000', 'wait 50', 'expect Q0.1=0 Q0.0=1'] },
+        { name: 'Fills a run of bottles', steps: ['tap I0.0', 'wait 16000', 'plant filled>=3 under=0'] },
+        { name: 'STOP mid-fill', steps: ['tap I0.0', 'waitfor Q0.1=1 3000', 'wait 500', 'tap I0.1', 'expect Q0.0=0 Q0.1=0 Q0.2=0'] },
+      ],
+    },
+    {
+      id: 'mixer', level: 6, plant: 'mixer', title: 'Batch mixer recipe',
+      brief: 'One batch per <b>START</b> (vessel must be empty): ① valve A until 40 % ② valve B until 80 %, mixer on ③ keep mixing for <b>5 s</b> and heat to <b>60 °C</b> (heater only while below 60 °C) ④ drain until empty ⑤ <b>Batch done</b> lamp for 2 s, then ready again. STOP aborts to idle. Use a step number in <b>MW0</b>.',
+      hints: ['One transition rung per step: CMP(MW0==n) AND condition → MOV(n+1, MW0).', 'Step 3 → 4 needs both: mix timer done AND temperature OK.', 'Outputs decode the step: valve A in step 1, valve B in step 2, mixer in steps 2–3, heater in step 3 AND NOT temp OK, drain in step 4, lamp in step 5.'],
+      solution: 'NAME Batch mixer\nRUNG 0 → 1: start when the vessel is empty\nCMP(MW0==0) P(I0.0) NC(I0.4) MOV(1,MW0)\nRUNG 1 → 2: 40 % reached\nCMP(MW0==1) NO(I0.2) MOV(2,MW0)\nRUNG 2 → 3: 80 % reached\nCMP(MW0==2) NO(I0.3) MOV(3,MW0)\nRUNG 3 → 4: mixed long enough and hot\nCMP(MW0==3) NO(T0) NO(I0.5) MOV(4,MW0)\nRUNG 4 → 5: empty\nCMP(MW0==4) NC(I0.4) MOV(5,MW0)\nRUNG 5 → 0: done lamp shown\nCMP(MW0==5) NO(T1) MOV(0,MW0)\nRUNG STOP aborts\nNC(I0.1) MOV(0,MW0)\nRUNG Mix timer in step 3\nCMP(MW0==3) TON(T0,5s)\nRUNG Done-lamp timer in step 5\nCMP(MW0==5) TON(T1,2s)\nRUNG Valve A\nCMP(MW0==1) COIL(Q0.0)\nRUNG Valve B\nCMP(MW0==2) COIL(Q0.1)\nRUNG Mixer in steps 2 and 3\nCMP(MW0==2) | COIL(Q0.2)\nCMP(MW0==3)\nRUNG Heater: step 3, only below 60 °C\nCMP(MW0==3) NC(I0.5) COIL(Q0.3)\nRUNG Drain\nCMP(MW0==4) COIL(Q0.4)\nRUNG Batch done\nCMP(MW0==5) COIL(Q0.5)',
+      tests: [
+        { name: 'Uses the step register', steps: ['tap I0.0', 'expect MW0=1 Q0.0=1'] },
+        { name: 'Makes a good batch', steps: ['tap I0.0', 'waitfor Q0.5=1 35000', 'wait 200', 'plant good=1 bad=0'] },
+        { name: 'Two batches in a row', steps: ['tap I0.0', 'waitfor Q0.5=1 35000', 'waitfor MW0=0 4000', 'tap I0.0', 'waitfor Q0.5=1 35000', 'wait 200', 'plant good=2 bad=0'] },
+        { name: 'STOP aborts', steps: ['tap I0.0', 'wait 3000', 'tap I0.1', 'expect MW0=0 Q0.0=0 Q0.2=0 Q0.3=0'] },
+      ],
+    },
+    {
+      id: 'elevator', level: 6, plant: 'elevator', title: '3-floor elevator',
+      brief: 'Call buttons are <b>remembered</b> until served. The car travels to a called floor, <b>stops at its floor sensor</b>, opens the door for <b>3 s</b>, then closes it. A call for the floor the car is at just opens the door. The car must never move with the door open, never run both directions, and never overrun floor 1 or 3.',
+      hints: ['SET a memory bit per call; RESET it once the door has been open 3 s at that floor.', 'Store the last floor seen in MW0 (MOV 1/2/3 from the floor sensors). Then "call above" = (call 2 AND MW0 < 2) OR (call 3 AND MW0 < 3).', '"Serving" = at a floor that has a call. Door opens while serving and the motor is off. Motors need: door closed, not serving, door command off, and the other motor off.'],
+      never: [{ when: 'Q0.0=1 Q0.1=1', msg: 'UP and DOWN together.' }],
+      solution: 'NAME Elevator\nRUNG Remember the last floor\nNO(I0.3) MOV(1,MW0)\nRUNG\nNO(I0.4) MOV(2,MW0)\nRUNG\nNO(I0.5) MOV(3,MW0)\nRUNG Calls are remembered\nNO(I0.0) SET(M0.1)\nRUNG\nNO(I0.1) SET(M0.2)\nRUNG\nNO(I0.2) SET(M0.3)\nRUNG Serving: the car is at a floor with a call\nNO(I0.3) NO(M0.1) | COIL(M1.0)\nNO(I0.4) NO(M0.2) |\nNO(I0.5) NO(M0.3)\nRUNG Door open while serving and stopped\nNO(M1.0) NC(Q0.0) NC(Q0.1) COIL(Q0.2)\nRUNG Door open time\nNO(Q0.2) TON(T0,3s)\nRUNG Clear the call that was served\nNO(T0) NO(I0.3) RST(M0.1)\nRUNG\nNO(T0) NO(I0.4) RST(M0.2)\nRUNG\nNO(T0) NO(I0.5) RST(M0.3)\nRUNG Up: door closed, not serving, a call above\nNO(I0.6) NC(M1.0) NC(Q0.1) NC(Q0.2) | NO(M0.2) CMP(MW0<2) | COIL(Q0.0)\n. . . . NO(M0.3) CMP(MW0<3)\nRUNG Down: door closed, not serving, a call below\nNO(I0.6) NC(M1.0) NC(Q0.0) NC(Q0.2) | NO(M0.1) CMP(MW0>1) | COIL(Q0.1)\n. . . . NO(M0.2) CMP(MW0>2)',
+      tests: [
+        { name: 'Call at the current floor opens the door', steps: ['tap I0.0', 'waitfor Q0.2=1 1000', 'waitfor Q0.2=0 5000', 'waitfor I0.6=1 2000'] },
+        { name: 'Goes up to floor 3 and serves it', steps: ['tap I0.2', 'expect Q0.0=1', 'waitfor I0.5=1 6000', 'wait 100', 'expect Q0.0=0 Q0.2=1', 'waitfor I0.6=1 6000', 'plant s3=1'] },
+        { name: 'Comes back down to floor 1', steps: ['tap I0.2', 'waitfor I0.5=1 6000', 'waitfor Q0.2=1 1000', 'waitfor Q0.2=0 5000', 'waitfor I0.6=1 2000', 'tap I0.0', 'expect Q0.1=1', 'waitfor I0.3=1 6000', 'wait 100', 'expect Q0.2=1', 'waitfor I0.6=1 6000', 'plant s1=1'] },
+        { name: 'Remembers two calls', steps: ['tap I0.1', 'tap I0.2', 'wait 16000', 'plant s2=1 s3=1', 'expect Q0.0=0 Q0.1=0'] },
+      ],
+    },
+    {
+      id: 'sorter', level: 6, plant: 'sorter', title: 'Box sorter with tracking',
+      brief: '<b>START</b> runs the conveyor (STOP stops it). At the check station, remember whether the box is <b>tall</b>. When that box reaches the pusher, <b>stop the conveyor</b>, extend the pusher until it is out, retract it until home, then carry on. Short boxes ride through to the end. At most one box is between the check station and the pusher.',
+      hints: ['On the rising edge of "box at check", SET a "tall pending" bit if the tall eye is blocked.', 'On the rising edge of "box at pusher" with "tall pending": SET a push step that stops the conveyor.', 'Push: extend until "out", then a return bit retracts until "home"; then reset the push step, the return bit and "tall pending".'],
+      solution: 'NAME Box sorter\nRUNG Running latch\nNO(I0.0) | NO(I0.1) COIL(M0.0)\nNO(M0.0)\nRUNG Tall box at the check station → remember\nP(I0.2) NO(I0.3) SET(M0.1)\nRUNG Remembered tall box reached the pusher → push step\nP(I0.4) NO(M0.1) SET(M0.2)\nRUNG Pusher fully out → return\nNO(M0.2) NO(I0.5) SET(M0.3)\nRUNG Back home → forget the box\nNO(M0.3) NO(I0.6) RST(M0.1)\nRUNG Back home → end push step\nNO(M0.3) NO(I0.6) RST(M0.2)\nRUNG Clear return bit\nNC(M0.2) RST(M0.3)\nRUNG Pusher valve\nNO(M0.2) NC(M0.3) COIL(Q0.1)\nRUNG Conveyor stops while pushing\nNO(M0.0) NC(M0.2) COIL(Q0.0)',
+      tests: [
+        { name: 'Sorts the boxes', steps: ['tap I0.0', 'wait 28000', 'plant tallBin>=3 shortBin>=3 wrong=0'] },
+        { name: 'Conveyor stops while pushing', steps: ['tap I0.0', 'waitfor Q0.1=1 8000', 'expect Q0.0=0', 'waitfor I0.5=1 2000', 'waitfor I0.6=1 2000', 'wait 100', 'expect Q0.0=1'] },
+        { name: 'STOP', steps: ['tap I0.0', 'wait 2000', 'tap I0.1', 'expect Q0.0=0'] },
+      ],
+    },
   ];
 
   LL.CH_BY_ID = {};
