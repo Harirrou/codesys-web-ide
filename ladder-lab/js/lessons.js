@@ -712,7 +712,7 @@ Valve B = (AUTO AND step wants B) OR (MANUAL AND Jog B AND A is out)   ← inter
       sims: {},
       takeaways: ['OFF = nothing moves, MANUAL = one movement while held, AUTO = sequence after START.', 'One coil per output: (AUTO AND step) OR (MANUAL AND jog).', 'Interlocks stay active in MANUAL.', 'AUTO starts only from home; leaving AUTO stops the cycle without dropping the part.', 'Changeover: order complete → ask for the tool → verify it → load its recipe.'],
       mistakes: ['Writing each output twice (sequence and jog): double coil.', 'Disabling interlocks in manual "because the operator knows what he does".', 'Restarting AUTO from wherever the machine was left in manual.', 'Trusting the operator to fit the right tool without checking its code.'],
-      challenges: ['cyl-modes', 'fixture-modes', 'st-fixture-c', 'fixture-changeover'],
+      challenges: ['cyl-modes', 'fixture-man', 'fixture-c', 'fixture-orders', 'fixture-modes', 'st-fixture-c', 'fixture-changeover'],
     },
     {
       id: 'structure', level: 5, title: 'Program structure & troubleshooting', min: 9,
@@ -801,7 +801,7 @@ IF Tool = 0 THEN HmiAlarm := 2; Step := 90; END_IF   (* unknown tool *)</pre>
 <tr><td>Good for</td><td>2–3 very different tools; easy to read in ladder</td><td>Many similar tools; adding Tool C = adding table data</td></tr>
 <tr><td>Risk</td><td>Copy-paste errors, programs grow with every tool</td><td>Table mistakes; needs validation and good HMI display</td></tr>
 </table></div>
-<p>The fixture station projects let you build both: part 2 in ladder, part 3 recipe-driven in ST.</p>
+<p>The fixture station projects let you build both: dedicated sequences in ladder (Level 6), recipe-driven in ST (Level 7). Adding Tool C in both shows the difference.</p>
 <h3>4. Talking to the HMI</h3>
 <p>An HMI does not run your logic. It <b>reads and writes PLC tags</b>. The usual pattern:</p>
 <ul>
@@ -816,11 +816,11 @@ IF Tool = 0 THEN HmiAlarm := 2; Step := 90; END_IF   (* unknown tool *)</pre>
 <li><b>Tool change</b> only with clamps open and no part, then always <b>read the tool again</b>. The PLC must never assume the old tool is still there.</li>
 <li>Only drive outputs the current tool actually has (a <b>fitted mask</b>), so a missing clamp never gets air.</li>
 </ul>
-<div class="callout where"><b>Try it:</b> Lab → machine "Flexible fixture station" → <b>ⓘ How it works</b>. Then do the three projects in order: identify the tool → two sequences in ladder → recipe-driven in ST.</div>`,
+<div class="callout where"><b>Try it:</b> Lab → machine "Flexible fixture station" → <b>ⓘ How it works</b>. Then do the ladder projects in order: identify the tool → two sequences → MANUAL mode → add Tool C → production orders. The same machine in ST (recipe tables) comes in Level 7.</div>`,
       sims: {},
       takeaways: ['Trigger → status bit → data word; evaluate only while valid, handle no-read.', 'Validate the code against a table; unknown = alarm.', 'Dedicated sequences per tool or one recipe-driven sequence.', 'HMI = status words + command bits; STOP stays hard-wired.'],
       mistakes: ['Assuming the tool did not change after a tool change.', 'Driving clamps the current tool does not have.', 'Putting STOP only on the touch screen.'],
-      challenges: ['fixture-id', 'fixture', 'st-fixture'],
+      challenges: ['fixture-id', 'fixture', 'fixture-man', 'fixture-c', 'fixture-orders', 'st-fixture'],
     },
     {
       id: 'project-method', level: 6, title: 'How to plan a real project', min: 10,
