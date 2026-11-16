@@ -275,6 +275,18 @@
       ],
     },
 
+    {
+      id: 'analog-scale', level: 4, plant: 'atank', title: 'Scale a 4–20 mA level signal',
+      brief: 'The level transmitter gives <b>AIW0</b>: 6400 at 0 % (4 mA) up to 32000 at 100 % (20 mA). Convert it to <b>percent in MW0</b> (0–100). Then light the <b>High alarm</b> (Q0.0) at ≥ 90 % and the <b>Low alarm</b> (Q0.1) at ≤ 10 %.',
+      hints: ['Percent = (AIW0 − 6400) ÷ 256, because 25600 counts ÷ 100 % = 256 counts per percent.', 'Use an always-on contact SM0.0 with SUB(AIW0,6400,MW0), then DIV(MW0,256,MW0) on the next rung.', 'Alarms are compare contacts on MW0.'],
+      solution: 'NAME Level scaling\nRUNG Remove the 4 mA live zero\nNO(SM0.0) SUB(AIW0,6400,MW0)\nRUNG 256 counts per percent\nNO(SM0.0) DIV(MW0,256,MW0)\nRUNG High alarm\nCMP(MW0>=90) COIL(Q0.0)\nRUNG Low alarm\nCMP(MW0<=10) COIL(Q0.1)',
+      tests: [
+        { name: 'Scales 20 % correctly', steps: ['wait 50', 'expect MW0=20'] },
+        { name: 'High alarm at 90 %', steps: ['action bypass', 'waitfor Q0.0=1 20000', 'plant lvlPct>=89 lvlPct<=91', 'expect Q0.1=0'] },
+        { name: 'Low alarm at 10 %', steps: ['expect Q0.1=0', 'waitfor Q0.1=1 5000', 'plant lvlPct>=9 lvlPct<=11', 'expect Q0.0=0'] },
+      ],
+    },
+
     // ───────────── Level 5 · Sequences & projects ─────────────
     {
       id: 'tank', level: 5, plant: 'tank', title: 'Tank level control (hysteresis)',
@@ -381,6 +393,43 @@
         { name: 'Sorts the boxes', steps: ['tap I0.0', 'wait 28000', 'plant tallBin>=3 shortBin>=3 wrong=0'] },
         { name: 'Conveyor stops while pushing', steps: ['tap I0.0', 'waitfor Q0.1=1 8000', 'expect Q0.0=0', 'waitfor I0.5=1 2000', 'waitfor I0.6=1 2000', 'wait 100', 'expect Q0.0=1'] },
         { name: 'STOP', steps: ['tap I0.0', 'wait 2000', 'tap I0.1', 'expect Q0.0=0'] },
+      ],
+    },
+    {
+      id: 'carwash', level: 6, plant: 'carwash', title: 'Automatic car wash',
+      brief: 'Green light = drive in. With a car in position and the gantry home, <b>START</b> runs: ① gantry forward with <b>soap + brushes</b> to the end ② gantry back with <b>rinse + brushes</b> to home ③ <b>dryer 4 s</b> ④ green light: drive out; back to idle when the car has left. Red light while washing. <b>STOP</b> aborts the wash and the gantry returns home (once STOP is released). No spraying without a car.',
+      hints: ['Step number in MW0: 0 idle, 1 forward pass, 2 back pass, 3 dry, 4 drive out.', 'Transitions use the gantry limit switches, a TON for drying, and "car in position" going off for 4 → 0.', 'Homing after STOP: gantry back also in step 0 while the gantry is not home and STOP is not pressed. Green light only when the gantry is home.'],
+      never: [{ when: 'Q0.0=1 Q0.1=1', msg: 'Gantry forward and back together.' }],
+      solution: 'NAME Car wash\nRUNG 0 → 1: car in place, gantry home, START\nCMP(MW0==0) NO(I0.2) NO(I0.3) P(I0.0) MOV(1,MW0)\nRUNG 1 → 2: soap pass done\nCMP(MW0==1) NO(I0.4) MOV(2,MW0)\nRUNG 2 → 3: rinse pass done\nCMP(MW0==2) NO(I0.3) MOV(3,MW0)\nRUNG 3 → 4: dried\nCMP(MW0==3) NO(T0) MOV(4,MW0)\nRUNG 4 → 0: car has left\nCMP(MW0==4) NC(I0.2) MOV(0,MW0)\nRUNG STOP aborts\nNC(I0.1) MOV(0,MW0)\nRUNG Dry time\nCMP(MW0==3) TON(T0,4s)\nRUNG Gantry forward\nCMP(MW0==1) NC(Q0.1) COIL(Q0.0)\nRUNG Gantry back: rinse pass, or homing after an abort\nCMP(MW0==2) - - | NC(Q0.0) COIL(Q0.1)\nCMP(MW0==0) NC(I0.3) NO(I0.1)\nRUNG Soap\nCMP(MW0==1) COIL(Q0.2)\nRUNG Brushes on both passes\nCMP(MW0==1) | COIL(Q0.3)\nCMP(MW0==2)\nRUNG Rinse\nCMP(MW0==2) COIL(Q0.4)\nRUNG Dryer\nCMP(MW0==3) COIL(Q0.5)\nRUNG Green: drive in (idle, gantry home) or drive out\nCMP(MW0==0) NO(I0.3) | COIL(Q0.6)\nCMP(MW0==4) -\nRUNG Red: wait\nNC(Q0.6) COIL(Q0.7)',
+      tests: [
+        { name: 'Washes a car properly', steps: ['expect Q0.6=1', 'action in', 'wait 1800', 'tap I0.0', 'expect Q0.7=1 Q0.0=1 Q0.2=1', 'waitfor Q0.6=1 20000', 'action out', 'wait 2000', 'plant clean=1 dirty=0', 'expect MW0=0'] },
+        { name: 'No car, no wash', steps: ['tap I0.0', 'wait 500', 'expect Q0.0=0 Q0.2=0 MW0=0'] },
+        { name: 'STOP aborts and homes the gantry', steps: ['action in', 'wait 1800', 'tap I0.0', 'wait 2000', 'tap I0.1', 'expect Q0.2=0 Q0.0=0', 'waitfor I0.3=1 6000', 'wait 100', 'expect Q0.1=0 Q0.6=1'] },
+      ],
+    },
+    {
+      id: 'pump-station', level: 6, plant: 'pumps', title: 'Duty / standby pump station',
+      brief: 'In <b>AUTO</b>: start the <b>duty</b> pump when the level reaches 70 % and stop it at 20 %. <b>Swap</b> duty and standby after every pumping cycle so both pumps wear equally. If the level still reaches <b>85 %</b>, raise the alarm and run the <b>standby</b> pump too, until 20 %. A tripped pump must never be commanded, and the healthy one takes over as duty.',
+      hints: ['Demand latch: AUTO AND (>70 % OR demand) AND >20 %. Standby latch: same with >85 %.', 'Toggle a "pump 2 is duty" bit on the falling edge N(...) of the demand latch: the one-button toggle pattern.', 'Pump 1 is duty if (NOT toggle AND pump 1 OK) OR pump 2 not OK. Pump 1 = P1 OK AND ((demand AND P1 duty) OR standby).'],
+      solution: 'NAME Pump station\nRUNG Demand: start at 70 %, stop at 20 %\nNO(I0.0) | NO(I0.2) | NO(I0.1) COIL(M0.0)\n. NO(M0.0)\nRUNG Standby: start at 85 %, stop at 20 %\nNO(I0.0) | NO(I0.3) | NO(I0.1) COIL(M0.3)\n. NO(M0.3)\nRUNG Pulse at the end of each pumping cycle\nN(M0.0) COIL(M0.2)\nRUNG Toggle the duty pump on each pulse\nNO(M0.2) NC(M0.1) | COIL(M0.1)\nNC(M0.2) NO(M0.1)\nRUNG Pump 1 is duty (or pump 2 has tripped)\nNC(M0.1) NO(I0.4) | COIL(M1.0)\nNC(I0.5) -\nRUNG Pump 1\nNO(I0.4) | NO(M0.0) NO(M1.0) | COIL(Q0.0)\n. NO(M0.3) -\nRUNG Pump 2\nNO(I0.5) | NO(M0.0) NC(M1.0) | COIL(Q0.1)\n. NO(M0.3) -\nRUNG High-level alarm\nNO(I0.3) COIL(Q0.2)',
+      tests: [
+        { name: 'Duty pump cycle, then swap', steps: ['on I0.0', 'waitfor Q0.0=1 8000', 'expect Q0.1=0', 'waitfor Q0.0=0 20000', 'expect I0.1=0', 'waitfor Q0.1=1 15000', 'expect Q0.0=0'] },
+        { name: 'Equal wear over time', steps: ['on I0.0', 'wait 90000', 'plant p1Starts>=2 p2Starts>=2'] },
+        { name: 'Storm: standby pump helps', steps: ['on I0.0', 'action storm', 'wait 40000', 'plant both=1'] },
+        { name: 'Pump 1 trips: pump 2 takes over', steps: ['action trip1', 'on I0.0', 'wait 45000', 'plant p1Starts=0 p2Starts>=2'] },
+        { name: 'Nothing in manual', steps: ['action storm', 'wait 2000', 'expect Q0.0=0 Q0.1=0'] },
+      ],
+    },
+    {
+      id: 'level-control', level: 6, plant: 'atank', title: 'Analog level control (P controller)',
+      brief: 'Keep the scaling and alarms from "Scale a 4–20 mA level signal". In <b>AUTO</b>, hold the level near <b>50 %</b> with a proportional controller: <b>error = 50 − level %</b>, <b>valve % = error × 10</b>, limited to 0…100 %, sent as <b>AQW0 = valve % × 320</b>. AUTO off: valve closed (AQW0 = 0).',
+      hints: ['SUB(50,MW0,MW2) gives the error; MUL(MW2,10,MW4) the valve %.', 'Clamp with compares: CMP(MW4<0) → MOV(0,MW4) and CMP(MW4>100) → MOV(100,MW4). Put the manual MOV(0,MW4) after them.', 'MUL(MW4,320,AQW0) on an always-on contact. Notice the level settles a little below 50 %: that is the proportional offset.'],
+      solution: 'NAME Level control\nRUNG Remove the 4 mA live zero\nNO(SM0.0) SUB(AIW0,6400,MW0)\nRUNG 256 counts per percent\nNO(SM0.0) DIV(MW0,256,MW0)\nRUNG High alarm\nCMP(MW0>=90) COIL(Q0.0)\nRUNG Low alarm\nCMP(MW0<=10) COIL(Q0.1)\nRUNG Error = setpoint − level\nNO(SM0.0) SUB(50,MW0,MW2)\nRUNG Valve % = error × Kp\nNO(SM0.0) MUL(MW2,10,MW4)\nRUNG Clamp at 0 %\nCMP(MW4<0) MOV(0,MW4)\nRUNG Clamp at 100 %\nCMP(MW4>100) MOV(100,MW4)\nRUNG Manual: valve closed\nNC(I0.0) MOV(0,MW4)\nRUNG 0…100 % → 0…32000\nNO(SM0.0) MUL(MW4,320,AQW0)',
+      tests: [
+        { name: 'Holds the level near 50 %', steps: ['on I0.0', 'wait 40000', 'plant lvlPct>=42 lvlPct<=58'] },
+        { name: 'Copes with high demand', steps: ['on I0.0', 'wait 20000', 'action demand', 'wait 30000', 'plant lvlPct>=35 lvlPct<=58'] },
+        { name: 'Valve limited to 100 %', steps: ['on I0.0', 'wait 300', 'expect AQW0=32000'] },
+        { name: 'Manual closes the valve', steps: ['on I0.0', 'wait 5000', 'off I0.0', 'wait 100', 'expect AQW0=0'] },
       ],
     },
   ];

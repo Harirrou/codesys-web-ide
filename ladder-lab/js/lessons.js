@@ -11,7 +11,7 @@
     { n: 3, name: 'Timers', sub: 'On-delay, off-delay, pulse, retentive, timed sequences' },
     { n: 4, name: 'Counters & data', sub: 'Counting, comparing, words, field devices' },
     { n: 5, name: 'Sequences & pro practice', sub: 'Step logic, state machines, safety, structure' },
-    { n: 6, name: 'Real-world projects', sub: 'Whole machines: filling line, batch mixer, elevator, sorter' },
+    { n: 6, name: 'Real-world projects', sub: 'Whole machines: filling line, mixer, elevator, sorter, car wash, pump station, level control' },
   ];
 
   const pb = (name) => ({ name, kind: 'pb' });
@@ -519,7 +519,67 @@
       challenges: [],
     },
 
+    {
+      id: 'analog', level: 4, title: 'Analog signals & scaling (4–20 mA)', min: 11,
+      summary: 'Levels, pressures and temperatures arrive as numbers. Turn raw counts into engineering units.',
+      body: `
+<h3>What it is</h3>
+<p>A switch is on or off. A <b>transmitter</b> measures a quantity (level, pressure, temperature, flow) and sends a continuous signal, most often <b>4–20 mA</b> (sometimes 0–10 V). The analog input card converts it to a number, the <b>raw value</b>. In Siemens S7-200 style: <code>AIW0</code> = 0…32000 for 0…20 mA, so <b>4 mA = 6400</b> and <b>20 mA = 32000</b>.</p>
+<h3>Why 4 mA and not 0?</h3>
+<p>The "live zero". A healthy transmitter at 0 % still sends 4 mA. If a wire breaks, the current drops to <b>0 mA</b>, which is clearly below 4 mA. The PLC can tell "0 % level" apart from "broken cable" and raise a fault instead of trusting a false reading. Fail-safe again.</p>
+<h3>Scaling</h3>
+<p>Convert counts to engineering units with a straight line:</p>
+<pre class="code">value = (raw − raw_min) × (span) ÷ (raw_max − raw_min) + eng_min
+level % = (AIW0 − 6400) × 100 ÷ 25600
+        = (AIW0 − 6400) ÷ 256          ← integer-friendly</pre>
+<p>Integer math in 16-bit words overflows above 32767, so <code>× 100</code> first would break (25600 × 100). Dividing by 256 avoids it. Real projects use 32-bit integers or REAL (floating point) maths, or a ready-made scaling block (SCALE_X/NORM_X in TIA Portal, LIN_TRAFO in CODESYS, SCP in Allen-Bradley).</p>
+[[sim:scale]]
+<h3>Analog outputs</h3>
+<p>Analog outputs work the other way round: write 0…32000 to <code>AQW0</code> and the card drives 0…20 mA (or 4…20 mA) to a <b>control valve</b> positioner or a VFD speed reference.</p>
+<h3>Alarms on analog values</h3>
+<ul>
+<li>High / low alarms with compare instructions (<code>MW0 ≥ 90</code>).</li>
+<li>Add a <b>deadband</b> or delay timer so a value hovering at 90.0 % doesn't make the alarm flicker.</li>
+<li>Out-of-range raw values (below about 3.8 mA) mean a sensor fault, not a reading.</li>
+</ul>
+<div class="callout where"><b>Where:</b> tank levels, line pressure, oven temperature, flow totals, motor speed references. Practically every process plant.</div>`,
+      sims: { scale: { program: 'RUNG Remove the 4 mA live zero\nNO(SM0.0) SUB(AIW0,6400,MW0)\nRUNG 256 counts per percent\nNO(SM0.0) DIV(MW0,256,MW0)\nRUNG High alarm ≥ 90 %\nCMP(MW0>=90) COIL(Q0.0)\nRUNG Wire break: below 4 mA\nCMP(AIW0<6000) COIL(Q0.1)', inputs: { 'AIW0': { name: 'Level transmitter', kind: 'ana', min: 0, max: 32000, value: 19200 } }, plant: 'atank', outputs: { 'Q0.0': 'High alarm', 'Q0.1': 'Sensor fault' }, note: 'Drag the slider: 19200 = 12 mA = 50 %. Slide below 4 mA to see the wire-break fault.' } },
+      takeaways: ['4–20 mA → 6400…32000 counts; 4 mA = 0 %.', 'Scale with (raw − 6400) ÷ 256 for percent.', 'Below 4 mA means a sensor or wire fault.'],
+      mistakes: ['Multiplying before dividing and overflowing 16 bits.', 'Treating 0 mA as "empty" instead of "broken".'],
+      challenges: ['analog-scale'],
+    },
+
     // ═══════════════════════ LEVEL 5 ═══════════════════════
+    {
+      id: 'control-loops', level: 5, title: 'Closed-loop control: on/off, P, PI, PID', min: 12,
+      summary: 'Measure, compare with a setpoint, correct, continuously. The idea behind every PID block.',
+      body: `
+<h3>Open loop vs closed loop</h3>
+<p><b>Open loop:</b> "open the valve 40 %" and hope. <b>Closed loop:</b> measure the result (the <b>process value</b>, PV), compare it with the target (<b>setpoint</b>, SP), and correct the output (<b>controller output</b>, CV) all the time. The difference SP − PV is the <b>error</b>.</p>
+<h3>1. On/off (two-point) control</h3>
+<p>Pump on below LOW, off above HIGH: the tank project from level 5. Simple and robust, but the value swings between the two limits. The gap between them, the <b>hysteresis</b>, stops the pump from short-cycling.</p>
+<h3>2. Proportional (P)</h3>
+<p><code>output = Kp × error</code>. A bigger error opens the valve more. Smooth, but it always leaves a small <b>offset</b>: some error is needed to keep the valve open against the outflow. In the analog-tank project with Kp = 10, the level settles near 46 % instead of 50 %. More demand gives more offset; a higher Kp gives less offset but more risk of oscillation.</p>
+<h3>3. Integral (I): removes the offset</h3>
+<p>The I part adds up the error over time: <code>output += error × Kp × dt ÷ Ti</code>. As long as any error remains, the output keeps creeping until the error is zero. PI is the workhorse for levels, flows, pressures and temperatures.</p>
+<h3>4. Derivative (D): damping</h3>
+<p>The D part reacts to how fast the error changes, braking overshoot. It is useful for slow, heavy processes such as temperatures, and usually left off for noisy signals like flow.</p>
+<h3>In real PLCs</h3>
+<div class="tbl"><table>
+<tr><th>Platform</th><th>PID block</th></tr>
+<tr><td>Siemens S7-200 / 1200 / 1500</td><td>PID wizard / PID_Compact</td></tr>
+<tr><td>CODESYS</td><td>PID (Util library), PID_FIXCYCLE</td></tr>
+<tr><td>Allen-Bradley</td><td>PID, PIDE</td></tr>
+</table></div>
+<p>You give it SP, PV and tuning (Kp, Ti, Td), and it writes the output. It runs at a fixed cycle (cyclic interrupt), not at a random scan time.</p>
+<h3>Tuning in one paragraph</h3>
+<p>Start with P only and raise Kp until the value starts to oscillate, then halve it. Add I (start with a long Ti) and shorten Ti until the offset disappears quickly without big overshoot. Add D only if needed. Always clamp the output to 0…100 % and stop the integral from winding up while clamped (<b>anti-windup</b>).</p>
+<div class="callout tip">Build the P controller in project <b>"Analog level control"</b> and watch the trend: the level settles below the dashed setpoint. That gap is exactly what the I term would remove.</div>`,
+      sims: {},
+      takeaways: ['Error = SP − PV.', 'P leaves an offset, I removes it, D damps.', 'Clamp the output and use anti-windup.'],
+      mistakes: ['Expecting a P controller to reach the setpoint exactly.', 'Running PID in the normal scan with a changing cycle time.'],
+      challenges: ['level-control', 'tank'],
+    },
     {
       id: 'video-circuit', level: 5, title: 'Your video, decoded: 3-cylinder sequence', min: 12,
       summary: 'The circuit from the short you shared, rebuilt rung by rung, plus what it doesn\'t tell you.',
@@ -709,7 +769,7 @@ Lamp := T0.Q;</pre>
       sims: {},
       takeaways: ['I/O list → step table → safety → transitions → outputs → test normal → test abnormal.', 'The step table is the program.', 'Remember measured data until the item reaches the station that uses it.'],
       mistakes: ['Starting to draw rungs before the sequence is written down.', 'Testing only the happy path.'],
-      challenges: ['ped-crossing', 'bottling', 'mixer', 'elevator', 'sorter'],
+      challenges: ['ped-crossing', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pump-station', 'level-control'],
     },
   ];
 
@@ -793,6 +853,18 @@ Lamp := T0.Q;</pre>
     ['Sinking / sourcing', 'Direction of current at an I/O point. The input card and sensor must be complementary.'],
     ['Discrete / digital I/O', 'On/off signals (24 V DC typically).'],
     ['Analog I/O', 'Continuous signals such as 4–20 mA or 0–10 V, read as numbers.'],
+    ['4–20 mA', 'The standard analog current loop. 4 mA = 0 % (live zero), 20 mA = 100 %; below 4 mA means a fault.'],
+    ['Raw value / counts', 'The number an analog card produces, e.g. AIW0 = 6400…32000 for 4…20 mA.'],
+    ['Scaling', 'Converting raw counts into engineering units (%, bar, °C) with a straight-line formula.'],
+    ['Transmitter', 'Field device that measures a process value and sends it as an analog signal.'],
+    ['Setpoint (SP)', 'The target value a controller tries to reach.'],
+    ['Process value (PV)', 'The measured value being controlled.'],
+    ['PID', 'Proportional–Integral–Derivative controller: output from the error, its sum over time, and its rate of change.'],
+    ['Offset (steady-state error)', 'The error that remains with P-only control; the I term removes it.'],
+    ['Anti-windup', 'Stopping the integral term from growing while the output is clamped at 0 or 100 %.'],
+    ['Duty / standby', 'Two machines for one job: the duty one runs, the standby one helps or takes over on a fault.'],
+    ['Alternation (lead/lag)', 'Swapping the duty unit every cycle so both wear equally.'],
+    ['Tracking', 'Remembering data about an item (measured upstream) until it reaches the station that acts on it.'],
     ['Debounce', 'Ignoring short glitches so a signal is believed only when stable (often a short TON).'],
     ['Watchdog / timeout', 'Timer that flags a fault when an expected event doesn\'t happen in time.'],
     ['Hysteresis', 'Switching on and off at different thresholds (low/high level) to prevent rapid cycling.'],
@@ -840,6 +912,11 @@ Lamp := T0.Q;</pre>
     { l: 4, q: 'A PNP sensor should be connected to…', a: ['a sinking input card', 'a sourcing input card', 'an output card', 'any card'], c: 0, why: 'PNP sources current; the input must sink it.' },
     { l: 4, q: 'A single-solenoid spring-return valve, when the PLC output turns off…', a: ['stays where it is', 'returns to its rest position', 'locks', 'faults'], c: 1, why: 'The spring pushes it back.' },
     { l: 4, q: 'Which sensor detects a cylinder piston magnet?', a: ['Photo-eye', 'Reed switch', 'Thermocouple', 'Encoder'], c: 1, why: 'Reed switches on the barrel see the magnet.' },
+    { l: 4, q: 'A 4–20 mA transmitter reads 0 mA. Most likely…', a: ['the tank is empty', 'the wire is broken or the transmitter failed', 'the value is negative', 'it is 50 %'], c: 1, why: '0 % is 4 mA (live zero), so 0 mA means a fault.' },
+    { l: 4, q: 'AIW0 = 19200 on a 6400…32000 (4–20 mA) input. The level is…', a: ['25 %', '50 %', '60 %', '75 %'], c: 1, why: '(19200 − 6400) ÷ 256 = 50.' },
+    { l: 4, q: 'Why compute (AIW0 − 6400) ÷ 256 instead of (AIW0 − 6400) × 100 ÷ 25600 in 16-bit math?', a: ['It is more accurate', 'The ×100 would overflow a 16-bit word', 'Division is required first by IEC', 'No reason'], c: 1, why: '25600 × 100 is far above 32767.' },
+    { l: 5, q: 'A P-only level controller settles a bit below the setpoint. This is…', a: ['a wiring fault', 'the proportional offset; add an I term', 'integral windup', 'normal for PID'], c: 1, why: 'P needs some error to hold the valve open; I removes it.' },
+    { l: 5, q: 'In a duty/standby pump station, alternation means…', a: ['both pumps always run together', 'swapping which pump is duty after each cycle', 'running a pump in reverse', 'alternating 50 Hz'], c: 1, why: 'Equal wear on both pumps.' },
     { l: 5, q: 'Why use a step-number state machine for sequences?', a: ['It uses less memory', 'One active step, easy to debug, extend and show on an HMI', 'It is required by law', 'It is faster'], c: 1, why: 'Clear structure; maps to SFC and CASE.' },
     { l: 5, q: 'A transition rung in a step state machine looks like…', a: ['CMP(MW0==2) AND condition → MOV 3 → MW0', 'MW0 → coil', 'TON → MW0', 'SET MW0'], c: 0, why: 'In step 2, when condition, go to step 3.' },
     { l: 5, q: 'An emergency stop should…', a: ['only be a PLC input', 'cut dangerous energy through a safety relay or safety PLC', 'pause the program', 'be a software flag'], c: 1, why: 'Safety must not depend on standard program logic.' },

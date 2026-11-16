@@ -880,7 +880,218 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'sorter'];
+  // ───────────────────────── car wash ─────────────────────────
+  P.carwash = {
+    id: 'carwash', name: 'Automatic car wash', blurb: 'A wash bay with a travelling gantry (soap, brushes, rinse) and a dryer. Each car that leaves is inspected: soap, brushes and rinse must cover the whole car, then at least 3 s of drying.',
+    inputs: [
+      { addr: 'I0.0', name: 'START (coin)', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'Car in position', kind: 'sensor' },
+      { addr: 'I0.3', name: 'Gantry home', kind: 'sensor', note: 'Front end of travel' },
+      { addr: 'I0.4', name: 'Gantry at end', kind: 'sensor', note: 'Back end of travel' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Gantry forward', color: 'green' },
+      { addr: 'Q0.1', name: 'Gantry back', color: 'blue' },
+      { addr: 'Q0.2', name: 'Soap spray', color: 'white' },
+      { addr: 'Q0.3', name: 'Brushes', color: 'blue' },
+      { addr: 'Q0.4', name: 'Rinse', color: 'blue' },
+      { addr: 'Q0.5', name: 'Dryer', color: 'amber' },
+      { addr: 'Q0.6', name: 'Green light', color: 'green' },
+      { addr: 'Q0.7', name: 'Red light', color: 'red' },
+    ],
+    actions: [
+      { id: 'in', label: 'Car drives in', run(st) { if (st.car === 'none') { st.car = 'entering'; st.ct = 0; } } },
+      { id: 'out', label: 'Car drives out', run(st) { if (st.car === 'in') { st.car = 'leaving'; st.ct = 0; st.checkOut = true; } } },
+    ],
+    init() { return { g: 0, car: 'none', ct: 0, soap: {}, brush: {}, rinse: {}, dry: 0, clean: 0, dirty: 0, last: '', stall: 0, ang: 0, t: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000, f = Q['Q0.0'], b = Q['Q0.1'];
+      const busy = f || b || Q['Q0.2'] || Q['Q0.3'] || Q['Q0.4'] || Q['Q0.5'];
+      if (f && b) st.fault = st.fault || 'Gantry driven forward and back at the same time.';
+      if (st.checkOut) {
+        st.checkOut = false;
+        if (busy || st.g > 0.03) st.fault = st.fault || 'The car drove out while the wash was still running!';
+        const cov = (o) => Object.keys(o).length / 20;
+        const why = [];
+        if (cov(st.soap) < 0.9) why.push('soap ' + Math.round(cov(st.soap) * 100) + '%');
+        if (cov(st.brush) < 0.9) why.push('brushes ' + Math.round(cov(st.brush) * 100) + '%');
+        if (cov(st.rinse) < 0.9) why.push('rinse ' + Math.round(cov(st.rinse) * 100) + '%');
+        if (st.dry < 3000) why.push('dried ' + (st.dry / 1000).toFixed(1) + ' s');
+        if (why.length) { st.dirty++; st.last = 'Dirty car: ' + why.join(', '); } else { st.clean++; st.last = 'Clean car'; }
+        st.soap = {}; st.brush = {}; st.rinse = {}; st.dry = 0;
+      }
+      if (st.car === 'entering' || st.car === 'leaving') { st.ct += dt; if (st.ct >= 1500) st.car = st.car === 'entering' ? 'in' : 'none'; }
+      const carIn = st.car === 'in';
+      if ((Q['Q0.2'] || Q['Q0.4']) && !carIn) st.fault = st.fault || 'Sprayed water into a bay with no car in position.';
+      if (!st.fault) st.g = clamp(st.g + ((f ? 1 : 0) - (b ? 1 : 0)) * 0.25 * s, 0, 1);
+      if ((f && st.g >= 1) || (b && st.g <= 0)) st.stall += dt; else st.stall = 0;
+      if (st.stall > 1000) st.fault = st.fault || 'Gantry motor stalled at the end of travel. Stop it with the limit switch.';
+      const seg = Math.min(19, Math.floor(st.g * 20));
+      if (carIn && (f || b)) { if (Q['Q0.2']) st.soap[seg] = 1; if (Q['Q0.3']) st.brush[seg] = 1; if (Q['Q0.4']) st.rinse[seg] = 1; }
+      if (carIn && Q['Q0.5']) st.dry += dt;
+      if (Q['Q0.3']) st.ang += dt * 0.02;
+      const o = devices(this, ctrl);
+      o['I0.2'] = carIn ? 1 : 0; o['I0.3'] = st.g <= 0.01 ? 1 : 0; o['I0.4'] = st.g >= 0.99 ? 1 : 0;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const bx = 120, bw = 400, gy = 270;
+      c.fillStyle = th.ground; c.fillRect(0, gy, 640, 10);
+      c.fillStyle = th.wall; c.fillRect(bx - 10, 40, 10, gy - 40); c.fillRect(bx + bw, 40, 10, gy - 40); c.fillRect(bx - 10, 30, bw + 20, 12);
+      // car
+      let cx = null;
+      if (st.car === 'in') cx = bx + bw / 2;
+      else if (st.car === 'entering') cx = -80 + (bx + bw / 2 + 80) * (st.ct / 1500);
+      else if (st.car === 'leaving') cx = bx + bw / 2 + (st.ct / 1500) * 420;
+      if (cx != null) {
+        c.fillStyle = th.carBody; D.rr(c, cx - 110, gy - 56, 220, 40, 12); c.fill(); D.rr(c, cx - 60, gy - 86, 120, 34, 12); c.fill();
+        c.fillStyle = th.carGlass; D.rr(c, cx - 50, gy - 80, 44, 24, 5); c.fill(); D.rr(c, cx + 4, gy - 80, 44, 24, 5); c.fill();
+        c.fillStyle = th.knob; c.beginPath(); c.arc(cx - 66, gy - 14, 14, 0, 7); c.arc(cx + 66, gy - 14, 14, 0, 7); c.fill();
+      }
+      // gantry
+      const gx = bx + 20 + st.g * (bw - 40);
+      c.fillStyle = th.metal; c.fillRect(gx - 16, 42, 32, 12); c.fillRect(gx - 16, 42, 8, gy - 42); c.fillRect(gx + 8, 42, 8, gy - 42);
+      if (Q['Q0.3']) { c.strokeStyle = th.blue; c.lineWidth = 3; for (let i = 0; i < 6; i++) { const y = 70 + i * 32; c.beginPath(); c.moveTo(gx - 8, y + Math.sin(st.ang + i) * 6); c.lineTo(gx + 8, y - Math.sin(st.ang + i) * 6); c.stroke(); } }
+      if (Q['Q0.2'] || Q['Q0.4']) { c.fillStyle = Q['Q0.2'] ? 'rgba(255,255,255,.75)' : th.water; for (let i = 0; i < 18; i++) { const yy = 60 + ((i * 37 + st.t * 0.2) % (gy - 70)); c.beginPath(); c.arc(gx + ((i % 3) - 1) * 10, yy, 2.5, 0, 7); c.fill(); } }
+      if (Q['Q0.5']) { c.fillStyle = th.amber; D.rr(c, bx + bw / 2 - 30, 46, 60, 14, 4); c.fill(); D.text(c, '≋ DRYER ≋', bx + bw / 2, 72, { size: 10, mono: true, weight: 700, color: th.amber }); }
+      D.sensorDot(c, th, bx + 20, gy + 26, !!I['I0.3'], 'home I0.3');
+      D.sensorDot(c, th, bx + bw - 90, gy + 26, !!I['I0.4'], 'end I0.4');
+      D.sensorDot(c, th, bx + bw / 2 - 40, gy + 26, !!I['I0.2'], 'car I0.2');
+      D.lamp(c, th, 40, 70, 12, !!Q['Q0.6'], 'green', 'GO', 'Q0.6');
+      D.lamp(c, th, 40, 140, 12, !!Q['Q0.7'], 'red', 'WAIT', 'Q0.7');
+      D.text(c, 'clean ' + st.clean + '  dirty ' + st.dirty, 630, 20, { size: 12, mono: true, weight: 700, color: st.dirty ? th.red : th.ink, align: 'right' });
+      if (st.last) D.text(c, st.last.length > 40 ? st.last.slice(0, 39) + '…' : st.last, 630, 300, { size: 10, color: st.last.startsWith('Clean') ? th.on : th.red, align: 'right' });
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  // ───────────────────────── pump station ─────────────────────────
+  P.pumps = {
+    id: 'pumps', name: 'Two-pump station', blurb: 'A wastewater sump with two identical pumps. One pump normally does the work (duty), the other is standby. Level switches at 20 %, 70 % and 85 %.',
+    inputs: [
+      { addr: 'I0.0', name: 'AUTO', kind: 'sw' },
+      { addr: 'I0.1', name: 'Level > 20%', kind: 'sensor', note: 'Low switch: pumps may run while this is 1' },
+      { addr: 'I0.2', name: 'Level > 70%', kind: 'sensor', note: 'High switch: start the duty pump' },
+      { addr: 'I0.3', name: 'Level > 85%', kind: 'sensor', note: 'High-high switch: alarm, start standby' },
+      { addr: 'I0.4', name: 'Pump 1 OK', kind: 'sensor', note: '0 when pump 1 has tripped' },
+      { addr: 'I0.5', name: 'Pump 2 OK', kind: 'sensor', note: '0 when pump 2 has tripped' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Pump 1', color: 'green' },
+      { addr: 'Q0.1', name: 'Pump 2', color: 'green' },
+      { addr: 'Q0.2', name: 'High-level alarm', color: 'red' },
+    ],
+    actions: [
+      { id: 'storm', label: 'Storm inflow', toggle: true, run(st) { st.storm = !st.storm; } },
+      { id: 'trip1', label: 'Trip pump 1', toggle: true, run(st) { st.trip1 = !st.trip1; } },
+      { id: 'trip2', label: 'Trip pump 2', toggle: true, run(st) { st.trip2 = !st.trip2; } },
+    ],
+    init() { return { level: 0.5, storm: false, trip1: false, trip2: false, p1Starts: 0, p2Starts: 0, r1: 0, r2: 0, both: 0, a1: 0, a2: 0, t: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      const r1 = Q['Q0.0'] && !st.trip1 ? 1 : 0, r2 = Q['Q0.1'] && !st.trip2 ? 1 : 0;
+      if (r1 && !st.r1) st.p1Starts++;
+      if (r2 && !st.r2) st.p2Starts++;
+      st.r1 = r1; st.r2 = r2;
+      if (r1 && r2) st.both = 1;
+      st.level += ((st.storm ? 0.16 : 0.06) - 0.1 * (r1 + r2)) * s;
+      if (st.level >= 1) { st.level = 1; st.fault = st.fault || 'The sump overflowed: sewage in the street!'; }
+      if ((r1 || r2) && st.level < 0.05) st.fault = st.fault || 'A pump ran dry and was damaged.';
+      st.level = clamp(st.level, 0, 1);
+      if (r1) st.a1 += dt * 0.02; if (r2) st.a2 += dt * 0.02;
+      const o = devices(this, ctrl);
+      o['I0.1'] = st.level > 0.2 ? 1 : 0; o['I0.2'] = st.level > 0.7 ? 1 : 0; o['I0.3'] = st.level > 0.85 ? 1 : 0;
+      o['I0.4'] = st.trip1 ? 0 : 1; o['I0.5'] = st.trip2 ? 0 : 1;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const tx = 200, ty = 40, tw = 240, tb = 290, H = tb - ty;
+      c.fillStyle = th.water; c.globalAlpha = 0.75; c.fillRect(tx, tb - st.level * H, tw, st.level * H); c.globalAlpha = 1;
+      c.strokeStyle = th.ink; c.lineWidth = 3; c.beginPath(); c.moveTo(tx, ty); c.lineTo(tx, tb); c.lineTo(tx + tw, tb); c.lineTo(tx + tw, ty); c.stroke();
+      [[0.85, 'I0.3', '85%'], [0.7, 'I0.2', '70%'], [0.2, 'I0.1', '20%']].forEach(([lv, a, l]) => D.sensorDot(c, th, tx - 20, tb - lv * H, !!I[a], a + ' ' + l, 'left'));
+      D.pipe(c, th, [[20, 60], [tx + 20, 60], [tx + 20, ty + 6]], true, st.t * (st.storm ? 2.5 : 1));
+      D.text(c, st.storm ? 'STORM inflow' : 'inflow', 20, 46, { size: 10, mono: true, weight: 700, color: st.storm ? th.red : th.muted, align: 'left' });
+      [[1, tx + 70], [2, tx + 170]].forEach(([n, x]) => {
+        const run = n === 1 ? st.r1 : st.r2, trip = n === 1 ? st.trip1 : st.trip2;
+        c.fillStyle = trip ? th.red : run ? th.on : th.metal; c.beginPath(); c.arc(x, tb - 24, 18, 0, 7); c.fill();
+        c.save(); c.translate(x, tb - 24); c.rotate(n === 1 ? st.a1 : st.a2); c.fillStyle = th.metalDark; c.fillRect(-2, -14, 4, 28); c.fillRect(-14, -2, 28, 4); c.restore();
+        D.pipe(c, th, [[x, tb - 42], [x, 20], [620, 20]], !!run, st.t);
+        D.text(c, 'P' + n + (trip ? ' TRIPPED' : ''), x, tb + 16, { size: 11, weight: 700, color: trip ? th.red : th.ink });
+        D.text(c, 'starts ' + (n === 1 ? st.p1Starts : st.p2Starts), x, tb + 32, { size: 10, mono: true, color: th.muted });
+      });
+      D.lamp(c, th, 560, 120, 12, !!Q['Q0.2'] && st.t % 600 < 400, 'red', 'Alarm', 'Q0.2');
+      D.text(c, Math.round(st.level * 100) + ' %', tx + tw / 2, ty + 20, { size: 16, mono: true, weight: 700, color: th.ink });
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  // ───────────────────────── analog tank ─────────────────────────
+  P.atank = {
+    id: 'atank', name: 'Analog level tank', blurb: 'A level transmitter sends 4–20 mA (read as AIW0 = 6400…32000). A control valve opens 0–100 % from AQW0 = 0…32000. Water is drawn off continuously.',
+    inputs: [
+      { addr: 'I0.0', name: 'AUTO', kind: 'sw' },
+      { addr: 'AIW0', name: 'Level transmitter', kind: 'sensor', note: '4–20 mA: 0 % = 6400, 100 % = 32000' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'High alarm', color: 'red' },
+      { addr: 'Q0.1', name: 'Low alarm', color: 'amber' },
+      { addr: 'AQW0', name: 'Inlet valve', color: 'blue' },
+    ],
+    actions: [
+      { id: 'bypass', label: 'Manual bypass fill', toggle: true, run(st) { st.bypass = !st.bypass; } },
+      { id: 'demand', label: 'High demand', toggle: true, run(st) { st.hi = !st.hi; } },
+    ],
+    init() { return { level: 0.205, valve: 0, bypass: false, hi: false, hist: [], ht: 0, lvlPct: 21, t: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      const cmd = clamp((Q['AQW0'] || 0) / 32000, 0, 1);
+      st.valve += (cmd - st.valve) * Math.min(1, s * 3);
+      const inflow = 0.12 * st.valve + (st.bypass ? 0.1 : 0);
+      st.level += (inflow - (st.level > 0 ? (st.hi ? 0.08 : 0.05) : 0)) * s;
+      if (st.level >= 1) { st.level = 1; if (inflow > 0.01) st.fault = st.fault || 'Tank overflowed.'; }
+      st.level = clamp(st.level, 0, 1);
+      st.lvlPct = Math.round(st.level * 100);
+      st.ht += dt; if (st.ht >= 200) { st.ht = 0; st.hist.push(st.level); if (st.hist.length > 120) st.hist.shift(); }
+      const o = devices(this, ctrl);
+      o['AIW0'] = Math.round(6400 + st.level * 25600);
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const tx = 60, ty = 50, tw = 130, tb = 290, H = tb - ty;
+      c.fillStyle = th.water; c.globalAlpha = 0.8; c.fillRect(tx, tb - st.level * H, tw, st.level * H); c.globalAlpha = 1;
+      c.strokeStyle = th.ink; c.lineWidth = 3; c.beginPath(); c.moveTo(tx, ty); c.lineTo(tx, tb); c.lineTo(tx + tw, tb); c.lineTo(tx + tw, ty); c.stroke();
+      D.pipe(c, th, [[tx + 30, ty - 30], [tx + 30, ty + 4]], st.valve > 0.02, st.t);
+      c.fillStyle = th.blue; D.rr(c, tx + 14, ty - 44, 32, 16, 3); c.fill();
+      D.text(c, 'valve ' + Math.round(st.valve * 100) + '%', tx + 54, ty - 36, { size: 11, mono: true, weight: 700, color: th.ink, align: 'left' });
+      D.text(c, 'AQW0 = ' + (Q['AQW0'] || 0), tx + 54, ty - 20, { size: 10, mono: true, color: th.muted, align: 'left' });
+      // transmitter
+      const ma = 4 + 16 * st.level;
+      c.fillStyle = th.panel2; D.rr(c, tx + tw + 12, 120, 86, 56, 6); c.fill(); c.strokeStyle = th.line; c.lineWidth = 1; c.stroke();
+      D.text(c, 'LT 101', tx + tw + 55, 134, { size: 10, weight: 700, color: th.muted });
+      D.text(c, ma.toFixed(2) + ' mA', tx + tw + 55, 152, { size: 13, mono: true, weight: 700, color: th.ink });
+      D.text(c, 'AIW0 ' + (I['AIW0'] || 0), tx + tw + 55, 168, { size: 10, mono: true, color: th.muted });
+      D.text(c, st.lvlPct + ' %', tx + tw / 2, tb - st.level * H - 12, { size: 13, mono: true, weight: 700, color: th.ink });
+      // trend
+      const gx = 320, gy = 50, gw = 290, gh = 200;
+      c.fillStyle = th.panel; D.rr(c, gx, gy, gw, gh, 8); c.fill(); c.strokeStyle = th.line; c.stroke();
+      [0, 25, 50, 75, 100].forEach((v) => { const y = gy + gh - (v / 100) * gh; c.strokeStyle = th.line; c.globalAlpha = 0.5; c.beginPath(); c.moveTo(gx, y); c.lineTo(gx + gw, y); c.stroke(); c.globalAlpha = 1; D.text(c, v + '', gx - 6, y, { size: 9, mono: true, color: th.muted, align: 'right' }); });
+      c.setLineDash([6, 5]); c.strokeStyle = th.amber; c.lineWidth = 1.5; c.beginPath(); c.moveTo(gx, gy + gh / 2); c.lineTo(gx + gw, gy + gh / 2); c.stroke(); c.setLineDash([]);
+      D.text(c, 'setpoint 50 %', gx + gw - 6, gy + gh / 2 - 10, { size: 9, mono: true, color: th.amber, align: 'right' });
+      c.strokeStyle = th.water; c.lineWidth = 2.5; c.beginPath();
+      st.hist.forEach((v, i) => { const x = gx + (i / 119) * gw, y = gy + gh - v * gh; i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.stroke();
+      D.text(c, 'level trend · last 24 s', gx + 8, gy + 12, { size: 10, weight: 600, color: th.muted, align: 'left' });
+      D.lamp(c, th, 380, 290, 10, !!Q['Q0.0'], 'red', 'High', 'Q0.0');
+      D.lamp(c, th, 460, 290, 10, !!Q['Q0.1'], 'amber', 'Low', 'Q0.1');
+      D.text(c, (st.bypass ? 'BYPASS ' : '') + (st.hi ? 'HIGH DEMAND' : ''), 600, 290, { size: 10, mono: true, weight: 700, color: th.red, align: 'right' });
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pumps', 'atank'];
 
   // ───────────────────────── automated test runner ─────────────────────────
   /* Test steps (strings):
@@ -904,7 +1115,7 @@
     const never = opts.never || [];
     let t = 0, I = {};
     const name = (a) => (opts.tags && opts.tags[a] ? opts.tags[a] + ' (' + a + ')' : a);
-    const val = (a) => (/^I/.test(a) ? (I[a] || 0) : m.read(a));
+    const val = (a) => (/^I/.test(a) || /^AIW/.test(a) ? (I[a] || 0) : m.read(a));
     const parseConds = (arr) => arr.map((s) => { const [a, v] = s.split('='); return { a: LL.norm(a), v: +v }; });
     const condOk = (cs) => cs.every((x) => val(x.a) === x.v);
     const fmt = (v, a) => (LL.isWordAddr(a) ? String(v) : v ? 'ON' : 'OFF');

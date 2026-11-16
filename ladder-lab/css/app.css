@@ -252,6 +252,9 @@ main { padding-block: 24px 48px; }
 .dev.sw.down .cap { background: var(--power-soft); }
 .dev.sw.down .cap i { left: 19px; background: var(--power); transform: none; }
 .dev.act { border-style: dashed; }
+.dev.ana { cursor: default; gap: 12px; flex-wrap: wrap; padding: 8px 14px; }
+.dev.ana input { flex: 1; min-width: 160px; accent-color: var(--power); }
+.dev.ana i { font-style: normal; }
 .dev.act.down { border-color: var(--accent-bg); background: var(--surface); }
 .lamp { display: inline-flex; align-items: center; gap: 7px; font-size: .86rem; font-weight: 600; padding: 4px 10px 4px 6px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); }
 .lamp i { width: 16px; height: 16px; border-radius: 50%; background: var(--p-lampoff); border: 2px solid var(--p-bezel); transition: background .08s, box-shadow .08s; }

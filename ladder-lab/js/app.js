@@ -106,6 +106,17 @@
   // Renders operator devices for a list [{addr,name,kind,color}] bound to ctrl
   function deviceEl(d, ctrl, onChange) {
     const kind = d.kind;
+    if (kind === 'ana') {
+      const mn = d.min == null ? 6400 : d.min, mx = d.max == null ? 32000 : d.max;
+      if (ctrl[d.addr] == null) ctrl[d.addr] = d.value == null ? mn : d.value;
+      const el = h(`<label class="dev ana"><span class="lbl">${esc(d.name)}<span class="sub">${esc(d.addr)} = <b data-v>0</b> · <i data-ma></i></span></span><input type="range" min="${mn}" max="${mx}" step="64" value="${ctrl[d.addr]}" aria-label="${esc(d.name)}"></label>`);
+      const inp = el.querySelector('input');
+      const show = () => { el.querySelector('[data-v]').textContent = ctrl[d.addr]; el.querySelector('[data-ma]').textContent = (ctrl[d.addr] / 1600).toFixed(1) + ' mA'; };
+      inp.addEventListener('input', () => { ctrl[d.addr] = +inp.value; show(); onChange && onChange(); });
+      show();
+      el._sync = show;
+      return el;
+    }
     const cls = kind === 'sw' ? 'sw' : d.color === 'red' || kind === 'pbnc' ? 'red' : d.color === 'black' ? 'black' : d.color === 'blue' ? 'blue' : '';
     const b = h(`<button class="dev ${cls}" type="button" aria-pressed="false"><span class="cap"><i></i></span><span class="lbl">${esc(d.name)}<span class="sub">${esc(d.addr)}${kind === 'pbnc' ? ' · NC' : ''}</span></span></button>`);
     const set = (v) => { ctrl[d.addr] = v; b.classList.toggle('down', !!v); b.setAttribute('aria-pressed', v ? 'true' : 'false'); onChange && onChange(); };
@@ -186,7 +197,7 @@
       const o = {};
       Object.keys(this.spec.inputs || {}).forEach((a) => {
         const k = this.spec.inputs[a].kind, v = !!this.ctrl[a];
-        o[a] = k === 'pbnc' ? (v ? 0 : 1) : v ? 1 : 0;
+        o[a] = k === 'ana' ? +this.ctrl[a] || 0 : k === 'pbnc' ? (v ? 0 : 1) : v ? 1 : 0;
       });
       return o;
     }
@@ -218,7 +229,7 @@
       LL.usedAddrs(this.prog).forEach((a) => {
         if (/^T\d+$/.test(a)) { const t = this.m.timers[+a.slice(1)]; parts.push(`${a}.ET <b>${t ? (t.et / 1000).toFixed(1) : '0.0'}s</b>`); }
         else if (/^C\d+$/.test(a)) parts.push(`${a}.CV <b>${this.m.word(a + '.CV')}</b>`);
-        else if (/^MW\d+$/.test(a)) parts.push(`${a} <b>${this.m.word(a)}</b>`);
+        else if (/^(MW|AQW)\d+$/.test(a)) parts.push(`${a} <b>${this.m.word(a)}</b>`);
         else if (/^M\d/.test(a)) parts.push(`${a} <b>${this.m.bit(a)}</b>`);
       });
       const html = parts.map((p) => `<span class="val">${p}</span>`).join('');
@@ -612,7 +623,7 @@
           dock.appendChild(b);
         });
         const lamps = h('<div class="lamps"></div>');
-        this.plant.outputs.forEach((o) => lamps.appendChild(lampEl(o.addr, tags[o.addr] || o.name)));
+        this.plant.outputs.filter((o) => /^Q/.test(o.addr)).forEach((o) => lamps.appendChild(lampEl(o.addr, tags[o.addr] || o.name)));
         dock.appendChild(lamps);
       });
       this.lampEls = $$('.dock .lamp', this.el);
@@ -798,7 +809,7 @@
       const mem = [...new Set(['M0.0', 'M0.1', 'M0.2', 'M0.3'].concat(used.filter((a) => /^M\d/.test(a))))].sort().map((a) => [a, nameOf(a)]);
       const tim = used.filter((a) => /^T\d+$/.test(a)).map((a) => [a, '']);
       const ctr = used.filter((a) => /^C\d+$/.test(a)).map((a) => [a, '']);
-      const words = [...new Set(['MW0'].concat(used.filter((a) => /^MW/.test(a)), used.filter((a) => /^C\d+$/.test(a)).map((a) => a + '.CV'), used.filter((a) => /^T\d+$/.test(a)).map((a) => a + '.ET')))].map((a) => [a, '']);
+      const words = [...new Set(['MW0'].concat(this.plant.inputs.concat(this.plant.outputs).map((d) => d.addr).filter((a) => /^A[IQ]W/.test(a)), used.filter((a) => /^MW/.test(a)), used.filter((a) => /^C\d+$/.test(a)).map((a) => a + '.CV'), used.filter((a) => /^T\d+$/.test(a)).map((a) => a + '.ET')))].map((a) => [a, '']);
       let fields = '';
       let chips = '';
       const T = cell.type;
@@ -836,7 +847,7 @@
           let a = LL.norm(v);
           const byName = Object.keys(tags).find((k) => tags[k] && tags[k].toUpperCase() === String(v).trim().toUpperCase());
           if (byName) a = byName;
-          const ok = f === 'addr' ? (LL.TIMERS.includes(T) ? /^T\d{1,2}$/.test(a) : LL.COUNTERS.includes(T) ? /^C\d{1,2}$/.test(a) : LL.isBitAddr(a) || (T === 'RST' && /^MW\d+$/.test(a))) : f === 'dst' ? /^MW\d+$/.test(a) : LL.isWordAddr(a);
+          const ok = f === 'addr' ? (LL.TIMERS.includes(T) ? /^T\d{1,2}$/.test(a) : LL.COUNTERS.includes(T) ? /^C\d{1,2}$/.test(a) : LL.isBitAddr(a) || (T === 'RST' && LL.isWritableWord(a))) : f === 'dst' ? LL.isWritableWord(a) : LL.isWordAddr(a);
           inp && inp.classList.toggle('bad', !ok);
           if (!ok) return;
           cell[f] = a;
@@ -941,7 +952,7 @@
       this.drawPlant();
       const Q = this.m.outputs();
       this.lampEls.forEach((l) => l.classList.toggle('on', !!Q[l.dataset.a]));
-      this.ioCells.forEach((c) => { const a = c.dataset.io; const v = a[0] === 'I' ? (this.I[a] || 0) : this.m.bit(a); if (c._v !== v) { c.textContent = v; c.className = v ? 'v1' : ''; c._v = v; } });
+      this.ioCells.forEach((c) => { const a = c.dataset.io; const v = a[0] === 'I' || /^AIW/.test(a) ? (this.I[a] || 0) : /^AQW/.test(a) ? this.m.word(a) : this.m.bit(a); if (c._v !== v) { c.textContent = v; c.className = v === 1 ? 'v1' : ''; c._v = v; } });
       this.renderVals();
       const fh = $('.fault-host', this.el);
       const f = this.pst.fault || '';
@@ -957,7 +968,7 @@
       [...used].sort().forEach((a) => {
         if (/^T\d+$/.test(a)) { const t = this.m.timers[+a.slice(1)]; parts.push([a + '.ET', t ? (t.et / 1000).toFixed(2) + ' s' : '0.00 s'], [a + ' done', this.m.bit(a)]); }
         else if (/^C\d+$/.test(a)) parts.push([a + '.CV', this.m.word(a + '.CV')], [a + ' done', this.m.bit(a)]);
-        else if (/^MW\d+$/.test(a)) parts.push([a, this.m.word(a)]);
+        else if (/^(MW|AQW)\d+$/.test(a)) parts.push([a, this.m.word(a)]);
         else if (/^M\d/.test(a)) parts.push([a, this.m.bit(a)]);
       });
       const tags = this.tags();

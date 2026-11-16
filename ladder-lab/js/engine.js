@@ -26,11 +26,14 @@
     tWord: /^T(\d{1,2})\.(ET|PT)$/,
     cWord: /^C(\d{1,2})\.(CV|PV)$/,
     mw: /^MW(\d{1,3})$/,
+    aiw: /^AIW(\d{1,2})$/,
+    aqw: /^AQW(\d{1,2})$/,
     int: /^-?\d+$/,
   };
   const norm = (s) => String(s == null ? '' : s).trim().toUpperCase().replace(/\s+/g, '');
   const isBitAddr = (a) => RE.bit.test(a) || RE.sm.test(a) || RE.tBit.test(a) || RE.cBit.test(a);
-  const isWordAddr = (a) => RE.tWord.test(a) || RE.cWord.test(a) || RE.mw.test(a) || RE.int.test(a);
+  const isWordAddr = (a) => RE.tWord.test(a) || RE.cWord.test(a) || RE.mw.test(a) || RE.aiw.test(a) || RE.aqw.test(a) || RE.int.test(a);
+  const isWritableWord = (a) => RE.mw.test(a) || RE.aqw.test(a);
   const isWritableBit = (a) => /^[QM]\d{1,2}\.[0-7]$/.test(a);
   const timerNo = (a) => { const m = /^T(\d{1,2})/.exec(a); return m ? +m[1] : -1; };
   const counterNo = (a) => { const m = /^C(\d{1,2})/.exec(a); return m ? +m[1] : -1; };
@@ -251,7 +254,7 @@
       this.load(this.prog);
     }
 
-    setInputs(obj) { for (const k in obj) this.inputs[k] = obj[k] ? 1 : 0; }
+    setInputs(obj) { for (const k in obj) this.inputs[k] = RE.aiw.test(k) ? Math.round(+obj[k] || 0) : obj[k] ? 1 : 0; }
 
     counter(n) {
       let c = this.counters[n];
@@ -284,14 +287,14 @@
       let m;
       if (a == null) return 0;
       if (RE.int.test(a)) return parseInt(a, 10);
-      if ((m = RE.mw.exec(a))) return this.words[a] | 0;
+      if (RE.mw.test(a) || RE.aiw.test(a) || RE.aqw.test(a)) return this.words[a] | 0;
       if ((m = RE.tWord.exec(a))) { const t = this.timers[+m[1]]; return t ? (m[2] === 'ET' ? t.et : t.pt) : 0; }
       if ((m = RE.cWord.exec(a))) { const c = this.counters[+m[1]]; return c ? (m[2] === 'CV' ? c.cv : c.pv) : 0; }
       return 0;
     }
     setBit(a, v) { if (isWritableBit(a)) this.bits[a] = v ? 1 : 0; }
     setWord(a, v) {
-      if (!RE.mw.test(a)) return;
+      if (!isWritableWord(a)) return;
       v = Math.trunc(v);
       if (v > 32767) v = 32767; if (v < -32768) v = -32768;
       this.words[a] = v;
@@ -338,7 +341,7 @@
       } else if (RE.cBit.test(a) || RE.cWord.test(a)) {
         const c = this.counter(counterNo(a));
         c.cv = c.mode === 'down' ? c.pv : 0;
-      } else if (RE.mw.test(a)) this.setWord(a, 0);
+      } else if (isWritableWord(a)) this.setWord(a, 0);
       else this.setBit(a, 0);
     }
 
@@ -432,7 +435,7 @@
     }
 
     beginScan() {
-      for (const k in this.inputs) if (/^I/.test(k)) this.bits[k] = this.inputs[k];
+      for (const k in this.inputs) { if (/^I/.test(k)) this.bits[k] = this.inputs[k]; else if (RE.aiw.test(k)) this.words[k] = Math.max(-32768, Math.min(32767, this.inputs[k])); }
       this.bits['SM0.0'] = 1;
       this.bits['SM0.1'] = this.scanCount === 0 ? 1 : 0;
       this.bits['SM0.5'] = (this.time % 1000) < 500 ? 1 : 0;
@@ -463,6 +466,7 @@
     outputs() {
       const o = {};
       for (const k in this.bits) if (k[0] === 'Q') o[k] = this.bits[k];
+      for (const k in this.words) if (RE.aqw.test(k)) o[k] = this.words[k];
       return o;
     }
     read(a) { return isWordAddr(a) ? this.word(a) : this.bit(a); }
@@ -482,7 +486,7 @@
         const need = ['NO', 'NC', 'P', 'N', 'COIL', 'NCOIL', 'SET', 'RST'];
         if (need.includes(c.type)) {
           if (!c.addr) issues.push({ level: 'error', rung: n, msg: c.type + ' has no address.' });
-          else if (!isBitAddr(c.addr) && !(c.type === 'RST' && isWordAddr(c.addr)))
+          else if (!isBitAddr(c.addr) && !(c.type === 'RST' && isWritableWord(c.addr)))
             issues.push({ level: 'error', rung: n, msg: '"' + c.addr + '" is not a valid bit address.' });
         }
         if (['COIL', 'NCOIL', 'SET'].includes(c.type) && c.addr && !isWritableBit(c.addr))
@@ -500,8 +504,8 @@
         if (c.type === 'CMP') {
           if (!isWordAddr(c.a) || !isWordAddr(c.b)) issues.push({ level: 'error', rung: n, msg: 'Compare needs numbers or words (MW0, T0.ET, C0.CV).' });
         }
-        if (c.type === 'MOV' && (!isWordAddr(c.src) || !RE.mw.test(c.dst))) issues.push({ level: 'error', rung: n, msg: 'MOV copies a number or word into an MW word.' });
-        if (MATH.includes(c.type) && (!isWordAddr(c.a) || !isWordAddr(c.b) || !RE.mw.test(c.dst))) issues.push({ level: 'error', rung: n, msg: c.type + ' needs two operands and an MW destination.' });
+        if (c.type === 'MOV' && (!isWordAddr(c.src) || !isWritableWord(c.dst))) issues.push({ level: 'error', rung: n, msg: 'MOV copies a number or word into an MW or AQW word.' });
+        if (MATH.includes(c.type) && (!isWordAddr(c.a) || !isWordAddr(c.b) || !isWritableWord(c.dst))) issues.push({ level: 'error', rung: n, msg: c.type + ' needs two operands and an MW or AQW destination.' });
         if (isOutput(c.type) && col !== rung.cols - 1) issues.push({ level: 'error', rung: n, msg: 'Outputs belong in the right-most column.' });
       }));
       if (hasAny && !hasOut) issues.push({ level: 'warn', rung: n, msg: 'This rung has no output, so it does nothing.' });
@@ -527,6 +531,8 @@
     if ((m = RE.cWord.exec(a))) return 'C' + m[1] + '.' + m[2];
     if (RE.int.test(a)) return a;
     const t = tags && tags[a];
+    if (!t && (m = RE.aiw.exec(a))) return '%IW' + m[1];
+    if (!t && (m = RE.aqw.exec(a))) return '%QW' + m[1];
     if (t) return t.replace(/[^A-Za-z0-9_]/g, '_').replace(/^(\d)/, '_$1');
     if ((m = RE.bit.exec(a))) return '%' + m[1] + 'X' + m[2] + '.' + m[3];
     return a;
@@ -654,7 +660,7 @@
 
   Object.assign(LL, {
     LOGIC, OUTPUT, TIMERS, COUNTERS, MATH, CMP_OPS, RE,
-    isOutput, isLogic, isBitAddr, isWordAddr, isWritableBit, norm,
+    isOutput, isLogic, isBitAddr, isWordAddr, isWritableBit, isWritableWord, norm,
     parseDuration, fmtDuration, mkCell, cloneCell, emptyRung,
     parseRung, rungToLines, parseProgram, programToText, cloneProgram, parseToken, cellToken,
     Machine, lint, toST, stName, usedAddrs,
