@@ -5,9 +5,10 @@ A zero-dependency web app (works offline, installable on phones as a PWA).
 
 | Section | What you get |
 |---|---|
-| **Learn** | 28 lessons in 6 levels (Foundations → Memory & motor control → Timers → Counters & data → Sequences & pro practice → Real-world projects). Each covers *what / why / where*, with live examples you can press, common mistakes and takeaways. |
+| **Learn** | 32 lessons in 7 levels (Foundations → Memory & motor control → Timers → Counters & data → Sequences & pro practice → Real-world projects → Structured Text). Each covers *what / why / where*, with live examples you can press, common mistakes and takeaways. |
 | **Lab** | A ladder editor + PLC simulator (real scan cycle, step-by-step scan mode, power-flow monitoring, lint for double coils, etc.) driving 16 animated machines: trainer panel, reversing motor, conveyor, tank, traffic crossing, 3 pneumatic cylinders, garage door, parking lot, star-delta starter, bottle filling line, batch mixer, 3-floor elevator, box sorter, car wash, two-pump station, analog level tank (4–20 mA in, control valve out). One-click **Structured Text** translation (IEC 61131-3 / CODESYS style). |
-| **Challenges** | 36 tasks (including 8 whole-machine projects) checked by automated tests that press buttons, wait and verify outputs like a commissioning engineer. Hints, bug hunts, reference solutions. |
+| **Structured Text** | A real IEC 61131-3 ST runner in the Lab (switch Ladder ↔ ST): VAR/AT, IF, CASE, FOR, WHILE, REPEAT, EXIT, arrays, TON/TOF/TP/CTU/CTD/R_TRIG/F_TRIG/RS/SR, a watchdog for runaway loops, compile errors as you type. |
+| **Challenges** | 45 tasks (including 8 whole-machine projects, 6 cylinder sequences and 6 ST challenges) checked by automated tests that press buttons, wait and verify outputs like a commissioning engineer. Hints, bug hunts, reference solutions. |
 | **Quiz** | Endless "predict the output" rungs + a 45-question concept bank. |
 | **Glossary** | 76 terms in plain words. |
 
@@ -39,6 +40,7 @@ Checks that every challenge's reference solution passes all its tests, every emp
 
 ```
 js/engine.js      parser, text format, PLC scan engine, lint, ladder → ST translation
+js/st.js          Structured Text compiler + runtime (CASE, FOR, WHILE, arrays, FBs, watchdog)
 js/plants.js      virtual machines (physics + canvas drawing) and the test runner
 js/ladderview.js  SVG ladder renderer with live power flow
 js/lessons.js     curriculum, glossary, concept quiz

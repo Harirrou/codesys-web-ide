@@ -448,3 +448,29 @@ main { padding-block: 24px 48px; }
 .ex-list small { display: block; color: var(--muted); }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ───── Structured Text ───── */
+.lab[data-lang="st"] .ld-only, .lab[data-lang="ld"] .st-only { display: none !important; }
+.langsw { display: inline-flex; background: var(--surface-3); border-radius: 9px; padding: 3px; gap: 2px; }
+.langsw button { border: 0; background: transparent; padding: 4px 10px; border-radius: 7px; font-weight: 600; font-size: .85rem; color: var(--muted); cursor: pointer; min-height: 30px; }
+.langsw button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.st-card { overflow: hidden; }
+.st-wrap { display: flex; background: var(--surface); font-family: var(--f-mono); font-size: 13.5px; line-height: 1.6; }
+.st-gutter { margin: 0; padding: 12px 8px 12px 10px; text-align: right; color: var(--muted); background: var(--surface-2); border-right: 1px solid var(--line-2); user-select: none; overflow: hidden; min-width: 40px; font: inherit; height: min(60vh, 640px); }
+.st-gutter b { color: #fff; background: var(--danger); border-radius: 3px; padding: 0 3px; font-weight: 600; }
+.st-ed { flex: 1; min-width: 0; height: min(60vh, 640px); border: 0; outline: none; resize: none; padding: 12px; font: inherit; background: var(--surface); color: var(--ink); white-space: pre; overflow: auto; tab-size: 2; }
+.keybar { display: flex; gap: 4px; overflow-x: auto; padding: 8px; border-top: 1px solid var(--line-2); background: var(--surface-2); }
+.keybar button { flex: none; font-family: var(--f-mono); font-size: .78rem; padding: 6px 10px; min-height: 34px; border-radius: 7px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; white-space: nowrap; }
+.keybar button:hover { border-color: var(--ink-2); }
+.st-status { padding: 9px 14px; font-size: .86rem; border-top: 1px solid var(--line-2); font-family: var(--f-mono); }
+.st-status.ok { color: var(--power); }
+.st-status.bad { color: var(--danger); background: var(--danger-soft); }
+pre.st-code { margin: 0; padding: 12px 14px; font-family: var(--f-mono); font-size: .8rem; line-height: 1.55; overflow-x: auto; background: var(--surface); border: 0; border-radius: 0; }
+.st-code .k { color: var(--info); font-weight: 600; }
+.st-code .t { color: var(--accent); font-weight: 600; }
+.st-code .c { color: var(--muted); font-style: italic; }
+.st-code .a { color: var(--power); }
+.st-code .n { color: var(--danger); }
+.mini-err { padding: 10px 14px; background: var(--danger); color: #fff; font-weight: 600; font-size: .88rem; }
+@media (max-width: 1000px) { .st-gutter, .st-ed { height: 48vh; } }
+.lab[data-lang="st"][data-view="program"] .dock-sticky, .lab[data-lang="st"][data-view="task"] .dock-sticky { display: none !important; }

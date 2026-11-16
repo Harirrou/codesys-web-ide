@@ -10,8 +10,9 @@
 
   // ───────────────────────── storage ─────────────────────────
   const KEY = 'ladderlab.v1';
-  let S = { lessons: {}, ch: {}, chTried: {}, programs: {}, plant: {}, quiz: { best: 0, predict: 0, predictBest: 0 }, theme: '' };
+  let S = { lessons: {}, ch: {}, chTried: {}, programs: {}, st: {}, lang: {}, plant: {}, quiz: { best: 0, predict: 0, predictBest: 0 }, theme: '' };
   try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch (e) { /* storage unavailable */ }
+  S.st = S.st || {}; S.lang = S.lang || {};
   let saveT = 0;
   function saveNow() { clearTimeout(saveT); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
   function save() { clearTimeout(saveT); saveT = setTimeout(saveNow, 250); }
@@ -148,11 +149,12 @@
     constructor(host, spec, opts) {
       opts = opts || {};
       this.spec = spec;
-      this.prog = compactParse(spec.program);
+      this.st = spec.lang === 'st';
+      this.prog = this.st ? LL.compileST(spec.program) : compactParse(spec.program);
       this.tags = {};
       Object.keys(spec.inputs || {}).forEach((a) => (this.tags[a] = spec.inputs[a].name));
       Object.keys(spec.outputs || {}).forEach((a) => (this.tags[a] = spec.outputs[a]));
-      this.m = new LL.Machine(this.prog);
+      this.m = LL.makeMachine(this.prog);
       this.ctrl = {};
       this.running = !spec.step;
       this.acc = 0;
@@ -162,15 +164,17 @@
           ${spec.step ? `<button class="btn small" data-a="run">${I.play} Run</button><button class="btn small" data-a="step">${I.step} Step</button>` : ''}
           <button class="btn small ghost" data-a="reset" title="Reset memory">${I.reset}</button>
           ${opts.noOpen ? '' : `<button class="btn small" data-a="open">Open in Lab ${I.arrow}</button>`}</span></div>
-        <div class="ladder-host"></div>
+        ${this.st ? `<pre class="code st-code">${LL.highlightST(spec.program)}</pre><div class="mini-err" hidden></div>` : '<div class="ladder-host"></div>'}
         <div class="mini-io"></div>
         ${spec.note ? `<div class="mini-note">${esc(spec.note)}</div>` : ''}
       </div>`);
       host.replaceWith(el);
       this.el = el;
-      this.view = new LL.LadderView($('.ladder-host', el), { fit: true });
-      this.view.setProgram(this.prog, this.tags);
-      requestAnimationFrame(() => this.view.fit());
+      if (!this.st) {
+        this.view = new LL.LadderView($('.ladder-host', el), { fit: true });
+        this.view.setProgram(this.prog, this.tags);
+        requestAnimationFrame(() => this.view.fit());
+      }
       const io = $('.mini-io', el);
       Object.keys(spec.inputs || {}).forEach((a) => io.appendChild(deviceEl(Object.assign({ addr: a }, spec.inputs[a]), this.ctrl)));
       Object.keys(spec.outputs || {}).forEach((a) => io.appendChild(lampEl(a, spec.outputs[a])));
@@ -181,7 +185,7 @@
         const b = e.target.closest('[data-a]'); if (!b) return;
         const a = b.dataset.a;
         if (a === 'reset') { this.m.reset(); this.phaseText(''); }
-        if (a === 'run') { this.running = !this.running; b.innerHTML = this.running ? I.pause + ' Pause' : I.play + ' Run'; this.view.setActiveRung(-1); this.phaseText(''); }
+        if (a === 'run') { this.running = !this.running; b.innerHTML = this.running ? I.pause + ' Pause' : I.play + ' Run'; if (this.view) this.view.setActiveRung(-1); this.phaseText(''); }
         if (a === 'step') { this.running = false; const rb = $('[data-a="run"]', el); if (rb) rb.innerHTML = I.play + ' Run'; this.stepPhase(); }
         if (a === 'open') openInLab(this.spec);
       });
@@ -203,6 +207,7 @@
     }
     phaseText(t) { const s = $('.scanstate', this.el); if (s) s.textContent = t; }
     stepPhase() {
+      if (this.st) { this.m.setInputs(this.inputs()); this.m.scan(10); this.phaseText('scan ' + this.m.scanCount); this.render(); return; }
       const n = this.prog.rungs.length;
       if (this.m.phase === 0) this.m.setInputs(this.inputs());
       const ph = this.m.stepPhase(10);
@@ -222,9 +227,17 @@
       this.render();
     }
     render() {
+      this.lamps.forEach((l) => l.classList.toggle('on', !!this.m.bit(l.dataset.a)));
+      if (this.st) {
+        const er = $('.mini-err', this.el);
+        const msg = this.m.error ? 'PLC in STOP · ' + this.m.error : '';
+        if (er._m !== msg) { er._m = msg; er.hidden = !msg; er.textContent = msg; }
+        const html = this.m.listVars().filter((v) => !v.at).map((v) => `<span class="val">${esc(v.name)} <b>${esc(v.value)}</b></span>`).join('');
+        if (html !== this._vh) { this.vals.innerHTML = html; this._vh = html; }
+        return;
+      }
       const showPower = this.running || this.m.scanCount > 0;
       this.view.update(this.m, showPower);
-      this.lamps.forEach((l) => l.classList.toggle('on', !!this.m.bit(l.dataset.a)));
       const parts = [];
       LL.usedAddrs(this.prog).forEach((a) => {
         if (/^T\d+$/.test(a)) { const t = this.m.timers[+a.slice(1)]; parts.push(`${a}.ET <b>${t ? (t.et / 1000).toFixed(1) : '0.0'}s</b>`); }
@@ -238,6 +251,12 @@
   }
 
   function openInLab(spec) {
+    if (spec.lang === 'st') {
+      S.st.lab = spec.program; S.lang.lab = 'st'; S.plant.lab = spec.plant || 'panel'; saveNow();
+      if (location.hash === '#lab') { current = ''; route(); } else location.hash = 'lab';
+      return;
+    }
+    S.lang.lab = 'ld';
     const lines = ['NAME ' + (spec.name || 'Lesson example'), 'COLS 7'];
     Object.keys(spec.inputs || {}).forEach((a) => lines.push('TAG ' + a + ' ' + spec.inputs[a].name));
     Object.keys(spec.outputs || {}).forEach((a) => lines.push('TAG ' + a + ' ' + spec.outputs[a]));
@@ -332,8 +351,8 @@
     $$('.sim-ph', el).forEach((ph) => { const spec = l.sims[ph.dataset.sim]; if (spec) new MiniSim(ph, Object.assign({ name: l.title }, spec)); });
     $$('[data-open]', el).forEach((o) => {
       const spec = LL.OPEN_PROGRAMS[o.dataset.open];
-      const b = h(`<button class="btn primary">${I.lab} Open the video circuit in the Lab</button>`);
-      b.onclick = () => { S.programs.lab = spec.program; S.plant.lab = spec.plant; save(); location.hash = 'lab'; };
+      const b = h(`<button class="btn primary">${I.lab} Open the video circuit${spec.lang === 'st' ? ' (ST)' : ''} in the Lab</button>`);
+      b.onclick = () => { if (spec.lang === 'st') { S.st.lab = spec.program; S.lang.lab = 'st'; } else { S.programs.lab = spec.program; S.lang.lab = 'ld'; } S.plant.lab = spec.plant; saveNow(); location.hash = 'lab'; };
       o.appendChild(b);
     });
     $('[data-done]', el).onclick = () => { S.lessons[l.id] = 1; save(); if (next) location.hash = 'lesson-' + next.id; else { toast('Course complete. Well done!'); location.hash = 'learn'; } };
@@ -347,7 +366,7 @@
       const b = h(`<section class="level-block"><div class="level-head"><span class="big">${L.n}</span><div><h2>${esc(L.name)}</h2></div></div><div class="ch-grid"></div></section>`);
       list.forEach((c) => {
         const plain = c.brief.replace(/<[^>]+>/g, '');
-        $('.ch-grid', b).appendChild(h(`<a class="card ch-card" href="#ch-${c.id}"><div class="top-line"><span class="eyebrow">${esc(LL.Plants[c.plant].name)}</span>${S.ch[c.id] ? '<span class="chip ok">✓ passed</span>' : S.chTried[c.id] ? '<span class="chip">in progress</span>' : ''}</div><h4>${esc(c.title)}</h4><p>${esc(plain.length > 130 ? plain.slice(0, 128) + '…' : plain)}</p></a>`));
+        $('.ch-grid', b).appendChild(h(`<a class="card ch-card" href="#ch-${c.id}"><div class="top-line"><span class="eyebrow">${c.lang === 'st' ? 'ST · ' : ''}${esc(LL.Plants[c.plant].name)}</span>${S.ch[c.id] ? '<span class="chip ok">✓ passed</span>' : S.chTried[c.id] ? '<span class="chip">in progress</span>' : ''}</div><h4>${esc(c.title)}</h4><p>${esc(plain.length > 130 ? plain.slice(0, 128) + '…' : plain)}</p></a>`));
       });
       $('.lv', el).appendChild(b);
     });
@@ -501,6 +520,8 @@
       if (this.ch && !S.programs[this.key]) this.prog.name = this.ch.title;
       if (!this.prog.rungs.length) this.prog.rungs.push(LL.emptyRung(this.prog.cols));
       this.plantId = this.ch ? this.ch.plant : S.plant.lab || (S.programs.lab ? 'panel' : 'cylinders');
+      this.lang = this.ch ? this.ch.lang || 'ld' : S.lang.lab || 'ld';
+      if (this.lang === 'st') this.src = S.st[this.key] != null ? S.st[this.key] : this.ch && this.ch.starter ? this.ch.starter : this.stTemplate();
       this.tool = 'select';
       this.sel = null;
       this.hist = [LL.programToText(this.prog)]; this.hi = 0;
@@ -517,38 +538,50 @@
     get plant() { return LL.Plants[this.plantId]; }
     tags() { return Object.assign({}, LL.plantTags(this.plantId), (this.ch && this.ch.tags) || {}, this.prog.tags || {}); }
 
+    stTemplate() {
+      return 'PROGRAM PLC_PRG\n' + LL.stIoDecls(this.plant, Object.assign({}, LL.plantTags(this.plantId), (this.ch && this.ch.tags) || {})) + '\n\n(* Write your logic here *)\n\nEND_PROGRAM\n';
+    }
     newMachine() {
-      this.m = new LL.Machine(this.prog);
+      if (this.lang === 'st') this.stProg = LL.compileST(this.src, this.ch ? this.ch.title : 'ST program');
+      this.m = this.lang === 'st' ? LL.makeMachine(this.stProg) : new LL.Machine(this.prog);
       this.pst = this.plant.init();
       this.ctrl = this.ctrl || {};
       this.I = LL.plantDevices(this.plant, this.ctrl);
       this.buildDevices();
       this.refresh();
+      if (this.lang === 'st' && $('.st-status', this.el)) this.compile(true);
     }
 
     build() {
       const ch = this.ch;
-      const el = h(`<div class="wrap"><div class="lab" data-view="${ch ? 'task' : 'program'}">
+      const st = this.lang === 'st';
+      const el = h(`<div class="wrap"><div class="lab" data-lang="${this.lang}" data-view="${ch ? 'task' : 'program'}">
         <div class="lab-main">
           <div class="seg" role="tablist">${ch ? '<button data-v="task">Task</button>' : ''}<button data-v="program">Program</button><button data-v="machine">Machine</button></div>
           <div class="card lab-bar">
-            <span class="title" title="${esc(this.prog.name)}">${ch ? '' : esc(this.prog.name)}</span>
+            <span class="title" title="${esc(this.prog.name)}">${ch ? '' : st ? 'Structured Text' : esc(this.prog.name)}</span>
+            ${ch ? (st ? '<span class="chip">ST</span>' : '') : `<span class="langsw" role="group" aria-label="Language"><button class="${st ? '' : 'on'}" data-a="lang-ld">Ladder</button><button class="${st ? 'on' : ''}" data-a="lang-st">ST</button></span>`}
             <button class="btn small runbtn" data-a="run"></button>
             <button class="btn small" data-a="step" title="Execute one scan phase">${I.step}<span class="hide-s">Step</span></button>
             <button class="btn small" data-a="reset" title="Reset PLC memory and machine">${I.reset}</button>
             <button class="btn small" data-a="speed" title="Simulation speed">1×</button>
-            <button class="btn small" data-a="zoom" title="Zoom: fit width or 100 %">⤢</button>
+            <button class="btn small ld-only" data-a="zoom" title="Zoom: fit width or 100 %">⤢</button>
             <span class="sep"></span>
-            <button class="btn small" data-a="undo" title="Undo">${I.undo}</button>
-            <button class="btn small" data-a="redo" title="Redo">${I.redo}</button>
-            <button class="btn small" data-a="st" title="Show Structured Text">${I.code} ST</button>
+            <button class="btn small ld-only" data-a="undo" title="Undo">${I.undo}</button>
+            <button class="btn small ld-only" data-a="redo" title="Redo">${I.redo}</button>
+            <button class="btn small ld-only" data-a="st" title="Show this ladder as Structured Text">${I.code} as ST</button>
             <button class="btn small" data-a="file" title="New, examples, import/export">${I.file} File</button>
             <span class="scanstate"></span>
           </div>
           <div class="fault-host"></div>
-          <div class="card prog-card only-program"><div class="prog-scroll"><div class="ladder-host"></div></div><div class="palette"></div></div>
-          <div class="card inspector only-program"></div>
-          <div class="card issues only-program" hidden></div>
+          <div class="card prog-card only-program ld-only"><div class="prog-scroll"><div class="ladder-host"></div></div><div class="palette"></div></div>
+          <div class="card inspector only-program ld-only"></div>
+          <div class="card issues only-program ld-only" hidden></div>
+          <div class="card st-card only-program st-only">
+            <div class="st-wrap"><pre class="st-gutter" aria-hidden="true"></pre><textarea class="st-ed" id="st-src" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off" aria-label="Structured Text program"></textarea></div>
+            <div class="keybar">${[':=', ';', '(', ')', 'AND', 'OR', 'NOT', 'TRUE', 'FALSE', 'IF  THEN\n\nEND_IF', 'ELSE', 'CASE  OF\n\nEND_CASE', 'FOR i := 1 TO 10 DO\n\nEND_FOR', 'WHILE  DO\n\nEND_WHILE', 'T#1s', '(*  *)'].map((k) => `<button type="button" data-k="${esc(k)}">${esc(k.split('\n')[0].replace('  ', ' … '))}</button>`).join('')}</div>
+            <div class="st-status"></div>
+          </div>
         </div>
         <div class="lab-side">
           ${ch ? '<div class="card chal only-task"></div>' : ''}
@@ -568,6 +601,7 @@
       // mobile-only / desktop-only helpers
       const style = document.getElementById('lab-mq') || document.head.appendChild(h('<style id="lab-mq">.mobile-only{display:none!important}@media(max-width:1000px){.mobile-only{display:flex!important}.desktop-only{display:none!important}}.hide-s{margin-left:2px}@media(max-width:520px){.hide-s{display:none}}</style>'));
       void style;
+      if (st) this.setupEditor();
       this.ladder = new LL.LadderView($('.ladder-host', el), { editable: true, zoom: window.innerWidth < 700 ? 'fit' : undefined, onPick: (p) => this.pick(p) });
       this.canvas = $('canvas', el);
       this.ctx = this.canvas.getContext('2d');
@@ -591,10 +625,56 @@
       if (ch) this.renderTask();
       this.updateRunBtn();
       this.resizeCanvas();
+      if (st) this.compile(true);
       this._onResize = () => { this.resizeCanvas(); this.ladder.fit(); };
       window.addEventListener('resize', this._onResize);
     }
 
+    setupEditor() {
+      const ta = $('#st-src', this.el), gut = $('.st-gutter', this.el);
+      ta.value = this.src;
+      const lines = () => { const n = ta.value.split('\n').length; let g = ''; const bad = this.stProg && !this.stProg.ok ? this.stProg.error.line : -1; for (let i = 1; i <= n; i++) g += (i === bad ? '<b>' + i + '</b>' : i) + '\n'; gut.innerHTML = g; gut.scrollTop = ta.scrollTop; };
+      this._gutter = lines;
+      ta.addEventListener('scroll', () => { gut.scrollTop = ta.scrollTop; });
+      ta.addEventListener('input', () => { this.src = ta.value; S.st[this.key] = this.src; if (this.ch) S.chTried[this.ch.id] = 1; saveNow(); lines(); clearTimeout(this._ct); this._ct = setTimeout(() => this.compile(), 350); });
+      ta.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab') { e.preventDefault(); ta.setRangeText('  ', ta.selectionStart, ta.selectionEnd, 'end'); ta.dispatchEvent(new Event('input')); }
+        if (e.key === 'Enter') { const before = ta.value.slice(0, ta.selectionStart); const ind = (/(^|\n)([ \t]*)[^\n]*$/.exec(before) || [])[2] || ''; if (ind) { e.preventDefault(); ta.setRangeText('\n' + ind, ta.selectionStart, ta.selectionEnd, 'end'); ta.dispatchEvent(new Event('input')); } }
+      });
+      $$('.keybar button', this.el).forEach((b) => b.addEventListener('click', () => {
+        const k = b.dataset.k.replace(/\\n/g, '\n');
+        const start = ta.selectionStart;
+        ta.focus();
+        ta.setRangeText(k, start, ta.selectionEnd, 'end');
+        const gap = k.indexOf('  ');
+        if (gap >= 0) { ta.selectionStart = ta.selectionEnd = start + gap + 1; }
+        ta.dispatchEvent(new Event('input'));
+      }));
+      lines();
+    }
+    compile(initial) {
+      const p = LL.compileST(this.src, this.ch ? this.ch.title : 'ST program');
+      const status = $('.st-status', this.el);
+      if (p.ok) {
+        this.stProg = p;
+        this.m = LL.makeMachine(p);
+        const nv = p.ast.order.length;
+        status.className = 'st-status ok';
+        status.textContent = '✓ Compiled: ' + p.lines + ' lines, ' + nv + ' variable' + (nv === 1 ? '' : 's') + '. PLC restarted with the new program.';
+        if (!initial) this.notice('Compiled · PLC restarted');
+      } else {
+        this.stProg = p.ok ? p : this.stProg && this.stProg.ok ? Object.assign({}, this.stProg, { pendingError: p.error }) : p;
+        if (!this.m || !this.stProg.ok) this.m = LL.makeMachine(p);
+        status.className = 'st-status bad';
+        status.textContent = 'Line ' + p.error.line + ': ' + p.error.msg + (this.stProg.ok ? '  (the last good program keeps running)' : '');
+        this._errLine = p.error.line;
+      }
+      this._lastCompile = p;
+      if (this._gutter) {
+        const gut = $('.st-gutter', this.el), ta = $('#st-src', this.el);
+        const n = ta.value.split('\n').length; let g = ''; for (let i = 1; i <= n; i++) g += (!p.ok && i === p.error.line ? '<b>' + i + '</b>' : i) + '\n'; gut.innerHTML = g; gut.scrollTop = ta.scrollTop;
+      }
+    }
     setView(v) {
       this.view = v;
       this.root.dataset.view = v;
@@ -734,6 +814,7 @@
         case 'c-del': { const s = this.sel; P.rungs[s.i].cells[s.r][s.c] = null; this.sel = null; this.commit(); break; }
         case 'c-link': { const s = this.sel, rung = P.rungs[s.i], b = s.c < P.cols - 1 ? s.c + 1 : P.cols - 1; if (s.r === rung.rows - 1) this.addRow(rung); rung.links[s.r][b] = !rung.links[s.r][b]; this.commit(); break; }
         case 'tests': this.runTests(); break;
+        case 'lang-ld': case 'lang-st': { const l = a.slice(5); if (l !== this.lang) { S.lang.lab = l; saveNow(); current = ''; route(); } break; }
         case 'hint': this.hint++; this.renderTask(); break;
         case 'solution': this.askSolution(); break;
       }
@@ -748,6 +829,7 @@
     scanText(t) { const e = $('.scanstate', this.el); if (e.textContent !== t) { e.textContent = t; e.classList.toggle('hot', t === this._notice && this._noticeUntil > performance.now()); } }
 
     stepPhase() {
+      if (this.lang === 'st') { this.I = this.plant.step(this.pst, this.ctrl, this.m.outputs(), 10); this.m.setInputs(this.I); this.m.scan(10); this.scanText('Scan ' + this.m.scanCount + ' done (one Step = one whole scan in ST)'); return; }
       const n = this.prog.rungs.length;
       if (this.m.phase === 0) { this.I = this.plant.step(this.pst, this.ctrl, this.m.outputs(), 10); this.m.setInputs(this.I); }
       const ph = this.m.stepPhase(10);
@@ -756,6 +838,7 @@
     }
 
     refresh() {
+      if (this.lang === 'st') return;
       this.ladder.setProgram(this.prog, this.tags());
       this.ladder.select(this.sel ? { kind: this.sel.kind, i: this.sel.i, r: this.sel.r, c: this.sel.c } : null);
       this.renderInspector();
@@ -892,7 +975,7 @@
     }
 
     runTests() {
-      const res = LL.runChallenge(this.prog, this.ch);
+      const res = LL.runChallenge(this.lang === 'st' ? (this._lastCompile || this.stProg) : this.prog, this.ch);
       const allOk = res.every((r) => r.ok);
       const box = $('.results', this.el);
       const tags = this.tags();
@@ -907,12 +990,13 @@
 
     askSolution() {
       modal('Load the solution?', '<p>Your current program will be replaced. You can get it back with <b>Undo</b>. Try one more hint first? Struggling a little is how it sticks.</p>', [
-        { label: 'Load solution', cls: 'primary', run: () => { const p = LL.parseProgram(this.ch.solution); p.name = this.ch.title; this.prog = p; this.sel = null; this.m.load(p); this.m.reset(); this.commit('Solution loaded. Study each rung, then run the tests.'); } },
+        { label: 'Load solution', cls: 'primary', run: () => { if (this.lang === 'st') { this.src = this.ch.solution; S.st[this.key] = this.src; saveNow(); $('#st-src', this.el).value = this.src; this._gutter(); this.compile(); toast('Solution loaded. Read it line by line, then run the tests.'); return; } const p = LL.parseProgram(this.ch.solution); p.name = this.ch.title; this.prog = p; this.sel = null; this.m.load(p); this.m.reset(); this.commit('Solution loaded. Study each rung, then run the tests.'); } },
         { label: 'Keep trying' },
       ]);
     }
 
     fileMenu() {
+      if (this.lang === 'st') return this.fileMenuST();
       const ex = [];
       LL.LESSONS.forEach((l) => Object.keys(l.sims || {}).forEach((k) => ex.push({ t: l.title, k, spec: l.sims[k] })));
       const m = modal('Program', `<div class="grid" style="gap:14px">
@@ -933,9 +1017,30 @@
       });
     }
 
+    fileMenuST() {
+      const ex = [];
+      LL.LESSONS.forEach((l) => Object.keys(l.sims || {}).forEach((k) => { if (l.sims[k].lang === 'st') ex.push({ t: l.title, spec: Object.assign({ plant: 'panel' }, l.sims[k]) }); }));
+      Object.keys(LL.OPEN_PROGRAMS).forEach((k) => { const o = LL.OPEN_PROGRAMS[k]; if (o.lang === 'st') ex.push({ t: 'Video circuit with CASE', spec: o }); });
+      const m = modal('Structured Text', `<div class="grid" style="gap:14px">
+        <div class="row"><button class="btn small primary" data-m="io">Insert I/O declarations for ${esc(this.plant.name)}</button><button class="btn small" data-m="new">New program</button></div>
+        <div><div class="panel-title" style="padding-left:0">Text (copy to save or share, paste to import)</div><textarea id="ptext" spellcheck="false">${esc(this.src)}</textarea><div class="row" style="margin-top:8px"><button class="btn small" data-m="copy">Copy text</button><button class="btn small primary" data-m="import">Apply text</button></div></div>
+        ${this.ch ? '' : `<div><div class="panel-title" style="padding-left:0">ST examples</div><div class="ex-list">${ex.map((e, i) => `<button data-ex="${i}"><b>${esc(e.t)}</b><small>${esc(LL.Plants[e.spec.plant || 'panel'].name)}</small></button>`).join('')}</div></div>`}
+      </div>`, [{ label: 'Done' }]);
+      const setSrc = (t) => { this.src = t; S.st[this.key] = t; saveNow(); $('#st-src', this.el).value = t; this._gutter(); this.compile(); };
+      m.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-m],[data-ex]'); if (!b) return;
+        const k = b.dataset.m;
+        if (k === 'io') { const decl = LL.stIoDecls(this.plant, this.tags()); setSrc(/\bVAR\b[\s\S]*?\bEND_VAR\b/i.test(this.src) ? this.src.replace(/\bVAR\b[\s\S]*?\bEND_VAR\b/i, decl) : decl + '\n\n' + this.src); m.remove(); toast('I/O declarations inserted'); }
+        if (k === 'new') { setSrc(this.stTemplate()); m.remove(); }
+        if (k === 'copy') { const ta = $('#ptext', m); (navigator.clipboard ? navigator.clipboard.writeText(ta.value) : Promise.reject()).then(() => toast('Copied'), () => { ta.focus(); ta.select(); toast('Select-all done: copy with your keyboard'); }); }
+        if (k === 'import') { setSrc($('#ptext', m).value); m.remove(); }
+        if (b.dataset.ex != null) { const sp = ex[+b.dataset.ex].spec; m.remove(); this.plantId = sp.plant || 'panel'; S.plant.lab = this.plantId; const ps = $('#plant-sel', this.el); if (ps) ps.value = this.plantId; this.src = sp.program; S.st[this.key] = sp.program; saveNow(); $('#st-src', this.el).value = sp.program; this._gutter(); this.newMachine(); toast('Example loaded'); }
+      });
+    }
+
     tick(dt) {
       if (!document.body.contains(this.el)) { tickers.delete(this); window.removeEventListener('resize', this._onResize); return; }
-      if (this.running && !this.pst.fault) {
+      if (this.running && !this.pst.fault && !this.m.error) {
         this.acc += dt * this.speed;
         let n = 0;
         while (this.acc >= 10 && n < 30) {
@@ -948,21 +1053,27 @@
         this.scanText(this._noticeUntil > performance.now() ? this._notice : 'scan ' + this.m.scanCount + ' · 10 ms');
       }
       // views
-      this.ladder.update(this.m, true);
+      if (this.lang !== 'st') this.ladder.update(this.m, true);
       this.drawPlant();
       const Q = this.m.outputs();
       this.lampEls.forEach((l) => l.classList.toggle('on', !!Q[l.dataset.a]));
       this.ioCells.forEach((c) => { const a = c.dataset.io; const v = a[0] === 'I' || /^AIW/.test(a) ? (this.I[a] || 0) : /^AQW/.test(a) ? this.m.word(a) : this.m.bit(a); if (c._v !== v) { c.textContent = v; c.className = v === 1 ? 'v1' : ''; c._v = v; } });
       this.renderVals();
       const fh = $('.fault-host', this.el);
-      const f = this.pst.fault || '';
+      const f = this.pst.fault ? 'Machine fault: ' + this.pst.fault : this.m.error ? 'PLC in STOP · ' + this.m.error : '';
       if (fh._f !== f) {
         fh._f = f;
-        fh.innerHTML = f ? `<div class="fault-banner"><span>⚠ Machine fault: ${esc(f)}</span><button class="btn small" data-a="reset">Reset machine</button></div>` : '';
+        fh.innerHTML = f ? `<div class="fault-banner"><span>⚠ ${esc(f)}</span><button class="btn small" data-a="reset">Reset</button></div>` : '';
       }
     }
 
     renderVals() {
+      if (this.lang === 'st') {
+        const html = this.m.listVars().filter((v) => !v.at).map((v) => `<tr><td>${esc(v.name)}</td><td><span class="kind">${esc(v.type || '')}</span></td><td class="${v.on ? 'v1' : ''}" style="white-space:nowrap">${esc(v.value)}</td></tr>`).join('');
+        const tb = $('.valrows', this.el);
+        if (tb && tb._h !== html) { tb.innerHTML = html; tb._h = html; }
+        return;
+      }
       const parts = [];
       const used = LL.usedAddrs(this.prog);
       [...used].sort().forEach((a) => {

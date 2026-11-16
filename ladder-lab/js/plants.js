@@ -1108,7 +1108,7 @@
   function runTest(prog, plantId, steps, opts) {
     opts = opts || {};
     const plant = P[plantId];
-    const m = new LL.Machine(prog);
+    const m = LL.makeMachine(prog);
     const st = plant.init();
     const ctrl = {};
     const dt = 10;
@@ -1118,13 +1118,14 @@
     const val = (a) => (/^I/.test(a) || /^AIW/.test(a) ? (I[a] || 0) : m.read(a));
     const parseConds = (arr) => arr.map((s) => { const [a, v] = s.split('='); return { a: LL.norm(a), v: +v }; });
     const condOk = (cs) => cs.every((x) => val(x.a) === x.v);
-    const fmt = (v, a) => (LL.isWordAddr(a) ? String(v) : v ? 'ON' : 'OFF');
+    const fmt = (v, a) => (LL.isBitAddr(a) || /^[IQM]\d+\.[0-7]$/.test(a) || /\.(Q|Q1)$/.test(a) ? (v ? 'ON' : 'OFF') : String(v));
     function tick() {
       I = plant.step(st, ctrl, m.outputs(), dt);
       m.setInputs(I);
       m.scan(dt);
       t += dt;
       if (st.fault) throw new Error('Machine fault: ' + st.fault);
+      if (m.error) throw new Error('PLC stopped: ' + m.error);
       for (const n of never) if (condOk(parseConds(n.when.split(/\s+/)))) throw new Error(n.msg);
     }
     function run(ms) { for (let k = 0; k < ms / dt; k++) tick(); }
@@ -1196,7 +1197,7 @@
   LL.describeStep = function (step, tags) {
     const p = step.trim().split(/\s+/);
     const n = (a) => (tags && tags[a] ? tags[a] : a);
-    const cond = (s) => { const [a, v] = s.split('='); return n(a) + (LL.isWordAddr(a) ? ' = ' + v : v === '1' ? ' ON' : ' OFF'); };
+    const cond = (s) => { const [a, v] = s.split('='); const bit = LL.isBitAddr(a) || /\.(Q|Q1)$/i.test(a); return n(a) + (!bit ? ' = ' + v : v === '1' ? ' ON' : ' OFF'); };
     switch (p[0]) {
       case 'press': return 'press and hold ' + n(p[1]);
       case 'release': return 'release ' + n(p[1]);
@@ -1216,7 +1217,8 @@
   };
 
   LL.runChallenge = function (prog, ch) {
-    const errs = LL.lint(prog).filter((x) => x.level === 'error');
+    if (prog.lang === 'st' && !prog.ok) return ch.tests.map((t, i) => ({ name: t.name, ok: false, msg: i === 0 ? 'Fix the compile error first: line ' + prog.error.line + ': ' + prog.error.msg : 'Not run.' }));
+    const errs = prog.lang === 'st' ? [] : LL.lint(prog).filter((x) => x.level === 'error');
     if (errs.length) return ch.tests.map((t, i) => ({ name: t.name, ok: false, msg: i === 0 ? 'Fix program errors first: rung ' + errs[0].rung + ': ' + errs[0].msg : 'Not run.' }));
     const tags = Object.assign({}, LL.plantTags(ch.plant), ch.tags || {});
     return ch.tests.map((t) => {

@@ -4,6 +4,8 @@
   'use strict';
   const LL = (G.LL = G.LL || {});
 
+  const IO_CYL = 'PROGRAM PLC_PRG\nVAR\n  Start  AT %IX0.0 : BOOL;\n  StopOK AT %IX0.1 : BOOL;   (* wired NC: TRUE when not pressed *)\n  A0 AT %IX0.2 : BOOL;  A1 AT %IX0.3 : BOOL;\n  B0 AT %IX0.4 : BOOL;  B1 AT %IX0.5 : BOOL;\n  C0 AT %IX0.6 : BOOL;  C1 AT %IX0.7 : BOOL;\n  Y1 AT %QX0.0 : BOOL;  Y2 AT %QX0.1 : BOOL;  Y3 AT %QX0.2 : BOOL;';
+
   LL.CHALLENGES = [
     // ───────────── Level 1 · Foundations ─────────────
     {
@@ -335,6 +337,38 @@
         { name: 'Warning light flashes', steps: ['tap I0.0', 'pulses Q0.2 3000 2 4'] },
       ],
     },
+    {
+      id: 'cyl-cycle-stop', level: 5, plant: 'cylinders', title: 'Cylinders: continuous cycle with cycle-stop',
+      brief: 'START begins <b>continuous</b> cycling of <b>A+ B+ A− B−</b>. Pressing <b>STOP</b> (wired NC) is a <b>cycle stop</b>: the machine finishes the current cycle and stops with both cylinders home. It must not stop in the middle of a stroke.',
+      hints: ['Latch a "run request" bit with START/STOP. STOP only clears the request.', 'Use a step number MW0. Step 0 → 1 needs the run request AND both cylinders home. The last step always goes back to 0, so a new cycle starts only if the request is still on.'],
+      solution: 'NAME Cycle stop\nRUNG Run request (STOP = cycle stop)\nNO(I0.0) | NO(I0.1) COIL(M0.0)\nNO(M0.0)\nRUNG 0 → 1: requested and home\nCMP(MW0==0) NO(M0.0) NO(I0.2) NO(I0.4) MOV(1,MW0)\nRUNG 1 → 2: A out\nCMP(MW0==1) NO(I0.3) MOV(2,MW0)\nRUNG 2 → 3: B out\nCMP(MW0==2) NO(I0.5) MOV(3,MW0)\nRUNG 3 → 4: A home\nCMP(MW0==3) NO(I0.2) MOV(4,MW0)\nRUNG 4 → 0: B home (cycle complete)\nCMP(MW0==4) NO(I0.4) MOV(0,MW0)\nRUNG Y1 in steps 1, 2\nCMP(MW0==1) | COIL(Q0.0)\nCMP(MW0==2)\nRUNG Y2 in steps 2, 3\nCMP(MW0==2) | COIL(Q0.1)\nCMP(MW0==3)',
+      tests: [
+        { name: 'Cycles continuously', steps: ['tap I0.0', 'expect Q0.0=1', 'order Q0.1+ Q0.0- Q0.1- Q0.0+ Q0.1+ 9000'] },
+        { name: 'STOP finishes the cycle', steps: ['tap I0.0', 'wait 800', 'tap I0.1', 'expect Q0.0=1 Q0.1=1', 'order Q0.0- Q0.1- 4000', 'stays Q0.0=0 3000', 'expect I0.2=1 I0.4=1'] },
+      ],
+    },
+    {
+      id: 'cyl-dwell', level: 5, plant: 'cylinders', title: 'Cylinders: clamp, stamp and dwell',
+      brief: 'A press station: <b>A+</b> clamps the part, <b>B+</b> stamps it and <b>holds for 2 s</b> (dwell), then <b>B−</b>, then <b>A−</b> releases. One cycle per START press, only from home. STOP aborts (both valves off).',
+      hints: ['Six steps: 0 idle, 1 clamp, 2 stamp, 3 dwell (TON 2 s), 4 stamp back, 5 unclamp.', 'Y1 stays on in steps 1–4: CMP(MW0>=1) CMP(MW0<=4) in series. Y2 in steps 2–3.'],
+      solution: 'NAME Clamp and stamp\nRUNG 0 → 1: START from home\nCMP(MW0==0) P(I0.0) NO(I0.2) NO(I0.4) MOV(1,MW0)\nRUNG 1 → 2: clamped\nCMP(MW0==1) NO(I0.3) MOV(2,MW0)\nRUNG 2 → 3: stamp down\nCMP(MW0==2) NO(I0.5) MOV(3,MW0)\nRUNG 3 → 4: dwell done\nCMP(MW0==3) NO(T0) MOV(4,MW0)\nRUNG 4 → 5: stamp up\nCMP(MW0==4) NO(I0.4) MOV(5,MW0)\nRUNG 5 → 0: unclamped\nCMP(MW0==5) NO(I0.2) MOV(0,MW0)\nRUNG STOP aborts\nNC(I0.1) MOV(0,MW0)\nRUNG Dwell time\nCMP(MW0==3) TON(T0,2s)\nRUNG Y1 clamp in steps 1–4\nCMP(MW0>=1) CMP(MW0<=4) COIL(Q0.0)\nRUNG Y2 stamp in steps 2–3\nCMP(MW0>=2) CMP(MW0<=3) COIL(Q0.1)',
+      tests: [
+        { name: 'Sequence A+ B+ B− A−', steps: ['tap I0.0', 'expect Q0.0=1', 'order Q0.1+ Q0.1- Q0.0- 8000', 'stays Q0.0=0 2000'] },
+        { name: 'Holds the stamp 2 s', steps: ['tap I0.0', 'waitfor I0.5=1 4000', 'stays Q0.1=1 1900', 'waitfor Q0.1=0 400'] },
+        { name: 'STOP aborts', steps: ['tap I0.0', 'wait 1500', 'tap I0.1', 'expect Q0.0=0 Q0.1=0 MW0=0'] },
+      ],
+    },
+    {
+      id: 'cyl-parallel', level: 5, plant: 'cylinders', title: 'Cylinders: simultaneous moves',
+      brief: '<b>A and C extend together</b>. Only when <b>both</b> are out, <b>B</b> extends. When B is out, <b>all three retract together</b>. The cycle ends when all are home. One cycle per START; STOP aborts.',
+      hints: ['A step can wait for two sensors at once: NO(A1) NO(C1) in series.', 'Return to idle only when A0, B0 and C0 are all on.'],
+      solution: 'NAME Parallel moves\nRUNG 0 → 1: START from home\nCMP(MW0==0) P(I0.0) NO(I0.2) NO(I0.4) NO(I0.6) MOV(1,MW0)\nRUNG 1 → 2: A and C both out\nCMP(MW0==1) NO(I0.3) NO(I0.7) MOV(2,MW0)\nRUNG 2 → 3: B out\nCMP(MW0==2) NO(I0.5) MOV(3,MW0)\nRUNG 3 → 0: everything home\nCMP(MW0==3) NO(I0.2) NO(I0.4) NO(I0.6) MOV(0,MW0)\nRUNG STOP aborts\nNC(I0.1) MOV(0,MW0)\nRUNG Y1 in steps 1, 2\nCMP(MW0==1) | COIL(Q0.0)\nCMP(MW0==2)\nRUNG Y3 in steps 1, 2\nCMP(MW0==1) | COIL(Q0.2)\nCMP(MW0==2)\nRUNG Y2 in step 2\nCMP(MW0==2) COIL(Q0.1)',
+      tests: [
+        { name: 'A and C together, then B', steps: ['tap I0.0', 'expect Q0.0=1 Q0.2=1 Q0.1=0', 'waitfor Q0.1=1 2000', 'expect I0.3=1 I0.7=1'] },
+        { name: 'All retract together', steps: ['tap I0.0', 'waitfor I0.5=1 3000', 'wait 50', 'expect Q0.0=0 Q0.1=0 Q0.2=0', 'waitfor MW0=0 2000', 'expect I0.2=1 I0.4=1 I0.6=1'] },
+      ],
+    },
+
     // ───────────── Level 6 · Real-world projects ─────────────
     {
       id: 'ped-crossing', level: 6, plant: 'traffic', title: 'Pedestrian crossing on request',
@@ -430,6 +464,77 @@
         { name: 'Copes with high demand', steps: ['on I0.0', 'wait 20000', 'action demand', 'wait 30000', 'plant lvlPct>=35 lvlPct<=58'] },
         { name: 'Valve limited to 100 %', steps: ['on I0.0', 'wait 300', 'expect AQW0=32000'] },
         { name: 'Manual closes the valve', steps: ['on I0.0', 'wait 5000', 'off I0.0', 'wait 100', 'expect AQW0=0'] },
+      ],
+    },
+    // ───────────── Level 7 · Structured Text ─────────────
+    {
+      id: 'st-latch', level: 7, lang: 'st', plant: 'motor', title: 'ST: start/stop in one line',
+      brief: 'Write the motor start/stop with seal-in in <b>Structured Text</b>. FWD starts K1, STOP (wired NC) and the overload (OL) stop it, there is no restart after an overload reset, and STOP wins.',
+      hints: ['The seal-in rung translates directly: K1 := (FWD OR K1) AND …;', 'STOP and OL read TRUE when healthy, so they are AND-ed without NOT.'],
+      solution: 'PROGRAM PLC_PRG\nVAR\n  FWD     AT %IX0.0 : BOOL;\n  STOP_OK AT %IX0.2 : BOOL;   (* wired NC: TRUE when not pressed *)\n  OL_OK   AT %IX0.3 : BOOL;\n  K1      AT %QX0.0 : BOOL;\nEND_VAR\n\nK1 := (FWD OR K1) AND STOP_OK AND OL_OK;',
+      tests: [
+        { name: 'Start latches', steps: ['tap I0.0', 'wait 300', 'expect Q0.0=1'] },
+        { name: 'Stop', steps: ['tap I0.0', 'tap I0.2', 'expect Q0.0=0'] },
+        { name: 'Overload, no auto-restart', steps: ['tap I0.0', 'action trip', 'wait 50', 'expect Q0.0=0', 'action trip', 'wait 300', 'expect Q0.0=0'] },
+        { name: 'Stop is dominant', steps: ['press I0.2', 'press I0.0', 'expect Q0.0=0'] },
+      ],
+    },
+    {
+      id: 'st-timers', level: 7, lang: 'st', plant: 'panel', title: 'ST: timer and counter blocks',
+      brief: 'In ST: L1 comes on <b>3 s after</b> SW1 is switched on (TON). Count presses of PB1 with a <b>CTU</b> (preset 5): L8 lights at 5 presses. PB2 resets the count.',
+      hints: ['Declare instances: Delay : TON; Count : CTU;', 'Call each block every scan: Delay(IN := SW1, PT := T#3s); then use Delay.Q.', 'CTU counts rising edges of CU by itself; R resets it.'],
+      solution: 'PROGRAM PLC_PRG\nVAR\n  PB1 AT %IX0.0 : BOOL;\n  PB2 AT %IX0.1 : BOOL;\n  SW1 AT %IX0.4 : BOOL;\n  L1  AT %QX0.0 : BOOL;\n  L8  AT %QX0.7 : BOOL;\n  Delay : TON;\n  Count : CTU;\nEND_VAR\n\nDelay(IN := SW1, PT := T#3s);\nL1 := Delay.Q;\n\nCount(CU := PB1, R := PB2, PV := 5);\nL8 := Count.Q;',
+      tests: [
+        { name: 'On-delay 3 s', steps: ['on I0.4', 'wait 2800', 'expect Q0.0=0', 'wait 300', 'expect Q0.0=1', 'off I0.4', 'expect Q0.0=0'] },
+        { name: 'Counts to 5 and resets', steps: ['tap I0.0', 'tap I0.0', 'tap I0.0', 'tap I0.0', 'expect Q0.7=0', 'tap I0.0', 'expect Q0.7=1', 'tap I0.1', 'expect Q0.7=0'] },
+      ],
+    },
+    {
+      id: 'st-case-abc', level: 7, lang: 'st', plant: 'cylinders', title: 'ST: CASE sequence A+ B+ C+ C− B− A−',
+      brief: 'Build the classic sequence with a <b>CASE</b> statement and an INT variable <b>Step</b>: 0 idle, 10 A out, 20 B out, 30 C out, 40 C back, 50 B back, 60 A back, then 0. Start on a START press with everything home. STOP forces Step 0. Decode the valves from Step after the CASE.',
+      hints: ['StartEdge : R_TRIG; then StartEdge(CLK := Start); so one press starts one cycle.', 'Each CASE branch only changes Step: 10: IF A1 THEN Step := 20; END_IF', 'Outputs: Y1 := Step >= 10 AND Step <= 50; Y2 is on in steps 20–40, Y3 only in 30.'],
+      starter: IO_CYL + '\n  Step : INT := 0;\n  StartEdge : R_TRIG;\nEND_VAR\n\nStartEdge(CLK := Start);\n\nCASE Step OF\n  0:  IF StartEdge.Q AND A0 AND B0 AND C0 THEN Step := 10; END_IF\n  10: (* A is extending: wait for A1 *)\n\nEND_CASE\n',
+      solution: IO_CYL + '\n  Step : INT := 0;\n  StartEdge : R_TRIG;\nEND_VAR\n\nStartEdge(CLK := Start);\n\nCASE Step OF\n  0:  IF StartEdge.Q AND A0 AND B0 AND C0 THEN Step := 10; END_IF\n  10: IF A1 THEN Step := 20; END_IF\n  20: IF B1 THEN Step := 30; END_IF\n  30: IF C1 THEN Step := 40; END_IF\n  40: IF C0 THEN Step := 50; END_IF\n  50: IF B0 THEN Step := 60; END_IF\n  60: IF A0 THEN Step := 0; END_IF\nEND_CASE\n\nIF NOT StopOK THEN Step := 0; END_IF\n\n(* outputs decoded from the step *)\nY1 := Step >= 10 AND Step <= 50;\nY2 := Step >= 20 AND Step <= 40;\nY3 := Step = 30;',
+      tests: [
+        { name: 'Uses Step = 10 for A out', steps: ['tap I0.0', 'expect STEP=10 Q0.0=1'] },
+        { name: 'Correct sequence', steps: ['tap I0.0', 'expect Q0.0=1 Q0.1=0', 'order Q0.1+ Q0.2+ Q0.2- Q0.1- Q0.0- 12000', 'waitfor STEP=0 2000'] },
+        { name: 'STOP', steps: ['tap I0.0', 'wait 1500', 'tap I0.1', 'expect Q0.0=0 Q0.1=0 Q0.2=0 STEP=0'] },
+      ],
+    },
+    {
+      id: 'st-repeat-count', level: 7, lang: 'st', plant: 'cylinders', title: 'ST: repeat a stroke N times',
+      brief: 'One START press: cylinder <b>A strokes out and back 3 times</b>, then <b>B goes out and back once</b>. Count A strokes in an INT variable <b>Strokes</b>. STOP aborts to Step 0.',
+      hints: ['Reset Strokes := 0 when the cycle starts.', 'In the "A back" step: when A0, add 1 to Strokes; then IF Strokes < 3 go back to the "A out" step, ELSE go on to B.'],
+      starter: IO_CYL + '\n  Step : INT := 0;\n  Strokes : INT := 0;\n  StartEdge : R_TRIG;\nEND_VAR\n\nStartEdge(CLK := Start);\n',
+      solution: IO_CYL + '\n  Step : INT := 0;\n  Strokes : INT := 0;\n  StartEdge : R_TRIG;\nEND_VAR\n\nStartEdge(CLK := Start);\n\nCASE Step OF\n  0:  IF StartEdge.Q AND A0 AND B0 THEN\n        Strokes := 0;\n        Step := 10;\n      END_IF\n  10: IF A1 THEN Step := 20; END_IF          (* A out *)\n  20: IF A0 THEN                              (* A back *)\n        Strokes := Strokes + 1;\n        IF Strokes < 3 THEN Step := 10; ELSE Step := 30; END_IF\n      END_IF\n  30: IF B1 THEN Step := 40; END_IF          (* B out *)\n  40: IF B0 THEN Step := 0; END_IF           (* B back *)\nEND_CASE\n\nIF NOT StopOK THEN Step := 0; END_IF\n\nY1 := Step = 10;\nY2 := Step = 30;',
+      tests: [
+        { name: 'Three A strokes, then B', steps: ['tap I0.0', 'expect Q0.0=1', 'order Q0.0- Q0.0+ Q0.0- Q0.0+ Q0.0- Q0.1+ Q0.1- 12000', 'expect STROKES=3'] },
+        { name: 'Ends idle', steps: ['tap I0.0', 'wait 9000', 'expect STEP=0', 'stays Q0.0=0 2000'] },
+        { name: 'STOP', steps: ['tap I0.0', 'wait 1500', 'tap I0.1', 'expect Q0.0=0 Q0.1=0 STEP=0'] },
+      ],
+    },
+    {
+      id: 'st-for-bargraph', level: 7, lang: 'st', plant: 'panel', title: 'ST: FOR loop bar graph',
+      brief: 'Each press of PB1 adds 1 to a <b>Count</b> (maximum 8); PB2 clears it. Show Count as a <b>bar graph</b> on L1…L8: Count = 3 lights L1, L2, L3. Build the bit pattern with a <b>FOR</b> loop and write it to the whole output byte <b>%QB0</b> at once.',
+      hints: ['Edge : R_TRIG; to add 1 per press.', 'Pattern := 0; FOR i := 1 TO Count DO Pattern := Pattern * 2 + 1; END_FOR gives 1, 3, 7, 15… (binary 1, 11, 111…).', 'Declare Lamps AT %QB0 : BYTE; and assign Lamps := Pattern;'],
+      solution: 'PROGRAM PLC_PRG\nVAR\n  PB1 AT %IX0.0 : BOOL;\n  PB2 AT %IX0.1 : BOOL;\n  Lamps AT %QB0 : BYTE;      (* Q0.0 … Q0.7 as one byte *)\n  Edge : R_TRIG;\n  Count, Pattern, i : INT;\nEND_VAR\n\nEdge(CLK := PB1);\nIF Edge.Q AND Count < 8 THEN Count := Count + 1; END_IF\nIF PB2 THEN Count := 0; END_IF\n\nPattern := 0;\nFOR i := 1 TO Count DO\n  Pattern := Pattern * 2 + 1;\nEND_FOR\nLamps := Pattern;',
+      tests: [
+        { name: 'Bar grows', steps: ['tap I0.0', 'tap I0.0', 'tap I0.0', 'expect Q0.0=1 Q0.1=1 Q0.2=1 Q0.3=0 COUNT=3'] },
+        { name: 'Stops at 8', steps: ['tap I0.0', 'tap I0.0', 'tap I0.0', 'tap I0.0', 'tap I0.0', 'tap I0.0', 'tap I0.0', 'tap I0.0', 'tap I0.0', 'tap I0.0', 'expect Q0.7=1 COUNT=8'] },
+        { name: 'Clear', steps: ['tap I0.0', 'tap I0.0', 'tap I0.1', 'expect Q0.0=0 Q0.1=0 COUNT=0'] },
+      ],
+    },
+    {
+      id: 'st-while-slot', level: 7, lang: 'st', plant: 'panel', title: 'ST: WHILE search for a free slot',
+      brief: 'SW1…SW4 show which of 4 parking slots are <b>occupied</b>. Copy them into an <b>ARRAY[0..3] OF BOOL</b>, then use a <b>WHILE</b> loop to find the <b>first free slot</b> and light its lamp (L1…L4). If all four are occupied, light <b>L5 (FULL)</b> instead.',
+      hints: ['i := 0; WHILE i < 4 DO IF NOT Occ[i] THEN EXIT; END_IF i := i + 1; END_WHILE. After the loop, i is the first free slot, or 4 if full.', 'Trap: WHILE i < 4 AND Occ[i] DO … reads Occ[4] when i reaches 4, because ST evaluates both sides of AND. That is an array-index fault.', 'Then L1 := i = 0; L2 := i = 1; … L5 := i = 4;'],
+      solution: 'PROGRAM PLC_PRG\nVAR\n  S1 AT %IX0.4 : BOOL;  S2 AT %IX0.5 : BOOL;\n  S3 AT %IX0.6 : BOOL;  S4 AT %IX0.7 : BOOL;\n  L1 AT %QX0.0 : BOOL;  L2 AT %QX0.1 : BOOL;\n  L3 AT %QX0.2 : BOOL;  L4 AT %QX0.3 : BOOL;\n  L5 AT %QX0.4 : BOOL;\n  Occ : ARRAY[0..3] OF BOOL;\n  i : INT;\nEND_VAR\n\nOcc[0] := S1; Occ[1] := S2; Occ[2] := S3; Occ[3] := S4;\n\ni := 0;\nWHILE i < 4 DO\n  IF NOT Occ[i] THEN EXIT; END_IF\n  i := i + 1;\nEND_WHILE\n\nL1 := i = 0;  L2 := i = 1;  L3 := i = 2;  L4 := i = 3;\nL5 := i = 4;   (* full *)',
+      tests: [
+        { name: 'All free → slot 1', steps: ['wait 50', 'expect Q0.0=1 Q0.1=0 Q0.4=0'] },
+        { name: 'Slot 1 taken → slot 2', steps: ['on I0.4', 'expect Q0.1=1 Q0.0=0'] },
+        { name: 'Gap is found', steps: ['on I0.4', 'on I0.6', 'expect Q0.1=1 Q0.2=0'] },
+        { name: 'First two taken → slot 3', steps: ['on I0.4', 'on I0.5', 'expect Q0.2=1'] },
+        { name: 'All taken → FULL', steps: ['on I0.4', 'on I0.5', 'on I0.6', 'on I0.7', 'expect Q0.4=1 Q0.0=0 Q0.1=0 Q0.2=0 Q0.3=0'] },
       ],
     },
   ];

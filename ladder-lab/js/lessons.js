@@ -12,6 +12,7 @@
     { n: 4, name: 'Counters & data', sub: 'Counting, comparing, words, field devices' },
     { n: 5, name: 'Sequences & pro practice', sub: 'Step logic, state machines, safety, structure' },
     { n: 6, name: 'Real-world projects', sub: 'Whole machines: filling line, mixer, elevator, sorter, car wash, pump station, level control' },
+    { n: 7, name: 'Structured Text (ST)', sub: 'IF, CASE, FOR, WHILE, REPEAT, arrays and function blocks, as in CODESYS' },
   ];
 
   const pb = (name) => ({ name, kind: 'pb' });
@@ -616,7 +617,7 @@ level % = (AIW0 − 6400) × 100 ÷ 25600
       sims: {},
       takeaways: ['Sequences step forward on sensor confirmation.', 'Memory bits hold "which phase are we in".', 'Always add home checks, stop behaviour and timeouts.'],
       mistakes: ['Assuming a cylinder arrived because time passed.'],
-      challenges: ['cylinders-abc'],
+      challenges: ['cylinders-abc', 'cyl-parallel', 'st-case-abc'],
     },
     {
       id: 'state-machine', level: 5, title: 'State machines with a step number', min: 12,
@@ -647,7 +648,7 @@ END_CASE</pre>
       sims: { sm: { program: 'RUNG 0 → 1 on start\nCMP(MW0==0) P(I0.0) MOV(1,MW0)\nRUNG 1 → 2 after 2 s\nCMP(MW0==1) NO(T0) MOV(2,MW0)\nRUNG 2 → 0 after 2 s\nCMP(MW0==2) NO(T1) MOV(0,MW0)\nRUNG Step 1 timer\nCMP(MW0==1) TON(T0,2s)\nRUNG Step 2 timer\nCMP(MW0==2) TON(T1,2s)\nRUNG Lamp A in step 1\nCMP(MW0==1) COIL(Q0.0)\nRUNG Lamp B in step 2\nCMP(MW0==2) COIL(Q0.1)', inputs: { 'I0.0': pb('START') }, outputs: { 'Q0.0': 'Step 1', 'Q0.1': 'Step 2' }, note: 'Watch MW0 in the values panel: 0 → 1 → 2 → 0.' } },
       takeaways: ['One step word, transition rungs (CMP + MOV), action rungs (CMP → coil).', 'Same structure as SFC and a CASE statement.'],
       mistakes: ['Driving outputs inside transition rungs.', 'Several transitions out of one step without priority.'],
-      challenges: ['step-machine'],
+      challenges: ['step-machine', 'cyl-cycle-stop', 'cyl-dwell', 'cyl-parallel'],
     },
     {
       id: 'safety', level: 5, title: 'Safety, E-stops, alarms & first scan', min: 10,
@@ -771,10 +772,161 @@ Lamp := T0.Q;</pre>
       mistakes: ['Starting to draw rungs before the sequence is written down.', 'Testing only the happy path.'],
       challenges: ['ped-crossing', 'bottling', 'mixer', 'elevator', 'sorter', 'carwash', 'pump-station', 'level-control'],
     },
+    // ═══════════════════════ LEVEL 7 · ST ═══════════════════════
+    {
+      id: 'st-basics', level: 7, title: 'Structured Text basics: VAR, :=, IF', min: 10,
+      summary: 'The same logic as ladder, written as text. Variables, addresses, assignments and IF.',
+      body: `
+<h3>Why ST?</h3>
+<p>Structured Text is the text language of IEC 61131-3 (CODESYS, TIA Portal's SCL, Studio 5000 ST). Ladder is great for interlocks and quick troubleshooting. ST is better for maths, loops, data and long sequences. Most real projects mix both.</p>
+<h3>Program layout</h3>
+<pre class="code">PROGRAM PLC_PRG
+VAR
+  Start  AT %IX0.0 : BOOL;   (* a real input *)
+  StopOK AT %IX0.3 : BOOL;   (* wired NC *)
+  Motor  AT %QX0.0 : BOOL;   (* a real output *)
+  Speed  : INT := 0;         (* internal variable with a start value *)
+END_VAR
+
+Motor := (Start OR Motor) AND StopOK;   (* the seal-in rung! *)
+END_PROGRAM</pre>
+<ul>
+<li><code>VAR … END_VAR</code> declares every variable with a <b>type</b>: BOOL, INT, DINT, REAL, TIME, BYTE, WORD, ARRAY, or a function block like TON.</li>
+<li><code>AT %IX0.0</code> binds a variable to an address. <code>%IX</code> = input bit, <code>%QX</code> = output bit, <code>%MX</code> = memory bit, <code>%IW/%QW/%MW</code> = words, <code>%IB/%QB</code> = bytes. (Ladder Lab also accepts I0.0 / Q0.0.)</li>
+<li><code>:=</code> assigns. <code>=</code> only compares. Every statement ends with <code>;</code></li>
+<li>Comments: <code>(* … *)</code> or <code>// …</code></li>
+</ul>
+<h3>Ladder ↔ ST</h3>
+<div class="tbl"><table>
+<tr><th>Ladder</th><th>ST</th></tr>
+<tr><td>Series contacts</td><td><code>A AND B</code></td></tr>
+<tr><td>Parallel branch</td><td><code>A OR B</code></td></tr>
+<tr><td>NC contact</td><td><code>NOT A</code></td></tr>
+<tr><td>Coil</td><td><code>Q := …;</code></td></tr>
+<tr><td>SET / RESET coil</td><td><code>IF S THEN Q := TRUE; END_IF</code></td></tr>
+</table></div>
+<h3>IF / ELSIF / ELSE</h3>
+[[sim:latch]]
+<div class="callout warn"><b>Classic ST bug:</b> an assignment inside an IF without an ELSE <b>keeps</b> its value when the condition goes false. It behaves like a SET coil, not a normal coil. Either add an ELSE, or write the plain assignment <code>Lamp := Motor;</code>.</div>
+<div class="callout tip">In the Lab, switch the toolbar to <b>ST</b> to write your own programs for any machine. <b>File → Insert I/O declarations</b> writes the VAR block for you.</div>`,
+      sims: { latch: { lang: 'st', program: "VAR\n  Start  AT %IX0.0 : BOOL;\n  StopOK AT %IX0.3 : BOOL;   (* wired NC *)\n  Motor  AT %QX0.0 : BOOL;\n  Lamp   AT %QX0.1 : BOOL;\n  Speed  : INT;\nEND_VAR\n\n(* the seal-in rung in one line *)\nMotor := (Start OR Motor) AND StopOK;\n\nIF Motor THEN\n  Speed := 1450;\n  Lamp := TRUE;\nELSE\n  Speed := 0;\n  Lamp := FALSE;\nEND_IF", inputs: { 'I0.0': pb('START'), 'I0.3': nc('STOP') }, outputs: { 'Q0.0': 'Motor', 'Q0.1': 'Lamp' }, note: 'Same behaviour as the ladder seal-in: tap START, then STOP. Watch Speed in the values.' } },
+      takeaways: ['VAR … END_VAR with a type for everything.', ':= assigns, = compares, ; ends a statement.', 'AND/OR/NOT are the series, parallel and NC contacts.'],
+      mistakes: ['Writing = instead of :=.', 'IF without ELSE accidentally latching an output.'],
+      challenges: ['st-latch'],
+    },
+    {
+      id: 'st-fb', level: 7, title: 'Timers, counters & edges in ST', min: 9,
+      summary: 'Function blocks are objects: declare an instance, call it every scan, read .Q and .ET.',
+      body: `
+<h3>Function block instances</h3>
+<pre class="code">VAR
+  Delay : TON;        (* one instance = one timer *)
+  Count : CTU;
+  Edge  : R_TRIG;
+END_VAR
+
+Delay(IN := Switch, PT := T#3s);   (* call it EVERY scan *)
+Lamp := Delay.Q;                   (* read outputs with a dot *)
+
+Edge(CLK := Button);
+IF Edge.Q THEN Presses := Presses + 1; END_IF   (* once per press *)</pre>
+<ul>
+<li>Each instance has its own memory, so you need a new instance for every timer.</li>
+<li>Call the block <b>unconditionally every scan</b>. A timer called inside an IF that turns false stops being updated.</li>
+<li>Time literals: <code>T#500ms</code>, <code>T#3s</code>, <code>T#1m30s</code>.</li>
+<li>Outputs: TON/TOF/TP have <code>.Q .ET</code>, CTU/CTD have <code>.Q .CV</code>, R_TRIG/F_TRIG have <code>.Q</code>, and RS/SR have <code>.Q1</code>.</li>
+</ul>
+[[sim:fb]]
+<div class="callout tip"><b>Pulse generator trick:</b> <code>Blink(IN := NOT Blink.Q, PT := T#500ms);</code> restarts itself and gives a one-scan pulse every 0.5 s. Toggling a lamp on that pulse makes it flash.</div>`,
+      sims: { fb: { lang: 'st', program: "VAR\n  PB  AT %IX0.0 : BOOL;\n  SW  AT %IX0.4 : BOOL;\n  L1  AT %QX0.0 : BOOL;\n  L2  AT %QX0.1 : BOOL;\n  Delay : TON;\n  Blink : TON;\n  Edge  : R_TRIG;\n  Presses : INT;\nEND_VAR\n\nDelay(IN := SW, PT := T#2s);\nL1 := Delay.Q;\n\nEdge(CLK := PB);\nIF Edge.Q THEN Presses := Presses + 1; END_IF\n\n(* self-restarting timer = pulse every 0.5 s *)\nBlink(IN := NOT Blink.Q, PT := T#500ms);\nIF Blink.Q THEN L2 := NOT L2; END_IF", inputs: { 'I0.0': pb('Count'), 'I0.4': sw('Switch') }, outputs: { 'Q0.0': 'Delayed', 'Q0.1': 'Flasher' } } },
+      takeaways: ['Declare an instance, call it every scan, read .Q / .ET / .CV.', 'R_TRIG gives one scan per press.'],
+      mistakes: ['Calling a timer only inside an IF.', 'Sharing one timer instance between two jobs.'],
+      challenges: ['st-timers'],
+    },
+    {
+      id: 'st-case', level: 7, title: 'CASE: state machines in ST', min: 11,
+      summary: 'The cleanest way to write a sequence: one CASE branch per step.',
+      body: `
+<h3>Syntax</h3>
+<pre class="code">CASE Step OF
+  0:      (* idle *)
+          IF Start THEN Step := 10; END_IF
+  10:     IF A_out THEN Step := 20; END_IF
+  20, 30: Lamp := TRUE;            (* several values *)
+  40..49: Alarm := TRUE;           (* a range *)
+ELSE
+  Step := 0;                       (* anything unexpected *)
+END_CASE</pre>
+<p>Only the branch matching the current value runs, once per scan. The CASE itself never waits: a step "waits" by simply not changing <code>Step</code> until its condition is true, scan after scan.</p>
+<h3>The pattern pros use</h3>
+<ol>
+<li>One INT step variable, numbered in tens (10, 20, 30…) so you can insert steps later.</li>
+<li>Inside each branch, only <b>transitions</b>: <code>IF condition THEN Step := next; END_IF</code></li>
+<li>After the CASE, <b>decode outputs</b> from the step: <code>Y1 := Step &gt;= 10 AND Step &lt;= 50;</code> One assignment per output, so no output can get stuck on.</li>
+<li>Stop / fault handling after the CASE: <code>IF NOT StopOK THEN Step := 0; END_IF</code></li>
+</ol>
+[[sim:traffic]]
+<h3>Your video's circuit, in ST</h3>
+<p>The 3-cylinder circuit from the video (A+ B+ C+, then all retract, repeat), written with CASE. Compare it with the ladder version in level 5: same machine, far easier to extend.</p>
+<div class="open-row" data-open="st-video"></div>`,
+      sims: { traffic: { lang: 'st', program: "VAR\n  Run    AT %IX0.4 : BOOL;\n  Red    AT %QX0.4 : BOOL;\n  Yellow AT %QX0.2 : BOOL;\n  Green  AT %QX0.0 : BOOL;\n  State  : INT := 0;\n  T      : TON;\nEND_VAR\n\nCASE State OF\n  0: (* red *)\n     T(IN := Run, PT := T#3s);\n     IF T.Q THEN T(IN := FALSE); State := 1; END_IF\n  1: (* green *)\n     T(IN := TRUE, PT := T#3s);\n     IF T.Q THEN T(IN := FALSE); State := 2; END_IF\n  2: (* yellow *)\n     T(IN := TRUE, PT := T#1s);\n     IF T.Q THEN T(IN := FALSE); State := 0; END_IF\nEND_CASE\n\nRed := State = 0;\nGreen := State = 1;\nYellow := State = 2;", inputs: { 'I0.4': sw('RUN') }, outputs: { 'Q0.4': 'Red', 'Q0.2': 'Yellow', 'Q0.0': 'Green' }, note: 'One timer, reused in every state. Switch RUN on and watch State in the values.' } },
+      takeaways: ['CASE runs one branch per scan; steps wait by not changing Step.', 'Transitions inside CASE, outputs decoded after it.', 'Number steps 10, 20, 30…'],
+      mistakes: ['Writing WHILE NOT sensor DO inside a step (see next lesson).', 'Setting outputs inside branches and forgetting to reset them.'],
+      challenges: ['st-case-abc', 'st-repeat-count'],
+    },
+    {
+      id: 'st-loops', level: 7, title: 'FOR, WHILE, REPEAT & arrays', min: 12,
+      summary: 'Loops run completely inside one scan. Use them for data, never for waiting.',
+      body: `
+<h3>Arrays</h3>
+<pre class="code">VAR
+  Levels : ARRAY[1..10] OF INT;
+  Occ    : ARRAY[0..3] OF BOOL := [FALSE, TRUE, FALSE, FALSE];
+END_VAR
+Levels[3] := 42;</pre>
+<p>An index outside the bounds is a <b>runtime fault</b>. A real PLC stops, and Ladder Lab shows it.</p>
+<h3>FOR: a known number of times</h3>
+<pre class="code">Sum := 0;
+FOR i := 1 TO 10 DO
+  Sum := Sum + Levels[i];
+END_FOR
+Average := Sum / 10;
+
+FOR i := 10 TO 1 BY -1 DO … END_FOR   (* counting down *)</pre>
+[[sim:for]]
+<h3>WHILE: as long as a condition holds</h3>
+<pre class="code">i := 0;
+WHILE i &lt; 4 DO
+  IF NOT Occ[i] THEN EXIT; END_IF   (* EXIT leaves the loop *)
+  i := i + 1;
+END_WHILE
+(* i = first free slot, or 4 if all are occupied *)</pre>
+<h3>REPEAT: at least once</h3>
+<pre class="code">REPEAT
+  n := n * 2;
+UNTIL n &gt; 1000
+END_REPEAT</pre>
+<h3>The rule that matters most</h3>
+<p>A loop runs <b>completely within one scan</b>. While it runs, the PLC does not read new inputs or write outputs, so <code>WHILE NOT Sensor DO … END_WHILE</code> can never see the sensor change. The loop runs until the <b>watchdog</b> stops the CPU. Try it:</p>
+[[sim:wd]]
+<div class="callout warn"><b>Never wait in a loop.</b> To wait for something, use a CASE step (or a timer) that checks the condition once per scan.</div>
+<div class="callout where"><b>Where loops are right:</b> summing or averaging samples, searching a recipe table, shifting tracking data along a conveyor, copying blocks of data, checking all alarms in an array.</div>`,
+      sims: {
+        for: { lang: 'st', program: "VAR\n  S1 AT %IX0.4 : BOOL;  S2 AT %IX0.5 : BOOL;\n  S3 AT %IX0.6 : BOOL;  S4 AT %IX0.7 : BOOL;\n  Lamps AT %QB0 : BYTE;   (* Q0.0 … Q0.7 *)\n  Sw : ARRAY[1..4] OF BOOL;\n  i, OnCount, Pattern : INT;\nEND_VAR\n\nSw[1] := S1; Sw[2] := S2; Sw[3] := S3; Sw[4] := S4;\n\nOnCount := 0;\nFOR i := 1 TO 4 DO\n  IF Sw[i] THEN OnCount := OnCount + 1; END_IF\nEND_FOR\n\n(* show the count as a bar graph *)\nPattern := 0;\nFOR i := 1 TO OnCount DO\n  Pattern := Pattern * 2 + 1;\nEND_FOR\nLamps := Pattern;", inputs: { 'I0.4': sw('S1'), 'I0.5': sw('S2'), 'I0.6': sw('S3'), 'I0.7': sw('S4') }, outputs: { 'Q0.0': 'L1', 'Q0.1': 'L2', 'Q0.2': 'L3', 'Q0.3': 'L4' }, note: 'Switch any two on: two lamps light. The first FOR counts, the second builds the bar pattern.' },
+        wd: { lang: 'st', program: "VAR\n  Go     AT %IX0.0 : BOOL;\n  Sensor AT %IX0.4 : BOOL;\n  Lamp   AT %QX0.0 : BOOL;\nEND_VAR\n\n(* WRONG: waiting for a sensor inside WHILE *)\nIF Go THEN\n  WHILE NOT Sensor DO\n    Lamp := TRUE;   (* the sensor can never change in here *)\n  END_WHILE\nEND_IF", inputs: { 'I0.0': pb('Go'), 'I0.4': sw('Sensor') }, outputs: { 'Q0.0': 'Lamp' }, note: 'Press Go with Sensor off: the watchdog stops the PLC. Press reset (↺) to restart it.' },
+      },
+      takeaways: ['FOR = known count, WHILE = condition first, REPEAT = at least once, EXIT = leave.', 'Loops finish inside one scan, so never wait for inputs in a loop.', 'Array index out of range = PLC fault.'],
+      mistakes: ['WHILE i < 4 AND Occ[i] … reads Occ[4], because ST evaluates both sides of AND.', 'Waiting for a sensor in WHILE: watchdog stop.'],
+      challenges: ['st-for-bargraph', 'st-while-slot'],
+    },
   ];
 
   // Programs opened in the full simulator from lessons
   LL.OPEN_PROGRAMS = {
+    'st-video': {
+      plant: 'cylinders', lang: 'st',
+      program: "PROGRAM PLC_PRG\n(* The 3-cylinder video circuit, written with CASE:\n   A+ B+ C+, then all retract together, repeat while running *)\nVAR\n  Start  AT %IX0.0 : BOOL;\n  StopOK AT %IX0.1 : BOOL;   (* wired NC: TRUE when not pressed *)\n  A0 AT %IX0.2 : BOOL;  A1 AT %IX0.3 : BOOL;\n  B0 AT %IX0.4 : BOOL;  B1 AT %IX0.5 : BOOL;\n  C0 AT %IX0.6 : BOOL;  C1 AT %IX0.7 : BOOL;\n  Y1 AT %QX0.0 : BOOL;  Y2 AT %QX0.1 : BOOL;  Y3 AT %QX0.2 : BOOL;\n  Running : BOOL;     (* M0.1 in the video *)\n  Step : INT := 0;\nEND_VAR\n\nRunning := (Start OR Running) AND StopOK;\n\nCASE Step OF\n  0:  IF Running AND A0 AND B0 AND C0 THEN Step := 10; END_IF\n  10: IF A1 THEN Step := 20; END_IF     (* A out: sensor 1 *)\n  20: IF B1 THEN Step := 30; END_IF     (* B out: sensor 2 *)\n  30: IF C1 THEN Step := 40; END_IF     (* C out: sensor 3 *)\n  40: IF A0 AND B0 AND C0 THEN Step := 0; END_IF   (* all home *)\nEND_CASE\n\nIF NOT Running AND Step <> 40 THEN Step := 0; END_IF\n\nY1 := Step >= 10 AND Step <= 30;\nY2 := Step >= 20 AND Step <= 30;\nY3 := Step = 30;\nEND_PROGRAM",
+    },
     video: {
       plant: 'cylinders',
       program: 'NAME 3-cylinder sequence (video circuit)\nRUNG M0.1 running: Stop · (Start ∥ M0.1)\nNO(I0.1) | NO(I0.0) | COIL(M0.1)\n. NO(M0.1)\nRUNG Valve 1: extend A while running and not retracting\nNO(M0.1) NC(M0.2) COIL(Q0.0)\nRUNG Valve 2: extend B when A is out (Sensor 1)\nNO(I0.3) NO(M0.1) NC(M0.2) COIL(Q0.1)\nRUNG Valve 3: extend C when B is out (Sensor 2)\nNO(I0.5) NO(M0.1) NC(M0.2) COIL(Q0.2)\nRUNG M0.2 retract all: C out (Sensor 3), held until M0.3\nNO(I0.7) NO(M0.1) | NC(M0.3) COIL(M0.2)\nNO(M0.2) -\nRUNG M0.3 retract done: C home (Sensor 4)\nNO(I0.6) NO(M0.2) COIL(M0.3)',
@@ -917,6 +1069,11 @@ Lamp := T0.Q;</pre>
     { l: 4, q: 'Why compute (AIW0 − 6400) ÷ 256 instead of (AIW0 − 6400) × 100 ÷ 25600 in 16-bit math?', a: ['It is more accurate', 'The ×100 would overflow a 16-bit word', 'Division is required first by IEC', 'No reason'], c: 1, why: '25600 × 100 is far above 32767.' },
     { l: 5, q: 'A P-only level controller settles a bit below the setpoint. This is…', a: ['a wiring fault', 'the proportional offset; add an I term', 'integral windup', 'normal for PID'], c: 1, why: 'P needs some error to hold the valve open; I removes it.' },
     { l: 5, q: 'In a duty/standby pump station, alternation means…', a: ['both pumps always run together', 'swapping which pump is duty after each cycle', 'running a pump in reverse', 'alternating 50 Hz'], c: 1, why: 'Equal wear on both pumps.' },
+    { l: 5, q: 'In Structured Text, which line assigns a value?', a: ['Motor = TRUE;', 'Motor := TRUE;', 'Motor == TRUE;', 'SET Motor;'], c: 1, why: ':= assigns; = compares.' },
+    { l: 5, q: 'WHILE NOT Sensor DO END_WHILE; inside a PLC program will…', a: ['wait for the sensor', 'hang until the watchdog stops the PLC', 'skip the loop', 'run once per scan'], c: 1, why: 'Inputs are not re-read during a scan, so the loop never ends.' },
+    { l: 5, q: 'You need to sum 10 values in an array. Best ST construct?', a: ['CASE', 'FOR', 'WHILE NOT done', 'R_TRIG'], c: 1, why: 'A known number of repetitions: FOR.' },
+    { l: 5, q: 'In a CASE state machine, how does a step "wait" for a sensor?', a: ['WHILE loop', 'It does not change Step until the sensor is TRUE; the CASE runs again next scan', 'A delay function', 'GOTO'], c: 1, why: 'The scan cycle repeats the CASE; the step changes only when its condition is true.' },
+    { l: 5, q: 'How do you use a TON in ST?', a: ['TON(Switch, 3);', 'Declare T1 : TON; call T1(IN := Switch, PT := T#3s); read T1.Q', 'T1 := TON(Switch);', 'IF Switch THEN WAIT(3s);'], c: 1, why: 'Function blocks are instances: declare, call each scan, read outputs.' },
     { l: 5, q: 'Why use a step-number state machine for sequences?', a: ['It uses less memory', 'One active step, easy to debug, extend and show on an HMI', 'It is required by law', 'It is faster'], c: 1, why: 'Clear structure; maps to SFC and CASE.' },
     { l: 5, q: 'A transition rung in a step state machine looks like…', a: ['CMP(MW0==2) AND condition → MOV 3 → MW0', 'MW0 → coil', 'TON → MW0', 'SET MW0'], c: 0, why: 'In step 2, when condition, go to step 3.' },
     { l: 5, q: 'An emergency stop should…', a: ['only be a PLC input', 'cut dangerous energy through a safety relay or safety PLC', 'pause the program', 'be a software flag'], c: 1, why: 'Safety must not depend on standard program logic.' },
