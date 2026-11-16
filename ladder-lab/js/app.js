@@ -13,7 +13,10 @@
   let S = { lessons: {}, ch: {}, chTried: {}, programs: {}, plant: {}, quiz: { best: 0, predict: 0, predictBest: 0 }, theme: '' };
   try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch (e) { /* storage unavailable */ }
   let saveT = 0;
-  function save() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignore */ } }, 250); }
+  function saveNow() { clearTimeout(saveT); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
+  function save() { clearTimeout(saveT); saveT = setTimeout(saveNow, 250); }
+  window.addEventListener('pagehide', saveNow);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
 
   // ───────────────────────── icons ─────────────────────────
   const I = {
@@ -632,11 +635,16 @@
       if (t !== this.hist[this.hi]) { this.hist = this.hist.slice(0, this.hi + 1); this.hist.push(t); if (this.hist.length > 80) this.hist.shift(); this.hi = this.hist.length - 1; }
       S.programs[this.key] = t;
       if (this.ch) S.chTried[this.ch.id] = 1;
-      save();
+      saveNow();
+      // Like downloading to a real PLC: the new program starts from clean memory,
+      // so no bit, timer or counter keeps a value written by the old program.
       this.m.load(this.prog);
+      this.m.reset();
+      this.notice('Program updated · PLC restarted');
       this.refresh();
       if (msg) toast(msg);
     }
+    notice(t) { this._notice = t; this._noticeUntil = performance.now() + 1800; this.scanText(t); }
     restore(t) { this.prog = LL.parseProgram(t); this.sel = null; S.programs[this.key] = t; save(); this.m.load(this.prog); this.m.reset(); this.refresh(); }
 
     usedNums(re) { const s = new Set(); this.prog.rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.addr) { const m = re.exec(c.addr); if (m) s.add(+m[1]); } }))); return s; }
@@ -726,7 +734,7 @@
       b.innerHTML = this.running ? `<span class="rd">●</span> RUN` : `${I.play} Run`;
       b.title = this.running ? 'PLC is running. Tap to stop.' : 'Start the PLC';
     }
-    scanText(t) { $('.scanstate', this.el).textContent = t; }
+    scanText(t) { const e = $('.scanstate', this.el); if (e.textContent !== t) { e.textContent = t; e.classList.toggle('hot', t === this._notice && this._noticeUntil > performance.now()); } }
 
     stepPhase() {
       const n = this.prog.rungs.length;
@@ -926,7 +934,7 @@
           this.acc -= 10; n++;
         }
         if (n >= 30) this.acc = 0;
-        this.scanText('scan ' + this.m.scanCount + ' · 10 ms');
+        this.scanText(this._noticeUntil > performance.now() ? this._notice : 'scan ' + this.m.scanCount + ' · 10 ms');
       }
       // views
       this.ladder.update(this.m, true);

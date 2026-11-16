@@ -309,6 +309,7 @@ main { padding-block: 24px 48px; }
 .runbtn.running .rd { animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: .2; } }
 .scanstate { font-family: var(--f-mono); font-size: .75rem; color: var(--muted); padding: 0 6px; }
+.scanstate.hot { color: var(--accent-ink); background: var(--accent-bg); border-radius: 6px; padding: 2px 8px; }
 .prog-card { overflow: hidden; }
 .prog-scroll { overflow: auto; max-height: min(64vh, 900px); padding: 6px 4px; background: var(--surface); }
 .palette { display: flex; gap: 4px; overflow-x: auto; padding: 8px; border-top: 1px solid var(--line-2); background: var(--surface-2); scrollbar-width: thin; }
