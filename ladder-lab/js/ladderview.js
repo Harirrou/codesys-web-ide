@@ -35,6 +35,8 @@
     DIV: ['Divide', 'dst = a ÷ b (integer) while powered.'],
     SHL: ['Shift left', 'OUT = IN shifted left by N bits (16-bit word). Each place = ×2. Runs every scan while powered.'],
     SHR: ['Shift right', 'OUT = IN shifted right by N bits (16-bit word). Each place = ÷2. Runs every scan while powered.'],
+    CALL: ['Call a block', 'Runs a reusable block (FB) while the rung is true. Each call has an instance name: its own memory. Connect every parameter to an address of this machine.'],
+    PID: ['PID controller', 'Keeps PV at SP by adjusting OUT (0 … 27648 = 0 … 100 %). Kp = % output per unit of error, Ti = integral time (removes the remaining error), Td = derivative time. Off when the rung is false.'],
     SHRB: ['Shift register (bit)', 'Each time it runs, the bits from START move one place along (length N) and DATA enters the first bit. Negative N shifts the other way. Use an edge so it shifts once per event (one pocket, one part).'],
   };
 
@@ -96,6 +98,15 @@
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 49}">CV</text>`;
     } else if (t === 'MOV') {
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 32}">${esc(trunc(cell.src, 10))} →</text><text class="bx-l bx-v" x="${bx0 + 7}" y="${by + 48}">${esc(cell.dst)} = <tspan data-v="dst">0</tspan></text>`;
+    } else if (t === 'CALL') {
+      s += `<text class="bx-addr" x="${bx1 - 7}" y="${by + 12.5}">${esc(trunc(cell.inst || '?', 10))}</text>`;
+      s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 31}" font-weight="700">${esc(trunc(cell.block || '(no block)', 16))}</text>`;
+      const args = Object.keys(cell.args || {}).map((k) => k + '=' + cell.args[k]).join(' ');
+      s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 47}">${esc(trunc(args || 'no parameters connected', 19))}</text>`;
+    } else if (t === 'PID') {
+      s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 30}">PV ${esc(trunc(cell.a, 6))} SP ${esc(trunc(cell.b, 6))}</text>`;
+      s += `<text class="bx-l bx-v" x="${bx0 + 7}" y="${by + 46}">${esc(cell.dst)} = <tspan data-v="dst">0</tspan></text>`;
+      s += `<text class="bx-addr" x="${bx1 - 7}" y="${by + 12.5}">Kp ${cell.kp} Ti ${cell.ti}</text>`;
     } else if (t === 'SHRB') {
       const bits = LL.shiftBits(cell.addr, Math.abs(cell.n)) || [];
       s += `<text class="bx-addr" x="${bx1 - 7}" y="${by + 12.5}">${esc(cell.addr)}${cell.n < 0 ? ' ◀' : ' ▶'}</text>`;
@@ -235,7 +246,7 @@
         if (st.wo !== wo) { p.wo && p.wo.classList.toggle('on', !!wo); st.wo = wo; }
         if (st.a !== active) { p.g.classList.toggle('act', !!active); st.a = active; }
         if (p.et) {
-          const t = m.timers[+cell.addr.slice(1)];
+          const t = m.timerFor ? m.timerFor(cell.addr) : m.timers[+cell.addr.slice(1)];
           const et = on && t ? t.et : 0;
           if (st.et !== et) { p.et.textContent = 'ET ' + fmtMs(et); p.bar.setAttribute('width', Math.max(0, (cell.pt ? Math.min(1, et / cell.pt) : 0) * (+p.bar.parentNode.querySelector('.bar-bg').getAttribute('width')))); st.et = et; }
         }

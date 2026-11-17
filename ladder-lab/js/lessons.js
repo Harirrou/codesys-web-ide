@@ -901,6 +901,174 @@ Valve B = (AUTO AND step wants B) OR (MANUAL AND Jog B AND A is out)   ← inter
       challenges: ['cyl-modes', 'fixture-man', 'fixture-c', 'fixture-orders', 'fixture-modes', 'st-fixture-c', 'fixture-changeover'],
     },
     {
+      id: 'blocks', level: 5, title: 'Reusable blocks: write once, use many times (FC / FB)', min: 14,
+      summary: 'Real programs are built from blocks: one "motor" block used for twenty motors, each call with its own wiring and its own memory. How blocks, parameters and instances work.',
+      body: `
+<h3>The problem blocks solve</h3>
+<p>A line has twenty identical motors. Copying the same five rungs twenty times works, until you find a bug: now you fix it twenty times and miss one. A <b>block</b> holds the logic <b>once</b>. The main program <b>calls</b> it twenty times, each time connected to different inputs and outputs.</p>
+<h3>The words, in every brand</h3>
+<div class="tbl"><table>
+<tr><th>Idea</th><th>Siemens TIA Portal</th><th>Rockwell Studio 5000</th><th>CODESYS</th><th>Ladder Lab</th></tr>
+<tr><td>Main program</td><td>OB1</td><td>MainRoutine</td><td>PLC_PRG</td><td>Main program tab</td></tr>
+<tr><td>Block without memory</td><td>FC</td><td>Subroutine (JSR)</td><td>FUNCTION</td><td>(a block that uses only parameters)</td></tr>
+<tr><td>Block with memory</td><td>FB + instance DB</td><td>Add-On Instruction</td><td>FUNCTION_BLOCK</td><td>BLOCK + CALL with an instance name</td></tr>
+<tr><td>Inputs / outputs of a block</td><td>Input / Output / InOut</td><td>Input / Output parameters</td><td>VAR_INPUT / VAR_OUTPUT</td><td>PARAM IN / OUT / INOUT</td></tr>
+<tr><td>Inside the block</td><td>#Start</td><td>Start</td><td>Start</td><td>#Start</td></tr>
+</table></div>
+<h3>Parameters and memory</h3>
+<ul>
+<li><b>Parameters</b> are the block's "terminals": <code>IN Start</code>, <code>OUT Run</code>. Inside the block you write <b>#Start</b>, never I0.0. At the call you connect <code>Start=I0.0</code>.</li>
+<li><b>Static memory</b>: any other #name you use inside (a seal-in bit #Req, a timer #Delay, a counter) belongs to the block. Every <b>instance</b> (every call with its own name) gets its own copy. Motor1's timer and Motor2's timer run independently.</li>
+<li>The <b>instance name</b> is the memory. Two calls with the same instance name would share and fight over the same memory: always give each call its own instance.</li>
+</ul>
+<h3>How it runs</h3>
+<p>When the scan reaches a CALL whose rung is true, the PLC runs all the block's rungs right there, with the #names pointing at that call's wiring and that instance's memory, then continues with the next rung of the main program. Rung false = block not executed (its outputs keep their last value), so most calls use an always-on contact.</p>
+<h3>Designing a good block</h3>
+<ol>
+<li>One device or one function: a motor, a valve, a drive, an analog channel with alarms.</li>
+<li>Everything that differs between devices is a <b>parameter</b>; everything the block must remember is <b>static</b>.</li>
+<li>Give each parameter a comment; the next technician reads the interface, not the inside.</li>
+<li>Test the block once, very well. Then every instance benefits.</li>
+</ol>
+<div class="callout tip"><b>Watching an instance:</b> in the Lab, open the block's tab and choose the instance to monitor: you see the power flow of Motor2, not Motor1. TIA Portal and Studio 5000 work the same way ("open instance" / "monitor in context").</div>
+<div class="callout where"><b>Where:</b> every professional project. Machine builders keep libraries of tested blocks (motor, valve, drive, analog input, alarm) and build new machines mostly by calling them.</div>`,
+      sims: {},
+      takeaways: ['A block holds logic once; the main program calls it many times.', 'Parameters (IN/OUT) are the block\'s terminals; inside you write #Name.', 'Static #names are the block\'s memory; each instance has its own.', 'Every call needs its own instance name.', 'Fix the block once, and every instance is fixed.'],
+      mistakes: ['Copying rungs instead of making a block.', 'Using real addresses (I0.0) inside a block instead of parameters.', 'Calling two devices with the same instance name.', 'Putting the CALL behind a condition and wondering why the block "freezes".'],
+      challenges: ['blk-motors', 'drive-1', 'drive-line'],
+    },
+    {
+      id: 'drives', level: 5, title: 'Variable-speed drives (VFD) in practice', min: 12,
+      summary: 'How a PLC talks to a frequency inverter: run command, ready / running / fault feedback, fault reset, speed reference, ramps, and how to start and stop a line of driven conveyors.',
+      body: `
+<h3>What a drive is</h3>
+<p>A variable-frequency drive (VFD, inverter) turns the fixed mains into a variable frequency, so the motor runs at any speed: 50 Hz = full speed, 25 Hz = half. It also ramps the motor up and down gently and protects it (overload, overcurrent, overtemperature).</p>
+<h3>The signals</h3>
+<div class="tbl"><table>
+<tr><th>Signal</th><th>Direction</th><th>Meaning</th></tr>
+<tr><td>Run (forward / reverse)</td><td>PLC → drive</td><td>"run now"; the drive ramps up to the reference</td></tr>
+<tr><td>Speed reference</td><td>PLC → drive</td><td>analog 0–10 V / 4–20 mA (0 … 27648) or a word over the fieldbus</td></tr>
+<tr><td>Fault reset</td><td>PLC → drive</td><td>a short pulse (rising edge) after the cause is gone</td></tr>
+<tr><td>Ready</td><td>drive → PLC</td><td>healthy, may run</td></tr>
+<tr><td>Running</td><td>drive → PLC</td><td>output active: proof that the run command arrived</td></tr>
+<tr><td>Fault</td><td>drive → PLC</td><td>tripped (overload, overvoltage …), needs a reset</td></tr>
+<tr><td>Actual speed / current</td><td>drive → PLC</td><td>analog or fieldbus value for display and checks</td></tr>
+</table></div>
+<p>On PROFINET / EtherNet/IP the same signals travel as bits in a <b>control word</b> and a <b>status word</b>, plus a speed word in each direction. The logic is identical.</p>
+<h3>Good practice</h3>
+<ul>
+<li><b>Only command a ready drive</b>, and always <b>watch the feedback</b>: a command without a "running" answer within a few seconds is an alarm (broken wire, drive in local mode, missing enable).</li>
+<li><b>Minimum speed</b>: many motors and conveyors must not crawl (cooling, torque); clamp the reference.</li>
+<li><b>Fault reset</b> as a short pulse, and only when the operator asks. Never reset automatically in a loop.</li>
+<li><b>Lines</b>: start <b>downstream first</b> (the conveyor that takes the product must already run), stop <b>upstream first</b>. If a conveyor trips, stop everything that feeds it at once.</li>
+<li>The emergency stop does not go through the program: drives have <b>STO</b> (Safe Torque Off), wired into the safety circuit.</li>
+</ul>
+<div class="callout where"><b>Where:</b> conveyors, pumps and fans (energy saving), mixers, winders, cranes, extruders. Most motors in a modern plant run on a drive.</div>`,
+      sims: {},
+      takeaways: ['Run + speed reference out; ready, running, fault back.', 'Command only a ready drive and watch the running feedback.', 'Reset faults with a pulse, on request.', 'Clamp the speed reference (minimum speed).', 'Lines: start downstream first, stop upstream first.'],
+      mistakes: ['No feedback watchdog: the PLC thinks a conveyor runs while it stands still.', 'Resetting faults automatically again and again.', 'Starting a feeding conveyor before the one it feeds.'],
+      challenges: ['drive-1', 'drive-line'],
+    },
+    {
+      id: 'pid-practice', level: 5, title: 'PID in practice: the block and how to tune it', min: 12,
+      summary: 'Using a real PID instruction: what Kp, Ti and Td do, why P alone leaves an offset, how to tune by hand, and the traps (windup, wrong direction, noisy D).',
+      body: `
+<h3>The PID instruction</h3>
+<p><code>PID(PV, SP, OUT, Kp, Ti, Td)</code>: the PLC compares the measured value <b>PV</b> with the setpoint <b>SP</b> every scan and calculates the output <b>OUT</b> (0 … 27648 = 0 … 100 %). Real PLCs have the same block: <b>PID_Compact</b> (Siemens), <b>PIDE</b> (Rockwell), <b>PID</b> in CODESYS. When the rung is false the controller is off and its output is 0.</p>
+<div class="tbl"><table>
+<tr><th>Part</th><th>Parameter</th><th>What it does</th><th>Too much</th></tr>
+<tr><td><b>P</b> proportional</td><td>Kp (% output per unit of error)</td><td>reacts at once, in proportion to the error</td><td>swinging</td></tr>
+<tr><td><b>I</b> integral</td><td>Ti (seconds; 0 = off)</td><td>keeps adding while any error is left: removes the offset</td><td>overshoot, slow swinging</td></tr>
+<tr><td><b>D</b> derivative</td><td>Td (seconds; 0 = off)</td><td>reacts to how fast the error changes; damps</td><td>a nervous output on noisy signals</td></tr>
+</table></div>
+<h3>Why P alone is not enough</h3>
+<p>To run a pump at 80 % with Kp = 1 %/unit, the controller needs an error of 80 units. So the pressure settles <b>below</b> the setpoint: the <b>offset</b>. A bigger Kp shrinks the offset but makes the loop swing. The I part fixes it: as long as there is an error, it keeps pushing, until the error is zero.</p>
+<h3>Tuning by hand (works for most loops)</h3>
+<ol>
+<li>Ti = 0, Td = 0. Start with a small Kp.</li>
+<li>Raise Kp step by step until the value starts to swing. Use about <b>half</b> of that Kp.</li>
+<li>Add I: start with Ti about the swing period you saw, then reduce Ti until the response is quick but does not overshoot much.</li>
+<li>D is rarely needed (temperatures with long delays); leave it at 0 for pressure and flow.</li>
+<li>Test with disturbances: open taps, change the setpoint. A good loop recovers calmly.</li>
+</ol>
+<h3>Traps</h3>
+<ul>
+<li><b>Direction</b>: more output must move PV towards SP (pump faster → more pressure). Cooling loops are "reverse acting".</li>
+<li><b>Windup</b>: when the output is stuck at 100 %, the integral must stop growing (the Lab's PID does this), otherwise it overshoots badly afterwards.</li>
+<li><b>Fast loops in slow tasks</b>: run PID at a fixed, short cycle time (cyclic interrupt OB in Siemens).</li>
+<li><b>When not to use PID</b>: a tank with a simple level band or a thermostat often needs only on/off with hysteresis.</li>
+</ul>
+<div class="callout where"><b>Where:</b> pressure boosting, flow and dosing, temperature of ovens and extruders, tension on winders, speed of pumps and fans.</div>`,
+      sims: {},
+      takeaways: ['PID(PV, SP, OUT, Kp, Ti, Td); rung false = controller off.', 'P alone leaves an offset; I removes it; D damps but dislikes noise.', 'Tune: Kp to the edge of swinging, take half; then add I.', 'Watch direction, windup and cycle time.'],
+      mistakes: ['Using P only and wondering why the setpoint is never reached.', 'Too small a Ti: slow swinging and overshoot.', 'Adding D on a noisy measurement.'],
+      challenges: ['pid-1', 'pid-2', 'level-control'],
+    },
+    {
+      id: 'sfc', level: 5, title: 'GRAFCET / SFC: sequences as charts', min: 12,
+      summary: 'Many machines are documented as step charts. How to read GRAFCET (IEC 60848) and SFC (IEC 61131-3), and how to turn a chart into ladder with one bit per step.',
+      body: `
+<h3>Why charts?</h3>
+<p>A sequence is easier to agree on as a picture: the mechanical designer, the customer and the programmer can all read it. In Europe the standard is <b>GRAFCET</b> (IEC 60848); PLCs implement it as <b>SFC</b> (Sequential Function Chart, IEC 61131-3): Siemens S7-GRAPH, CODESYS SFC, Rockwell SFC.</p>
+<h3>The symbols</h3>
+<ul>
+<li><b>Step</b>: a square with a number. The <b>initial step</b> has a double square and is active at start-up. Active steps carry a token.</li>
+<li><b>Action</b>: a box next to a step: what happens while the step is active (Y1: A+).</li>
+<li><b>Transition</b>: a short bar between steps, with its <b>condition</b> (A1, START·A0).</li>
+<li><b>Alternative branch</b> (single horizontal line, OR): only one path is taken, the one whose condition comes true.</li>
+<li><b>Simultaneous branch</b> (double line, AND): all paths start together, and the chart only continues when all of them have finished.</li>
+</ul>
+<div class="sfc-wrap"><svg class="sfc" viewBox="0 0 330 440" width="330" style="max-width:100%;height:auto" role="img" aria-label="GRAFCET chart"><g fill="none" stroke="currentColor" stroke-width="1.6" font-family="IBM Plex Mono, monospace" font-size="11"><rect x="148" y="12" width="34" height="28" rx="2"/><rect x="152" y="16" width="26" height="20" rx="1"/><text x="165" y="30" text-anchor="middle" fill="currentColor" stroke="none" font-weight="700">0</text><line x1="182" y1="26" x2="192" y2="26"/><rect x="192" y="15" width="62" height="22" rx="2"/><text x="223" y="30" text-anchor="middle" fill="currentColor" stroke="none">(home)</text><line x1="165" y1="40" x2="165" y2="70"/><line x1="154" y1="56" x2="176" y2="56" stroke-width="3"/><text x="181" y="60" fill="currentColor" stroke="none">START·A0·B0·C0</text><rect x="148" y="70" width="34" height="28" rx="2"/><text x="165" y="88" text-anchor="middle" fill="currentColor" stroke="none" font-weight="700">1</text><line x1="182" y1="84" x2="192" y2="84"/><rect x="192" y="73" width="62" height="22" rx="2"/><text x="223" y="88" text-anchor="middle" fill="currentColor" stroke="none">Y1: A+</text><line x1="165" y1="98" x2="165" y2="128"/><line x1="154" y1="113" x2="176" y2="113" stroke-width="3"/><text x="181" y="117" fill="currentColor" stroke="none">A1</text><line x1="85" y1="128" x2="245" y2="128"/><line x1="85" y1="132" x2="245" y2="132"/><line x1="105" y1="132" x2="105" y2="146"/><line x1="225" y1="132" x2="225" y2="146"/><rect x="88" y="146" width="34" height="28" rx="2"/><text x="105" y="164" text-anchor="middle" fill="currentColor" stroke="none" font-weight="700">2</text><line x1="88" y1="160" x2="78" y2="160"/><rect x="16" y="149" width="62" height="22" rx="2"/><text x="47" y="164" text-anchor="middle" fill="currentColor" stroke="none">Y2: B+</text><rect x="208" y="146" width="34" height="28" rx="2"/><text x="225" y="164" text-anchor="middle" fill="currentColor" stroke="none" font-weight="700">4</text><line x1="242" y1="160" x2="252" y2="160"/><rect x="252" y="149" width="62" height="22" rx="2"/><text x="283" y="164" text-anchor="middle" fill="currentColor" stroke="none">Y3: C+</text><line x1="105" y1="174" x2="105" y2="206"/><line x1="94" y1="190" x2="116" y2="190" stroke-width="3"/><text x="89" y="194" text-anchor="end" fill="currentColor" stroke="none">B1</text><line x1="225" y1="174" x2="225" y2="206"/><line x1="214" y1="190" x2="236" y2="190" stroke-width="3"/><text x="241" y="194" fill="currentColor" stroke="none">C1</text><rect x="88" y="206" width="34" height="28" rx="2"/><text x="105" y="224" text-anchor="middle" fill="currentColor" stroke="none" font-weight="700">3</text><line x1="88" y1="220" x2="78" y2="220"/><rect x="16" y="209" width="62" height="22" rx="2"/><text x="47" y="224" text-anchor="middle" fill="currentColor" stroke="none">B back</text><rect x="208" y="206" width="34" height="28" rx="2"/><text x="225" y="224" text-anchor="middle" fill="currentColor" stroke="none" font-weight="700">5</text><line x1="242" y1="220" x2="252" y2="220"/><rect x="252" y="209" width="62" height="22" rx="2"/><text x="283" y="224" text-anchor="middle" fill="currentColor" stroke="none">C back</text><line x1="105" y1="234" x2="105" y2="252"/><line x1="225" y1="234" x2="225" y2="252"/><line x1="85" y1="252" x2="245" y2="252"/><line x1="85" y1="256" x2="245" y2="256"/><line x1="165" y1="256" x2="165" y2="290"/><line x1="154" y1="273" x2="176" y2="273" stroke-width="3"/><text x="181" y="277" fill="currentColor" stroke="none">B0·C0</text><rect x="148" y="290" width="34" height="28" rx="2"/><text x="165" y="308" text-anchor="middle" fill="currentColor" stroke="none" font-weight="700">6</text><line x1="182" y1="304" x2="192" y2="304"/><rect x="192" y="293" width="62" height="22" rx="2"/><text x="223" y="308" text-anchor="middle" fill="currentColor" stroke="none">A back</text><line x1="165" y1="318" x2="165" y2="350"/><line x1="154" y1="334" x2="176" y2="334" stroke-width="3"/><text x="181" y="338" fill="currentColor" stroke="none">A0</text><path d="M165 350 V 366 H 22 V 26 H 148"/><path d="M140 22 L 148 26 L 140 30" /></g><g font-family="IBM Plex Sans, sans-serif" font-size="10" fill="currentColor"><text x="10" y="400">□ step (▣ = initial step) · ▬ transition + condition</text><text x="10" y="416">═ double line = simultaneous branch (AND): both paths run</text><text x="10" y="432">Y1 stays on in steps 1 … 5 (spring-return valve)</text></g></svg></div>
+<h3>The two rules</h3>
+<ol>
+<li>A transition fires when <b>all</b> steps just above it are active <b>and</b> its condition is true.</li>
+<li>When it fires, the steps above become inactive and the steps below become active.</li>
+</ol>
+<h3>Chart to ladder: one memory bit per step</h3>
+<pre class="code">SM0.1                       → SET M20.0               (initial step)
+M20.1 · A1                  → SET M20.2, SET M20.4, RST M20.1   (split)
+M20.3 · M20.5 · B0 · C0     → SET M20.6, RST M20.3, RST M20.5   (join)
+Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
+<p>Each transition is one rung with one contact chain and several SET/RST outputs in parallel. Unlike a single step <i>number</i>, step <i>bits</i> allow <b>several steps to be active at once</b>: exactly what a simultaneous branch needs.</p>
+<div class="callout tip"><b>Step number or step bits?</b> A step word (MW0) is simpler for straight sequences and alternative branches. Step bits follow the chart one-to-one and handle simultaneous branches. Both are correct; follow what the documentation uses.</div>
+<div class="callout where"><b>Where:</b> machine documentation in Europe, technician and engineering exams, S7-GRAPH programs in automotive plants, and any sequence where several things happen in parallel.</div>`,
+      sims: {},
+      takeaways: ['Step, action, transition with a condition.', 'Single line = OR branch; double line = AND branch.', 'A transition fires when all steps above it are active and its condition is true.', 'Ladder: one bit per step; one rung per transition with SET next / RST previous.'],
+      mistakes: ['Forgetting to reset the upstream step (two steps stay active).', 'Joining a simultaneous branch on only one of its last steps.', 'Making actions with SET/RST instead of decoding them from the step bits.'],
+      challenges: ['sfc-1', 'cylinders-abc'],
+    },
+    {
+      id: 'troubleshooting', level: 5, title: 'Fault finding on the machine: a method', min: 11,
+      summary: 'Most stoppages are not program bugs: a sensor moved, a wire broke, a coil burned. A quick, safe method to find the cause with the I/O table and forcing.',
+      body: `
+<h3>First question: did anything change?</h3>
+<p>If the machine ran fine yesterday and nobody touched the program, the program is almost never the cause. Suspect the <b>field</b>: sensors, wires, valves, contactors, fuses, mechanics.</p>
+<h3>The method</h3>
+<ol>
+<li><b>Observe</b>: what is the last thing that happened, and what should have come next?</li>
+<li><b>Find what the PLC is waiting for</b>: the step, the transition, the missing condition. The online ladder (power flow) shows which contact is open.</li>
+<li><b>Compare reality with the I/O table</b>: is the cylinder out but the input 0? Is the output 1 but nothing moves? The mismatch tells you where to look.</li>
+<li><b>Split the chain in half</b>: input fault (sensor, cable, input card) or output fault (output card, fuse, wire, coil, valve, mechanics)?</li>
+<li><b>Prove it</b>: force the suspected input or output. If the machine then works, the program is fine.</li>
+<li><b>Repair the cause</b>, remove all forces, test the machine through a full cycle.</li>
+</ol>
+<div class="tbl"><table>
+<tr><th>You see</th><th>Likely cause</th></tr>
+<tr><td>Movement happened, input stays 0</td><td>sensor misplaced or broken, cable cut, input fuse</td></tr>
+<tr><td>Input 1 although nothing is there</td><td>dirty / misaligned photo-eye, sensor too close, short circuit</td></tr>
+<tr><td>Output 1, nothing moves</td><td>output fuse, wire, burned coil, no air / no power, mechanics stuck</td></tr>
+<tr><td>Two signals behave "impossibly"</td><td>wires swapped (often right after maintenance)</td></tr>
+<tr><td>Works only while a button is held</td><td>NO/NC contact type wrong</td></tr>
+</table></div>
+<h3>Forcing safely</h3>
+<p>Forcing makes the PLC ignore the real input, or switches an output whatever the program says. On a real machine it can move things unexpectedly: only with the danger area clear, only for as long as you need, and remove every force afterwards (PLCs show a "force active" lamp). Never "fix" a machine by leaving a force on or by changing the program around a hardware fault.</p>
+<div class="callout where"><b>Where:</b> every maintenance job. A technician who can read the I/O table and the online ladder finds most faults in minutes.</div>`,
+      sims: {},
+      takeaways: ['If the program did not change, suspect the field first.', 'Find what the PLC is waiting for.', 'Compare what you see with what the PLC sees.', 'Split: input side or output side.', 'Prove it by forcing, safely; remove all forces afterwards.'],
+      mistakes: ['Changing the program to work around a broken sensor.', 'Leaving forces active.', 'Bridging safety contacts to "test".'],
+      challenges: ['diag-reed', 'diag-stop', 'diag-eye', 'diag-tank', 'diag-vacuum', 'diag-door'],
+    },
+    {
       id: 'structure', level: 5, title: 'Program structure & troubleshooting', min: 9,
       summary: 'How to lay out a program others can maintain, and how to find faults fast.',
       body: `
@@ -1362,6 +1530,16 @@ END_REPEAT</pre>
     ['Tare / gross / net', 'Tare = the empty container, gross = everything on the scale, net = gross − tare.'],
     ['In-flight (preact)', 'Material still falling after a feed gate closes. The gate is closed early by this amount.'],
     ['Wire break detection', 'Recognising a broken sensor cable from an impossible analog value (e.g. 32767, or below 3.6 mA on 4–20 mA).'],
+    ['Function block (FB) / instance', 'A reusable block with its own memory. Each call has an instance (in Siemens an instance DB) holding that call\'s timers, latches and values.'],
+    ['FC / subroutine', 'A reusable block without its own memory (Siemens FC, Rockwell JSR subroutine, IEC FUNCTION).'],
+    ['Block parameter', 'An input or output of a block (IN, OUT, INOUT), connected to real addresses at each call.'],
+    ['VFD (frequency inverter)', 'Variable-frequency drive: runs an AC motor at variable speed with ramps and motor protection.'],
+    ['STO (Safe Torque Off)', 'Safety function of a drive that removes motor torque through a safety-rated input, independent of the PLC program.'],
+    ['Feedback watchdog', 'Checking that a commanded device answers (running, open, closed) within a time, otherwise an alarm.'],
+    ['Offset (steady-state error)', 'The error a P-only controller leaves, because it needs an error to produce output. The I part removes it.'],
+    ['Integral windup', 'The integral keeps growing while the output is saturated, causing overshoot later. Good PID blocks stop integrating (anti-windup).'],
+    ['GRAFCET / SFC', 'Chart language for sequences: steps, transitions with conditions, actions, OR and AND branches (IEC 60848 / IEC 61131-3).'],
+    ['Forcing', 'Overriding an input or output in the PLC regardless of the field or program, for testing. Use only with the danger area clear and remove it afterwards.'],
     ['Watchdog / timeout', 'Timer that flags a fault when an expected event doesn\'t happen in time.'],
     ['Hysteresis', 'Switching on and off at different thresholds (low/high level) to prevent rapid cycling.'],
     ['HMI', 'Human-Machine Interface: touch panel showing machine state and accepting operator commands.'],
@@ -1371,6 +1549,18 @@ END_REPEAT</pre>
 
   // ───────────────────────── concept quiz ─────────────────────────
   LL.QUIZ = [
+    { l: 5, q: 'Why put the logic for 20 identical motors in one block instead of copying rungs?', a: ['It runs faster', 'Write and test it once; a fix reaches all 20 motors', 'Blocks use less memory', 'It is required by IEC'], c: 1, why: 'One tested block, many calls.' },
+    { l: 5, q: 'Inside a block you write #Start. What is it?', a: ['An input address', 'A parameter or the block\'s own variable, connected at each call', 'A comment', 'A timer'], c: 1, why: 'The call connects #Start to a real address.' },
+    { l: 5, q: 'Two CALLs of FB_Motor use the same instance name. What happens?', a: ['Nothing special', 'They share and overwrite the same memory (timers, latches)', 'The PLC goes to STOP', 'The second call is ignored'], c: 1, why: 'Instance = memory. Each device needs its own instance.' },
+    { l: 5, q: 'A drive gets a run command but never reports "running". What should the program do?', a: ['Keep waiting', 'Raise an alarm after a few seconds (feedback watchdog)', 'Send fault resets in a loop', 'Increase the speed reference'], c: 1, why: 'A command without an answer is always an alarm.' },
+    { l: 5, q: 'Three conveyors in a row: in which order do you start them?', a: ['Infeed first', 'All at once', 'Downstream (outfeed) first, then upstream', 'Random'], c: 2, why: 'The conveyor that takes the product must already run.' },
+    { l: 5, q: 'A P controller (Ti = 0) settles 0.4 bar below the setpoint. What fixes it?', a: ['More D', 'Adding the I part (integral)', 'Lower Kp', 'A faster sensor'], c: 1, why: 'The integral keeps pushing until the error is zero.' },
+    { l: 5, q: 'You raise Kp and the pressure starts to swing. Good tuning practice?', a: ['Keep it, it is fast', 'Use about half of that Kp, then add I', 'Add D at maximum', 'Set Ti to 0.1 s'], c: 1, why: 'Half of the swinging gain is a safe starting point.' },
+    { l: 5, q: 'In a GRAFCET, a double horizontal line means…', a: ['an alternative (OR) branch', 'a simultaneous (AND) branch', 'the end of the program', 'an emergency stop'], c: 1, why: 'All paths run together and must all finish before the chart continues.' },
+    { l: 5, q: 'When does a GRAFCET transition fire?', a: ['When its condition is true', 'When all steps above it are active AND its condition is true', 'Every scan', 'When the next step is active'], c: 1, why: 'Both rules together.' },
+    { l: 5, q: 'A cylinder is visibly out, but its sensor input stays 0. Where is the fault?', a: ['In the program', 'On the input side: sensor position, sensor or cable', 'In the output card', 'In the valve'], c: 1, why: 'What you see and what the PLC sees differ on the input.' },
+    { l: 5, q: 'An output is 1 in the PLC, but the valve does not move. Next check?', a: ['Rewrite the rung', 'Fuse, wire, coil voltage at the valve, air supply', 'The input sensors', 'Restart the PLC'], c: 1, why: 'The command leaves the PLC; follow it to the actuator.' },
+    { l: 5, q: 'A machine only runs while STOP is held. Most likely?', a: ['START broken', 'STOP wired NO instead of NC', 'Overload tripped', 'PLC fault'], c: 1, why: 'The NC/NO contact type is wrong; rewire it, do not change the program.' },
     { l: 1, q: 'What is "bit memory" (M) in a Siemens PLC?', a: ['The program memory', 'Internal bits (auxiliary relays) your program uses to remember things', 'The input image', 'A memory card'], c: 1, why: 'M = Merker = bit memory: internal flags, not wired to anything.' },
     { l: 1, q: 'How many bits are in a word?', a: ['8', '16', '32', '4'], c: 1, why: 'Byte = 8, word = 16, double word = 32.' },
     { l: 1, q: 'The byte 0000 0101 has the value…', a: ['5', '101', '10', '3'], c: 0, why: 'Bit weights 4 + 1 = 5.' },

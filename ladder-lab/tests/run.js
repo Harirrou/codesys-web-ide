@@ -22,6 +22,11 @@ LL.CHALLENGES.forEach((ch) => {
   ok(!errs.length, 'lint clean ' + ch.id + ' ' + JSON.stringify(errs));
   const res = LL.runChallenge(p, ch);
   res.forEach((r) => ok(r.ok, ch.id + ' / ' + r.name + ': ' + r.msg));
+  if (ch.kind === 'diagnose') {
+    ok(LL.runChallenge(p, ch, { faults: ch.faults }).some((r) => !r.ok), 'the fault must break the machine in ' + ch.id);
+    ok(ch.options.filter((o) => o.ok).length === 1, 'exactly one right answer in ' + ch.id);
+    return;
+  }
   const st = LL.parseProgram(ch.starter || 'RUNG\n');
   const sres = LL.runChallenge(st, ch);
   ok(sres.some((r) => !r.ok), 'starter should fail ' + ch.id);

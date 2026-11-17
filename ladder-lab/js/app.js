@@ -623,6 +623,7 @@
     [['TON', 'TON'], ['TOF', 'TOF'], ['TP', 'TP'], ['RTO', 'RTO'], ['CTU', 'CTU'], ['CTD', 'CTD']],
     [['MOV', 'MOV'], ['ADD', 'ADD'], ['SUB', 'SUB'], ['MUL', 'MUL'], ['DIV', 'DIV']],
     [['SHRB', 'SHRB'], ['SHL', 'SHL'], ['SHR', 'SHR']],
+    [['CALL', 'CALL block'], ['PID', 'PID']],
   ];
   function toolIcon(k) {
     const s = 'stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"';
@@ -710,6 +711,7 @@
             <span class="scanstate"></span>
           </div>
           <div class="fault-host"></div>
+          <div class="blk-bar ld-only"></div>
           <div class="card prog-card only-program ld-only"><div class="prog-scroll"><div class="ladder-host"></div></div><div class="palette"></div></div>
           <div class="card inspector only-program ld-only"></div>
           <div class="card issues only-program ld-only" hidden></div>
@@ -727,7 +729,7 @@
             <p class="blurb"></p>
             <div class="dock desktop-only"></div>
           </div>
-          <details class="card details-card only-machine" open><summary>I/O &amp; values</summary><table class="iotable"></table></details>
+          <details class="card details-card only-machine" open><summary>I/O &amp; values</summary><table class="iotable live-io"></table></details>
         </div>
         <div class="dock dock-sticky mobile-only"></div>
       </div></div>`);
@@ -859,13 +861,96 @@
       // IO table
       const rows = this.plant.inputs.flatMap((d) => d.kind === 'sel3' ? [d.addr, d.addr2].map((a, k) => `<tr><td>${a}</td><td>${esc(d.name)} ${k ? 'AUTO' : 'MANUAL'}<span class="kind">selector position</span></td><td data-io="${a}">0</td></tr>`) : [`<tr><td>${d.addr}</td><td>${esc(tags[d.addr] || d.name)}<span class="kind">${d.kind === 'pbnc' ? 'button, wired NC' : d.kind === 'pb' ? 'button, NO' : d.kind === 'sw' ? 'switch' : 'sensor'}</span>${d.note ? `<div class="kind" style="margin:0">${esc(d.note)}</div>` : ''}</td><td data-io="${d.addr}">0</td></tr>`])
         .concat(this.plant.outputs.map((o) => `<tr><td>${o.addr}</td><td>${esc(tags[o.addr] || o.name)}<span class="kind">output</span></td><td data-io="${o.addr}">0</td></tr>`));
-      $('.iotable', this.el).innerHTML = rows.join('') + '<tbody class="valrows"></tbody>';
+      $('.live-io', this.el).innerHTML = `<tr class="force-head"><td colspan="4"><span class="muted" style="font-size:.78rem">Tap <b>F</b> to force a bit: ON → OFF → normal. Forcing overrides the program or the field, like a real programming tool. On a real machine: only with the danger area clear.</span></td></tr>` + rows.join('') + '<tbody class="valrows"></tbody>';
       this.ioCells = $$('[data-io]', this.el);
+      this.ioCells.forEach((c) => {
+        const a = c.dataset.io;
+        if (!/^[IQ]\d+\.\d$/.test(a)) return;
+        const fb = h(`<button class="frc" type="button" title="Force ${a}">F</button>`);
+        c.parentNode.appendChild(h('<td class="frc-td"></td>')).appendChild(fb);
+        fb.onclick = () => {
+          this.forces = this.forces || {};
+          const cur = this.forces[a];
+          if (cur === undefined) this.forces[a] = 1; else if (cur === 1) this.forces[a] = 0; else delete this.forces[a];
+          const v = this.forces[a];
+          fb.textContent = v === undefined ? 'F' : 'F' + v; fb.classList.toggle('on', v !== undefined);
+          c.parentNode.classList.toggle('forced', v !== undefined);
+          const n = Object.keys(this.forces).length;
+          toast(v === undefined ? a + ' back to normal' + (n ? ' · ' + n + ' force(s) still active' : '') : a + ' forced ' + (v ? 'ON' : 'OFF'));
+        };
+      });
     }
 
     setTool(k) {
       this.tool = k;
       $$('.tool', this.el).forEach((b) => b.classList.toggle('on', b.dataset.tool === k));
+    }
+
+    // ── editing target: the main program or the open block ──
+    get E() {
+      const b = this.blk && (this.prog.blocks || []).find((x) => x.name === this.blk);
+      if (!b) { this.blk = null; return this.prog; }
+      return { rungs: b.rungs, cols: this.prog.cols, name: b.name, tags: this.prog.tags, blocks: this.prog.blocks, _blk: b };
+    }
+    blockVars() {
+      const b = this.E._blk; if (!b) return [];
+      const out = b.params.map((pp) => ['#' + pp.name, pp.dir + ' ' + pp.type]);
+      const seen = new Set(out.map((x) => x[0]));
+      b.rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (!c) return; ['addr', 'a', 'b', 'src', 'dst'].forEach((k) => { const v = c[k]; if (typeof v === 'string' && v[0] === '#') { const base = v.split('.')[0]; if (!seen.has(base)) { seen.add(base); out.push([base, 'static']); } } }); })));
+      return out;
+    }
+    renderBlockBar() {
+      const bar = $('.blk-bar', this.el); if (!bar) return;
+      const blocks = this.prog.blocks || [];
+      const cur = this.E._blk;
+      let html = `<div class="blk-tabs"><button class="${cur ? '' : 'on'}" data-blk="">Main program</button>${blocks.map((b) => `<button class="${cur && cur.name === b.name ? 'on' : ''}" data-blk="${esc(b.name)}">${esc(b.name)}</button>`).join('')}<button data-blk-new title="Create a reusable block">+ Block</button></div>`;
+      if (cur) {
+        const insts = [];
+        const scan = (rungs, pre) => rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.type === 'CALL' && c.block === cur.name) insts.push(pre + c.inst); })));
+        scan(this.prog.rungs, '');
+        blocks.forEach((b) => { if (b !== cur) { const outer = []; scan.call(null, [], ''); void outer; } });
+        if (!this.monInst || !insts.includes(this.monInst)) this.monInst = insts[0] || '';
+        html += `<div class="card blk-iface"><div class="row" style="justify-content:space-between;gap:8px"><span class="eyebrow">Block interface · use <b>#Name</b> inside the block</span><span class="row" style="gap:6px">${insts.length ? `<label class="muted" style="font-size:.8rem">Monitor <select data-mon>${insts.map((i) => `<option ${i === this.monInst ? 'selected' : ''}>${esc(i)}</option>`).join('')}</select></label>` : '<span class="muted" style="font-size:.8rem">not called yet: add CALL ' + esc(cur.name) + ' in the main program</span>'}<button class="btn small" data-blk-del style="color:var(--danger)">Delete block</button></span></div>
+          <div class="blk-row"><label>Name <input data-bname value="${esc(cur.name)}" class="mono"></label><label style="flex:1">Comment <input data-bcom value="${esc(cur.comment || '')}" placeholder="what the block does"></label></div>
+          <table class="blk-params"><tr><th>Dir</th><th>Name</th><th>Type</th><th>Comment</th><th></th></tr>${cur.params.map((pp, k) => `<tr data-pk="${k}"><td><select data-pf="dir">${['IN', 'OUT', 'INOUT'].map((d) => `<option ${d === pp.dir ? 'selected' : ''}>${d}</option>`).join('')}</select></td><td><input data-pf="name" class="mono" value="${esc(pp.name)}"></td><td><select data-pf="type">${['BOOL', 'INT'].map((d) => `<option ${d === pp.type ? 'selected' : ''}>${d}</option>`).join('')}</select></td><td><input data-pf="comment" value="${esc(pp.comment || '')}"></td><td><button class="btn small ghost" data-pdel>✕</button></td></tr>`).join('')}</table>
+          <div class="row"><button class="btn small" data-padd>+ Parameter</button><span class="muted" style="font-size:.8rem">Any other #name you use inside (e.g. #Latch, #Delay) is the block's own memory: every instance gets its own copy.</span></div></div>`;
+      }
+      bar.innerHTML = html;
+      $$('[data-blk]', bar).forEach((b) => (b.onclick = () => { this.blk = b.dataset.blk || null; this.sel = null; this.refresh(); }));
+      const nb = $('[data-blk-new]', bar);
+      if (nb) nb.onclick = () => {
+        const m = modal('New block', `<p class="muted" style="margin:0 0 10px">A block is a piece of ladder you write once and call many times, each call with its own inputs, outputs and memory (an FB with an instance in TIA Portal, an Add-On Instruction in Studio 5000, a function block in CODESYS).</p><div class="field"><label for="nbn">Block name</label><input id="nbn" class="mono" value="FB_${blocks.length ? 'Block' + (blocks.length + 1) : 'Motor'}"></div>`, [{ label: 'Cancel' }, { label: 'Create', cls: 'primary', run: (mm) => {
+          const nm = $('#nbn', mm).value.trim();
+          if (!/^[A-Za-z_]\w*$/.test(nm) || blocks.some((x) => x.name === nm)) { toast('Use a new name with letters, digits and _ only'); return false; }
+          this.prog.blocks = this.prog.blocks || [];
+          this.prog.blocks.push({ name: nm, comment: '', params: [{ dir: 'IN', name: 'Start', type: 'BOOL', comment: '' }, { dir: 'OUT', name: 'Run', type: 'BOOL', comment: '' }], rungs: [LL.emptyRung(this.prog.cols)] });
+          this.blk = nm; this.sel = null; this.commit('Block ' + nm + ' created. Write its rungs with #Start, #Run …, then CALL it from the main program.');
+        } }]);
+        void m;
+      };
+      if (!cur) return;
+      const ren = (old, nw) => { const fix = (rungs) => rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.type === 'CALL' && c.block === old) c.block = nw; }))); fix(this.prog.rungs); blocks.forEach((b) => fix(b.rungs)); };
+      $('[data-bname]', bar).onchange = (e) => { const nw = e.target.value.trim(); if (!/^[A-Za-z_]\w*$/.test(nw) || blocks.some((x) => x !== cur && x.name === nw)) { toast('Invalid or duplicate name'); e.target.value = cur.name; return; } ren(cur.name, nw); cur.name = nw; this.blk = nw; this.commit('Block renamed'); };
+      $('[data-bcom]', bar).onchange = (e) => { cur.comment = e.target.value; this.commit(); };
+      $$('[data-pk]', bar).forEach((tr) => {
+        const pp = cur.params[+tr.dataset.pk];
+        $$('[data-pf]', tr).forEach((inp) => (inp.onchange = () => {
+          const f = inp.dataset.pf, v = inp.value.trim();
+          if (f === 'name') {
+            if (!/^[A-Za-z_]\w*$/.test(v) || cur.params.some((x) => x !== pp && x.name === v)) { toast('Invalid or duplicate parameter name'); inp.value = pp.name; return; }
+            const old = pp.name;
+            cur.rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (!c) return; ['addr', 'a', 'b', 'src', 'dst'].forEach((k) => { if (typeof c[k] === 'string' && c[k].split('.')[0] === '#' + old) c[k] = '#' + v + c[k].slice(old.length + 1); }); })));
+            const fixArgs = (rungs) => rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.type === 'CALL' && c.block === cur.name && c.args && old in c.args) { c.args[v] = c.args[old]; delete c.args[old]; } })));
+            fixArgs(this.prog.rungs); blocks.forEach((b) => fixArgs(b.rungs));
+          }
+          pp[f] = v;
+          this.commit();
+        }));
+        $('[data-pdel]', tr).onclick = () => { cur.params.splice(+tr.dataset.pk, 1); this.commit('Parameter removed'); };
+      });
+      $('[data-padd]', bar).onclick = () => { let k = cur.params.length + 1; while (cur.params.some((x) => x.name === 'Param' + k)) k++; cur.params.push({ dir: 'IN', name: 'Param' + k, type: 'BOOL', comment: '' }); this.commit('Parameter added'); };
+      $('[data-blk-del]', bar).onclick = () => modal('Delete block ' + cur.name + '?', '<p>The block and its rungs are removed. CALLs to it will show an error until you remove them. Undo brings it back.</p>', [{ label: 'Cancel' }, { label: 'Delete', cls: 'primary', run: () => { this.prog.blocks.splice(this.prog.blocks.indexOf(cur), 1); this.blk = null; this.commit('Block deleted'); } }]);
+      const mon = $('[data-mon]', bar); if (mon) mon.onchange = () => { this.monInst = mon.value; };
     }
 
     // ── editing ──
@@ -886,19 +971,21 @@
     notice(t) { this._notice = t; this._noticeUntil = performance.now() + 1800; this.scanText(t); }
     restore(t) { this.prog = LL.parseProgram(t); this.sel = null; S.programs[this.key] = t; save(); this.m.load(this.prog); this.m.reset(); this.refresh(); }
 
-    usedNums(re) { const s = new Set(); this.prog.rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.addr) { const m = re.exec(c.addr); if (m) s.add(+m[1]); } }))); return s; }
+    usedNums(re) { const s = new Set(); [this.prog.rungs].concat((this.prog.blocks || []).map((b) => b.rungs)).flat().forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.addr) { const m = re.exec(c.addr); if (m) s.add(+m[1]); } }))); return s; }
     defaultFor(type) {
       const used = LL.usedAddrs(this.prog);
       if (LL.TIMERS.includes(type)) { const u = this.usedNums(/^T(\d+)$/); let n = 0; while (u.has(n)) n++; return { addr: 'T' + n, pt: 3000 }; }
       if (LL.COUNTERS.includes(type)) { const u = this.usedNums(/^C(\d+)$/); let n = 0; while (u.has(n)) n++; return { addr: 'C' + n, pv: 5 }; }
       if (['COIL', 'NCOIL', 'SET', 'RST'].includes(type)) { const o = this.plant.outputs.find((x) => !used.has(x.addr)); return { addr: o ? o.addr : 'M0.0' }; }
       if (['NO', 'NC', 'P', 'N'].includes(type)) { const o = this.plant.inputs.find((x) => !used.has(x.addr)) || this.plant.inputs[0]; return { addr: o.addr }; }
+      if (type === 'CALL') { const bl = (this.prog.blocks || []).filter((x) => x.name !== this.blk); const b = bl[0]; const used2 = new Set(); [this.prog.rungs].concat((this.prog.blocks || []).map((x) => x.rungs)).flat().forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.type === 'CALL') used2.add(c.inst); }))); const base = b ? b.name.replace(/^FB_?/i, '') || 'Inst' : 'Inst'; let k = 1; while (used2.has(base + k)) k++; if (!b) toast('Create a block first with + Block above the ladder'); return { block: b ? b.name : '', inst: base + k, args: {} }; }
+      if (type === 'PID') { const ai = this.plant.inputs.find((x) => /^AIW/.test(x.addr)), aq = this.plant.outputs.find((x) => /^AQW/.test(x.addr)); return { a: ai ? ai.addr : 'MW10', b: 'MW20', dst: aq ? aq.addr : 'MW30', kp: 1, ti: 10, td: 0 }; }
       if (type === 'SHRB') return { src: (this.plant.inputs.find((x) => x.kind === 'sensor') || this.plant.inputs[0]).addr, addr: 'M10.0', n: 8 };
       return {};
     }
 
     pick(p) {
-      const rung = this.prog.rungs[p.i];
+      const rung = this.E.rungs[p.i];
       if (p.kind === 'rung') { this.sel = { kind: 'rung', i: p.i }; this.refresh(); return; }
       const C = this.prog.cols;
       let { r, c } = p;
@@ -940,16 +1027,16 @@
     addRow(rung) { rung.rows++; rung.cells.push(new Array(rung.cols).fill(null)); rung.links.push(new Array(rung.cols + 1).fill(false)); }
 
     action(a, btn) {
-      const P = this.prog;
+      const P = this.E;
       switch (a) {
         case 'run': this.running = !this.running; if (this.running) { this.ladder.setActiveRung(-1); this.scanText(''); } this.updateRunBtn(); break;
         case 'step': this.running = false; this.updateRunBtn(); this.stepPhase(); break;
-        case 'reset': this.m.reset(); this.pst = this.plant.init(); this.acc = 0; this.ctrl = {}; this.buildDevices(); this.ladder.setActiveRung(-1); this.scanText(''); toast('PLC memory and machine reset'); break;
+        case 'reset': this.m.reset(); this.pst = this.plant.init(); this.acc = 0; this.ctrl = {}; this.forces = {}; this.buildDevices(); this.ladder.setActiveRung(-1); this.scanText(''); toast('PLC memory and machine reset'); break;
         case 'speed': this.speed = this.speed === 1 ? 0.25 : this.speed === 0.25 ? 0.1 : 1; btn.textContent = this.speed === 1 ? '1×' : this.speed === 0.25 ? '¼×' : '⅒×'; toast('Simulation speed ' + btn.textContent); break;
         case 'zoom': this.ladder.opts.zoom = this.ladder.opts.zoom === 'fit' ? 1 : 'fit'; this.ladder.fit(); toast(this.ladder.opts.zoom === 'fit' ? 'Zoom: fit width' : 'Zoom: 100 %'); break;
         case 'undo': if (this.hi > 0) { this.hi--; this.restore(this.hist[this.hi]); } break;
         case 'redo': if (this.hi < this.hist.length - 1) { this.hi++; this.restore(this.hist[this.hi]); } break;
-        case 'st': modal('Structured Text', `<p class="muted" style="margin:0 0 10px">The same logic written as IEC 61131-3 Structured Text, as in CODESYS. Reading both side by side is a great way to learn.</p><pre>${esc(LL.toST(Object.assign({}, P, { tags: this.tags() })))}</pre>`, [{ label: 'Close' }]); break;
+        case 'st': modal('Structured Text', `<p class="muted" style="margin:0 0 10px">The same logic written as IEC 61131-3 Structured Text, as in CODESYS. Reading both side by side is a great way to learn.</p><pre>${esc(LL.toST(Object.assign({}, this.prog, { tags: this.tags() })))}</pre>`, [{ label: 'Close' }]); break;
         case 'file': this.fileMenu(); break;
         case 'clear': this.clearEditor(); break;
         // rung ops
@@ -980,9 +1067,9 @@
     scanText(t) { const e = $('.scanstate', this.el); if (e.textContent !== t) { e.textContent = t; e.classList.toggle('hot', t === this._notice && this._noticeUntil > performance.now()); } }
 
     stepPhase() {
-      if (this.lang === 'st') { this.I = this.plant.step(this.pst, this.ctrl, LL.plantOutputs(this.plant, this.m), 10); this.m.setInputs(this.I); this.m.scan(10); this.scanText('Scan ' + this.m.scanCount + ' done (one Step = one whole scan in ST)'); return; }
+      if (this.lang === 'st') { this.plantStep(10); this.m.scan(10); this.scanText('Scan ' + this.m.scanCount + ' done (one Step = one whole scan in ST)'); return; }
       const n = this.prog.rungs.length;
-      if (this.m.phase === 0) { this.I = this.plant.step(this.pst, this.ctrl, LL.plantOutputs(this.plant, this.m), 10); this.m.setInputs(this.I); }
+      if (this.m.phase === 0) this.plantStep(10);
       const ph = this.m.stepPhase(10);
       this.ladder.setActiveRung(ph >= 1 && ph <= n ? ph - 1 : -1);
       this.scanText(ph === 0 ? 'Scan ' + this.m.scanCount + ' · ① read inputs' : ph <= n ? '② solved rung ' + ph + ' of ' + n : '③ wrote outputs');
@@ -990,7 +1077,8 @@
 
     refresh() {
       if (this.lang === 'st') return;
-      this.ladder.setProgram(this.prog, this.tags());
+      this.renderBlockBar();
+      this.ladder.setProgram(this.E, this.tags());
       this.ladder.select(this.sel ? { kind: this.sel.kind, i: this.sel.i, r: this.sel.r, c: this.sel.c } : null);
       this.renderInspector();
       this.renderIssues();
@@ -1015,18 +1103,18 @@
       const tags = this.tags();
       if (!s) {
         box.innerHTML = `<div class="ih"><h3>How to edit</h3></div><p class="desc">1. Pick a tool below the ladder (for example <b>-| |-</b>). 2. Tap a dashed box to place it; outputs jump to the amber column on the right. 3. Tap an element with <b>Select</b> to set its address. Use <b>Branch</b> on a cell to drop a parallel path from its right side. Tap a rung's header line for rung options.</p><div class="row"><button class="btn small" data-a2="addrung">+ Add rung at end</button></div>`;
-        $('[data-a2="addrung"]', box).onclick = () => { this.prog.rungs.push(LL.emptyRung(this.prog.cols)); this.sel = { kind: 'rung', i: this.prog.rungs.length - 1 }; this.commit('Rung added'); };
+        $('[data-a2="addrung"]', box).onclick = () => { this.E.rungs.push(LL.emptyRung(this.prog.cols)); this.sel = { kind: 'rung', i: this.E.rungs.length - 1 }; this.commit('Rung added'); };
         return;
       }
       if (s.kind === 'rung') {
-        const r = this.prog.rungs[s.i];
-        box.innerHTML = `<div class="ih"><h3>Rung ${s.i + 1}</h3><span class="muted" style="font-size:.85rem">${r.rows} row${r.rows > 1 ? 's' : ''}</span></div>
+        const r = this.E.rungs[s.i];
+        box.innerHTML = `<div class="ih"><h3>${this.blk ? esc(this.blk) + ' · ' : ''}Rung ${s.i + 1}</h3><span class="muted" style="font-size:.85rem">${r.rows} row${r.rows > 1 ? 's' : ''}</span></div>
           <div class="field"><label for="rc">Comment: say why this rung exists</label><input id="rc" value="${esc(r.comment)}" placeholder="e.g. Motor start/stop latch"></div>
           <div class="row"><button class="btn small" data-a="r-above">+ Rung above</button><button class="btn small" data-a="r-add">+ Rung below</button><button class="btn small" data-a="r-row">+ Branch row</button><button class="btn small" data-a="r-unrow">− Last row</button><button class="btn small" data-a="r-up">↑</button><button class="btn small" data-a="r-down">↓</button><button class="btn small" data-a="r-dup">Duplicate</button><button class="btn small" data-a="r-del" style="color:var(--danger)">Delete rung</button></div>`;
         $('#rc', box).oninput = (e) => { r.comment = e.target.value; clearTimeout(this._ct); this._ct = setTimeout(() => this.commit(), 400); };
         return;
       }
-      const rung = this.prog.rungs[s.i];
+      const rung = this.E.rungs[s.i];
       const cell = rung && rung.cells[s.r][s.c];
       const C = this.prog.cols;
       const b = s.c < C - 1 ? s.c + 1 : C - 1;
@@ -1043,7 +1131,10 @@
       const mem = [...new Set(['M0.0', 'M0.1', 'M0.2', 'M0.3'].concat(used.filter((a) => /^M\d/.test(a))))].sort().map((a) => [a, nameOf(a)]);
       const tim = used.filter((a) => /^T\d+$/.test(a)).map((a) => [a, '']);
       const ctr = used.filter((a) => /^C\d+$/.test(a)).map((a) => [a, '']);
-      const words = [...new Set(['MW0'].concat(this.plant.inputs.concat(this.plant.outputs).map((d) => d.addr).filter((a) => /^A[IQ]W/.test(a)), used.filter((a) => /^MW/.test(a)), used.filter((a) => /^C\d+$/.test(a)).map((a) => a + '.CV'), used.filter((a) => /^T\d+$/.test(a)).map((a) => a + '.ET')))].map((a) => [a, '']);
+      const bvs = this.blk ? this.blockVars() : [];
+      if (bvs.length) { inputs.unshift(...bvs); outputs.unshift(...bvs); mem.unshift(...bvs.filter((x) => !/INT/.test(x[1]))); tim.unshift(...bvs.filter((x) => x[1] === 'static')); ctr.unshift(...bvs.filter((x) => x[1] === 'static')); }
+      const words0 = [...new Set(['MW0'].concat(this.plant.inputs.concat(this.plant.outputs).map((d) => d.addr).filter((a) => /^A[IQ]W/.test(a)), used.filter((a) => /^MW/.test(a)), used.filter((a) => /^C\d+$/.test(a)).map((a) => a + '.CV'), used.filter((a) => /^T\d+$/.test(a)).map((a) => a + '.ET')))].map((a) => [a, '']);
+      const words = bvs.filter((x) => !/BOOL/.test(x[1])).concat(words0);
       let fields = '';
       let chips = '';
       const T = cell.type;
@@ -1064,6 +1155,15 @@
         chips = this.quickChips('a', words);
       } else if (T === 'MOV') {
         fields += `<div class="field"><label for="f-src">Source</label><input id="f-src" class="mono" data-f="src" value="${esc(cell.src)}"></div><div class="field"><label for="f-dst">Destination</label><input id="f-dst" class="mono" data-f="dst" value="${esc(cell.dst)}"></div>`;
+      } else if (T === 'CALL') {
+        const blocks = this.prog.blocks || [];
+        if (blocks.length && !blocks.some((x) => x.name === cell.block)) { const first = blocks.find((x) => x.name !== this.blk); if (first) cell.block = first.name; }
+        const b = blocks.find((x) => x.name === cell.block);
+        fields += `<div class="field"><label for="f-blk">Block</label><select id="f-blk" data-call="block">${blocks.length ? '' : '<option value="">(no blocks yet: create one with + Block)</option>'}${blocks.filter((x) => x.name !== this.blk).map((x) => `<option ${x.name === cell.block ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div><div class="field"><label for="f-inst">Instance name (its own memory)</label><input id="f-inst" class="mono" data-call="inst" value="${esc(cell.inst)}"></div>`;
+        if (b) b.params.forEach((pp) => { fields += `<div class="field"><label>${pp.dir} ${esc(pp.name)} <span class="muted">${pp.type}${pp.comment ? ' · ' + esc(pp.comment) : ''}</span></label><input class="mono" data-arg="${esc(pp.name)}" data-ptype="${pp.type}" data-pdir="${pp.dir}" value="${esc((cell.args || {})[pp.name] || '')}" placeholder="${pp.type === 'INT' ? 'MW10, AIW0, 100 …' : pp.dir === 'IN' ? 'I0.0, M0.1 …' : 'Q0.0, M0.1 …'}"></div>`; });
+      } else if (T === 'PID') {
+        fields += `<div class="field"><label for="f-a">PV: measured value (word)</label><input id="f-a" class="mono" data-f="a" value="${esc(cell.a)}"></div><div class="field"><label for="f-b">SP: setpoint (word, same units)</label><input id="f-b" class="mono" data-f="b" value="${esc(cell.b)}"></div><div class="field"><label for="f-dst">OUT: 0 … 27648 = 0 … 100 %</label><input id="f-dst" class="mono" data-f="dst" value="${esc(cell.dst)}"></div><div class="field"><label for="f-kp">Kp: % output per unit of error</label><input id="f-kp" type="number" step="0.01" min="0.001" data-f="kp" value="${cell.kp}"></div><div class="field"><label for="f-ti">Ti: integral time in s (0 = no I)</label><input id="f-ti" type="number" step="0.1" min="0" data-f="ti" value="${cell.ti}"></div><div class="field"><label for="f-td">Td: derivative time in s (0 = no D)</label><input id="f-td" type="number" step="0.05" min="0" data-f="td" value="${cell.td}"></div>`;
+        chips = this.quickChips('a', words);
       } else if (T === 'SHRB') {
         fields += `<div class="field"><label for="f-src">DATA bit (enters the register)</label><input id="f-src" class="mono" data-f="src" value="${esc(cell.src)}"></div><div class="field"><label for="f-addr">START bit (first bit of the register)</label><input id="f-addr" class="mono" data-f="addr" value="${esc(cell.addr)}"></div><div class="field"><label for="f-n">Length N (negative = shift the other way)</label><input id="f-n" type="number" step="1" min="-64" max="64" data-f="n" value="${cell.n}"></div>`;
         chips = this.quickChips('src', inputs.concat(mem));
@@ -1082,12 +1182,13 @@
         if (f === 'pt') { const ms = Math.round(parseFloat(v) * 1000); if (!(ms > 0)) { inp && inp.classList.add('bad'); return; } cell.pt = ms; }
         else if (f === 'pv') { const n = parseInt(v, 10); if (isNaN(n)) { inp && inp.classList.add('bad'); return; } cell.pv = n; }
         else if (f === 'op') cell.op = v;
+        else if (f === 'kp' || f === 'ti' || f === 'td') { const x = parseFloat(v); if (isNaN(x) || x < 0 || (f === 'kp' && x <= 0)) { inp && inp.classList.add('bad'); return; } cell[f] = x; }
         else if (f === 'n') { const n = parseInt(v, 10); if (isNaN(n) || n === 0 || Math.abs(n) > 64) { inp && inp.classList.add('bad'); return; } cell.n = n; }
         else {
           let a = LL.norm(v);
           const byName = Object.keys(tags).find((k) => tags[k] && tags[k].toUpperCase() === String(v).trim().toUpperCase());
           if (byName) a = byName;
-          const ok = T === 'SHRB' ? (f === 'src' ? LL.isBitAddr(a) : /^[QM]\d{1,2}\.[0-7]$/.test(a)) : f === 'addr' ? (LL.TIMERS.includes(T) ? /^T\d{1,2}$/.test(a) : LL.COUNTERS.includes(T) ? /^C\d{1,2}$/.test(a) : LL.isBitAddr(a) || (T === 'RST' && LL.isWritableWord(a))) : f === 'dst' ? LL.isWritableWord(a) : LL.isWordAddr(a);
+          const ok = T === 'SHRB' ? (f === 'src' ? LL.isBitAddr(a) : /^[QM]\d{1,2}\.[0-7]$/.test(a)) : f === 'addr' ? (LL.TIMERS.includes(T) ? /^T\d{1,2}$/.test(a) || (!!this.blk && /^#[A-Za-z_]\w*$/.test(a)) : LL.COUNTERS.includes(T) ? /^C\d{1,2}$/.test(a) || (!!this.blk && /^#[A-Za-z_]\w*$/.test(a)) : LL.isBitAddr(a) || (T === 'RST' && LL.isWritableWord(a))) : f === 'dst' ? LL.isWritableWord(a) : LL.isWordAddr(a);
           inp && inp.classList.toggle('bad', !ok);
           if (!ok) return;
           cell[f] = a;
@@ -1097,6 +1198,19 @@
         clearTimeout(this._ft); this._ft = setTimeout(() => { this.commit(); }, 120);
       };
       $$('[data-f]', box).forEach((inp) => { inp.addEventListener(inp.tagName === 'SELECT' ? 'change' : 'input', () => apply(inp.dataset.f, inp.value, inp)); });
+      $$('[data-call]', box).forEach((inp) => inp.addEventListener(inp.tagName === 'SELECT' ? 'change' : 'input', () => {
+        if (inp.dataset.call === 'block') { cell.block = inp.value; this.commit(); return; }
+        const v = inp.value.trim(); const ok = /^[A-Za-z_]\w*$/.test(v); inp.classList.toggle('bad', !ok); if (!ok) return;
+        cell.inst = v; clearTimeout(this._ft); this._ft = setTimeout(() => this.commit(), 300);
+      }));
+      $$('[data-arg]', box).forEach((inp) => inp.addEventListener('input', () => {
+        let a = LL.norm(inp.value); const byName = Object.keys(tags).find((k) => tags[k] && tags[k].toUpperCase() === inp.value.trim().toUpperCase()); if (byName) a = byName;
+        const ty = inp.dataset.ptype, out = inp.dataset.pdir !== 'IN';
+        const ok = a === '' || (ty === 'INT' ? (out ? LL.isWritableWord(a) : LL.isWordAddr(a)) : (out ? LL.isWritableBit(a) : LL.isBitAddr(a) || ['0', '1', 'TRUE', 'FALSE'].includes(a)));
+        inp.classList.toggle('bad', !ok); if (!ok) return;
+        cell.args = cell.args || {}; cell.args[inp.dataset.arg] = a;
+        clearTimeout(this._ft); this._ft = setTimeout(() => this.commit(), 300);
+      }));
       $$('.quick button', box).forEach((qb) => (qb.onclick = () => {
         const f = qb.parentNode.dataset.for;
         const inp = $(`[data-f="${f}"]`, box);
@@ -1124,12 +1238,23 @@
         <p class="brief">${ch.brief}</p>
         <details class="card" style="background:var(--surface-2)"><summary class="panel-title" style="cursor:pointer">I/O list · ${esc(plant.name)}</summary><table class="iotable">${io}</table></details>
         ${ch.hints.slice(0, this.hint).map((t, k) => `<div class="hint"><b>Hint ${k + 1}.</b> ${esc(t)}</div>`).join('')}
-        <div class="row">
+        ${ch.kind === 'diagnose' ? `<div class="diag"><h3>What is wrong?</h3>${ch.options.map((o, k) => `<button class="diag-opt" data-opt="${k}">${esc(o.t)}</button>`).join('')}<div class="diag-res"></div></div>` : ''}
+        <div class="row" ${ch.kind === 'diagnose' ? 'style="display:none"' : ''}>
           <button class="btn go" data-a="tests">${I.check} Run tests</button>
           ${this.hint < ch.hints.length ? `<button class="btn" data-a="hint">Hint ${this.hint + 1}/${ch.hints.length}</button>` : ''}
           <button class="btn ghost" data-a="solution">Solution</button>
         </div>
-        <div class="results"></div>`;
+        <div class="results"></div>
+        ${ch.kind === 'diagnose' && this.hint < ch.hints.length ? `<div class="row"><button class="btn" data-a="hint">Hint ${this.hint + 1}/${ch.hints.length}</button></div>` : ''}`;
+      if (ch.kind === 'diagnose') $$('.diag-opt', box).forEach((b) => (b.onclick = () => {
+        const o = ch.options[+b.dataset.opt], res = $('.diag-res', box);
+        $$('.diag-opt', box).forEach((x) => x.classList.remove('good', 'bad'));
+        b.classList.add(o.ok ? 'good' : 'bad');
+        if (o.ok) {
+          res.innerHTML = `<div class="passed-banner"><span>Found it! ${esc(o.why)}</span>${this.nextCh() ? `<a class="btn small" href="#ch-${this.nextCh().id}">${this.pathOf() ? 'Next in the path' : 'Next challenge'}: ${esc(this.nextCh().title)} ${I.arrow}</a>` : ''}</div><div class="hint"><b>How a technician proves it:</b> ${esc(ch.proof)}</div>`;
+          S.ch[ch.id] = 1; save(); this.renderTaskBadge(); toast('Fault found!');
+        } else res.innerHTML = `<div class="res bad"><span class="ri">✕</span><div><b>Not this one.</b><div class="rm">${esc(o.why)}</div></div></div>`;
+      }));
     }
 
     runTests() {
@@ -1239,14 +1364,25 @@
       });
     }
 
+    // one machine step: program outputs → forces → field faults → machine → field faults → forces → PLC inputs
+    plantStep(dt) {
+      const faults = this.ch && this.ch.faults;
+      const F = this.forces || {};
+      const Q = LL.plantOutputs(this.plant, this.m);
+      for (const a in F) if (a[0] === 'Q') Q[a] = F[a];
+      const I = LL.faultIn(this.plant.step(this.pst, this.ctrl, LL.faultOut(Q, faults), dt), faults);
+      for (const a in F) if (a[0] === 'I') I[a] = F[a];
+      this.I = I;
+      this.m.setInputs(I);
+    }
+
     tick(dt) {
       if (!document.body.contains(this.el)) { tickers.delete(this); window.removeEventListener('resize', this._onResize); return; }
       if (this.running && !this.pst.fault && !this.m.error) {
         this.acc += dt * this.speed;
         let n = 0;
         while (this.acc >= 10 && n < 30) {
-          this.I = this.plant.step(this.pst, this.ctrl, LL.plantOutputs(this.plant, this.m), 10);
-          this.m.setInputs(this.I);
+          this.plantStep(10);
           this.m.scan(10);
           this.acc -= 10; n++;
         }
@@ -1254,11 +1390,11 @@
         this.scanText(this._noticeUntil > performance.now() ? this._notice : 'scan ' + this.m.scanCount + ' · 10 ms');
       }
       // views
-      if (this.lang !== 'st') this.ladder.update(this.m, true);
+      if (this.lang !== 'st') { if (this.blk) { const mon = this.monInst && this.m.monitor(this.monInst); if (mon && mon.trace) this.ladder.update(mon, true); } else this.ladder.update(this.m, true); }
       this.drawPlant();
       const Q = this.m.outputs();
       this.lampEls.forEach((l) => l.classList.toggle('on', !!Q[l.dataset.a]));
-      this.ioCells.forEach((c) => { const a = c.dataset.io; const v = a[0] === 'I' || /^AIW/.test(a) ? (this.I[a] || 0) : /^AQW/.test(a) ? this.m.word(a) : this.m.bit(a); if (c._v !== v) { c.textContent = v; c.className = v === 1 ? 'v1' : ''; c._v = v; } });
+      this.ioCells.forEach((c) => { const a = c.dataset.io; const F = this.forces || {}; const v = a in F ? F[a] : a[0] === 'I' || /^AIW/.test(a) ? (this.I[a] || 0) : /^AQW/.test(a) ? this.m.word(a) : this.m.bit(a); if (c._v !== v) { c.textContent = v; c.className = v === 1 ? 'v1' : ''; c._v = v; } });
       this.renderVals();
       const fh = $('.fault-host', this.el);
       const f = this.pst.fault ? 'Machine fault: ' + this.pst.fault : this.m.error ? 'PLC in STOP · ' + this.m.error : '';

@@ -23,6 +23,24 @@
   }
   LL.plantDevices = devices;
 
+  /* Field faults for fault-finding exercises (a list of {kind, addr, addr2}):
+   * in-stuck0 / in-stuck1: an input never changes (broken cable, sensor stuck);
+   * in-invert: an input reads the opposite (NO wired instead of NC);
+   * swap: two input wires swapped; out-dead: an output never reaches its actuator. */
+  LL.faultIn = function (I, faults) {
+    (faults || []).forEach((f) => {
+      if (f.kind === 'in-stuck0') I[f.addr] = 0;
+      else if (f.kind === 'in-stuck1') I[f.addr] = 1;
+      else if (f.kind === 'in-invert') I[f.addr] = I[f.addr] ? 0 : 1;
+      else if (f.kind === 'swap') { const t = I[f.addr]; I[f.addr] = I[f.addr2]; I[f.addr2] = t; }
+    });
+    return I;
+  };
+  LL.faultOut = function (Q, faults) {
+    (faults || []).forEach((f) => { if (f.kind === 'out-dead') Q[f.addr] = 0; });
+    return Q;
+  };
+
   // ───────────── drawing helpers (logical canvas 640 × 360) ─────────────
   const D = (LL.Draw = {});
   D.rr = function (c, x, y, w, h, r) {
@@ -406,11 +424,11 @@
       { addr: 'Q0.1', name: 'Y2 valve B', color: 'green' },
       { addr: 'Q0.2', name: 'Y3 valve C', color: 'amber' },
     ],
-    actions: [],
+    actions: [{ id: 'slowC', label: 'Throttle cylinder C (slow, 2 s)', toggle: true, run(st) { st.slowC = !st.slowC; } }],
     init() { return { pos: [0, 0, 0], t: 0 }; },
     step(st, ctrl, Q, dt) {
       st.t += dt;
-      ['Q0.0', 'Q0.1', 'Q0.2'].forEach((q, i) => { st.pos[i] = clamp(st.pos[i] + (Q[q] ? 1 : -1) * dt / 1000, 0, 1); });
+      ['Q0.0', 'Q0.1', 'Q0.2'].forEach((q, i) => { st.pos[i] = clamp(st.pos[i] + (Q[q] ? 1 : -1) * dt / 1000 * (i === 2 && st.slowC ? 0.5 : 1), 0, 1); });
       const o = devices(this, ctrl);
       st.pos.forEach((p, i) => { o['I0.' + (2 + i * 2)] = p < 0.03 ? 1 : 0; o['I0.' + (3 + i * 2)] = p > 0.97 ? 1 : 0; });
       return o;
@@ -1232,6 +1250,165 @@
       D.text(c, 'good ' + st.good + '   bad ' + st.bad, 620, 210, { size: 12, mono: true, weight: 700, color: st.bad ? th.red : th.ink, align: 'right' });
       D.text(c, 'last bag ' + (st.lastNet / 100).toFixed(2) + ' kg net', 620, 230, { size: 10, mono: true, color: th.muted, align: 'right' });
       if (st.fast) D.text(c, 'material flows faster', 620, 250, { size: 10, mono: true, weight: 700, color: th.amber, align: 'right' });
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  // ───────────────────────── conveyor line with three variable-speed drives ─────────────────────────
+  const VFD_K = [1, 2, 3];
+  P.vfdline = {
+    id: 'vfdline', name: 'Conveyor line with 3 drives (VFD)', blurb: 'Three conveyors in a row, each on a variable-speed drive with Ready / Running / Fault feedback, a run command, a fault reset and an analog speed reference. Boxes travel from conveyor 1 to 3. The same drive logic three times: the perfect job for a reusable block.',
+    inputs: [
+      { addr: 'I0.0', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'RESET', kind: 'pb', color: 'black' },
+      { addr: 'AIW0', name: 'Speed knob', kind: 'ana', min: 0, max: 27648, value: 20736, unit: 'V', note: '0–10 V = 0 … 27648 = 0 … 100 % speed' },
+      ...VFD_K.flatMap((k) => [
+        { addr: 'I' + k + '.0', name: 'Drive ' + k + ' ready', kind: 'sensor', note: 'Drive healthy and able to run' },
+        { addr: 'I' + k + '.1', name: 'Drive ' + k + ' running', kind: 'sensor', note: 'Drive output active (it received the run command)' },
+        { addr: 'I' + k + '.2', name: 'Drive ' + k + ' fault', kind: 'sensor', note: 'Drive tripped; needs a fault reset' },
+      ]),
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Line running lamp', color: 'green' },
+      { addr: 'Q0.1', name: 'Fault lamp', color: 'red' },
+      ...VFD_K.flatMap((k) => [
+        { addr: 'Q' + k + '.0', name: 'Drive ' + k + ' run', color: 'green' },
+        { addr: 'Q' + k + '.1', name: 'Drive ' + k + ' fault reset', color: 'amber' },
+        { addr: 'AQW' + 2 * k, name: 'Drive ' + k + ' speed ref', color: 'blue' },
+      ]),
+    ],
+    actions: [
+      ...VFD_K.map((k) => ({ id: 'jam' + k, label: 'Jam conveyor ' + k + ' (overload)', toggle: true, run(st) { st.d[k].jam = !st.d[k].jam; } })),
+      { id: 'wire2', label: 'Drive 2 run wire broken', toggle: true, run(st) { st.d[2].wire = !st.d[2].wire; } },
+      { id: 'wire3', label: 'Drive 3 run wire broken', toggle: true, run(st) { st.d[3].wire = !st.d[3].wire; } },
+      { id: 'wire3', label: 'Drive 3 run wire broken', toggle: true, run(st) { st.d[3].wire = !st.d[3].wire; } },
+    ],
+    init() {
+      const d = {};
+      VFD_K.forEach((k) => (d[k] = { v: 0, fault: false, jam: false, wire: false, olT: 0, prevRst: 0, trips: 0, resets: 0 }));
+      return { d, boxes: [], spawnT: 0, out: 0, pileT: [0, 0, 0, 0], t: 0, fault: null, last: '' };
+    },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      VFD_K.forEach((k) => {
+        const d = st.d[k];
+        const rst = Q['Q' + k + '.1'] ? 1 : 0;
+        if (rst && !d.prevRst && d.fault && !d.jam) { d.fault = false; d.resets++; }
+        d.prevRst = rst;
+        d.run = !!Q['Q' + k + '.0'] && !d.wire && !d.fault;
+        const ref = Math.max(0, Math.min(27648, +Q['AQW' + 2 * k] || 0)) / 27648;
+        const target = d.run ? ref : 0;
+        d.v = d.v < target ? Math.min(target, d.v + 0.5 * s) : Math.max(target, d.v - (d.fault ? 1.2 : 0.5) * s);
+        if (d.run && d.jam) { d.olT += dt; if (d.olT > 800) { d.fault = true; d.trips++; d.olT = 0; } } else d.olT = 0;
+        if (d.jam) d.v = Math.min(d.v, 0.03);
+      });
+      // a conveyor must not feed a conveyor that stands still
+      if (!st.fault) [1, 2].forEach((k) => {
+        if (st.d[k].v > 0.05 && st.d[k + 1].v < 0.02) { st.pileT[k] += dt; if (st.pileT[k] > 1500) st.fault = 'Conveyor ' + k + ' kept running while conveyor ' + (k + 1) + ' stood still: boxes piled up at the transfer. Start downstream first, stop upstream first.'; }
+        else st.pileT[k] = 0;
+      });
+      // boxes
+      if (!st.fault) {
+        if (st.d[1].v > 0.05) { st.spawnT += dt; if (st.spawnT > 3000 && !st.boxes.some((b) => b.x < 0.3)) { st.boxes.push({ x: 0 }); st.spawnT = 0; } }
+        st.boxes.forEach((b) => { const k = Math.min(3, Math.floor(b.x) + 1); b.x += st.d[k].v * 0.4 * s; });
+        const before = st.boxes.length; st.boxes = st.boxes.filter((b) => b.x < 3); st.out += before - st.boxes.length;
+      }
+      const o = devices(this, ctrl);
+      VFD_K.forEach((k) => { const d = st.d[k]; o['I' + k + '.0'] = d.fault ? 0 : 1; o['I' + k + '.1'] = d.run ? 1 : 0; o['I' + k + '.2'] = d.fault ? 1 : 0; });
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const X0 = 30, W = 190, Y = 150;
+      VFD_K.forEach((k, i) => {
+        const d = st.d[k], x = X0 + i * (W + 6);
+        c.fillStyle = th.metalDark; D.rr(c, x, Y, W, 18, 9); c.fill();
+        if (d.v > 0.01) { c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 2; c.setLineDash([6, 8]); c.lineDashOffset = -st.t * 0.03 * d.v * 3; c.beginPath(); c.moveTo(x + 8, Y + 9); c.lineTo(x + W - 8, Y + 9); c.stroke(); c.setLineDash([]); }
+        if (d.jam) D.text(c, 'JAMMED', x + W / 2, Y + 36, { size: 10, weight: 800, color: th.red });
+        // drive cabinet
+        const dx = x + W / 2 - 50, dy = 210;
+        c.fillStyle = th.panel2; D.rr(c, dx, dy, 100, 92, 8); c.fill(); c.strokeStyle = d.fault ? th.red : th.line; c.lineWidth = d.fault ? 2.5 : 1; c.stroke();
+        D.text(c, 'DRIVE ' + k, dx + 50, dy + 13, { size: 10, weight: 800, color: th.ink });
+        c.fillStyle = '#0b1220'; D.rr(c, dx + 10, dy + 22, 80, 22, 4); c.fill();
+        D.text(c, d.fault ? 'FAULT' : (d.v * 50).toFixed(1) + ' Hz', dx + 50, dy + 33.5, { size: 12, weight: 800, mono: true, color: d.fault ? '#ff6b6b' : '#7CFC9A' });
+        D.sensorDot(c, th, dx + 14, dy + 56, !!I['I' + k + '.0'], 'rdy'); D.sensorDot(c, th, dx + 14, dy + 72, !!I['I' + k + '.1'], 'run');
+        D.sensorDot(c, th, dx + 60, dy + 56, !!I['I' + k + '.2'], 'flt');
+        D.text(c, 'ref ' + Math.round((+Q['AQW' + 2 * k] || 0) / 276.48) + '%', dx + 70, dy + 72, { size: 9, mono: true, color: th.muted });
+        if (d.wire) D.text(c, 'run wire broken', dx + 50, dy + 86, { size: 9, weight: 700, color: th.red });
+        D.text(c, 'conveyor ' + k, x + W / 2, Y - 50, { size: 10, mono: true, color: th.muted });
+      });
+      st.boxes.forEach((b) => { const k = Math.min(2, Math.floor(b.x)); const x = X0 + k * (W + 6) + (b.x - k) * W; c.fillStyle = th.box; D.rr(c, x - 14, Y - 26, 28, 26, 3); c.fill(); c.strokeStyle = th.boxEdge; c.lineWidth = 1.5; c.stroke(); });
+      D.lamp(c, th, 560, 40, 8, !!Q['Q0.0'], 'green', 'running'); D.lamp(c, th, 610, 40, 8, !!Q['Q0.1'], 'red', 'fault');
+      D.text(c, 'boxes out ' + st.out, 30, 30, { size: 12, mono: true, weight: 700, color: th.ink, align: 'left' });
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  // ───────────────────────── booster pump station (PID pressure control) ─────────────────────────
+  P.booster = {
+    id: 'booster', name: 'Booster pump station (PID)', blurb: 'A pump on a variable-speed drive keeps the water pressure in a building constant while people open and close taps. The pressure sensor (IO-Link) gives the pressure directly in 0.01 bar. The classic job for a PID controller.',
+    inputs: [
+      { addr: 'I0.0', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'Drive ready', kind: 'sensor' },
+      { addr: 'AIW0', name: 'Pressure (0.01 bar)', kind: 'sensor', note: 'IO-Link pressure sensor: 400 = 4.00 bar' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Pump drive run', color: 'green' },
+      { addr: 'Q0.1', name: 'Running lamp', color: 'green' },
+      { addr: 'Q0.2', name: 'Low pressure alarm', color: 'red' },
+      { addr: 'AQW0', name: 'Pump speed ref', color: 'blue' },
+    ],
+    actions: [
+      { id: 'more', label: 'Open more taps (+2)', run(st) { st.taps = Math.min(6, st.taps + 2); } },
+      { id: 'less', label: 'Close taps (−2)', run(st) { st.taps = Math.max(0, st.taps - 2); } },
+      { id: 'burst', label: 'Pipe burst', toggle: true, run(st) { st.burst = !st.burst; } },
+    ],
+    init() { return { P: 0, Ps: 0, v: 0, taps: 2, maxP: 0, maxCb: 0, t: 0, fault: null, hist: [] }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      const run = !!Q['Q0.0'];
+      const ref = run ? Math.max(0, Math.min(27648, +Q['AQW0'] || 0)) / 27648 : 0;
+      st.v = st.v < ref ? Math.min(ref, st.v + 0.6 * s) : Math.max(ref, st.v - 0.6 * s);
+      const H0 = 7 * st.v * st.v;                                   // shut-off pressure at this speed
+      const qp = st.P < H0 ? 160 * st.v * Math.sqrt(1 - st.P / H0) : 0;   // pump flow, l/min
+      const qd = (st.taps + 0.4 + (st.burst ? 30 : 0)) * 9 * Math.sqrt(Math.max(0, st.P));        // taps + a small leak, l/min
+      st.P = Math.max(0, st.P + (qp - qd) * 0.012 * s);
+      st.Ps += (st.P - st.Ps) * Math.min(1, s / 0.3);
+      if (st.t > 1500) { st.maxP = Math.max(st.maxP, st.P); st.maxCb = Math.round(st.maxP * 100); }
+      if (st.P > 6.5) st.fault = st.fault || 'Pressure above 6.5 bar: the safety valve blew.';
+      if (st.t % 100 < dt) { st.hist.push(st.P); if (st.hist.length > 240) st.hist.shift(); }
+      const o = devices(this, ctrl);
+      o['I0.2'] = 1;
+      o['AIW0'] = Math.round(st.Ps * 100 + wob(st.t, 0.6));
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      // pipe & pump
+      c.fillStyle = th.pipe; c.fillRect(40, 220, 360, 14);
+      c.fillStyle = Q['Q0.0'] ? th.blue : th.metal; c.beginPath(); c.arc(90, 227, 30, 0, 7); c.fill();
+      c.save(); c.translate(90, 227); c.rotate(st.t / 1000 * st.v * 12); c.strokeStyle = '#fff'; c.lineWidth = 3; for (let k = 0; k < 3; k++) { c.rotate(2.09); c.beginPath(); c.moveTo(0, 0); c.lineTo(0, 22); c.stroke(); } c.restore();
+      D.text(c, 'pump ' + Math.round(st.v * 100) + ' %', 90, 275, { size: 11, mono: true, weight: 700, color: th.ink });
+      // pressure tank
+      c.fillStyle = th.metal; D.rr(c, 170, 150, 50, 70, 20); c.fill();
+      // taps
+      for (let k = 0; k < 6; k++) { const x = 260 + k * 22, on = k < st.taps; c.fillStyle = on ? th.water : th.metalDark; c.fillRect(x, 234, 8, 18); if (on) { c.fillStyle = th.water; c.fillRect(x + 2, 252, 4, 20 + Math.min(20, st.P * 4)); } }
+      D.text(c, st.taps + ' taps open', 315, 300, { size: 11, mono: true, color: th.muted });
+      // gauge
+      c.fillStyle = '#0b1220'; D.rr(c, 430, 30, 190, 80, 8); c.fill();
+      D.text(c, (I['AIW0'] / 100).toFixed(2) + ' bar', 525, 62, { size: 24, weight: 800, mono: true, color: '#7CFC9A' });
+      D.text(c, 'AIW0 = ' + I['AIW0'], 525, 92, { size: 11, mono: true, color: '#9fb0c4' });
+      // trend
+      const tx = 40, ty = 30, tw = 360, tht = 100;
+      c.fillStyle = th.panel2; D.rr(c, tx, ty, tw, tht, 6); c.fill();
+      const yOf = (p) => ty + tht - (p / 7) * tht;
+      c.strokeStyle = th.amber; c.setLineDash([4, 4]); c.beginPath(); c.moveTo(tx, yOf(4)); c.lineTo(tx + tw, yOf(4)); c.stroke(); c.setLineDash([]);
+      c.strokeStyle = th.blue; c.lineWidth = 2; c.beginPath(); st.hist.forEach((p, i) => { const x = tx + (i / 240) * tw; if (i) c.lineTo(x, yOf(p)); else c.moveTo(x, yOf(p)); }); c.stroke();
+      D.text(c, 'pressure trend (24 s) · dashed = 4 bar', tx + 6, ty + 10, { size: 9, mono: true, color: th.muted, align: 'left' });
+      D.lamp(c, th, 460, 150, 8, !!Q['Q0.1'], 'green', 'running'); D.lamp(c, th, 520, 150, 8, !!Q['Q0.2'], 'red', 'low P');
+      D.text(c, 'speed ref ' + Math.round((+Q['AQW0'] || 0) / 276.48) + ' %', 525, 200, { size: 11, mono: true, color: th.ink });
       D.fault(c, th, st.fault);
     },
   };
@@ -2654,7 +2831,7 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
+  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
 
   // Outputs a plant sees: Q bits, AQW words, plus any memory words its HMI displays
   LL.plantOutputs = function (plant, m) {
@@ -2690,7 +2867,7 @@
     const condOk = (cs) => cs.every((x) => val(x.a) === x.v);
     const fmt = (v, a) => (LL.isBitAddr(a) || /^[IQM]\d+\.[0-7]$/.test(a) || /\.(Q|Q1)$/.test(a) ? (v ? 'ON' : 'OFF') : String(v));
     function tick() {
-      I = plant.step(st, ctrl, LL.plantOutputs(plant, m), dt);
+      I = LL.faultIn(plant.step(st, ctrl, LL.faultOut(LL.plantOutputs(plant, m), opts.faults), dt), opts.faults);
       m.setInputs(I);
       m.scan(dt);
       t += dt;
@@ -2794,13 +2971,20 @@
     return step;
   };
 
-  LL.runChallenge = function (prog, ch) {
+  LL.runChallenge = function (prog, ch, ropts) {
+    ropts = ropts || {};
     if (prog.lang === 'st' && !prog.ok) return ch.tests.map((t, i) => ({ name: t.name, ok: false, msg: i === 0 ? 'Fix the compile error first: line ' + prog.error.line + ': ' + prog.error.msg : 'Not run.' }));
     const errs = prog.lang === 'st' ? [] : LL.lint(prog).filter((x) => x.level === 'error');
-    if (errs.length) return ch.tests.map((t, i) => ({ name: t.name, ok: false, msg: i === 0 ? 'Fix program errors first: rung ' + errs[0].rung + ': ' + errs[0].msg : 'Not run.' }));
+    if (errs.length) return ch.tests.map((t, i) => ({ name: t.name, ok: false, msg: i === 0 ? 'Fix program errors first: ' + (errs[0].block ? 'block ' + errs[0].block + ', ' : '') + 'rung ' + errs[0].rung + ': ' + errs[0].msg : 'Not run.' }));
+    if (ch.needCalls && prog.lang !== 'st') {
+      const cnt = {};
+      (prog.rungs || []).forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.type === 'CALL') cnt[c.block] = (cnt[c.block] || 0) + 1; })));
+      const best = Math.max(0, ...Object.values(cnt));
+      if (best < ch.needCalls) return ch.tests.map((t, i) => ({ name: t.name, ok: false, msg: i === 0 ? 'This project is about reusable code: write the logic once as a block (+ Block) and CALL it ' + ch.needCalls + ' times from the main program (found ' + best + ' call' + (best === 1 ? '' : 's') + ' of one block).' : 'Not run.' }));
+    }
     const tags = Object.assign({}, LL.plantTags(ch.plant), ch.tags || {});
     return ch.tests.map((t) => {
-      try { runTest(prog, ch.plant, t.steps, { never: ch.never, tags }); return { name: t.name, ok: true }; }
+      try { runTest(prog, ch.plant, t.steps, { never: ch.never, tags, faults: ropts.faults }); return { name: t.name, ok: true }; }
       catch (e) { return { name: t.name, ok: false, msg: e.message }; }
     });
   };
