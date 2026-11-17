@@ -684,7 +684,7 @@
     newMachine() {
       if (this.lang === 'st') this.stProg = LL.compileST(this.src, this.ch ? this.ch.title : 'ST program');
       this.m = this.lang === 'st' ? LL.makeMachine(this.stProg) : new LL.Machine(this.prog);
-      this.pst = this.plant.init();
+      this.pst = this.initPlant();
       this.ctrl = this.ctrl || {};
       this.I = LL.plantDevices(this.plant, this.ctrl);
       this.buildDevices();
@@ -1093,7 +1093,7 @@
       switch (a) {
         case 'run': this.running = !this.running; if (this.running) { this.ladder.setActiveRung(-1); this.scanText(''); } this.updateRunBtn(); break;
         case 'step': this.running = false; this.updateRunBtn(); this.stepPhase(); break;
-        case 'reset': this.m.reset(); this.pst = this.plant.init(); this.acc = 0; this.ctrl = {}; this.forces = {}; this.buildDevices(); this.ladder.setActiveRung(-1); this.scanText(''); toast('PLC memory and machine reset'); break;
+        case 'reset': this.m.reset(); this.pst = this.initPlant(); this.acc = 0; this.ctrl = {}; this.forces = {}; this.buildDevices(); this.ladder.setActiveRung(-1); this.scanText(''); toast('PLC memory and machine reset'); break;
         case 'speed': this.speed = this.speed === 1 ? 0.25 : this.speed === 0.25 ? 0.1 : 1; btn.textContent = this.speed === 1 ? '1×' : this.speed === 0.25 ? '¼×' : '⅒×'; toast('Simulation speed ' + btn.textContent); break;
         case 'zoom': this.ladder.opts.zoom = this.ladder.opts.zoom === 'fit' ? 1 : 'fit'; this.ladder.fit(); toast(this.ladder.opts.zoom === 'fit' ? 'Zoom: fit width' : 'Zoom: 100 %'); break;
         case 'undo': if (this.hi > 0) { this.hi--; this.restore(this.hist[this.hi]); } break;
@@ -1385,7 +1385,7 @@
         return;
       }
       this.prog = LL.parseProgram('NAME ' + (this.ch ? this.ch.title : 'New program') + '\nRUNG\n');
-      this.sel = null; this.m.load(this.prog); this.m.reset(); this.pst = this.plant.init(); this.ctrl = {}; this.buildDevices();
+      this.sel = null; this.m.load(this.prog); this.m.reset(); this.pst = this.initPlant(); this.ctrl = {}; this.buildDevices();
       this.commit('Editor emptied');
       toast('Editor emptied. Undo (↶) brings your program back.');
     }
@@ -1470,6 +1470,8 @@
         if (b.dataset.ex != null) { const sp = ex[+b.dataset.ex].spec; m.remove(); this.plantId = sp.plant || 'panel'; S.plant.lab = this.plantId; const ps = $('#plant-sel', this.el); if (ps) ps.value = this.plantId; this.src = sp.program; S.st[this.key] = sp.program; saveNow(); $('#st-src', this.el).value = sp.program; this._gutter(); this.newMachine(); toast('Example loaded'); }
       });
     }
+
+    initPlant() { const st = this.plant.init(); ((this.ch && this.ch.faults) || []).forEach((f) => { if (f.kind === 'plant') st[f.flag] = f.value; }); return st; }
 
     // one machine step: program outputs → forces → field faults → machine → field faults → forces → PLC inputs
     plantStep(dt) {

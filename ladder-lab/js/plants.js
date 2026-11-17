@@ -2006,20 +2006,37 @@
         c.fillStyle = th.red; c.beginPath(); c.arc(320, st.estop ? 84 : 78, 22, 0, 7); c.fill();
         D.text(c, st.estop ? 'E-STOP PRESSED' : 'E-stop', 320, 126, { size: 10, weight: 700, color: st.estop ? th.red : th.ink });
         D.text(c, 'ch A ' + (I['I0.0'] ? '1' : '0') + '  ch B ' + (I['I0.1'] ? '1' : '0') + (st.wireA ? '  (wire A broken)' : st.weldA ? '  (A welded)' : ''), 320, 142, { size: 9, mono: true, color: st.wireA ? th.red : th.muted });
-        // safety relay
+        // safety relay with its real terminals (names as on a Pilz PNOZ / Schneider XPS; other brands differ, see the datasheet)
         if (relay) {
-          c.fillStyle = '#e5e7eb'; D.rr(c, 280, 168, 80, 62, 6); c.fill(); c.strokeStyle = th.ink; c.lineWidth = 1; c.stroke();
-          D.text(c, 'SAFETY RELAY', 320, 180, { size: 9, weight: 800, color: '#111' });
-          D.lamp(c, th, 300, 204, 5, !!st.relayOK, 'green', '', 'OUT'); D.lamp(c, th, 340, 204, 5, !st.relayOK, 'amber', '', 'RESET?');
+          const rx = 280, ry = 165, rw = 140, rh = 110;
+          c.fillStyle = '#e5e7eb'; D.rr(c, rx, ry, rw, rh, 6); c.fill(); c.strokeStyle = th.ink; c.lineWidth = 1; c.stroke();
+          D.text(c, 'SAFETY RELAY', rx + rw / 2, ry + 11, { size: 9, weight: 800, color: '#111' });
+          D.lamp(c, th, rx + 40, ry + 26, 4, true, 'green', ''); D.text(c, 'PWR', rx + 54, ry + 26, { size: 7, mono: true, color: '#111', align: 'left' });
+          D.lamp(c, th, rx + 90, ry + 26, 4, !!st.relayOK, 'green', ''); D.text(c, 'CH1/2', rx + 104, ry + 26, { size: 7, mono: true, color: '#111', align: 'left' });
+          const live = (on) => (on ? '#16a34a' : '#9ca3af');
+          const fbLoop = !st.k1 && !st.k2;
+          const rows = [ry + 44, ry + 60, ry + 76, ry + 94];
+          const term = (x, y, name, on, right) => { c.fillStyle = live(on); c.beginPath(); c.arc(x, y, 3.5, 0, 7); c.fill(); D.text(c, name, x + (right ? -7 : 7), y, { size: 8, mono: true, weight: 700, color: '#111', align: right ? 'right' : 'left' }); };
+          const chA = !!I['I0.0'] && !!I['I0.2'], chB = !!I['I0.1'] && !!I['I0.3'];
+          term(rx, rows[0], 'S11-S12', chA); term(rx, rows[1], 'S21-S22', chB); term(rx, rows[2], 'S33-S34', fbLoop); term(rx, rows[3], 'A1 A2', true);
+          term(rx + rw, rows[0], '13-14', !!st.relayOK, true); term(rx + rw, rows[1], '23-24', !!st.relayOK, true); term(rx + rw, rows[2], 'Y32', !!st.relayOK, true); term(rx + rw, rows[3], '41-42', !st.relayOK, true);
+          c.lineWidth = 2;
+          c.strokeStyle = live(st.relayOK && Q['Q0.0']); c.beginPath(); c.moveTo(rx + rw + 4, rows[0]); c.lineTo(505, rows[0]); c.lineTo(505, 112); c.stroke();
+          c.strokeStyle = live(st.relayOK && Q['Q0.1']); c.beginPath(); c.moveTo(rx + rw + 4, rows[1]); c.lineTo(585, rows[1]); c.lineTo(585, 112); c.stroke();
+          D.text(c, '→ PLC I0.4', rx + rw + 8, rows[2], { size: 8, mono: true, color: th.muted, align: 'left' });
+          D.text(c, 'ch 1 / ch 2: E-stop + door in series', 30, 256, { size: 8, color: th.muted, align: 'left' });
+          D.text(c, 'S33-S34 = RESET + K1 NC + K2 NC', 30, 270, { size: 8, mono: true, color: th.muted, align: 'left' });
+          if (!fbLoop) D.text(c, 'reset loop OPEN: a contactor is closed', 30, 284, { size: 8, mono: true, weight: 700, color: th.red, align: 'left' });
         } else {
           c.fillStyle = '#fde047'; D.rr(c, 280, 168, 80, 62, 6); c.fill();
           D.text(c, 'SAFETY PLC', 320, 184, { size: 9, weight: 800, color: '#111' }); D.text(c, 'F-outputs', 320, 202, { size: 9, mono: true, color: '#111' });
         }
         // contactors
-        D.contactor(c, th, 430, 90, 'K1', !!st.k1, 'fb I0.5 = ' + (I['I0.5'] ? 1 : 0) + (st.weldK1 ? ' WELDED' : ''));
-        D.contactor(c, th, 520, 90, 'K2', !!st.k2, 'fb I0.6 = ' + (I['I0.6'] ? 1 : 0));
-        D.text(c, 'the blade runs only when K1 AND K2 are closed', 475, 150, { size: 9, color: th.muted });
-        D.lamp(c, th, 420, 230, 8, !!Q['Q0.2'], 'blue', 'reset'); D.lamp(c, th, 490, 230, 8, !!Q['Q0.3'], 'green', 'running'); D.lamp(c, th, 560, 230, 8, !!Q['Q0.5'], 'red', 'safety fault');
+        D.contactor(c, th, relay ? 505 : 430, 90, 'K1', !!st.k1, 'fb I0.5 = ' + (I['I0.5'] ? 1 : 0) + (st.weldK1 ? ' WELDED' : ''));
+        D.contactor(c, th, relay ? 585 : 520, 90, 'K2', !!st.k2, 'fb I0.6 = ' + (I['I0.6'] ? 1 : 0));
+        D.text(c, relay ? 'blade runs only with K1 AND K2 closed' : 'the blade runs only when K1 AND K2 are closed', relay ? 540 : 475, relay ? 140 : 150, { size: 9, color: th.muted });
+        const ly = relay ? 300 : 230;
+        D.lamp(c, th, 470, ly, 8, !!Q['Q0.2'], 'blue', 'reset'); D.lamp(c, th, 530, ly, 8, !!Q['Q0.3'], 'green', 'running'); D.lamp(c, th, 590, ly, 8, !!Q['Q0.5'], 'red', 'fault');
         D.fault(c, th, st.fault);
       },
     };
@@ -3594,6 +3611,7 @@
     const plant = P[plantId];
     const m = LL.makeMachine(prog);
     const st = plant.init();
+    (opts.faults || []).forEach((f) => { if (f.kind === 'plant') st[f.flag] = f.value; });   // a fault inside the machine (e.g. a welded contactor)
     const ctrl = {};
     const dt = 10;
     const never = opts.never || [];
