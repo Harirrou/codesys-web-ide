@@ -27,7 +27,8 @@
   /* Field faults for fault-finding exercises (a list of {kind, addr, addr2}):
    * in-stuck0 / in-stuck1: an input never changes (broken cable, sensor stuck);
    * in-invert: an input reads the opposite (NO wired instead of NC);
-   * swap: two input wires swapped; out-dead: an output never reaches its actuator. */
+   * swap: two input wires swapped; out-dead: an output never reaches its actuator;
+   * out-swap: two output wires swapped at the terminals. */
   LL.faultIn = function (I, faults) {
     (faults || []).forEach((f) => {
       if (f.kind === 'in-stuck0') I[f.addr] = 0;
@@ -38,7 +39,7 @@
     return I;
   };
   LL.faultOut = function (Q, faults) {
-    (faults || []).forEach((f) => { if (f.kind === 'out-dead') Q[f.addr] = 0; });
+    (faults || []).forEach((f) => { if (f.kind === 'out-dead') Q[f.addr] = 0; else if (f.kind === 'out-swap') { Q = Object.assign({}, Q); const t = Q[f.addr]; Q[f.addr] = Q[f.addr2]; Q[f.addr2] = t; } });
     return Q;
   };
 
@@ -427,6 +428,8 @@
       { addr: 'Q0.3', name: 'Alarm lamp', color: 'red' },
     ],
     actions: [{ id: 'slowC', label: 'Throttle cylinder C (slow, 2 s)', toggle: true, run(st) { st.slowC = !st.slowC; } },
+      { id: 'stuckB1', label: 'Sensor B1 misadjusted: always on', toggle: true, run(st) { st.stuckB1 = !st.stuckB1; } },
+      { id: 'deadC1', label: 'Sensor C1 cable broken', toggle: true, run(st) { st.deadC1 = !st.deadC1; } },
       { id: 'jamB', label: 'Cylinder B jammed (no air)', toggle: true, run(st) { st.jamB = !st.jamB; } }],
     init() { return { pos: [0, 0, 0], t: 0 }; },
     step(st, ctrl, Q, dt) {
@@ -434,6 +437,8 @@
       ['Q0.0', 'Q0.1', 'Q0.2'].forEach((q, i) => { if (i === 1 && st.jamB) return; st.pos[i] = clamp(st.pos[i] + (Q[q] ? 1 : -1) * dt / 1000 * (i === 2 && st.slowC ? 0.5 : 1), 0, 1); });
       const o = devices(this, ctrl);
       st.pos.forEach((p, i) => { o['I0.' + (2 + i * 2)] = p < 0.03 ? 1 : 0; o['I0.' + (3 + i * 2)] = p > 0.97 ? 1 : 0; });
+      if (st.stuckB1) o['I0.5'] = 1;
+      if (st.deadC1) o['I0.7'] = 0;
       return o;
     },
     draw(c, st, th, Q, I) {
@@ -2160,6 +2165,281 @@
     },
   };
 
+  // ───────────────────────── production cell (counters, downtime, OEE) ─────────────────────────
+  P.prodcell = {
+    id: 'prodcell', name: 'Production cell with andon light', blurb: 'An automatic assembly machine that makes one part every 2 s while it is enabled, has material and no fault. At the end of each cycle it gives a "cycle done" pulse with a "part OK" signal from its own check. An andon light (green / amber / red) shows the state to the shift leader.',
+    inputs: [
+      { addr: 'I0.0', name: 'START production', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP production', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'Cycle done', kind: 'sensor', note: '200 ms pulse at the end of every machine cycle' },
+      { addr: 'I0.3', name: 'Part OK', kind: 'sensor', note: 'valid with "cycle done": 1 = good part, 0 = reject' },
+      { addr: 'I0.4', name: 'Machine fault', kind: 'sensor', note: '1 = jam / fault, the machine has stopped' },
+      { addr: 'I0.5', name: 'Material present', kind: 'sensor', note: '0 = starved: the feeder is empty' },
+      { addr: 'I0.6', name: 'New shift', kind: 'pb', color: 'blue' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Production enabled', color: 'green' },
+      { addr: 'Q0.1', name: 'Andon green: producing', color: 'green' },
+      { addr: 'Q0.2', name: 'Andon amber: waiting for material', color: 'amber' },
+      { addr: 'Q0.3', name: 'Andon red: machine fault', color: 'red' },
+      { addr: 'Q0.4', name: 'Slow cycle lamp', color: 'amber' },
+    ],
+    actions: [
+      { id: 'jam', label: 'Machine jams (again = cleared)', toggle: true, run(st) { st.jam = !st.jam; } },
+      { id: 'starve', label: 'Feeder empty (again = refilled)', toggle: true, run(st) { st.starve = !st.starve; } },
+      { id: 'scrap', label: 'Worn tool: every 4th part is a reject', toggle: true, run(st) { st.scrap = !st.scrap; } },
+      { id: 'slow', label: 'Machine runs slow: 3 s per cycle', toggle: true, run(st) { st.slow = !st.slow; } },
+    ],
+    init() { return { cyc: 0, pulse: 0, ok: 1, parts: 0, good: 0, bad: 0, jam: false, starve: false, scrap: false, slow: false, runMs: 0, faultMs: 0, starveMs: 0, t: 0, fault: null, last: '' }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const en = !!Q['Q0.0'];
+      const running = en && !st.jam && !st.starve;
+      if (en) { if (st.jam) st.faultMs += dt; else if (st.starve) st.starveMs += dt; else st.runMs += dt; }
+      st.runS = Math.round(st.runMs / 1000); st.faultS = Math.round(st.faultMs / 1000); st.starveS = Math.round(st.starveMs / 1000);
+      if (running) {
+        st.cyc += dt;
+        if (st.cyc >= (st.slow ? 3000 : 2000)) { st.cyc = 0; st.parts++; st.ok = st.scrap && st.parts % 4 === 0 ? 0 : 1; if (st.ok) st.good++; else st.bad++; st.pulse = 200; }
+      }
+      if (st.pulse > 0) st.pulse -= dt;
+      const o = devices(this, ctrl);
+      o['I0.2'] = st.pulse > 0 ? 1 : 0;
+      o['I0.3'] = st.pulse > 0 ? st.ok : 0;
+      o['I0.4'] = st.jam ? 1 : 0;
+      o['I0.5'] = st.starve ? 0 : 1;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      // machine body
+      c.fillStyle = th.metalDark; D.rr(c, 170, 90, 220, 150, 10); c.fill();
+      c.fillStyle = th.panel2 || th.metal; D.rr(c, 190, 110, 180, 80, 6); c.fill();
+      const run = Q['Q0.0'] && !st.jam && !st.starve;
+      const ang = run ? st.cyc / (st.slow ? 3000 : 2000) * Math.PI * 2 : 0;
+      c.save(); c.translate(280, 150); c.rotate(ang); c.fillStyle = run ? th.green : th.metal; c.fillRect(-4, -30, 8, 30); c.restore();
+      c.fillStyle = th.metal; c.beginPath(); c.arc(280, 150, 10, 0, 7); c.fill();
+      D.text(c, 'assembly machine', 280, 220, { size: 11, weight: 700, color: '#fff' });
+      if (st.jam) D.text(c, 'JAM', 280, 175, { size: 14, weight: 800, color: th.red });
+      // feeder
+      c.fillStyle = th.metal; c.fillRect(60, 120, 90, 70);
+      c.fillStyle = st.starve ? th.panel2 || '#ddd' : th.amber; c.fillRect(66, st.starve ? 180 : 130, 78, st.starve ? 4 : 54);
+      D.text(c, st.starve ? 'feeder EMPTY' : 'feeder', 105, 205, { size: 10, mono: true, weight: 700, color: st.starve ? th.red : th.ink });
+      // output: good and reject bins
+      D.text(c, 'good ' + st.good, 450, 150, { size: 12, mono: true, weight: 700, color: th.ink });
+      D.text(c, 'reject ' + st.bad, 450, 172, { size: 12, mono: true, weight: 700, color: st.bad ? th.red : th.muted });
+      if (I['I0.2']) D.text(c, I['I0.3'] ? '✓ part OK' : '✗ reject', 450, 125, { size: 11, weight: 800, color: I['I0.3'] ? th.green : th.red });
+      // andon tower
+      const ax = 560;
+      c.fillStyle = th.metalDark; c.fillRect(ax - 3, 150, 6, 110);
+      [['Q0.3', 'red', 60], ['Q0.2', 'amber', 90], ['Q0.1', 'green', 120]].forEach(([q, col, y]) => { c.fillStyle = Q[q] ? th[col] : th.lampOff; D.rr(c, ax - 16, y, 32, 28, 4); c.fill(); });
+      D.text(c, 'andon', ax, 46, { size: 10, weight: 700, color: th.muted });
+      D.lamp(c, th, 470, 240, 6, !!Q['Q0.4'], 'amber', 'slow cycle');
+      D.text(c, 'machine time  run ' + st.runS + ' s   fault ' + st.faultS + ' s   starved ' + st.starveS + ' s', 290, 290, { size: 10, mono: true, color: th.muted });
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  // ───────────────────────── hydraulic axis with a proportional valve ─────────────────────────
+  P.propaxis = {
+    id: 'propaxis', name: 'Hydraulic axis with a proportional valve', blurb: 'A hydraulic cylinder (stroke 500 mm) moved by a proportional valve: the analog output sets the oil flow, so the speed, not just the direction. A position transducer reports the position in 0.1 mm. Valves that jump from 0 to full flow cause pressure peaks; the cylinder must not hit its ends at speed.',
+    inputs: [
+      { addr: 'I0.0', name: 'Jog FORWARD', kind: 'pb', color: 'black' },
+      { addr: 'I0.1', name: 'Jog BACKWARD', kind: 'pb', color: 'black' },
+      { addr: 'I0.2', name: 'GO to target', kind: 'pb', color: 'green' },
+      { addr: 'I0.3', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'AIW0', name: 'Position transducer', kind: 'sensor', note: 'position in 0.1 mm: 0 … 5000 (0 … 500 mm)' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Valve amplifier enable', color: 'green' },
+      { addr: 'Q0.1', name: 'In position lamp', color: 'green' },
+      { addr: 'AQW0', name: 'Proportional valve', color: 'blue' },
+    ],
+    actions: [],
+    init() { return { pos: 100, v: 0, spool: 0, hist: [], t: 0, p10: 1000, maxP10: 1000, minP10: 1000, peaks: 0, fault: null, last: '' }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      const cmd = Q['Q0.0'] ? Math.max(-100, Math.min(100, (+Q['AQW0'] || 0) / 276.48)) : 0;   // % of full flow
+      st.hist.push([st.t, cmd]); while (st.hist.length && st.hist[0][0] < st.t - 100) st.hist.shift();
+      const old = st.hist[0][1];
+      if (Math.abs(cmd - old) > 25) st.fault = st.fault || 'Pressure peak: the valve command jumped from ' + Math.round(old) + ' % to ' + Math.round(cmd) + ' % within 0.1 s. Ramp the output (about 10 % per 0.1 s).';
+      st.spool += (cmd - st.spool) * Math.min(1, s / 0.03);
+      st.v = st.spool * 2;                                      // 100 % = 200 mm/s
+      st.pos += st.v * s;
+      if (st.pos <= 0 || st.pos >= 500) { if (Math.abs(st.v) > 30) st.fault = st.fault || 'The piston hit the end of the cylinder at ' + Math.round(Math.abs(st.v)) + ' mm/s. Slow down before the ends (soft limits).'; st.pos = Math.max(0, Math.min(500, st.pos)); st.spool = 0; st.v = 0; }
+      st.p10 = Math.round(st.pos * 10);
+      if (ctrl['I0.2'] && !st.prevGo) { st.maxP10 = st.p10; st.minP10 = st.p10; }   // overshoot is measured from each GO
+      st.prevGo = !!ctrl['I0.2'];
+      st.maxP10 = Math.max(st.maxP10, st.p10); st.minP10 = Math.min(st.minP10, st.p10);
+      const o = devices(this, ctrl);
+      o['AIW0'] = st.p10;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const x0 = 70, x1 = 520, y = 150, X = (mm) => x0 + mm / 500 * (x1 - x0);
+      c.fillStyle = th.metalDark; D.rr(c, x0 - 30, y - 30, x1 - x0 + 60, 60, 10); c.fill();
+      c.fillStyle = '#b45309'; c.globalAlpha = 0.5; c.fillRect(x0 - 24, y - 24, X(st.pos) - x0 + 24, 48); c.globalAlpha = 1;
+      c.fillStyle = th.metal; c.fillRect(X(st.pos) - 6, y - 26, 12, 52);
+      c.fillStyle = th.metal; c.fillRect(X(st.pos), y - 6, x1 + 60 - X(st.pos), 12);
+      c.fillStyle = th.amber; D.rr(c, x1 + 50, y - 30, 30, 60, 4); c.fill();
+      // scale
+      for (let mm = 0; mm <= 500; mm += 100) { c.fillStyle = th.muted; c.fillRect(X(mm), y + 40, 1, 8); D.text(c, mm + '', X(mm), y + 58, { size: 9, mono: true, color: th.muted }); }
+      D.text(c, 'position ' + (st.pos).toFixed(1) + ' mm', 180, 60, { size: 13, mono: true, weight: 800, color: th.ink });
+      D.text(c, 'speed ' + Math.round(st.v) + ' mm/s', 180, 82, { size: 11, mono: true, color: th.muted });
+      // valve command bar
+      const cmd = Q['Q0.0'] ? (+Q['AQW0'] || 0) / 276.48 : 0;
+      c.fillStyle = th.panel2 || '#ddd'; c.fillRect(360, 230, 200, 14);
+      c.fillStyle = th.blue; c.fillRect(460, 230, Math.max(-100, Math.min(100, cmd)), 14);
+      c.fillStyle = th.ink; c.fillRect(459, 226, 2, 22);
+      D.text(c, 'proportional valve ' + (cmd > 0 ? '+' : '') + Math.round(cmd) + ' %', 460, 262, { size: 11, mono: true, weight: 700, color: th.ink });
+      D.text(c, Q['Q0.0'] ? 'amplifier ON' : 'amplifier off', 460, 282, { size: 9, mono: true, color: Q['Q0.0'] ? th.green : th.muted });
+      D.lamp(c, th, 420, 70, 7, !!Q['Q0.1'], 'green', 'in position');
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  // ───────────────────────── building services on the PLC clock ─────────────────────────
+  const DAYS = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  P.building = {
+    id: 'building', name: 'Factory building on a time schedule', blurb: 'The PLC clock (read into AIW10 = hour, AIW11 = minute, AIW12 = weekday 1 = Monday … 7 = Sunday) runs 60 × faster here: one clock minute every second. The PLC rings the shift bell, runs the heating and the outdoor lights by the clock and a twilight sensor.',
+    inputs: [
+      { addr: 'I0.0', name: 'Office light button', kind: 'pb', color: 'black' },
+      { addr: 'I0.1', name: 'Holiday switch', kind: 'sw', note: '1 = factory closed today' },
+      { addr: 'I0.2', name: 'Twilight sensor', kind: 'sensor', note: '1 = dark outside' },
+      { addr: 'AIW10', name: 'Clock: hour', kind: 'sensor', note: '0 … 23 (read from the PLC clock)' },
+      { addr: 'AIW11', name: 'Clock: minute', kind: 'sensor', note: '0 … 59' },
+      { addr: 'AIW12', name: 'Clock: weekday', kind: 'sensor', note: '1 = Monday … 7 = Sunday' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Office lights', color: 'amber' },
+      { addr: 'Q0.1', name: 'Heating and ventilation', color: 'red' },
+      { addr: 'Q0.2', name: 'Outdoor lights', color: 'amber' },
+      { addr: 'Q0.3', name: 'Shift bell', color: 'red' },
+    ],
+    actions: [
+      { id: 'hour', label: 'Clock +1 hour', run(st) { st.min += 60; } },
+      { id: 'day', label: 'Clock +1 day', run(st) { st.min += 1440; } },
+      { id: 'cloud', label: 'Dark clouds (dark in the day)', toggle: true, run(st) { st.cloud = !st.cloud; } },
+    ],
+    init() { return { min: 5 * 60, ms: 0, cloud: false, rings: 0, bellMs: 0, prevBell: 0, heatMin: 0, t: 0, fault: null, last: '' }; },   // Monday 05:00
+    step(st, ctrl, Q, dt) {
+      st.t += dt; st.ms += dt;
+      while (st.ms >= 1000) { st.ms -= 1000; st.min++; if (Q['Q0.1']) st.heatMin++; }
+      st.min %= 7 * 1440;
+      const day = Math.floor(st.min / 1440) + 1, hm = st.min % 1440;
+      st.hour = Math.floor(hm / 60); st.minute = hm % 60; st.wday = day; st.hm = hm;
+      const bell = Q['Q0.3'] ? 1 : 0;
+      if (bell && !st.prevBell) st.rings++;
+      st.bellMs = bell ? st.bellMs + dt : 0;
+      if (st.bellMs > 10000) st.fault = st.fault || 'The shift bell rang for more than 10 s: it must ring a few seconds only.';
+      st.prevBell = bell;
+      st.dark = st.cloud || hm < 6 * 60 + 30 || hm >= 18 * 60 ? 1 : 0;
+      const o = devices(this, ctrl);
+      o['I0.2'] = st.dark;
+      o['AIW10'] = st.hour; o['AIW11'] = st.minute; o['AIW12'] = day;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      // sky
+      c.fillStyle = st.dark ? '#1e293b' : '#bfdbfe'; c.fillRect(0, 0, 640, 200);
+      if (!st.dark) { c.fillStyle = '#facc15'; c.beginPath(); c.arc(80, 60, 22, 0, 7); c.fill(); } else { c.fillStyle = '#e5e7eb'; c.beginPath(); c.arc(80, 60, 16, 0, 7); c.fill(); }
+      c.fillStyle = th.ground || '#64748b'; c.fillRect(0, 200, 640, 100);
+      // building
+      c.fillStyle = th.metalDark; c.fillRect(200, 80, 260, 140);
+      for (let r = 0; r < 2; r++) for (let k = 0; k < 5; k++) { c.fillStyle = Q['Q0.0'] ? '#fde68a' : '#334155'; c.fillRect(215 + k * 50, 100 + r * 50, 34, 30); }
+      // chimney / heating
+      c.fillStyle = th.metal; c.fillRect(420, 50, 18, 30);
+      if (Q['Q0.1']) { c.fillStyle = 'rgba(203,213,225,.8)'; [0, 1, 2].forEach((k) => { c.beginPath(); c.arc(429 + k * 8, 40 - k * 12 - ((st.t / 40) % 10), 7 + k * 2, 0, 7); c.fill(); }); }
+      // outdoor lamps
+      [140, 520].forEach((x) => { c.fillStyle = th.metal; c.fillRect(x - 2, 140, 4, 80); c.fillStyle = Q['Q0.2'] ? '#fde047' : '#475569'; c.beginPath(); c.arc(x, 136, 9, 0, 7); c.fill(); if (Q['Q0.2']) { c.fillStyle = 'rgba(253,224,71,.25)'; c.beginPath(); c.arc(x, 150, 34, 0, 7); c.fill(); } });
+      // bell
+      D.lamp(c, th, 330, 250, 8, !!Q['Q0.3'], 'red', 'shift bell');
+      // clock
+      const pad = (n) => (n < 10 ? '0' : '') + n;
+      c.fillStyle = '#0f172a'; D.rr(c, 470, 228, 150, 52, 8); c.fill();
+      D.text(c, DAYS[st.wday] + ' ' + pad(st.hour) + ':' + pad(st.minute), 545, 248, { size: 18, mono: true, weight: 800, color: '#a3e635' });
+      D.text(c, 'PLC clock ×60', 545, 270, { size: 9, mono: true, color: '#94a3b8' });
+      if (I['I0.1']) D.text(c, 'HOLIDAY', 330, 70, { size: 12, weight: 800, color: th.red });
+      D.text(c, 'heating ' + Math.round(st.heatMin / 60 * 10) / 10 + ' h', 110, 270, { size: 10, mono: true, color: '#fff' });
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  // ───────────────────────── pump motor with a soft starter and bypass ─────────────────────────
+  P.softstart = {
+    id: 'softstart', name: 'Pump with a soft starter and bypass', blurb: 'A 55 kW water pump started by a soft starter (like a Siemens 3RW, ABB PSE, Schneider ATS). The line contactor KM1 feeds the starter; at the end of the ramp the bypass contactor KM2 takes over the current so the starter does not overheat. Stopping with the starter\'s stop ramp avoids water hammer in the pipe.',
+    inputs: [
+      { addr: 'I0.0', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'Top of ramp', kind: 'sensor', note: 'soft starter relay: 1 = motor at full speed' },
+      { addr: 'I0.3', name: 'Soft starter fault', kind: 'sensor', note: 'soft starter relay: 1 = fault' },
+      { addr: 'I0.4', name: 'RESET', kind: 'pb', color: 'blue' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'KM1 line contactor', color: 'green' },
+      { addr: 'Q0.1', name: 'Soft starter RUN', color: 'blue' },
+      { addr: 'Q0.2', name: 'KM2 bypass contactor', color: 'green' },
+      { addr: 'Q0.3', name: 'Running lamp', color: 'green' },
+      { addr: 'Q0.4', name: 'Fault lamp', color: 'red' },
+    ],
+    actions: [{ id: 'sfault', label: 'Soft starter fault (overheat / phase loss); again = cleared', toggle: true, run(st) { st.sfault = !st.sfault; } }],
+    init() { return { n: 0, km2: 0, km2Off: 999, heat: 0, starts: 0, prevRun: 0, t: 0, fault: null, last: '', rpm: 0 }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000, km1 = !!Q['Q0.0'], run = !!Q['Q0.1'] && !st.sfault;
+      // KM2 contacts follow the coil after ~60 ms
+      if (Q['Q0.2']) { st.km2 = 1; st.km2Off = 0; } else { st.km2Off += dt; if (st.km2Off >= 60) st.km2 = 0; }
+      if (st.km2 && km1 && st.n < 0.97 && !st.sfault) st.fault = st.fault || 'The bypass KM2 closed before the end of the ramp: the motor got full voltage at ' + Math.round(st.n * 100) + ' % speed (inrush, the breaker trips). Close KM2 only on "top of ramp".';
+      if (!!Q['Q0.1'] !== !!st.prevRun && !Q['Q0.1'] && st.km2 && km1 && !st.sfault) st.fault = st.fault || 'RUN was removed while KM2 was still closed: the soft starter cannot make its stop ramp (water hammer). Open KM2 first, then remove RUN.';
+      st.prevRun = !!Q['Q0.1'];
+      if (st.km2 && km1) st.n = Math.min(1, st.n + s);
+      else if (km1 && run) st.n = Math.min(1, st.n + s / 3);           // 3 s start ramp
+      else if (km1 && !run && st.n > 0) st.n = Math.max(0, st.n - s / 3); // 3 s stop ramp
+      else st.n = Math.max(0, st.n - s / 0.8);                          // coasting: fast stop → water hammer
+      if (!km1 && st.prevKm1 && st.n > 0.15 && !st.sfault && !st.coastOk) st.fault = st.fault || 'KM1 opened while the motor was still at ' + Math.round(st.n * 100) + ' %: no stop ramp (water hammer) and arcing on KM1. Keep KM1 on until the stop ramp has finished.';
+      st.prevKm1 = km1;
+      st.heat = km1 && run && !st.km2 && st.n >= 0.97 ? st.heat + dt : 0;
+      if (st.heat > 8000) st.fault = st.fault || 'The soft starter overheated: it carried the full motor current for 8 s. Close the bypass KM2 at the top of the ramp.';
+      st.rpm = Math.round(st.n * 1480);
+      const o = devices(this, ctrl);
+      o['I0.2'] = km1 && st.n >= 0.97 && (run || st.km2) ? 1 : 0;
+      o['I0.3'] = st.sfault ? 1 : 0;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      // single-line diagram
+      const x = 120;
+      c.strokeStyle = th.ink; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(x, 20); c.lineTo(x, 60); c.stroke(); D.text(c, '400 V', x + 24, 26, { size: 9, mono: true, color: th.muted });
+      const contact = (y, on, name) => { c.strokeStyle = on ? th.green : th.ink; c.beginPath(); c.moveTo(x, y); c.lineTo(on ? x : x + 12, y + 20); c.stroke(); D.text(c, name, x - 30, y + 10, { size: 10, mono: true, weight: 700, color: on ? th.green : th.ink }); };
+      contact(60, !!Q['Q0.0'], 'KM1');
+      c.strokeStyle = th.ink; c.beginPath(); c.moveTo(x, 80); c.lineTo(x, 110); c.stroke();
+      c.beginPath(); c.moveTo(x, 100); c.lineTo(x + 70, 100); c.lineTo(x + 70, 120); c.stroke();
+      // soft starter box
+      c.fillStyle = Q['Q0.1'] ? th.blue : th.metal; D.rr(c, x - 30, 110, 60, 60, 6); c.fill();
+      D.text(c, 'soft', x, 132, { size: 10, weight: 700, color: '#fff' }); D.text(c, 'starter', x, 146, { size: 10, weight: 700, color: '#fff' });
+      if (st.heat > 3000) D.text(c, 'HOT', x, 162, { size: 9, weight: 800, color: th.red });
+      // bypass
+      c.strokeStyle = st.km2 ? th.green : th.ink; c.beginPath(); c.moveTo(x + 70, 120); c.lineTo(st.km2 ? x + 70 : x + 82, 140); c.stroke();
+      D.text(c, 'KM2 bypass', x + 112, 130, { size: 10, mono: true, weight: 700, color: st.km2 ? th.green : th.ink });
+      c.strokeStyle = th.ink; c.beginPath(); c.moveTo(x + 70, 140); c.lineTo(x + 70, 190); c.lineTo(x, 190); c.stroke();
+      c.beginPath(); c.moveTo(x, 170); c.lineTo(x, 210); c.stroke();
+      // motor + pump
+      c.fillStyle = th.metalDark; c.beginPath(); c.arc(x, 235, 24, 0, 7); c.fill();
+      c.save(); c.translate(x, 235); c.rotate(st.t / 1000 * st.n * 20); c.fillStyle = st.n > 0.01 ? th.green : th.metal; for (let k = 0; k < 3; k++) { c.rotate(2.09); c.fillRect(-3, 0, 6, 18); } c.restore();
+      D.text(c, 'M  ' + st.rpm + ' rpm', x, 274, { size: 10, mono: true, weight: 700, color: th.ink });
+      // speed curve area
+      c.fillStyle = th.panel2 || '#eef'; D.rr(c, 330, 40, 280, 120, 8); c.fill();
+      c.fillStyle = th.blue; c.fillRect(340, 140 - st.n * 90, 30, st.n * 90);
+      D.text(c, 'speed ' + Math.round(st.n * 100) + ' %', 470, 70, { size: 13, mono: true, weight: 800, color: th.ink });
+      D.text(c, I['I0.2'] ? 'top of ramp' : st.n > 0.01 ? (Q['Q0.1'] ? 'ramping' : 'stop ramp / coasting') : 'stopped', 470, 95, { size: 10, mono: true, color: th.muted });
+      // pipe and pressure
+      c.strokeStyle = th.water || th.blue; c.lineWidth = 8; c.beginPath(); c.moveTo(x + 24, 235); c.lineTo(600, 235); c.stroke();
+      D.lamp(c, th, 380, 200, 6, !!Q['Q0.3'], 'green', 'running'); D.lamp(c, th, 460, 200, 6, !!Q['Q0.4'], 'red', 'fault');
+      if (st.sfault) D.text(c, 'SOFT STARTER FAULT', 470, 125, { size: 11, weight: 800, color: th.red });
+      D.fault(c, th, st.fault);
+    },
+  };
+
   // ───────────────────────── hydraulic accumulator charging (clamping system) ─────────────────────────
   P.accu = {
     id: 'accu', name: 'Hydraulic accumulator and clamps', blurb: 'A small hydraulic power unit charges a gas accumulator that supplies the clamping cylinders of a machining fixture. The pump only charges between 140 and 160 bar and runs unloaded the rest of the time; a dump valve empties the accumulator when the unit stops.',
@@ -3879,7 +4159,7 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'oldpanel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'hpress', 'accu', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'gantry', 'servohmi', 'safecell', 'safeplc', 'curtain', 'labeler', 'alarms', 'feeder', 'handover', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
+  LL.PLANT_ORDER = ['panel', 'oldpanel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'hpress', 'accu', 'propaxis', 'garage', 'parking', 'stardelta', 'softstart', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'gantry', 'servohmi', 'safecell', 'safeplc', 'curtain', 'labeler', 'alarms', 'feeder', 'handover', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture', 'prodcell', 'building'];
 
   // Outputs a plant sees: Q bits, AQW words, plus any memory words its HMI displays
   LL.plantOutputs = function (plant, m) {

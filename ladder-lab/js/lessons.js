@@ -929,6 +929,164 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
       challenges: ['hyd-b1', 'hyd-b2', 'hyd-1', 'hyd-2', 'bug-hyd', 'hyd-3', 'hyd-acc', 'hyd-4'],
     },
     {
+      id: 'commissioning', level: 4, title: "Commissioning: I/O check and the first run", min: 12,
+      summary: "What happens between \"the wiring is finished\" and \"the machine produces\": the checks before power, the I/O check against the list, the safety test, analog loop checks, the dry run, and the program features that make it easier.",
+      body: `
+<h3>Never press AUTO first</h3>
+<p>A new machine has new wiring, and new wiring has mistakes: swapped wires, an NC sensor where an NO was planned, a valve coil on the wrong output, a motor turning the wrong way. If the first thing you do is start the automatic cycle, the machine crashes into itself. Commissioning is done in a fixed order.</p>
+<h3>The order</h3>
+<ol>
+<li><b>Power off:</b> look at the wiring, terminals tight, protective earth, the right fuses. Check 24 V is not shorted.</li>
+<li><b>Power on, PLC in STOP:</b> 24 V present, the PLC and remote I/O and drives are online, no red LEDs.</li>
+<li><b>Input check:</b> operate every sensor and button by hand and see the right input change in the PLC (the I/O table or a watch table). Tick it on the <b>I/O check sheet</b>.</li>
+<li><b>Output check:</b> with the air or oil pressure low and nobody in the machine, switch every output on by <b>forcing</b> it, one at a time, and see the right device react. Motors: <b>bump</b> them to check the direction, with the coupling or belt off if possible.</li>
+<li><b>Analog loop check:</b> simulate 4 mA, 12 mA and 20 mA (a loop calibrator) and read 0 %, 50 %, 100 % in the PLC; check the wire-break value.</li>
+<li><b>Safety functions:</b> every E-stop, door switch, light curtain: does it stop what it must? Write it down (it is part of the validation).</li>
+<li><b>Manual mode:</b> every movement by hand, end positions, interlocks.</li>
+<li><b>Dry run</b> in AUTO without product, then with product at low speed, then at full speed.</li>
+<li><b>Sign-off:</b> FAT (factory acceptance test, at the builder) and SAT (site acceptance test, at the customer).</li>
+</ol>
+<h3>The I/O check sheet</h3>
+<div class="tbl"><table>
+<tr><th>Address</th><th>Tag</th><th>Device</th><th>How tested</th><th>OK</th></tr>
+<tr><td>I0.3</td><td>A1</td><td>Reed switch, cylinder A out</td><td>Cylinder A out by hand: I0.3 = 1, back: 0</td><td>✔</td></tr>
+<tr><td>I0.1</td><td>STOP</td><td>Push button, NC</td><td>Not pressed: 1, pressed: 0</td><td>✔</td></tr>
+<tr><td>Q0.1</td><td>Y2</td><td>Valve B</td><td>Force Q0.1: cylinder B goes out</td><td>✔</td></tr>
+<tr><td>AIW0</td><td>LT101</td><td>Level 4–20 mA</td><td>4 / 12 / 20 mA → 0 / 50 / 100 %</td><td>✔</td></tr>
+</table></div>
+<h3>Typical findings</h3>
+<ul>
+<li>Two sensor wires swapped: the program "sees" the wrong cylinder.</li>
+<li>Two valve coils swapped: the wrong cylinder moves.</li>
+<li>NPN sensor on a PNP input card (or the reverse): the input never comes on.</li>
+<li>NC contact where NO was planned (or the reverse): the input is inverted.</li>
+<li>Motor turns backwards: swap two phases (or the drive parameter).</li>
+<li>4–20 mA wired as 0–20 mA in the configuration: the reading is off by 20 %.</li>
+</ul>
+<h3>Write programs that help</h3>
+<p>A good program finds wiring and sensor faults by itself, at commissioning and for years: <b>plausibility checks</b> (home and out sensor never together), <b>watchdogs</b> (the sensor must come within a time), analog <b>wire-break</b> detection, and a clear alarm text that names the device. Forcing is a commissioning tool: remove every force before production, and never force a safety signal.</p>
+<div class="callout where"><b>Where:</b> every new machine, every rebuild, and every time a sensor, valve or cable is replaced: check that one I/O again.</div>`,
+      sims: {},
+      takeaways: ["Commission in a fixed order: power off checks, inputs, outputs, analog, safety, manual, dry run.", "Check every I/O once against the list and tick it off.", "Force outputs one at a time, with low pressure and nobody in the machine.", "Plausibility checks and watchdogs make the program find wiring faults."],
+      mistakes: ["Starting AUTO before the I/O check.", "Leaving forces active after commissioning.", "Forcing or bridging a safety signal.", "Testing a motor direction with the load coupled."],
+      challenges: ["cio-1", "cio-2", "cio-plaus"],
+    },
+    {
+      id: 'production-data', level: 5, title: "Production data: counters, downtime and OEE", min: 12,
+      summary: "The numbers a plant runs on: part counters per shift, run and downtime, cycle time, the andon light, and OEE (availability × performance × quality), with the PLC traps: edges, overflow, division by zero and retentive memory.",
+      body: `
+<h3>What the plant wants to know</h3>
+<p>Besides running the machine, the PLC is where production data starts: the HMI, the SCADA or the MES (manufacturing execution system) read these values from the PLC.</p>
+<ul>
+<li><b>Counters</b>: parts, good parts, rejects, per shift (reset at the shift change, by a button or by the clock).</li>
+<li><b>Times</b>: running, stopped by a fault, waiting for material (starved), waiting for the next machine (blocked), planned stops.</li>
+<li><b>Cycle time</b>: the time per part, compared with the ideal.</li>
+<li><b>Andon light</b>: green producing, amber waiting, red fault, so anyone can see the state from far away.</li>
+</ul>
+<h3>OEE</h3>
+<p><b>OEE</b> (Overall Equipment Effectiveness) is one number for how well the machine is used:</p>
+<div class="tbl"><table>
+<tr><th>Factor</th><th>Formula</th><th>Loses on</th></tr>
+<tr><td>Availability</td><td>run time / planned production time</td><td>breakdowns, setups, material shortage</td></tr>
+<tr><td>Performance</td><td>ideal cycle time × parts / run time</td><td>slow cycles, small stops</td></tr>
+<tr><td>Quality</td><td>good parts / all parts</td><td>rejects, rework</td></tr>
+<tr><td><b>OEE</b></td><td>A × P × Q</td><td>everything</td></tr>
+</table></div>
+<p>Example: 80 % × 95 % × 98 % = 74 %. About 85 % is called world class; many machines run at 50–60 %. The point is not the number but <b>which factor</b> is low.</p>
+<h3>The PLC traps</h3>
+<ul>
+<li><b>Count the edge</b>: a "cycle done" signal lasts several scans. NO(I0.2) ADD(...) counts once per scan; P(I0.2) once per part.</li>
+<li><b>Overflow</b>: a 16-bit INT ends at 32 767. A shift has 28 800 s, and 200 parts × 200 = 40 000. Multiply into 32-bit (DINT / MD) first, then divide.</li>
+<li><b>Division by zero</b>: at the start of the shift the divisor is 0. Check it before dividing; some PLCs stop or log a fault.</li>
+<li><b>Retentive memory</b>: counters must survive a power cut. Use retentive memory (TIA: "retain" in the DB, Rockwell: tags are retentive, CODESYS: VAR RETAIN).</li>
+<li><b>Who resets</b>: decide whether the PLC, the HMI or the MES resets the shift counters, and only one of them.</li>
+</ul>
+<div class="callout where"><b>Where:</b> every production machine with an HMI or a line monitoring system; OEE boards in automotive, packaging, food.</div>`,
+      sims: {},
+      takeaways: ["Count parts on the rising edge.", "Measure run, fault and starved time separately: they tell you what to fix.", "OEE = availability × performance × quality.", "Use 32-bit for big products, never divide by zero, keep counters retentive."],
+      mistakes: ["Counting the level of the cycle signal instead of its edge.", "16-bit overflow after a few minutes of production.", "Dividing at the start of the shift when the divisor is 0.", "Counters that reset at every power cut."],
+      challenges: ["prod-1", "prod-2", "prod-3"],
+    },
+    {
+      id: 'proportional', level: 6, title: "Proportional valves: speed, ramps and positioning", min: 11,
+      summary: "Hydraulics with an analog output: the proportional valve sets the flow and so the speed. Why the output must ramp, how soft limits work, and how a simple P controller moves an axis to a position.",
+      body: `
+<h3>On/off valves vs proportional valves</h3>
+<p>An ordinary valve is open or closed: full speed or stop, with a bang at every change. A <b>proportional valve</b> opens as far as the signal says: the PLC writes an analog output (±10 V or 4–20 mA, here −27648 … +27648 = −100 … +100 %) to the valve amplifier, and the cylinder speed follows. Brands: Bosch Rexroth, Parker, Moog, Atos. With a position sensor in a closed loop, the same valve becomes a <b>servo-hydraulic axis</b> (press brakes, injection moulding, test benches).</p>
+<h3>Ramps</h3>
+<p>Oil does not compress: a jump from 0 to 50 % flow means a jump in force and pressure (a <b>pressure peak</b>), noise and wear. So the output follows the setpoint with a <b>ramp</b>: at most a few % per 100 ms. In ladder: every 100 ms, move the output towards the setpoint by one step, or to the setpoint if it is closer than one step. The same idea is used for drives (acceleration ramps) and for analog setpoints from an HMI.</p>
+<h3>Soft limits</h3>
+<p>The ends of the cylinder must not be hit at speed. Stop asking for speed before the end (soft limit), far enough that the ramp-down ends before the mechanical end: distance ≈ speed × ramp time / 2.</p>
+<h3>Positioning with a P controller</h3>
+<p>Speed = (target − position) × gain. Far away the speed is at its limit; near the target it becomes smaller and smaller, so the axis creeps in without overshoot. "In position" = error inside a window (±2 mm) for a short time. Limit the error before multiplying, or the result overflows a 16-bit word. Real axes add an integral part or a feed-forward and a dead-band compensation of the valve, often in a motion module (Rexroth, Delta RMC) or with PLCopen hydraulic blocks.</p>
+<div class="callout where"><b>Where:</b> press brakes, lifting tables, injection moulding, sawmills, steel mills, test benches, mobile hydraulics.</div>`,
+      sims: {},
+      takeaways: ["A proportional valve sets the speed with an analog output.", "Always ramp the output: no pressure peaks.", "Soft limits leave room for the ramp-down.", "P control: speed = error × gain, limited; in position = error in a window for a moment."],
+      mistakes: ["Writing the setpoint straight to the valve (pressure peaks).", "Ramp only for accelerating, not for stopping.", "Overflow when multiplying a big error.", "Full speed until the target, then stop: overshoot."],
+      challenges: ["prop-1", "prop-2"],
+    },
+    {
+      id: 'plc-clock', level: 3, title: "The PLC clock: schedules and time windows", min: 9,
+      summary: "Every PLC has a real-time clock: read it, turn the time into minutes since midnight, and make time windows, weekday schedules, shift bells and timed overrides.",
+      body: `
+<h3>Reading the clock</h3>
+<p>The PLC has a battery- or capacitor-backed real-time clock, usually synchronised from the network (NTP). You read it with an instruction:</p>
+<div class="tbl"><table>
+<tr><th>Brand</th><th>Read the local time</th></tr>
+<tr><td>Siemens TIA Portal</td><td>RD_LOC_T → DTL (YEAR, MONTH, DAY, WEEKDAY 1 = Sunday!, HOUR, MINUTE …)</td></tr>
+<tr><td>Rockwell Studio 5000</td><td>GSV WallClockTime LocalDateTime → DINT[7] (year … microsecond)</td></tr>
+<tr><td>CODESYS / Schneider / TwinCAT</td><td>SysTimeRtcGet + SysTimeRtcConvertUtcToDate, or DTU / F_GetSystemTime (TwinCAT)</td></tr>
+<tr><td>Omron Sysmac</td><td>GetTime() or the system variable _CurrentTime</td></tr>
+<tr><td>Ladder Lab</td><td>already read into AIW10 = hour, AIW11 = minute, AIW12 = weekday (1 = Monday)</td></tr>
+</table></div>
+<p>Watch the weekday numbering: it is different between brands.</p>
+<h3>Minutes since midnight</h3>
+<p>Comparing "after 05:30 and before 18:00" with hours and minutes separately is messy. Convert once: <b>t = hour × 60 + minute</b> (05:30 = 330, 18:00 = 1080). Then a time window is two compares: <code>t &gt;= start AND t &lt; end</code>. Use &gt;= for the start and &lt; for the end, so two windows can follow each other without a gap or an overlap.</p>
+<p>A window across midnight (22:00–06:00) is <code>t &gt;= 1320 OR t &lt; 360</code>.</p>
+<h3>Events and timed overrides</h3>
+<ul>
+<li>A condition like "minute = 0" lasts a whole minute: use an edge or a <b>TP</b> to do something once (ring the bell 3 s).</li>
+<li>A button that gives light "for 30 minutes": a <b>TOF</b> started by the button.</li>
+<li>Holidays: a switch or a calendar table in a data block.</li>
+<li>Summer / winter time: let the PLC use local time from NTP, or the schedule shifts one hour twice a year.</li>
+</ul>
+<div class="callout where"><b>Where:</b> shift bells and breaks, building services (heating, ventilation, lights), pumps that run at night tariff, cleaning cycles, production calendars.</div>`,
+      sims: {},
+      takeaways: ["Read the clock with the brand's instruction; check the weekday numbering.", "Convert to minutes since midnight; a window is two compares (>= start, < end).", "Use an edge or TP for once-per-event actions, TOF for timed overrides."],
+      mistakes: ["Comparing hours only and forgetting the minutes.", "Using <= at the end of a window (one minute too long, overlapping windows).", "A bell that rings for the whole minute.", "Windows across midnight written as one AND."],
+      challenges: ["tod-1", "tod-2"],
+    },
+    {
+      id: 'motor-starters', level: 4, title: "Motor starters: direct, star-delta, soft starter or VFD", min: 10,
+      summary: "Four ways to start a three-phase motor, what each one costs and protects, and the PLC signals and sequences for each, including the soft starter with its bypass contactor.",
+      body: `
+<h3>Why not just switch it on?</h3>
+<p>A motor started directly on the line draws <b>6–8 × its rated current</b> and gives a hard torque jolt: lights flicker, couplings and belts suffer, and pumps make water hammer. Bigger motors therefore use a starter that limits this.</p>
+<div class="tbl"><table>
+<tr><th></th><th>Direct on line (DOL)</th><th>Star-delta</th><th>Soft starter</th><th>Variable-speed drive (VFD)</th></tr>
+<tr><td>Starting current</td><td>6–8 × In</td><td>about 2–3 × In, with a peak at the changeover</td><td>2–4 × In, adjustable</td><td>about 1 × In</td></tr>
+<tr><td>Starting torque</td><td>full</td><td>one third</td><td>reduced, adjustable</td><td>full, controlled</td></tr>
+<tr><td>Soft stop</td><td>no</td><td>no</td><td>yes (pumps!)</td><td>yes</td></tr>
+<tr><td>Speed control</td><td>no</td><td>no</td><td>no</td><td><b>yes</b></td></tr>
+<tr><td>PLC signals</td><td>1 contactor</td><td>3 contactors, timer, interlock</td><td>RUN, top of ramp, fault, bypass</td><td>run, direction, speed (analog or fieldbus), ready, fault</td></tr>
+<tr><td>Cost</td><td>lowest</td><td>low</td><td>medium</td><td>highest</td></tr>
+<tr><td>Typical use</td><td>small motors</td><td>older fans and pumps that start unloaded</td><td>pumps, fans, compressors, conveyors</td><td>anything that needs speed control or saves energy</td></tr>
+</table></div>
+<h3>The soft starter sequence</h3>
+<ol>
+<li>START: line contactor <b>KM1</b> and <b>RUN</b>: the starter raises the voltage over a few seconds.</li>
+<li><b>Top of ramp</b>: the motor is at full speed; close the <b>bypass KM2</b> so the starter's thyristors do not carry the current (heat).</li>
+<li>STOP: open KM2 first, keep RUN a moment so the starter takes the current back, then remove RUN: <b>stop ramp</b>. Keep KM1 on until the ramp is over.</li>
+<li>Fault relay from the starter: everything off, latch, reset.</li>
+</ol>
+<p>Many modern soft starters have the bypass built in; then the PLC only gives RUN and reads ready, top of ramp and fault.</p>
+<div class="callout where"><b>Where:</b> pump stations, fans, compressors, crushers, long conveyors. A VFD where the speed must change; a soft starter where it only has to start and stop gently.</div>`,
+      sims: {},
+      takeaways: ["DOL is simple but draws 6–8 × In.", "Star-delta cuts the current but also the torque to a third.", "Soft starter: gentle start and stop, bypass at the top of the ramp.", "VFD: the only one with speed control."],
+      mistakes: ["Closing the bypass before the top of ramp.", "Removing RUN with the bypass still closed: no stop ramp.", "Opening the line contactor during the stop ramp.", "Using a soft starter where speed control is needed."],
+      challenges: ["soft-1"],
+    },
+    {
       id: 'safety', level: 5, title: 'Safety, E-stops, alarms & first scan', min: 10,
       summary: 'What must never depend on your program, and how to handle faults like a pro.',
       body: `
@@ -2294,6 +2452,18 @@ END_REPEAT</pre>
     ["Two-hand control", "Both buttons pressed within 0.5 s and held during the dangerous stroke (ISO 13851), so the operator's hands are away from the tool."],
     ["Accumulator (hydraulic)", "A pressure vessel with a gas bladder that stores oil under pressure, charged by the pump between two set-points; it must be emptied (dump valve) before work on the system."],
     ["Dump valve", "A valve that opens to the tank when de-energised and empties an accumulator at stop or on a fault, so the system has no stored pressure."],
+    ["I/O check", "Commissioning step: every input and output is operated once and checked against the I/O list before the machine runs automatically."],
+    ["FAT / SAT", "Factory acceptance test (at the machine builder) and site acceptance test (at the customer): the documented tests before a machine is handed over."],
+    ["Plausibility check", "A program check for states that cannot be true together (home and out sensor both on), used to find sensor and wiring faults."],
+    ["OEE", "Overall Equipment Effectiveness = availability × performance × quality: how much of the planned time produced good parts at the ideal speed."],
+    ["Andon light", "A signal tower (green / amber / red) that shows the state of a machine to everyone on the floor."],
+    ["Cycle time", "The time to make one part, measured from one \"cycle done\" to the next."],
+    ["Proportional valve", "A hydraulic valve whose opening follows an analog signal, so the PLC sets speed (or pressure), not only direction."],
+    ["Ramp", "A setpoint that changes gradually (a fixed step per time) instead of jumping, to avoid shocks and pressure peaks."],
+    ["Soft limit", "A position limit in the program, before the mechanical end, where the axis stops being driven so it can stop in time."],
+    ["Real-time clock (RTC)", "The PLC's battery-backed clock with date, time and weekday, read with an instruction and used for schedules."],
+    ["Soft starter", "A thyristor starter that raises and lowers the motor voltage gradually for a gentle start and stop; usually bypassed by a contactor at full speed."],
+    ["Bypass contactor", "A contactor in parallel with a soft starter that carries the motor current once the motor is at full speed, so the starter does not overheat."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -2522,5 +2692,17 @@ END_REPEAT</pre>
     { l: 5, q: "Why does a hydraulic unit have a dump valve on the accumulator?", a: ["to empty the stored pressure at stop, before anyone opens a pipe", "to cool the oil", "to fill the tank", "to start the pump unloaded"], c: 0, why: "Stored energy stays in the accumulator after the pump stops." },
     { l: 2, q: "Jog buttons on a 4/3 valve: DOWN and UP pressed together. The program should…", a: ["switch both solenoids off", "switch both on", "switch on the one pressed first", "stop the pump"], c: 0, why: "Never Y1 and Y2 together." },
     { l: 6, q: "A press reaches its pressure switch only after 9 s instead of 2 s. A pressing watchdog of 6 s would…", a: ["stop the cycle, raise an alarm and go back up: pump worn, leak or part missing", "do nothing", "press harder", "restart the pump"], c: 0, why: "A watchdog finds slow or missing events." },
+    { l: 4, q: "A new machine is wired. What do you do before the first AUTO cycle?", a: ["an I/O check: every input and output once against the I/O list", "start AUTO at low speed and watch", "nothing, the program was tested", "only test the E-stop"], c: 0, why: "New wiring has mistakes." },
+    { l: 4, q: "During the I/O check, forcing Q0.1 (valve B) moves cylinder C. Most likely…", a: ["the coil wires of B and C are swapped", "the program is wrong", "sensor B1 is broken", "the PLC output is broken"], c: 0, why: "The output reaches the wrong device." },
+    { l: 5, q: "The cylinder home sensor and out sensor are both on. The program should…", a: ["raise a sensor alarm (plausibility check)", "ignore it", "assume the cylinder is out", "assume it is home"], c: 0, why: "A cylinder cannot be in both places." },
+    { l: 3, q: "\"Cycle done\" lasts 200 ms. NO(I0.2) ADD(MW10,1,MW10) counts…", a: ["once per scan while it is on: far too many", "once per part", "once per second", "nothing"], c: 0, why: "Count the rising edge: P(I0.2)." },
+    { l: 5, q: "Availability 90 %, performance 80 %, quality 95 %. OEE is about…", a: ["68 %", "90 %", "80 %", "265 %"], c: 0, why: "0.9 × 0.8 × 0.95 = 0.684." },
+    { l: 5, q: "Run time 500 s × 100 in a 16-bit INT gives…", a: ["an overflow: 50 000 does not fit (max 32 767)", "50 000", "5 000", "an error in the HMI only"], c: 0, why: "Use a 32-bit DINT / MD." },
+    { l: 6, q: "Why must the output to a proportional valve ramp?", a: ["a jump in flow gives a pressure peak and a shock", "the valve cannot read fast values", "to save oil", "it does not have to"], c: 0, why: "Oil does not compress." },
+    { l: 6, q: "P control positioning: speed = error × gain. Near the target the speed…", a: ["gets smaller and smaller", "stays at full speed", "reverses", "is zero from the start"], c: 0, why: "That is why it does not overshoot." },
+    { l: 3, q: "A heating window from 05:30 to 18:00 in minutes since midnight is…", a: ["t >= 330 AND t < 1080", "t >= 5 AND t < 18", "t > 530 AND t < 1800", "t == 330"], c: 0, why: "hour × 60 + minute." },
+    { l: 3, q: "\"Minute = 0 and hour = 6\" is true for a whole minute. To ring a bell for 3 s you use…", a: ["a TP (or an edge) started by the condition", "a COIL", "a TON of 3 s", "a counter"], c: 0, why: "One pulse per event." },
+    { l: 4, q: "A soft starter: when do you close the bypass contactor?", a: ["at \"top of ramp\", when the motor is at full speed", "at START", "after STOP", "never"], c: 0, why: "Earlier is a direct-on-line start." },
+    { l: 4, q: "Which starter can change the motor speed during operation?", a: ["VFD", "soft starter", "star-delta", "direct on line"], c: 0, why: "Only a drive changes the frequency." },
   ];
 })(typeof window !== 'undefined' ? window : globalThis);

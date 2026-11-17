@@ -655,7 +655,7 @@
         case 'ADD': if (p) this.setWord(cell.dst, this.word(cell.a) + this.word(cell.b)); break;
         case 'SUB': if (p) this.setWord(cell.dst, this.word(cell.a) - this.word(cell.b)); break;
         case 'MUL': if (p) this.setWord(cell.dst, this.word(cell.a) * this.word(cell.b)); break;
-        case 'DIV': if (p) { const d = this.word(cell.b); this.setWord(cell.dst, d === 0 ? 0 : this.word(cell.a) / d); } break;
+        case 'DIV': if (p) { const d = this.word(cell.b); if (d === 0) { this.error = this.error || 'Division by zero: DIV(' + cell.a + ',' + cell.b + ',' + cell.dst + ') with ' + cell.b + ' = 0. A real PLC stops or logs a fault here (CODESYS: exception, Studio 5000: math overflow fault, TIA: ENO = FALSE). Check the divisor first.'; break; } this.setWord(cell.dst, this.word(cell.a) / d); } break;
         case 'MOD': if (p) { const d = this.word(cell.b); this.setWord(cell.dst, d === 0 ? 0 : this.word(cell.a) % d); } break;
         case 'SHL': case 'SHR': if (p) { const n = Math.max(0, Math.min(16, this.word(cell.b))); const x = this.word(cell.a) & 0xffff; let v = (cell.type === 'SHL' ? x << n : x >>> n) & 0xffff; if (v > 32767) v -= 65536; this.setWord(cell.dst, v); } break;
         case 'SHRB': if (p) {
