@@ -10,8 +10,8 @@
 
   // ───────────────────────── element catalogue ─────────────────────────
   const LOGIC = ['WIRE', 'NO', 'NC', 'P', 'N', 'NOT', 'CMP'];
-  const OUTPUT = ['COIL', 'NCOIL', 'SET', 'RST', 'TON', 'TOF', 'TP', 'RTO', 'CTU', 'CTD', 'MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'SHRB', 'CALL', 'PID', 'MC_POWER', 'MC_HOME', 'MC_ABS', 'MC_REL', 'MC_JOG', 'MC_STOP', 'MC_RESET'];
-  const MOTION = ['MC_POWER', 'MC_HOME', 'MC_ABS', 'MC_REL', 'MC_JOG', 'MC_STOP', 'MC_RESET'];
+  const OUTPUT = ['COIL', 'NCOIL', 'SET', 'RST', 'TON', 'TOF', 'TP', 'RTO', 'CTU', 'CTD', 'MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'SHRB', 'CALL', 'PID', 'MC_POWER', 'MC_HOME', 'MC_ABS', 'MC_REL', 'MC_JOG', 'MC_STOP', 'MC_RESET', 'MC_SETPOS'];
+  const MOTION = ['MC_POWER', 'MC_HOME', 'MC_ABS', 'MC_REL', 'MC_JOG', 'MC_STOP', 'MC_RESET', 'MC_SETPOS'];
   const TIMERS = ['TON', 'TOF', 'TP', 'RTO'];
   const COUNTERS = ['CTU', 'CTD'];
   const MATH = ['ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR'];
@@ -132,6 +132,7 @@
       case 'MC_HOME': return mkCell(t, { addr: norm(args[0] || 'MC0'), ax: norm(args[1] || 'AX0'), src: norm(args[2] || 'I0.0') });
       case 'MC_ABS': case 'MC_REL': return mkCell(t, { addr: norm(args[0] || 'MC1'), ax: norm(args[1] || 'AX0'), a: norm(args[2] || '100'), b: norm(args[3] || '200') });
       case 'MC_STOP': case 'MC_RESET': return mkCell(t, { addr: norm(args[0] || 'MC9'), ax: norm(args[1] || 'AX0') });
+      case 'MC_SETPOS': return mkCell(t, { addr: norm(args[0] || 'MC9'), ax: norm(args[1] || 'AX0'), a: norm(args[2] || '0') });
       case 'PID': return mkCell('PID', { a: norm(args[0]), b: norm(args[1]), dst: norm(args[2]), kp: parseFloat(args[3] || '1'), ti: parseFloat(args[4] || '0'), td: parseFloat(args[5] || '0') });
       case 'SHRB': return mkCell('SHRB', { src: norm(args[0]), addr: norm(args[1]), n: parseInt(args[2] || '8', 10) });
       case 'ADD': case 'SUB': case 'MUL': case 'DIV': case 'MOD': case 'SHL': case 'SHR':
@@ -156,6 +157,7 @@
       case 'MC_HOME': return 'MC_HOME(' + c.addr + ',' + c.ax + ',' + c.src + ')';
       case 'MC_ABS': case 'MC_REL': return c.type + '(' + c.addr + ',' + c.ax + ',' + c.a + ',' + c.b + ')';
       case 'MC_STOP': case 'MC_RESET': return c.type + '(' + c.addr + ',' + c.ax + ')';
+      case 'MC_SETPOS': return 'MC_SETPOS(' + c.addr + ',' + c.ax + ',' + c.a + ')';
       case 'CALL': return 'CALL(' + [c.block, c.inst].concat(Object.keys(c.args || {}).map((k) => k + '=' + c.args[k])).join(',') + ')';
       case 'PID': return 'PID(' + [c.a, c.b, c.dst, +c.kp, +c.ti, +c.td].join(',') + ')';
       default: return c.type + '(' + (c.addr || '') + ')';
@@ -304,6 +306,7 @@
       this.pidState = {};
       this.axes = {};
       this.mcs = {};
+      this.hmiPrev = {};
       this.instances = {};
       this.ctx = null;
       this.scanCount = 0;
@@ -312,7 +315,7 @@
       this.load(this.prog);
     }
 
-    setInputs(obj) { for (const k in obj) this.inputs[k] = RE.aiw.test(k) || RE.hc.test(k) ? Math.round(+obj[k] || 0) : obj[k] ? 1 : 0; for (const n in this.axes) if (this.inputs['AX' + n + '.FAULT'] && !this.axes[n].err) { const ax = this.axes[n]; ax.err = 1; ax.msg = 'the drive reports a fault (overload / following error)'; if (ax.cmd) this.mcFinish(ax, false, ax.msg); } }
+    setInputs(obj) { this.hmiPrev = this.hmiPrev || {}; for (const k in obj) if (/^M\d{1,2}\.[0-7]$/.test(k)) { const v = obj[k] ? 1 : 0; if (this.hmiPrev[k] !== v) { this.bits[k] = v; this.hmiPrev[k] = v; } } for (const k in obj) if (!/^M\d/.test(k)) this.inputs[k] = RE.aiw.test(k) || RE.hc.test(k) ? Math.round(+obj[k] || 0) : obj[k] ? 1 : 0; for (const n in this.axes) if (this.inputs['AX' + n + '.FAULT'] && !this.axes[n].err) { const ax = this.axes[n]; ax.err = 1; ax.msg = 'the drive reports a fault (overload / following error)'; if (ax.cmd) this.mcFinish(ax, false, ax.msg); } }
 
     // block context: #Name → mapped actual address, or instance memory "@Inst:Name"
     res(a) { return a && a[0] === '#' && this.ctx ? this.ctx.res(a) : a; }
@@ -533,6 +536,7 @@
           case 'MC_ABS': if (rise) this.mcStart(ax, cell.addr, { type: 'ABS', target: this.word(cell.a), vel: this.word(cell.b) }); break;
           case 'MC_REL': if (rise) this.mcStart(ax, cell.addr, { type: 'REL', dist: this.word(cell.a), vel: this.word(cell.b) }); break;
           case 'MC_STOP': if (rise) { const T = this.mcTag(cell.addr); T.done = 0; T.err = 0; T.abort = 0; if (ax.cmd && ax.cmd.tag) { const o = this.mcTag(ax.cmd.tag); if (o.busy) { o.busy = 0; o.abort = 1; } } ax.cmd = { type: 'STOP', tag: cell.addr }; T.busy = 1; } break;
+          case 'MC_SETPOS': if (rise) { const T = this.mcTag(cell.addr); T.done = 0; T.err = 0; T.abort = 0; T.keep = 0; if (Math.abs(ax.v) > 0.001 || (ax.cmd && ax.cmd.type !== 'JOG')) { T.err = 1; T.msg = 'set the position only while the axis stands still'; } else { const v = this.word(cell.a), cfg = this.axCfg(ax.n); if (v < cfg.min || v > cfg.max) { T.err = 1; T.msg = 'home value ' + v + ' is outside the travel (' + cfg.min + ' … ' + cfg.max + ' mm)'; } else { ax.pos = v; ax.homed = 1; T.done = 1; } } } break;
           case 'MC_RESET': if (rise) { const T = this.mcTag(cell.addr); T.done = 0; T.err = 0; T.keep = 0; if (this.inputs['AX' + ax.n + '.FAULT']) { T.err = 1; T.msg = 'the drive still reports a fault: remove the cause first'; } else { ax.err = 0; ax.msg = ''; T.done = 1; } } break;
         }
         return;
@@ -759,6 +763,7 @@
           if (!RE.ax.test(c.ax || '')) issues.push({ level: 'error', rung: n, msg: c.type + ': the axis must be AX0 … AX3.' });
           if (!['MC_POWER', 'MC_JOG'].includes(c.type) && !/^MC\d{1,2}$/.test(c.addr || '')) issues.push({ level: 'error', rung: n, msg: c.type + ' needs a command tag like MC1 (it holds .DONE, .BUSY, .ERR).' });
           if (c.type === 'MC_HOME' && !isBitAddr(c.src)) issues.push({ level: 'error', rung: n, msg: 'MC_HOME: the reference (home) switch must be a bit, e.g. I0.0.' });
+          if (c.type === 'MC_SETPOS' && !isWordAddr(c.a)) issues.push({ level: 'error', rung: n, msg: 'MC_SETPOS: the home position value must be a number or a word.' });
           if (['MC_ABS', 'MC_REL', 'MC_JOG'].includes(c.type) && (!isWordAddr(c.a) || (c.type !== 'MC_JOG' && !isWordAddr(c.b)))) issues.push({ level: 'error', rung: n, msg: c.type + ': position / distance and velocity must be numbers or words.' });
           if (c.addr && /^MC/.test(c.addr)) (timers['mc:' + c.addr] = timers['mc:' + c.addr] || []).push(n);
         }
@@ -934,6 +939,7 @@
           case 'MC_ABS': used.mc = used.mc || {}; used.mc[cell.addr] = 'MC_MoveAbsolute'; out.push(cell.addr + '(Axis := ' + cell.ax + ', Execute := ' + e + ', Position := ' + n(cell.a) + ', Velocity := ' + n(cell.b) + ');'); break;
           case 'MC_REL': used.mc = used.mc || {}; used.mc[cell.addr] = 'MC_MoveRelative'; out.push(cell.addr + '(Axis := ' + cell.ax + ', Execute := ' + e + ', Distance := ' + n(cell.a) + ', Velocity := ' + n(cell.b) + ');'); break;
           case 'MC_STOP': used.mc = used.mc || {}; used.mc[cell.addr] = 'MC_Stop'; out.push(cell.addr + '(Axis := ' + cell.ax + ', Execute := ' + e + ');'); break;
+          case 'MC_SETPOS': used.mc = used.mc || {}; used.mc[cell.addr] = 'MC_SetPosition'; out.push(cell.addr + '(Axis := ' + cell.ax + ', Execute := ' + e + ', Position := ' + n(cell.a) + ');   (* TIA Portal: MC_Home with Mode := 0 *)'); break;
           case 'MC_RESET': used.mc = used.mc || {}; used.mc[cell.addr] = 'MC_Reset'; out.push(cell.addr + '(Axis := ' + cell.ax + ', Execute := ' + e + ');'); break;
           case 'PID': used.pid = (used.pid || 0) + 1; out.push('IF ' + e + ' THEN  (* PID: Kp ' + cell.kp + ', Ti ' + cell.ti + ' s, Td ' + cell.td + ' s *)'); out.push('  PID' + used.pid + '(PV := ' + n(cell.a) + ', SP := ' + n(cell.b) + ');'); out.push('  ' + n(cell.dst) + ' := PID' + used.pid + '.Y;'); out.push('END_IF'); break;
           case 'SHRB': {
@@ -1047,6 +1053,7 @@
         case 'MC_ABS': case 'MC_REL': notes.push('Logix MAM: move type 0 = absolute, 1 = incremental. Operands shortened: Logix also asks for units, acceleration, deceleration and profile.'); return 'MAM(' + cell.ax + ',' + cell.addr + ',' + (cell.type === 'MC_ABS' ? 0 : 1) + ',' + tg(cell.a) + ',' + tg(cell.b) + ')';
         case 'MC_STOP': return 'MAS(' + cell.ax + ',' + cell.addr + ',All)';
         case 'MC_RESET': return 'MAFR(' + cell.ax + ',' + cell.addr + ')';
+        case 'MC_SETPOS': return 'MRP(' + cell.ax + ',' + cell.addr + ',Absolute,Actual,' + tg(cell.a) + ')';
         case 'PID': notes.push('PID: put SP = ' + tg(cell.b) + ', KP = ' + cell.kp + ', KI and KD in the PID tag (' + 'PID_' + tg(cell.dst) + '); many plants use PIDE in a function block diagram instead.'); return 'PID(PID_' + tg(cell.dst) + ',' + tg(cell.a) + ',0,' + tg(cell.dst) + ',0,0,0)';
       }
       return '';

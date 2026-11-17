@@ -1402,6 +1402,53 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
       challenges: ['mo-1', 'mo-2', 'mo-3'],
     },
     {
+      id: 'servo-hmi', level: 6, title: 'Servo setup from the HMI: manual mode, homing, teach-in', min: 13,
+      summary: 'How machines let an operator jog a servo, give it its home position, teach positions and set speeds on a touch panel, and how the PLC program behind that screen works.',
+      body: `
+<h3>How an HMI talks to the PLC</h3>
+<p>A touch panel does not have wires to the PLC inputs. It reads and writes PLC <b>memory</b> over the network:</p>
+<ul>
+<li>A <b>button</b> writes a bit: 1 while touched, 0 when released (a "momentary" button). Your program treats it like a push button, but it is an M bit or a bit in a data block, not an I address.</li>
+<li>A <b>number field</b> writes a word when the operator types a value (jog speed, a position, a home value).</li>
+<li><b>Displays and lamps</b> only read: position, mode, "homed", error text.</li>
+</ul>
+<p>In TIA Portal the HMI tags point at PLC tags or DB variables, in Studio 5000 (FactoryTalk View) at controller tags, in CODESYS (visualisation or a panel) at variables. The idea is the same everywhere. Emergency stops never go through the HMI: they are wired.</p>
+<h3>A typical axis screen</h3>
+<div class="tbl"><table>
+<tr><th>Element</th><th>What the program does</th></tr>
+<tr><td>MAN / AUTO</td><td>set a mode bit. Manual commands work only in MAN; changing mode stops the cycle</td></tr>
+<tr><td>ENABLE</td><td>toggles the servo on / off (MC_Power)</td></tr>
+<tr><td>JOG + / JOG −</td><td>MC_Jog while touched, at the jog speed (slow!)</td></tr>
+<tr><td>HOME</td><td>reference search with the home switch (MC_Home)</td></tr>
+<tr><td>SET HOME</td><td>"this is the home position", here, without moving (MC_SetPosition)</td></tr>
+<tr><td>TEACH P1, P2 …</td><td>copy the present position into a parameter</td></tr>
+<tr><td>GO P1, P2 …</td><td>move there at the move speed (MC_MoveAbsolute)</td></tr>
+<tr><td>RESET</td><td>clear the axis error (MC_Reset)</td></tr>
+<tr><td>Status</td><td>position, ON, HOMED, ERROR and the error text</td></tr>
+</table></div>
+<h3>Ways to give an axis its home</h3>
+<div class="tbl"><table>
+<tr><th>Method</th><th>How</th><th>TIA Portal</th><th>Studio 5000</th><th>When</th></tr>
+<tr><td>Reference switch search</td><td>the axis drives slowly to a switch and calls that point home</td><td>MC_Home mode 3 (active)</td><td>MAH (active)</td><td>incremental encoder, free travel</td></tr>
+<tr><td>Set home here (direct)</td><td>jog to a mark or a pin, touch SET HOME: the present position becomes the home value</td><td>MC_Home mode 0 (direct absolute)</td><td>MRP (redefine position)</td><td>no switch, setting up a new machine, after a mechanical repair</td></tr>
+<tr><td>Absolute encoder</td><td>the encoder always knows its position; set the offset once at commissioning</td><td>absolute encoder adjustment (MC_Home mode 7)</td><td>MRP once, kept by the drive</td><td>no homing after every power-up</td></tr>
+</table></div>
+<p>The <b>home value</b> is the position the axis should have at that point. If the mark on the machine is at 250 mm, enter 250 and touch SET HOME there.</p>
+<h3>Teach-in</h3>
+<p>Instead of measuring positions with a ruler, the setter jogs the axis to exactly the right spot and touches TEACH: the program copies <code>AX0.POS</code> into the position word. Only allow it when the axis is homed: a position of an unhomed axis means nothing. Show the taught values on the screen, so they can also be corrected by typing.</p>
+<h3>Parameters</h3>
+<ul>
+<li>Give every parameter a sensible default and a check: no speed above the maximum, no position outside the travel.</li>
+<li>Keep them through a power cut: retentive memory (TIA Portal: "Retain" in the DB; Studio 5000: tags keep their values; CODESYS: VAR RETAIN / PERSISTENT).</li>
+<li>Jog slowly: the setter is standing next to the machine.</li>
+</ul>
+<div class="callout where"><b>Where:</b> every servo machine has such a screen: on packaging machines, palletisers, labellers, cut-to-length lines and pick-and-place units. It is where a maintenance technician spends most of their time with an axis.</div>`,
+      sims: {},
+      takeaways: ['HMI buttons write bits, number fields write words, displays read.', 'Manual commands only in MAN; changing mode stops the cycle.', 'Home by a switch search, by "set home here", or once with an absolute encoder.', 'Teach = copy the present position into a parameter, only when homed.', 'Parameters need defaults, limits and retentive memory.'],
+      mistakes: ['Letting JOG work in AUTO.', 'Teaching before homing.', 'An ENABLE button that toggles every scan while it is touched.', 'Emergency stop on the touch panel.'],
+      challenges: ['sv-1', 'sv-2', 'sv-3'],
+    },
+    {
       id: 'motion-practice', level: 6, title: 'Motion in practice: sequences, collisions and faults', min: 12,
       summary: 'Build a multi-axis cycle with steps and motion instructions, keep axes from colliding, choose absolute or relative moves, and recover from a drive fault without dropping the part.',
       body: `
@@ -1941,6 +1988,8 @@ END_REPEAT</pre>
     ["Following error", "The difference between where the servo should be and where it is. Too big = jam or overload: the drive faults."],
     ["Pulse train output (PTO)", "A PLC output that sends step pulses and a direction signal to a stepper or simple servo drive."],
     ["FC / FB", "Siemens names for blocks: an FC (function) has no memory of its own; an FB (function block) keeps memory in an instance. Rockwell: routine (JSR) / Add-On Instruction; CODESYS: FUNCTION / FUNCTION_BLOCK."],
+    ["Teach-in", "Setting a position by jogging the axis to the right spot and storing its present position, instead of typing a measured number."],
+    ["Direct homing (set position)", "Giving an axis its home without moving: the present position becomes the home value. TIA Portal MC_Home mode 0, PLCopen MC_SetPosition, Rockwell MRP."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -2132,5 +2181,9 @@ END_REPEAT</pre>
     { l: 6, q: "The emergency stop of a servo machine should act on…", a: ["the drive's STO input through a safety device", "MC_Stop", "MC_Power", "the HMI"], c: 0, why: "Safety is hardware, not a motion command." },
     { l: 5, q: "A block must remember a timer value from scan to scan. It must be…", a: ["an FB (with an instance)", "an FC", "a coil", "the main program"], c: 0, why: "An FC has no memory of its own." },
     { l: 5, q: "In Studio 5000, the equivalent of a Siemens FB with its instance DB is…", a: ["an Add-On Instruction with a backing tag", "a JSR", "an ONS", "a MOV"], c: 0, why: "AOI + backing tag = FB + instance DB." },
+    { l: 6, q: "An HMI JOG button is usually…", a: ["a momentary bit the HMI writes into PLC memory", "a wire to a PLC input", "an analog value", "a safety signal"], c: 0, why: "1 while touched, 0 when released." },
+    { l: 6, q: "The setter jogs to a mark at 250 mm on the frame and touches SET HOME. What should the home value be?", a: ["250", "0", "the jog speed", "the old position"], c: 0, why: "The home value is the position the axis should have at that point." },
+    { l: 6, q: "Why allow TEACH only when the axis is homed?", a: ["the position of an unhomed axis means nothing", "teaching is slow", "the HMI cannot show it", "it is not needed"], c: 0, why: "After homing the numbers match the machine." },
+    { l: 6, q: "Which homing needs no movement at every power-up?", a: ["an absolute encoder, adjusted once", "reference switch search", "jogging", "MC_Stop"], c: 0, why: "The encoder always knows where it is." },
   ];
 })(typeof window !== 'undefined' ? window : globalThis);

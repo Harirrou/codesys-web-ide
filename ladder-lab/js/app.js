@@ -625,7 +625,7 @@
     [['MOV', 'MOV'], ['ADD', 'ADD'], ['SUB', 'SUB'], ['MUL', 'MUL'], ['DIV', 'DIV'], ['MOD', 'MOD']],
     [['SHRB', 'SHRB'], ['SHL', 'SHL'], ['SHR', 'SHR']],
     [['CALL', 'CALL block'], ['PID', 'PID']],
-    [['MC_POWER', 'MC Power'], ['MC_HOME', 'MC Home'], ['MC_ABS', 'Move abs'], ['MC_REL', 'Move rel'], ['MC_JOG', 'MC Jog'], ['MC_STOP', 'MC Stop'], ['MC_RESET', 'MC Reset']],
+    [['MC_POWER', 'MC Power'], ['MC_HOME', 'MC Home'], ['MC_ABS', 'Move abs'], ['MC_REL', 'Move rel'], ['MC_JOG', 'MC Jog'], ['MC_STOP', 'MC Stop'], ['MC_RESET', 'MC Reset'], ['MC_SETPOS', 'Set pos']],
   ];
   function toolIcon(k) {
     const s = 'stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"';
@@ -748,6 +748,13 @@
       this.ctx = this.canvas.getContext('2d');
       // touch buttons drawn on a machine's HMI screen
       const hmiAt = (e) => { const r = this.canvas.getBoundingClientRect(); const x = (e.clientX - r.left) * 640 / r.width, y = (e.clientY - r.top) * 360 / r.height; const hb = typeof this.plant.hmiButtons === 'function' ? this.plant.hmiButtons(this.pst, this.I || {}) : this.plant.hmiButtons || []; return hb.find((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h); };
+      const fieldAt = (e) => { if (!this.plant.hmiFields) return null; const r = this.canvas.getBoundingClientRect(); const x = (e.clientX - r.left) * 640 / r.width, y = (e.clientY - r.top) * 360 / r.height; return this.plant.hmiFields.find((f) => x >= f.x && x <= f.x + f.w && y >= f.y && y <= f.y + f.h); };
+      this.canvas.addEventListener('pointerdown', (e) => {
+        const f = fieldAt(e); if (!f) return; e.preventDefault();
+        modal('HMI: ' + f.label, `<div class="field"><label for="hmiv">${esc(f.label)}${f.unit ? ' (' + esc(f.unit) + ')' : ''} → ${f.addr}</label><input id="hmiv" type="number" inputmode="numeric" value="${this.m.word(f.addr)}"></div><p class="muted" style="font-size:.85rem;margin:0">The touch panel writes the number straight into the PLC word ${f.addr}, as a real HMI does.</p>`, [{ label: 'Cancel' }, { label: 'Write', cls: 'primary', run: (mm) => { const v = Math.round(+$('#hmiv', mm).value); if (isNaN(v)) return false; this.m.setWord(f.addr, v); toast(f.addr + ' = ' + v); } }]);
+        setTimeout(() => { const i = document.getElementById('hmiv'); if (i) { i.focus(); i.select(); } }, 50);
+      });
+      this.canvas.addEventListener('pointermove', (e) => { if (fieldAt(e)) this.canvas.style.cursor = 'pointer'; });
       this.canvas.addEventListener('pointerdown', (e) => { const b = hmiAt(e); if (!b) return; e.preventDefault(); this._hmi = { addr: b.addr, t: performance.now() }; this.ctrl[b.addr] = true; });
       const hmiUp = () => { const h2 = this._hmi; if (!h2) return; this._hmi = null; setTimeout(() => { this.ctrl[h2.addr] = false; }, Math.max(0, 150 - (performance.now() - h2.t))); };
       this.canvas.addEventListener('pointerup', hmiUp); this.canvas.addEventListener('pointerleave', hmiUp); this.canvas.addEventListener('pointercancel', hmiUp);
@@ -838,7 +845,7 @@
     }
 
     buildDevices() {
-      const devs = this.plant.inputs.filter((d) => d.kind !== 'sensor');
+      const devs = this.plant.inputs.filter((d) => d.kind !== 'sensor' && d.kind !== 'hmi');
       const tags = this.tags();
       this.devButtons = [];
       $$('.dock', this.el).forEach((dock) => {
@@ -862,7 +869,7 @@
       this.lampEls = $$('.dock .lamp', this.el);
       $('.blurb', this.el).textContent = this.plant.blurb;
       // IO table
-      const rows = this.plant.inputs.flatMap((d) => d.kind === 'sel3' ? [d.addr, d.addr2].map((a, k) => `<tr><td>${a}</td><td>${esc(d.name)} ${k ? 'AUTO' : 'MANUAL'}<span class="kind">selector position</span></td><td data-io="${a}">0</td></tr>`) : [`<tr><td>${d.addr}</td><td>${esc(tags[d.addr] || d.name)}<span class="kind">${d.kind === 'pbnc' ? 'button, wired NC' : d.kind === 'pb' ? 'button, NO' : d.kind === 'sw' ? 'switch' : 'sensor'}</span>${d.note ? `<div class="kind" style="margin:0">${esc(d.note)}</div>` : ''}</td><td data-io="${d.addr}">0</td></tr>`])
+      const rows = this.plant.inputs.flatMap((d) => d.kind === 'sel3' ? [d.addr, d.addr2].map((a, k) => `<tr><td>${a}</td><td>${esc(d.name)} ${k ? 'AUTO' : 'MANUAL'}<span class="kind">selector position</span></td><td data-io="${a}">0</td></tr>`) : [`<tr><td>${d.addr}</td><td>${esc(tags[d.addr] || d.name)}<span class="kind">${d.kind === 'pbnc' ? 'button, wired NC' : d.kind === 'pb' ? 'button, NO' : d.kind === 'sw' ? 'switch' : d.kind === 'hmi' ? 'HMI touch button (writes the M bit)' : d.kind === 'hmiw' ? 'HMI number field (tap it on the screen)' : 'sensor'}</span>${d.note ? `<div class="kind" style="margin:0">${esc(d.note)}</div>` : ''}</td><td data-io="${d.addr}">0</td></tr>`])
         .concat(this.plant.outputs.map((o) => `<tr><td>${o.addr}</td><td>${esc(tags[o.addr] || o.name)}<span class="kind">output</span></td><td data-io="${o.addr}">0</td></tr>`));
       $('.live-io', this.el).innerHTML = `<tr class="force-head"><td colspan="4"><span class="muted" style="font-size:.78rem">Tap <b>F</b> to force a bit: ON → OFF → normal. Forcing overrides the program or the field, like a real programming tool. On a real machine: only with the danger area clear.</span></td></tr>` + rows.join('') + '<tbody class="valrows"></tbody>';
       this.ioCells = $$('[data-io]', this.el);
@@ -995,7 +1002,7 @@
         const usedMc = new Set(); [this.prog.rungs].concat((this.prog.blocks || []).map((x) => x.rungs)).flat().forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && /^MC\d/.test(c.addr || '')) usedMc.add(c.addr); })));
         let k = 0; while (usedMc.has('MC' + k)) k++;
         const home = (this.plant.inputs.find((x) => /home/i.test(x.name)) || this.plant.inputs[0]).addr;
-        return { MC_POWER: { ax: 'AX0' }, MC_JOG: { ax: 'AX0', a: '50' }, MC_HOME: { addr: 'MC' + k, ax: 'AX0', src: home }, MC_ABS: { addr: 'MC' + k, ax: 'AX0', a: '100', b: '200' }, MC_REL: { addr: 'MC' + k, ax: 'AX0', a: '50', b: '100' }, MC_STOP: { addr: 'MC' + k, ax: 'AX0' }, MC_RESET: { addr: 'MC' + k, ax: 'AX0' } }[type];
+        return { MC_POWER: { ax: 'AX0' }, MC_JOG: { ax: 'AX0', a: '50' }, MC_HOME: { addr: 'MC' + k, ax: 'AX0', src: home }, MC_ABS: { addr: 'MC' + k, ax: 'AX0', a: '100', b: '200' }, MC_REL: { addr: 'MC' + k, ax: 'AX0', a: '50', b: '100' }, MC_STOP: { addr: 'MC' + k, ax: 'AX0' }, MC_RESET: { addr: 'MC' + k, ax: 'AX0' }, MC_SETPOS: { addr: 'MC' + k, ax: 'AX0', a: '0' } }[type];
       }
       if (type === 'PID') { const ai = this.plant.inputs.find((x) => /^AIW/.test(x.addr)), aq = this.plant.outputs.find((x) => /^AQW/.test(x.addr)); return { a: ai ? ai.addr : 'MW10', b: 'MW20', dst: aq ? aq.addr : 'MW30', kp: 1, ti: 10, td: 0 }; }
       if (type === 'SHRB') return { src: (this.plant.inputs.find((x) => x.kind === 'sensor') || this.plant.inputs[0]).addr, addr: 'M10.0', n: 8 };
@@ -1185,7 +1192,8 @@
         const tagF = ['MC_POWER', 'MC_JOG'].includes(T) ? '' : `<div class="field"><label for="f-addr">Command tag (MC0 … MC99: its .DONE, .BUSY, .ERR, .ABORT bits)</label><input id="f-addr" class="mono" data-f="addr" value="${esc(cell.addr)}"></div>`;
         const extra = T === 'MC_HOME' ? `<div class="field"><label for="f-src">Reference (home) switch</label><input id="f-src" class="mono" data-f="src" value="${esc(cell.src)}"></div>`
           : T === 'MC_ABS' || T === 'MC_REL' ? `<div class="field"><label for="f-a">${T === 'MC_ABS' ? 'Position (mm)' : 'Distance (mm, negative = backwards)'}</label><input id="f-a" class="mono" data-f="a" value="${esc(cell.a)}"></div><div class="field"><label for="f-b">Velocity (mm/s)</label><input id="f-b" class="mono" data-f="b" value="${esc(cell.b)}"></div>`
-          : T === 'MC_JOG' ? `<div class="field"><label for="f-a">Velocity (mm/s, negative = backwards)</label><input id="f-a" class="mono" data-f="a" value="${esc(cell.a)}"></div>` : '';
+          : T === 'MC_JOG' ? `<div class="field"><label for="f-a">Velocity (mm/s, negative = backwards)</label><input id="f-a" class="mono" data-f="a" value="${esc(cell.a)}"></div>`
+          : T === 'MC_SETPOS' ? `<div class="field"><label for="f-a">Position value to set (mm)</label><input id="f-a" class="mono" data-f="a" value="${esc(cell.a)}"></div>` : '';
         fields += tagF + axSel + extra + `<p class="muted" style="font-size:.82rem;margin:4px 0 0">Read the axis with AX0.POS (mm), AX0.VEL, AX0.ON, AX0.HOMED, AX0.MOVING, AX0.ERR.</p>`;
         if (T === 'MC_HOME') chips = this.quickChips('src', inputs);
       } else if (T === 'PID') {
@@ -1421,7 +1429,7 @@
       this.drawPlant();
       const Q = this.m.outputs();
       this.lampEls.forEach((l) => l.classList.toggle('on', !!Q[l.dataset.a]));
-      this.ioCells.forEach((c) => { const a = c.dataset.io; const F = this.forces || {}; const v = a in F ? F[a] : a[0] === 'I' || /^(AIW|HC)/.test(a) ? (this.I[a] || 0) : /^AQW/.test(a) ? this.m.word(a) : this.m.bit(a); if (c._v !== v) { c.textContent = v; c.className = v === 1 ? 'v1' : ''; c._v = v; } });
+      this.ioCells.forEach((c) => { const a = c.dataset.io; const F = this.forces || {}; const v = a in F ? F[a] : a[0] === 'I' || /^(AIW|HC)/.test(a) ? (this.I[a] || 0) : /^(AQW|MW|MD)/.test(a) ? this.m.word(a) : this.m.bit(a); if (c._v !== v) { c.textContent = v; c.className = v === 1 ? 'v1' : ''; c._v = v; } });
       this.renderVals();
       const fh = $('.fault-host', this.el);
       const f = this.pst.fault ? 'Machine fault: ' + this.pst.fault : this.m.error ? 'PLC in STOP · ' + this.m.error : '';

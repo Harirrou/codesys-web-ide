@@ -43,6 +43,7 @@
     MC_REL: ['MC_MoveRelative', 'On the rising edge: move this distance (mm, negative = backwards) from where it is now. Rockwell: MAM (incremental).'],
     MC_JOG: ['MC_Jog', 'While the rung is true the axis moves at this velocity (mm/s, negative = backwards); when it goes false it stops. Works without homing. Rockwell: MAJ + MAS.'],
     MC_STOP: ['MC_Stop', 'On the rising edge: stop the axis (it decelerates) and cancel the running move (that command reports ABORT). Rockwell: MAS.'],
+    MC_SETPOS: ['MC_SetPosition (set home here)', 'On the rising edge: the axis takes this value as its present position and counts as homed, without moving. Use it to "set home here" after jogging to a mark. TIA Portal: MC_Home Mode 0; Rockwell: MRP.'],
     MC_RESET: ['MC_Reset', 'On the rising edge: clear the axis error (after a software-limit error or a drive fault whose cause is gone). Rockwell: MAFR.'],
     PID: ['PID controller', 'Keeps PV at SP by adjusting OUT (0 … 27648 = 0 … 100 %). Kp = % output per unit of error, Ti = integral time (removes the remaining error), Td = derivative time. Off when the rung is false.'],
     SHRB: ['Shift register (bit)', 'Each time it runs, the bits from START move one place along (length N) and DATA enters the first bit. Negative N shifts the other way. Use an edge so it shifts once per event (one pocket, one part).'],
@@ -114,11 +115,11 @@
       const args = Object.keys(cell.args || {}).map((k) => k + '=' + cell.args[k]).join(' ');
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 47}">${esc(trunc(args || 'no parameters connected', 19))}</text>`;
     } else if (LL.MOTION && LL.MOTION.includes(t)) {
-      const nm = (LL.brand === 'rk' ? { MC_POWER: 'MSO', MC_HOME: 'MAH', MC_ABS: 'MAM abs', MC_REL: 'MAM inc', MC_JOG: 'MAJ', MC_STOP: 'MAS', MC_RESET: 'MAFR' } : { MC_POWER: 'MC_Power', MC_HOME: 'MC_Home', MC_ABS: 'MC_MoveAbs', MC_REL: 'MC_MoveRel', MC_JOG: 'MC_Jog', MC_STOP: 'MC_Stop', MC_RESET: 'MC_Reset' })[t];
+      const nm = (LL.brand === 'rk' ? { MC_POWER: 'MSO', MC_HOME: 'MAH', MC_ABS: 'MAM abs', MC_REL: 'MAM inc', MC_JOG: 'MAJ', MC_STOP: 'MAS', MC_RESET: 'MAFR', MC_SETPOS: 'MRP' } : { MC_POWER: 'MC_Power', MC_HOME: 'MC_Home', MC_ABS: 'MC_MoveAbs', MC_REL: 'MC_MoveRel', MC_JOG: 'MC_Jog', MC_STOP: 'MC_Stop', MC_RESET: 'MC_Reset', MC_SETPOS: 'MC_SetPos' })[t];
       s += `<rect class="bx-head" x="${bx0}" y="${by}" width="${bw}" height="17" rx="6"/><rect class="bx-head" x="${bx0}" y="${by + 9}" width="${bw}" height="8"/>`;
       s += `<text class="bx-type" x="${bx0 + 7}" y="${by + 12.5}">${nm}</text>`;
       if (cell.addr && !['MC_POWER', 'MC_JOG'].includes(t)) s += `<text class="bx-addr" x="${bx1 - 7}" y="${by + 12.5}">${esc(cell.addr)}</text>`;
-      const l1 = t === 'MC_POWER' ? cell.ax + ' enable' : t === 'MC_HOME' ? cell.ax + ' ref ' + cell.src : t === 'MC_ABS' ? cell.ax + ' → ' + cell.a + ' mm' : t === 'MC_REL' ? cell.ax + ' + ' + cell.a + ' mm' : t === 'MC_JOG' ? cell.ax + ' v ' + cell.a : cell.ax;
+      const l1 = t === 'MC_POWER' ? cell.ax + ' enable' : t === 'MC_HOME' ? cell.ax + ' ref ' + cell.src : t === 'MC_ABS' ? cell.ax + ' → ' + cell.a + ' mm' : t === 'MC_REL' ? cell.ax + ' + ' + cell.a + ' mm' : t === 'MC_JOG' ? cell.ax + ' v ' + cell.a : t === 'MC_SETPOS' ? cell.ax + ' := ' + cell.a + ' mm' : cell.ax;
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 31}">${esc(trunc(l1, 18))}</text>`;
       s += `<text class="bx-l bx-v" x="${bx0 + 7}" y="${by + 47}">${['MC_ABS', 'MC_REL'].includes(t) ? 'v ' + esc(trunc(cell.b, 5)) + ' · ' : ''}<tspan data-v="mcst">…</tspan></text>`;
     } else if (t === 'PID') {

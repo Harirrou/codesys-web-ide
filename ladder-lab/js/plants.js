@@ -17,6 +17,7 @@
       if (i.kind === 'pb' || i.kind === 'sw') o[i.addr] = on ? 1 : 0;
       else if (i.kind === 'pbnc') o[i.addr] = on ? 0 : 1;
       else if (i.kind === 'ana') o[i.addr] = ctrl[i.addr] == null ? (i.value == null ? 0 : i.value) : +ctrl[i.addr];
+      else if (i.kind === 'hmi') o[i.addr] = on ? 1 : 0;
       else if (i.kind === 'sel3') { const v = ctrl[i.addr] === undefined ? i.def || 0 : +ctrl[i.addr]; o[i.addr] = v === 1 ? 1 : 0; o[i.addr2] = v === 2 ? 1 : 0; }
     });
     return o;
@@ -1841,6 +1842,88 @@
     },
   };
 
+  // ───────────────────────── servo axis station with a touch HMI ─────────────────────────
+  const SVB = [
+    ['M30.0', 'MAN'], ['M30.1', 'AUTO'], ['M30.2', 'ENABLE'],
+    ['M30.3', 'JOG −'], ['M30.4', 'JOG +'], ['M30.7', 'RESET'],
+    ['M30.5', 'HOME'], ['M30.6', 'SET HOME'], ['M31.5', 'STOP'],
+    ['M31.0', 'TEACH P1'], ['M31.1', 'TEACH P2'], ['M31.4', 'START'],
+    ['M31.2', 'GO P1'], ['M31.3', 'GO P2'],
+  ];
+  const SVF = [['MW20', 'Jog speed', 'mm/s'], ['MW22', 'Move speed', 'mm/s'], ['MW24', 'P1 position', 'mm'], ['MW28', 'P2 position', 'mm'], ['MW26', 'Home value', 'mm']];
+  P.servohmi = {
+    id: 'servohmi', name: 'Servo axis station with HMI', blurb: 'One servo axis (a slide on a ball screw, 0 … 500 mm) operated from a touch panel, as on real machines: MANUAL mode to jog, home and teach positions, AUTO mode to run between the taught positions. The HMI buttons write M bits and the number fields write words straight into the PLC. The machine has a LOAD station and a WORK station, marked on the frame.',
+    axes: { AX0: { name: 'Slide', min: 0, max: 500, acc: 2500, vmax: 600, homeVel: 60 } },
+    inputs: [{ addr: 'I0.0', name: 'Home switch', kind: 'sensor', note: 'Reference switch at the left end of the slide' }]
+      .concat(SVB.map(([a, n]) => ({ addr: a, name: 'HMI ' + n, kind: 'hmi' })))
+      .concat(SVF.map(([a, n, u]) => ({ addr: a, name: 'HMI ' + n + ' (' + u + ')', kind: 'hmiw' }))),
+    outputs: [],
+    hmi: ['MW20', 'MW22', 'MW24', 'MW26', 'MW28', 'M40.0', 'M40.1', 'M40.2'],
+    hmiButtons() { return SVB.map(([addr, label], k) => ({ addr, label, x: 336 + (k % 3) * 99, y: 168 + Math.floor(k / 3) * 36, w: 93, h: 30 })); },
+    hmiFields: SVF.map(([addr, label, unit], k) => ({ addr, label, unit, x: 336 + (k % 2) * 148, y: 82 + Math.floor(k / 2) * 27, w: 142, h: 23 })),
+    actions: [{ id: 'jam', label: 'Slide jammed (drive overload)', toggle: true, run(st) { st.jam = !st.jam; } }],
+    init() { return { x: 230, xfault: 0, jam: false, still: 0, stops: [], atLoad: 0, atWork: 0, offset: 0, t: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const v = +Q['AX0.V'] || 0;
+      if (st.jam && Math.abs(v) > 1) st.xfault = 1;
+      if (!st.jam) st.xfault = 0;
+      if (!st.xfault) st.x += v * dt / 1000;
+      if (st.x < -12 || st.x > 512) st.fault = st.fault || 'The slide ran into its mechanical end stop.';
+      st.xr = Math.round(st.x);
+      st.offset = Math.round(st.x - (+Q['AX0.POS'] || 0));
+      // count stops at the stations (standing still for 0.3 s after a move)
+      if (Math.abs(v) > 0.5) st.still = 0;
+      else { st.still += dt; if (st.still === 300) { if (Math.abs(st.x - 120) <= 2) st.atLoad++; if (Math.abs(st.x - 380) <= 2) st.atWork++; st.stops.push(Math.round(st.x)); if (st.stops.length > 5) st.stops.shift(); } }
+      const o = devices(this, ctrl);
+      o['I0.0'] = st.x <= 1 ? 1 : 0;
+      o['AX0.FAULT'] = st.xfault;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      // ── mechanics (left) ──
+      const X = (mm) => 24 + mm * 0.58, y = 210;
+      c.fillStyle = th.metalDark; D.rr(c, X(-10), y, X(510) - X(-10), 14, 4); c.fill();
+      c.strokeStyle = th.pipe; c.lineWidth = 2; for (let k = -10; k < 510; k += 12) { c.beginPath(); c.moveTo(X(k), y + 3); c.lineTo(X(k + 6), y + 11); c.stroke(); }
+      for (let mm = 0; mm <= 500; mm += 100) { c.strokeStyle = th.muted; c.lineWidth = 1; c.beginPath(); c.moveTo(X(mm), y + 18); c.lineTo(X(mm), y + 26); c.stroke(); D.text(c, mm, X(mm), y + 36, { size: 9, mono: true, color: th.muted }); }
+      [[120, 'LOAD'], [380, 'WORK']].forEach(([mm, lab]) => { c.fillStyle = th.amber; c.beginPath(); c.moveTo(X(mm), y - 34); c.lineTo(X(mm) - 6, y - 44); c.lineTo(X(mm) + 6, y - 44); c.closePath(); c.fill(); D.text(c, lab + ' station', X(mm), y - 52, { size: 10, weight: 700, color: th.ink }); });
+      D.sensorDot(c, th, X(-4), y + 52, !!I['I0.0'], 'home switch I0.0');
+      const cx = X(st.x);
+      c.fillStyle = Q['AX0.ON'] ? th.blue : th.metal; D.rr(c, cx - 22, y - 30, 44, 28, 5); c.fill();
+      c.fillStyle = '#fff'; c.beginPath(); c.moveTo(cx, y - 30); c.lineTo(cx - 5, y - 37); c.lineTo(cx + 5, y - 37); c.closePath(); c.fill();
+      D.text(c, 'real ' + st.x.toFixed(1) + ' mm', 160, 92, { size: 12, mono: true, weight: 700, color: th.ink });
+      D.text(c, 'the PLC believes ' + (+Q['AX0.POS'] || 0).toFixed(1) + ' mm', 160, 112, { size: 11, mono: true, color: Q['AX0.HOMED'] ? th.muted : th.amber });
+      if (!Q['AX0.HOMED']) D.text(c, 'not homed: the PLC does not know where the slide is', 160, 132, { size: 10, color: th.amber });
+      if (st.jam) D.text(c, 'slide jammed', 160, 150, { size: 11, mono: true, weight: 700, color: th.red });
+      D.text(c, 'stops at LOAD ' + st.atLoad + ' · WORK ' + st.atWork, 160, 290, { size: 10, mono: true, color: th.muted });
+      // ── HMI (right) ──
+      c.fillStyle = '#0f172a'; D.rr(c, 328, 6, 306, 348, 12); c.fill();
+      c.fillStyle = '#1e293b'; D.rr(c, 334, 12, 294, 336, 8); c.fill();
+      const auto = !!Q['M40.0'];
+      D.text(c, 'AXIS 1', 344, 26, { size: 11, weight: 800, color: '#e2e8f0', align: 'left' });
+      c.fillStyle = auto ? '#16a34a' : '#f59e0b'; D.rr(c, 400, 17, 66, 18, 4); c.fill();
+      D.text(c, auto ? 'AUTO' : 'MANUAL', 433, 26, { size: 10, weight: 800, mono: true, color: '#0f172a' });
+      const tag = (x, txt, on, col) => { c.fillStyle = on ? col : '#334155'; D.rr(c, x, 17, 50, 18, 4); c.fill(); D.text(c, txt, x + 25, 26, { size: 9, weight: 700, mono: true, color: on ? '#0f172a' : '#94a3b8' }); };
+      tag(472, 'ON', !!Q['AX0.ON'], '#22c55e'); tag(526, 'HOMED', !!Q['AX0.HOMED'], '#22c55e'); tag(580, 'ERROR', !!Q['AX0.ERR'], '#f87171');
+      D.text(c, (+Q['AX0.POS'] || 0).toFixed(1) + ' mm', 344, 52, { size: 20, weight: 800, mono: true, color: '#7CFC9A', align: 'left' });
+      D.text(c, Q['M40.2'] ? 'cycle running' : '', 620, 52, { size: 10, mono: true, color: '#7CFC9A', align: 'right' });
+      const msg = Q['AX0.MSG'] || Q['MC.MSG'] || '';
+      D.text(c, msg ? '⚠ ' + (msg.length > 52 ? msg.slice(0, 51) + '…' : msg) : 'no messages', 344, 72, { size: 9, mono: true, color: msg ? '#fca5a5' : '#64748b', align: 'left' });
+      this.hmiFields.forEach((f) => {
+        c.fillStyle = '#0b1220'; D.rr(c, f.x, f.y, f.w, f.h, 4); c.fill(); c.strokeStyle = '#475569'; c.lineWidth = 1; c.stroke();
+        D.text(c, f.label, f.x + 6, f.y + 12, { size: 9, color: '#94a3b8', align: 'left' });
+        D.text(c, String(Q[f.addr] | 0), f.x + f.w - 6, f.y + 12, { size: 11, weight: 700, mono: true, color: '#e2e8f0', align: 'right' });
+      });
+      this.hmiButtons().forEach((b) => {
+        const lit = (b.addr === 'M30.0' && !auto) || (b.addr === 'M30.1' && auto) || (b.addr === 'M30.2' && Q['M40.1']) || (b.addr === 'M31.4' && Q['M40.2']);
+        const down = !!I[b.addr];
+        c.fillStyle = down ? '#60a5fa' : lit ? '#2563eb' : '#334155'; D.rr(c, b.x, b.y, b.w, b.h, 5); c.fill();
+        D.text(c, b.label, b.x + b.w / 2, b.y + b.h / 2 + 1, { size: 10, weight: 700, color: '#f1f5f9' });
+      });
+      D.fault(c, th, st.fault);
+    },
+  };
+
   // ───────────────────────── box sorter ─────────────────────────
   const SORT_PATTERN = [1, 0, 0, 1, 1, 0, 1, 0, 0, 1];
   P.sorter = {
@@ -3263,14 +3346,15 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'oldpanel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'gantry', 'alarms', 'feeder', 'handover', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
+  LL.PLANT_ORDER = ['panel', 'oldpanel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'gantry', 'servohmi', 'alarms', 'feeder', 'handover', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
 
   // Outputs a plant sees: Q bits, AQW words, plus any memory words its HMI displays
   LL.plantOutputs = function (plant, m) {
     if (plant.axes && m.axisCfg !== plant.axes) m.axisCfg = plant.axes;
     const o = m.outputs();
     for (const n in m.axes || {}) { const x = m.axes[n]; o['AX' + n + '.V'] = x.v; o['AX' + n + '.POS'] = x.pos; o['AX' + n + '.ON'] = x.on; o['AX' + n + '.HOMED'] = x.homed; o['AX' + n + '.ERR'] = x.err; }
-    (plant.hmi || []).forEach((a) => (o[a] = m.word(a)));
+    (plant.hmi || []).forEach((a) => (o[a] = /^M\d/.test(a) ? m.bit(a) : m.word(a)));
+    if (m.axes) { for (const n in m.axes) if (m.axes[n].msg) o['AX' + n + '.MSG'] = m.axes[n].msg; for (const t in m.mcs || {}) if (m.mcs[t].err && m.mcs[t].msg) o['MC.MSG'] = t + ': ' + m.mcs[t].msg; }
     return o;
   };
 
@@ -3323,6 +3407,7 @@
           case 'tap': ctrl[p[1]] = true; run(+(p[2] || 150)); ctrl[p[1]] = false; run(150); break;
           case 'wait': run(+p[1]); break;
           case 'poke': m.setWord(LL.norm(p[1]), +p[2]); run(10); break;
+          case 'same': { const a = LL.norm(p[1]), b = LL.norm(p[2]), tol = +(p[3] || 0); if (Math.abs(val(a) - val(b)) > tol) throw new Error(name(a) + ' is ' + val(a) + ' but ' + name(b) + ' is ' + val(b) + '; they should be equal.'); break; }
           case 'action': { const a = plant.actions.find((x) => x.id === p[1]); a.run(st); run(20); break; }
           case 'expect': {
             parseConds(p.slice(1)).forEach((x) => { const v = val(x.a); if (v !== x.v) throw new Error('expected ' + name(x.a) + ' = ' + fmt(x.v, x.a) + ' but it is ' + fmt(v, x.a) + '.'); });
@@ -3395,6 +3480,7 @@
       case 'tap': return 'tap ' + n(p[1]) + (p[2] ? ' for ' + (+p[2] / 1000) + ' s' : '');
       case 'wait': return 'wait ' + (+p[1] / 1000) + ' s';
       case 'poke': return 'write ' + p[2] + ' into ' + n(p[1]);
+      case 'same': return 'check ' + n(p[1]) + ' = ' + n(p[2]);
       case 'action': return p[1];
       case 'expect': return 'check ' + p.slice(1).map(cond).join(', ');
       case 'waitfor': return 'wait up to ' + (+p[p.length - 1] / 1000) + ' s for ' + p.slice(1, -1).map(cond).join(', ');
