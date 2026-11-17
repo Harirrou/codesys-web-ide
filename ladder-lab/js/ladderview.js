@@ -37,6 +37,13 @@
     MOD: ['Modulo (remainder)', 'Result = A MOD B, the remainder of the division A ÷ B. 1234 MOD 1000 = 234. Use it to split a number into digits or to do something every Nth part.'],
     SHR: ['Shift right', 'OUT = IN shifted right by N bits (16-bit word). Each place = ÷2. Runs every scan while powered.'],
     CALL: ['Call a block', 'Runs a reusable block (FB) while the rung is true. Each call has an instance name: its own memory. Connect every parameter to an address of this machine.'],
+    MC_POWER: ['MC_Power (servo on)', 'While the rung is true the axis drive is switched on (enabled). AX0.ON tells you it is ready. Rung false = drive off, the axis stops. Rockwell: MSO / MSF.'],
+    MC_HOME: ['MC_Home (homing)', 'On the rising edge of the rung, the axis moves slowly backwards until the reference switch closes, and calls that point 0 mm. Until then it does not know where it is (AX0.HOMED = 0). DONE / BUSY / ERR on the command tag. Rockwell: MAH.'],
+    MC_ABS: ['MC_MoveAbsolute', 'On the rising edge: move to the position (mm) at the velocity (mm/s), with smooth acceleration. Needs a powered, homed axis. DONE when it has arrived. Rockwell: MAM (absolute).'],
+    MC_REL: ['MC_MoveRelative', 'On the rising edge: move this distance (mm, negative = backwards) from where it is now. Rockwell: MAM (incremental).'],
+    MC_JOG: ['MC_Jog', 'While the rung is true the axis moves at this velocity (mm/s, negative = backwards); when it goes false it stops. Works without homing. Rockwell: MAJ + MAS.'],
+    MC_STOP: ['MC_Stop', 'On the rising edge: stop the axis (it decelerates) and cancel the running move (that command reports ABORT). Rockwell: MAS.'],
+    MC_RESET: ['MC_Reset', 'On the rising edge: clear the axis error (after a software-limit error or a drive fault whose cause is gone). Rockwell: MAFR.'],
     PID: ['PID controller', 'Keeps PV at SP by adjusting OUT (0 … 27648 = 0 … 100 %). Kp = % output per unit of error, Ti = integral time (removes the remaining error), Td = derivative time. Off when the rung is false.'],
     SHRB: ['Shift register (bit)', 'Each time it runs, the bits from START move one place along (length N) and DATA enters the first bit. Negative N shifts the other way. Use an edge so it shifts once per event (one pocket, one part).'],
   };
@@ -88,7 +95,8 @@
     const bx0 = x0 + 10, bx1 = x1 - 12, bw = bx1 - bx0, by = cy - 28;
     s += `<rect class="box obox" x="${bx0}" y="${by}" width="${bw}" height="56" rx="6"/>`;
     s += `<rect class="bx-head" x="${bx0}" y="${by}" width="${bw}" height="17" rx="6"/><rect class="bx-head" x="${bx0}" y="${by + 9}" width="${bw}" height="8"/>`;
-    s += `<text class="bx-type" x="${bx0 + 7}" y="${by + 12.5}">${t}</text>`;
+    const tLabel = LL.MOTION && LL.MOTION.includes(t) ? '' : t === 'CALL' ? ((LL.BRANDS[LL.brand] || LL.BRANDS.ll).call[LL.blockKinds[cell.block] === 'FC' ? 'FC' : 'FB']) : t;
+    s += `<text class="bx-type" x="${bx0 + 7}" y="${by + 12.5}">${tLabel}</text>`;
     if (LL.TIMERS.includes(t)) {
       s += `<text class="bx-addr" x="${bx1 - 7}" y="${by + 12.5}">${esc(cell.addr)}</text>`;
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 31}">PT ${fmtMs(cell.pt)}</text><text class="bx-l bx-v" data-v="et" x="${bx1 - 7}" y="${by + 31}" text-anchor="end">ET 0</text>`;
@@ -101,10 +109,18 @@
     } else if (t === 'MOV') {
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 32}">${esc(trunc(cell.src, 10))} →</text><text class="bx-l bx-v" x="${bx0 + 7}" y="${by + 48}">${esc(cell.dst)} = <tspan data-v="dst">0</tspan></text>`;
     } else if (t === 'CALL') {
-      s += `<text class="bx-addr" x="${bx1 - 7}" y="${by + 12.5}">${esc(trunc(cell.inst || '?', 10))}</text>`;
+      s += `<text class="bx-addr" x="${bx1 - 7}" y="${by + 12.5}">${LL.blockKinds[cell.block] === 'FC' ? 'no instance' : esc(trunc(cell.inst || '?', 10))}</text>`;
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 31}" font-weight="700">${esc(trunc(cell.block || '(no block)', 16))}</text>`;
       const args = Object.keys(cell.args || {}).map((k) => k + '=' + cell.args[k]).join(' ');
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 47}">${esc(trunc(args || 'no parameters connected', 19))}</text>`;
+    } else if (LL.MOTION && LL.MOTION.includes(t)) {
+      const nm = (LL.brand === 'rk' ? { MC_POWER: 'MSO', MC_HOME: 'MAH', MC_ABS: 'MAM abs', MC_REL: 'MAM inc', MC_JOG: 'MAJ', MC_STOP: 'MAS', MC_RESET: 'MAFR' } : { MC_POWER: 'MC_Power', MC_HOME: 'MC_Home', MC_ABS: 'MC_MoveAbs', MC_REL: 'MC_MoveRel', MC_JOG: 'MC_Jog', MC_STOP: 'MC_Stop', MC_RESET: 'MC_Reset' })[t];
+      s += `<rect class="bx-head" x="${bx0}" y="${by}" width="${bw}" height="17" rx="6"/><rect class="bx-head" x="${bx0}" y="${by + 9}" width="${bw}" height="8"/>`;
+      s += `<text class="bx-type" x="${bx0 + 7}" y="${by + 12.5}">${nm}</text>`;
+      if (cell.addr && !['MC_POWER', 'MC_JOG'].includes(t)) s += `<text class="bx-addr" x="${bx1 - 7}" y="${by + 12.5}">${esc(cell.addr)}</text>`;
+      const l1 = t === 'MC_POWER' ? cell.ax + ' enable' : t === 'MC_HOME' ? cell.ax + ' ref ' + cell.src : t === 'MC_ABS' ? cell.ax + ' → ' + cell.a + ' mm' : t === 'MC_REL' ? cell.ax + ' + ' + cell.a + ' mm' : t === 'MC_JOG' ? cell.ax + ' v ' + cell.a : cell.ax;
+      s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 31}">${esc(trunc(l1, 18))}</text>`;
+      s += `<text class="bx-l bx-v" x="${bx0 + 7}" y="${by + 47}">${['MC_ABS', 'MC_REL'].includes(t) ? 'v ' + esc(trunc(cell.b, 5)) + ' · ' : ''}<tspan data-v="mcst">…</tspan></text>`;
     } else if (t === 'PID') {
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 30}">PV ${esc(trunc(cell.a, 6))} SP ${esc(trunc(cell.b, 6))}</text>`;
       s += `<text class="bx-l bx-v" x="${bx0 + 7}" y="${by + 46}">${esc(cell.dst)} = <tspan data-v="dst">0</tspan></text>`;
@@ -121,6 +137,20 @@
     }
     return { wi: `<line class="w wi" x1="${x0}" y1="${cy}" x2="${bx0}" y2="${cy}"/>`, wo: `<line class="w wo" x1="${bx1}" y1="${cy}" x2="${xR}" y2="${cy}"/>`, sym: s, box: true };
   }
+
+  /* How each brand names reusable blocks. Used by the block editor and the CALL box. */
+  LL.BRANDS = {
+    ll: { name: 'Ladder Lab', fb: 'FB', fc: 'FC', fbLong: 'FB: a block WITH memory. Every call has its own instance', fcLong: 'FC: a block WITHOUT memory. Only parameters and temporary values', inst: 'Instance name (its own memory)', dirs: { IN: 'IN', OUT: 'OUT', INOUT: 'INOUT' }, stat: 'static', temp: 'temporary', inside: '#Start', call: { FB: 'CALL FB', FC: 'CALL FC' },
+      note: 'Ladder Lab uses the Siemens way of writing: #Name inside a block. Choose your brand above to see the same block in its words.' },
+    tia: { name: 'Siemens TIA Portal', fb: 'FB', fc: 'FC', fbLong: 'FB (function block) with an instance data block', fcLong: 'FC (function): no instance DB, only Temp variables', inst: 'Instance DB (its own memory)', dirs: { IN: 'Input', OUT: 'Output', INOUT: 'InOut' }, stat: 'Static', temp: 'Temp', inside: '#Start', call: { FB: 'FB', FC: 'FC' },
+      note: 'In the block interface you fill Input, Output, InOut, Static and Temp. Inside the block you write #Start, exactly as here. Every call of an FB needs an instance DB (Motor1_DB) that holds its Static memory. An FC has no instance DB: its Temp values are lost after each call.' },
+    rk: { name: 'Rockwell Studio 5000', fb: 'AOI', fc: 'Routine', fbLong: 'Add-On Instruction (AOI): each call has its own backing tag', fcLong: 'Subroutine called with JSR, with input and return parameters', inst: 'Backing tag (its own memory)', dirs: { IN: 'Input', OUT: 'Output', INOUT: 'InOut' }, stat: 'Local tag', temp: 'Local tag (not kept)', inside: 'Start', call: { FB: 'AOI', FC: 'JSR' },
+      note: 'An FB is an Add-On Instruction. You create a tag of the AOI type for every call (Motor1 : FB_Motor): that backing tag is its memory. Inside the AOI you write Start, without #. An FC is closest to a routine called with JSR (parameters in with SBR, out with RET).' },
+    cds: { name: 'CODESYS', fb: 'FUNCTION_BLOCK', fc: 'FUNCTION', fbLong: 'FUNCTION_BLOCK: declare one instance per call in VAR', fcLong: 'FUNCTION: no instance and no memory', inst: 'Instance (declared in VAR)', dirs: { IN: 'VAR_INPUT', OUT: 'VAR_OUTPUT', INOUT: 'VAR_IN_OUT' }, stat: 'VAR', temp: 'VAR (temporary)', inside: 'Start', call: { FB: 'FB', FC: 'FUNC' },
+      note: 'A FUNCTION_BLOCK is a type; you declare Motor1 : FB_Motor; in VAR and call Motor1 in the program. Inside you write Start, without #. A FUNCTION has no instance; its local VARs are fresh at every call.' },
+  };
+  LL.brand = 'll';
+  LL.blockKinds = {};
 
   class LadderView {
     constructor(host, opts) {
@@ -139,6 +169,7 @@
     }
 
     build() {
+      if (this.prog && this.prog.blocks) this.prog.blocks.forEach((b) => (LL.blockKinds[b.name] = b.kind === 'FC' ? 'FC' : 'FB'));
       const prog = this.prog, ed = !!this.opts.editable, tags = this.tags;
       const C = prog.cols;
       const W = PADL + (C - 1) * CW + OW + PADR;
@@ -199,7 +230,7 @@
         const g = this.svg.getElementById ? this.svg.getElementById(p.id) : this.svg.querySelector('#' + p.id);
         p.g = g; p.wi = g.querySelector('.wi'); p.wo = g.querySelector('.wo');
         p.et = g.querySelector('[data-v="et"]'); p.bar = g.querySelector('[data-v="bar"]');
-        p.cv = g.querySelector('[data-v="cv"]'); p.dst = g.querySelector('[data-v="dst"]');
+        p.cv = g.querySelector('[data-v="cv"]'); p.dst = g.querySelector('[data-v="dst"]'); p.mcst = g.querySelector('[data-v="mcst"]');
         p.reg = [...g.querySelectorAll('[data-b]')];
         p.st = {};
       });
@@ -253,6 +284,16 @@
           if (st.et !== et) { p.et.textContent = 'ET ' + fmtMs(et); p.bar.setAttribute('width', Math.max(0, (cell.pt ? Math.min(1, et / cell.pt) : 0) * (+p.bar.parentNode.querySelector('.bar-bg').getAttribute('width')))); st.et = et; }
         }
         if (p.cv) { const v = on ? m.word(cell.addr + '.CV') : 0; if (st.cv !== v) { p.cv.textContent = v; st.cv = v; } }
+        if (p.mcst) {
+          const T = cell.type, ax = cell.ax;
+          let v = '';
+          if (on && m.axes) {
+            if (T === 'MC_POWER') v = m.bit(ax + '.ERR') ? 'ERROR' : m.bit(ax + '.ON') ? 'ON' : 'off';
+            else if (T === 'MC_JOG') v = 'pos ' + m.word(ax + '.POS');
+            else { const tg = cell.addr; v = m.bit(tg + '.ERR') ? 'ERR' : m.bit(tg + '.BUSY') ? 'BUSY ' + m.word(ax + '.POS') : m.bit(tg + '.ABORT') ? 'ABORT' : m.bit(tg + '.DONE') ? 'DONE' : 'idle'; }
+          }
+          if (st.mcst !== v) { p.mcst.textContent = v; st.mcst = v; }
+        }
         if (p.dst) { const v = on ? m.word(cell.dst) : 0; if (st.dst !== v) { p.dst.textContent = v; st.dst = v; } }
         if (p.reg && p.reg.length) { const v = on ? p.reg.map((r) => m.bit(r.dataset.b)).join('') : ''; if (st.reg !== v) { p.reg.forEach((r, k) => r.classList.toggle('on', v[k] === '1')); st.reg = v; } }
       }

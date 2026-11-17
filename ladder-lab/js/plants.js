@@ -423,12 +423,14 @@
       { addr: 'Q0.0', name: 'Y1 valve A', color: 'blue' },
       { addr: 'Q0.1', name: 'Y2 valve B', color: 'green' },
       { addr: 'Q0.2', name: 'Y3 valve C', color: 'amber' },
+      { addr: 'Q0.3', name: 'Alarm lamp', color: 'red' },
     ],
-    actions: [{ id: 'slowC', label: 'Throttle cylinder C (slow, 2 s)', toggle: true, run(st) { st.slowC = !st.slowC; } }],
+    actions: [{ id: 'slowC', label: 'Throttle cylinder C (slow, 2 s)', toggle: true, run(st) { st.slowC = !st.slowC; } },
+      { id: 'jamB', label: 'Cylinder B jammed (no air)', toggle: true, run(st) { st.jamB = !st.jamB; } }],
     init() { return { pos: [0, 0, 0], t: 0 }; },
     step(st, ctrl, Q, dt) {
       st.t += dt;
-      ['Q0.0', 'Q0.1', 'Q0.2'].forEach((q, i) => { st.pos[i] = clamp(st.pos[i] + (Q[q] ? 1 : -1) * dt / 1000 * (i === 2 && st.slowC ? 0.5 : 1), 0, 1); });
+      ['Q0.0', 'Q0.1', 'Q0.2'].forEach((q, i) => { if (i === 1 && st.jamB) return; st.pos[i] = clamp(st.pos[i] + (Q[q] ? 1 : -1) * dt / 1000 * (i === 2 && st.slowC ? 0.5 : 1), 0, 1); });
       const o = devices(this, ctrl);
       st.pos.forEach((p, i) => { o['I0.' + (2 + i * 2)] = p < 0.03 ? 1 : 0; o['I0.' + (3 + i * 2)] = p > 0.97 ? 1 : 0; });
       return o;
@@ -459,6 +461,8 @@
         D.text(c, 'Cylinder ' + n, x, bot + 18, { size: 12, weight: 700, color: th.ink });
         D.tag(c, th, x, bot + 38, 'Y' + (i + 1) + ' Q0.' + i, on);
       });
+      D.lamp(c, th, 600, 30, 8, !!Q['Q0.3'], 'red', '', 'alarm');
+      if (st.jamB) D.text(c, 'B jammed', 310, 22, { size: 11, mono: true, weight: 700, color: th.red });
     },
   };
 
@@ -1728,6 +1732,112 @@
       c.stroke();
       D.text(c, st.newbtn ? 'new buttons: clean signal' : 'worn buttons: ' + st.bounces + ' bounce flips so far', 320, 250, { size: 11, mono: true, color: st.newbtn ? th.muted : th.amber });
       D.text(c, 'knob AIW0 = ' + (I['AIW0'] || 0) + (st.quiet ? '  (shielded)' : '  (noisy)'), 320, 290, { size: 13, mono: true, weight: 700, color: th.ink });
+    },
+  };
+
+  // ───────────────────────── servo gantry (motion control) ─────────────────────────
+  const GANTRY_TYPES = [1, 0, 0, 1, 0, 1, 1, 0];   // 1 = metal, 0 = plastic
+  P.gantry = {
+    id: 'gantry', name: 'Servo gantry (motion control)', blurb: 'A pick-and-place gantry with two servo axes: X moves left / right on a toothed belt (0 … 600 mm), Z moves the vacuum gripper down (0 = top … 200 mm). The PLC drives them with motion instructions (PLCopen MC_…). Parts arrive at the pick station at X = 100 mm; box A is at X = 350 mm, box B at X = 550 mm.',
+    axes: { AX0: { name: 'X', min: 0, max: 600, acc: 3000, vmax: 800, homeVel: 80 }, AX1: { name: 'Z', min: 0, max: 200, acc: 3000, vmax: 400, homeVel: 40 } },
+    inputs: [
+      { addr: 'I0.0', name: 'X home switch', kind: 'sensor', note: 'At the left end of X (reference switch for homing)' },
+      { addr: 'I0.1', name: 'Z home switch', kind: 'sensor', note: 'Gripper at the top (reference switch for homing Z)' },
+      { addr: 'I0.2', name: 'Vacuum OK', kind: 'sensor', note: 'The gripper holds a part' },
+      { addr: 'I0.3', name: 'Part at pick', kind: 'sensor' },
+      { addr: 'I0.4', name: 'Metal part', kind: 'sensor', note: 'Inductive sensor at the pick station' },
+      { addr: 'I0.5', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.6', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.7', name: 'RESET', kind: 'pb', color: 'blue' },
+      { addr: 'I1.0', name: 'SERVO ON', kind: 'sw' },
+      { addr: 'I1.1', name: 'JOG X+', kind: 'pb', color: 'black' },
+      { addr: 'I1.2', name: 'JOG X−', kind: 'pb', color: 'black' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Vacuum', color: 'blue' },
+      { addr: 'Q0.1', name: 'Ready lamp', color: 'green' },
+      { addr: 'Q0.2', name: 'Fault lamp', color: 'red' },
+      { addr: 'Q0.3', name: 'Running lamp', color: 'green' },
+    ],
+    hmi: ['MW10'],
+    actions: [
+      { id: 'jam', label: 'X belt jammed (drive overload)', toggle: true, run(st) { st.jam = !st.jam; } },
+      { id: 'zdown', label: 'Power cut left Z down (80 mm)', run(st) { st.z = 80; } },
+      { id: 'vacloss', label: 'Vacuum leak', toggle: true, run(st) { st.vacloss = !st.vacloss; } },
+    ],
+    init() { return { x: 230, z: 0, hold: null, part: null, next: 600, n: 0, picked: 0, placed: 0, inA: 0, inB: 0, wrong: 0, dropped: 0, jam: false, xfault: 0, vacloss: false, boxA: [], boxB: [], t: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      const vx = +Q['AX0.V'] || 0, vz = +Q['AX1.V'] || 0;
+      if (st.jam && Math.abs(vx) > 1) st.xfault = 1;
+      if (!st.jam) st.xfault = 0;
+      if (!st.xfault) st.x += vx * s;
+      st.z += vz * s;
+      if (st.x < -15 || st.x > 615) st.fault = st.fault || 'X ran into its mechanical end stop.';
+      if (st.z < -10) st.fault = st.fault || 'Z ran into its upper end stop.';
+      if (Math.abs(vx) > 1 && st.z > 40) st.fault = st.fault || 'X moved while the gripper was down (Z = ' + Math.round(st.z) + ' mm): it hit the boxes. Lift Z first.';
+      const atPick = Math.abs(st.x - 100) < 6;
+      if (st.z > 185) st.fault = st.fault || 'The gripper hit the table (Z = ' + Math.round(st.z) + ' mm).';
+      if (atPick && st.part && !st.hold && st.z > 176) st.fault = st.fault || 'The gripper crushed the part: pick at Z = 170 mm.';
+      // parts arrive at the pick station
+      if (!st.part && !(st.hold && atPick && st.z > 150)) { st.next -= dt; if (st.next <= 0) { st.part = { metal: GANTRY_TYPES[st.n++ % GANTRY_TYPES.length] }; st.next = 1500; } }
+      // vacuum
+      const vac = !!Q['Q0.0'] && !st.vacloss;
+      if (vac && !st.hold && st.part && atPick && st.z >= 164 && st.z <= 176) { st.hold = st.part; st.part = null; st.picked++; }
+      if (st.hold && st.vacloss && st.z < 150) { st.dropped++; st.hold = null; st.last = 'the part fell off the gripper'; }
+      if (st.hold && !Q['Q0.0']) {
+        const inA = Math.abs(st.x - 350) < 12, inB = Math.abs(st.x - 550) < 12;
+        if ((inA || inB) && st.z >= 100) {
+          st.placed++;
+          if (inA) { st.inA++; st.boxA.push(st.hold.metal); } else { st.inB++; st.boxB.push(st.hold.metal); }
+          if ((inA && !st.hold.metal) || (inB && st.hold.metal)) st.wrong++;
+        } else { st.dropped++; st.last = 'the part was released at X = ' + Math.round(st.x) + ', Z = ' + Math.round(st.z) + ' mm'; }
+        st.hold = null;
+      }
+      st.xr = Math.round(st.x); st.zr = Math.round(st.z);
+      const o = devices(this, ctrl);
+      o['I0.0'] = st.x <= 1 ? 1 : 0;
+      o['I0.1'] = st.z <= 1 ? 1 : 0;
+      o['I0.2'] = st.hold && vac ? 1 : 0;
+      o['I0.3'] = st.part ? 1 : 0;
+      o['I0.4'] = st.part && st.part.metal ? 1 : 0;
+      o['AX0.FAULT'] = st.xfault;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const X = (mm) => 40 + mm * 0.9, Y = (mm) => 70 + mm * 0.9;
+      // rail
+      c.fillStyle = th.metalDark; D.rr(c, X(-20), 40, X(620) - X(-20), 16, 4); c.fill();
+      for (let k = 0; k <= 600; k += 100) { D.text(c, k, X(k), 32, { size: 9, mono: true, color: th.muted }); }
+      // table, pick station, boxes
+      c.fillStyle = th.metal; c.fillRect(X(-20), Y(186), X(620) - X(-20), 10);
+      c.fillStyle = th.metalDark; c.fillRect(X(60), Y(180), X(140) - X(60), 6);
+      D.text(c, 'pick', X(100), Y(204) + 6, { size: 10, color: th.muted });
+      [[350, 'A metal', st.boxA], [550, 'B plastic', st.boxB]].forEach(([x, label, list]) => {
+        c.strokeStyle = th.ink; c.lineWidth = 2; c.beginPath(); c.moveTo(X(x - 30), Y(110)); c.lineTo(X(x - 30), Y(186)); c.lineTo(X(x + 30), Y(186)); c.lineTo(X(x + 30), Y(110)); c.stroke();
+        list.slice(-6).forEach((m, k) => { c.fillStyle = m ? th.metal : th.amber; c.fillRect(X(x - 24) + (k % 3) * 16, Y(176) - Math.floor(k / 3) * 12, 14, 10); });
+        D.text(c, 'box ' + label, X(x), Y(204) + 6, { size: 10, color: th.muted });
+      });
+      if (st.part) { c.fillStyle = st.part.metal ? th.metal : th.amber; c.strokeStyle = th.ink; c.lineWidth = 1; c.fillRect(X(88), Y(170), 22, Y(180) - Y(170)); c.strokeRect(X(88), Y(170), 22, Y(180) - Y(170)); }
+      // carriage + Z column
+      const cx = X(st.x), gz = Y(st.z);
+      c.fillStyle = Q['AX0.ON'] ? th.blue : th.metal; D.rr(c, cx - 24, 34, 48, 28, 5); c.fill();
+      c.fillStyle = th.metalDark; c.fillRect(cx - 4, 62, 8, Math.max(0, gz - 62));
+      c.fillStyle = Q['AX1.ON'] ? th.blue : th.metal; D.rr(c, cx - 14, gz - 4, 28, 10, 3); c.fill();
+      c.fillStyle = Q['Q0.0'] ? th.on : th.pipe; c.fillRect(cx - 10, gz + 6, 20, 4);
+      if (st.hold) { c.fillStyle = st.hold.metal ? th.metal : th.amber; c.fillRect(cx - 11, gz + 10, 22, 9); }
+      // readout
+      c.fillStyle = '#0b1220'; D.rr(c, 470, 62, 156, 96, 8); c.fill();
+      const ax = (n, nm) => 'AX' + n + ' ' + nm + ' ' + (Q['AX' + n + '.ON'] ? (Q['AX' + n + '.ERR'] ? 'ERROR' : Q['AX' + n + '.HOMED'] ? 'homed' : 'not homed') : 'off');
+      D.text(c, ax(0, 'X'), 548, 76, { size: 10, mono: true, weight: 700, color: Q['AX0.ERR'] ? '#ff8a8a' : '#7CFC9A' });
+      D.text(c, 'PLC ' + Math.round(+Q['AX0.POS'] || 0) + ' mm · real ' + Math.round(st.x), 548, 92, { size: 10, mono: true, color: '#9fb0c4' });
+      D.text(c, ax(1, 'Z'), 548, 112, { size: 10, mono: true, weight: 700, color: Q['AX1.ERR'] ? '#ff8a8a' : '#7CFC9A' });
+      D.text(c, 'PLC ' + Math.round(+Q['AX1.POS'] || 0) + ' mm · real ' + Math.round(st.z), 548, 128, { size: 10, mono: true, color: '#9fb0c4' });
+      D.text(c, 'placed ' + st.placed + '  wrong ' + st.wrong + '  drop ' + st.dropped, 548, 146, { size: 9, mono: true, color: '#9fb0c4' });
+      if (st.jam) D.text(c, 'X belt jammed', 120, 300, { size: 10, mono: true, weight: 700, color: th.red });
+      D.lamp(c, th, 400, 290, 7, !!Q['Q0.1'], 'green', 'ready'); D.lamp(c, th, 480, 290, 7, !!Q['Q0.3'], 'green', 'running'); D.lamp(c, th, 560, 290, 7, !!Q['Q0.2'], 'red', 'fault');
+      D.fault(c, th, st.fault);
     },
   };
 
@@ -3153,11 +3263,13 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'oldpanel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'alarms', 'feeder', 'handover', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
+  LL.PLANT_ORDER = ['panel', 'oldpanel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'gantry', 'alarms', 'feeder', 'handover', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
 
   // Outputs a plant sees: Q bits, AQW words, plus any memory words its HMI displays
   LL.plantOutputs = function (plant, m) {
+    if (plant.axes && m.axisCfg !== plant.axes) m.axisCfg = plant.axes;
     const o = m.outputs();
+    for (const n in m.axes || {}) { const x = m.axes[n]; o['AX' + n + '.V'] = x.v; o['AX' + n + '.POS'] = x.pos; o['AX' + n + '.ON'] = x.on; o['AX' + n + '.HOMED'] = x.homed; o['AX' + n + '.ERR'] = x.err; }
     (plant.hmi || []).forEach((a) => (o[a] = m.word(a)));
     return o;
   };
@@ -3310,6 +3422,14 @@
       const found = new Set();
       [prog.rungs || []].concat((prog.blocks || []).map((b) => b.rungs)).forEach((rs) => rs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && ch.forbid.includes(c.type)) found.add(c.type); }))));
       if (found.size) return ch.tests.map((t, i) => ({ name: t.name, ok: false, msg: i === 0 ? 'This task is about building it yourself: do it without ' + ch.forbid.join(' / ') + ' elements (found ' + [...found].join(', ') + ').' : 'Not run.' }));
+    }
+    if (ch.needKind && prog.lang !== 'st') {
+      const cnt = {};
+      (prog.rungs || []).forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.type === 'CALL') cnt[c.block] = (cnt[c.block] || 0) + 1; })));
+      const name = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0];
+      const b = (prog.blocks || []).find((x) => x.name === name);
+      const kind = b && b.kind === 'FC' ? 'FC' : 'FB';
+      if (b && kind !== ch.needKind) return ch.tests.map((t, i) => ({ name: t.name, ok: false, msg: i === 0 ? 'This task wants the block to be an ' + ch.needKind + (ch.needKind === 'FC' ? ' (no memory: it only works out its outputs from its inputs)' : ' (with memory: it holds timers, so every call needs its own instance)') + '. ' + name + ' is an ' + kind + ': change its Kind in the block tab.' : 'Not run.' }));
     }
     const tags = Object.assign({}, LL.plantTags(ch.plant), ch.tags || {});
     return ch.tests.map((t) => {

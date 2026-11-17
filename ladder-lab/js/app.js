@@ -10,8 +10,9 @@
 
   // ───────────────────────── storage ─────────────────────────
   const KEY = 'ladderlab.v1';
-  let S = { lessons: {}, ch: {}, chTried: {}, programs: {}, st: {}, lang: {}, plant: {}, quiz: { best: 0, predict: 0, predictBest: 0 }, theme: '' };
+  let S = { lessons: {}, ch: {}, chTried: {}, programs: {}, st: {}, lang: {}, plant: {}, quiz: { best: 0, predict: 0, predictBest: 0 }, theme: '', brand: 'll' };
   try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch (e) { /* storage unavailable */ }
+  LL.brand = S.brand || 'll';
   S.st = S.st || {}; S.lang = S.lang || {};
   let saveT = 0;
   function saveNow() { clearTimeout(saveT); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
@@ -624,6 +625,7 @@
     [['MOV', 'MOV'], ['ADD', 'ADD'], ['SUB', 'SUB'], ['MUL', 'MUL'], ['DIV', 'DIV'], ['MOD', 'MOD']],
     [['SHRB', 'SHRB'], ['SHL', 'SHL'], ['SHR', 'SHR']],
     [['CALL', 'CALL block'], ['PID', 'PID']],
+    [['MC_POWER', 'MC Power'], ['MC_HOME', 'MC Home'], ['MC_ABS', 'Move abs'], ['MC_REL', 'Move rel'], ['MC_JOG', 'MC Jog'], ['MC_STOP', 'MC Stop'], ['MC_RESET', 'MC Reset']],
   ];
   function toolIcon(k) {
     const s = 'stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"';
@@ -904,35 +906,44 @@
       const bar = $('.blk-bar', this.el); if (!bar) return;
       const blocks = this.prog.blocks || [];
       const cur = this.E._blk;
-      let html = `<div class="blk-tabs"><button class="${cur ? '' : 'on'}" data-blk="">Main program</button>${blocks.map((b) => `<button class="${cur && cur.name === b.name ? 'on' : ''}" data-blk="${esc(b.name)}">${esc(b.name)}</button>`).join('')}<button data-blk-new title="Create a reusable block">+ Block</button></div>`;
+      const BR = LL.BRANDS[S.brand] || LL.BRANDS.ll; LL.brand = S.brand || 'll';
+      const kindOf = (b) => (b.kind === 'FC' ? 'FC' : 'FB');
+      LL.blockKinds = {}; blocks.forEach((b) => (LL.blockKinds[b.name] = kindOf(b)));
+      let html = `<div class="blk-tabs"><button class="${cur ? '' : 'on'}" data-blk="">Main program</button>${blocks.map((b) => `<button class="${cur && cur.name === b.name ? 'on' : ''}" data-blk="${esc(b.name)}">${esc(b.name)} <small class="blk-kind">${esc(BR[kindOf(b) === 'FC' ? 'fc' : 'fb'])}</small></button>`).join('')}<button data-blk-new title="Create a reusable block">+ Block</button><label class="blk-brand muted">Names as <select data-brand>${Object.keys(LL.BRANDS).map((k) => `<option value="${k}" ${k === (S.brand || 'll') ? 'selected' : ''}>${esc(LL.BRANDS[k].name)}</option>`).join('')}</select></label></div>`;
       if (cur) {
         const insts = [];
-        const scan = (rungs, pre) => rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.type === 'CALL' && c.block === cur.name) insts.push(pre + c.inst); })));
+        const scan = (rungs, pre) => rungs.forEach((r, ri) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.type === 'CALL' && c.block === cur.name) insts.push(kindOf(cur) === 'FC' ? { key: pre + cur.name + '@' + c.id, label: 'call in rung ' + (ri + 1) } : { key: pre + c.inst, label: c.inst }); })));
         scan(this.prog.rungs, '');
         blocks.forEach((b) => { if (b !== cur) { const outer = []; scan.call(null, [], ''); void outer; } });
-        if (!this.monInst || !insts.includes(this.monInst)) this.monInst = insts[0] || '';
-        html += `<div class="card blk-iface"><div class="row" style="justify-content:space-between;gap:8px"><span class="eyebrow">Block interface · use <b>#Name</b> inside the block</span><span class="row" style="gap:6px">${insts.length ? `<label class="muted" style="font-size:.8rem">Monitor <select data-mon>${insts.map((i) => `<option ${i === this.monInst ? 'selected' : ''}>${esc(i)}</option>`).join('')}</select></label>` : '<span class="muted" style="font-size:.8rem">not called yet: add CALL ' + esc(cur.name) + ' in the main program</span>'}<button class="btn small" data-blk-del style="color:var(--danger)">Delete block</button></span></div>
-          <div class="blk-row"><label>Name <input data-bname value="${esc(cur.name)}" class="mono"></label><label style="flex:1">Comment <input data-bcom value="${esc(cur.comment || '')}" placeholder="what the block does"></label></div>
-          <table class="blk-params"><tr><th>Dir</th><th>Name</th><th>Type</th><th>Comment</th><th></th></tr>${cur.params.map((pp, k) => `<tr data-pk="${k}"><td><select data-pf="dir">${['IN', 'OUT', 'INOUT'].map((d) => `<option ${d === pp.dir ? 'selected' : ''}>${d}</option>`).join('')}</select></td><td><input data-pf="name" class="mono" value="${esc(pp.name)}"></td><td><select data-pf="type">${['BOOL', 'INT'].map((d) => `<option ${d === pp.type ? 'selected' : ''}>${d}</option>`).join('')}</select></td><td><input data-pf="comment" value="${esc(pp.comment || '')}"></td><td><button class="btn small ghost" data-pdel>✕</button></td></tr>`).join('')}</table>
-          <div class="row"><button class="btn small" data-padd>+ Parameter</button><span class="muted" style="font-size:.8rem">Any other #name you use inside (e.g. #Latch, #Delay) is the block's own memory: every instance gets its own copy.</span></div></div>`;
+        if (!this.monInst || !insts.some((i) => i.key === this.monInst)) this.monInst = insts[0] ? insts[0].key : '';
+        const isFC = kindOf(cur) === 'FC';
+        html += `<div class="card blk-iface"><div class="row" style="justify-content:space-between;gap:8px"><span class="eyebrow">${esc(BR.name)} · ${esc(isFC ? BR.fcLong : BR.fbLong)}</span><span class="row" style="gap:6px">${insts.length ? `<label class="muted" style="font-size:.8rem">Monitor <select data-mon>${insts.map((i) => `<option value="${esc(i.key)}" ${i.key === this.monInst ? 'selected' : ''}>${esc(i.label)}</option>`).join('')}</select></label>` : '<span class="muted" style="font-size:.8rem">not called yet: add CALL ' + esc(cur.name) + ' in the main program</span>'}<button class="btn small" data-blk-del style="color:var(--danger)">Delete block</button></span></div>
+          <div class="blk-row"><label>Kind <select data-bkind><option value="FB" ${isFC ? '' : 'selected'}>${esc(BR.fb)} (with memory)</option><option value="FC" ${isFC ? 'selected' : ''}>${esc(BR.fc)} (no memory)</option></select></label><label>Name <input data-bname value="${esc(cur.name)}" class="mono"></label><label style="flex:1">Comment <input data-bcom value="${esc(cur.comment || '')}" placeholder="what the block does"></label></div>
+          <table class="blk-params"><tr><th>Dir</th><th>Name</th><th>Type</th><th>Comment</th><th></th></tr>${cur.params.map((pp, k) => `<tr data-pk="${k}"><td><select data-pf="dir">${['IN', 'OUT', 'INOUT'].map((d) => `<option value="${d}" ${d === pp.dir ? 'selected' : ''}>${esc(BR.dirs[d])}</option>`).join('')}</select></td><td><input data-pf="name" class="mono" value="${esc(pp.name)}"></td><td><select data-pf="type">${['BOOL', 'INT'].map((d) => `<option ${d === pp.type ? 'selected' : ''}>${d}</option>`).join('')}</select></td><td><input data-pf="comment" value="${esc(pp.comment || '')}"></td><td><button class="btn small ghost" data-pdel>✕</button></td></tr>`).join('')}</table>
+          <div class="row"><button class="btn small" data-padd>+ Parameter</button><span class="muted" style="font-size:.8rem">${isFC ? 'Any other #name you use inside is ' + esc(BR.temp) + ': it is cleared at every call, so an FC cannot remember anything (no latches, timers or edges inside: use an FB for that).' : 'Any other #name you use inside (e.g. #Latch, #Delay) is ' + esc(BR.stat) + ' memory: every ' + esc(BR.inst.split(' (')[0].toLowerCase()) + ' gets its own copy.'}</span></div>
+          <div class="hint blk-brand-note"><b>${esc(BR.name)}:</b> ${esc(BR.note)}</div></div>`;
       }
       bar.innerHTML = html;
+      const bs = $('[data-brand]', bar); if (bs) bs.onchange = () => { S.brand = bs.value; save(); this.refresh(); toast('Block names shown as ' + LL.BRANDS[bs.value].name); };
       $$('[data-blk]', bar).forEach((b) => (b.onclick = () => { this.blk = b.dataset.blk || null; this.sel = null; this.refresh(); }));
       const nb = $('[data-blk-new]', bar);
       if (nb) nb.onclick = () => {
-        const m = modal('New block', `<p class="muted" style="margin:0 0 10px">A block is a piece of ladder you write once and call many times, each call with its own inputs, outputs and memory (an FB with an instance in TIA Portal, an Add-On Instruction in Studio 5000, a function block in CODESYS).</p><div class="field"><label for="nbn">Block name</label><input id="nbn" class="mono" value="FB_${blocks.length ? 'Block' + (blocks.length + 1) : 'Motor'}"></div>`, [{ label: 'Cancel' }, { label: 'Create', cls: 'primary', run: (mm) => {
-          const nm = $('#nbn', mm).value.trim();
+        const m = modal('New block', `<p class="muted" style="margin:0 0 10px">A block is a piece of ladder you write once and call many times, each call with its own inputs, outputs and memory (an FB with an instance in TIA Portal, an Add-On Instruction in Studio 5000, a function block in CODESYS).</p><div class="field"><label for="nbk">Kind</label><select id="nbk"><option value="FB">${esc(BR.fbLong)}</option><option value="FC">${esc(BR.fcLong)}</option></select></div><div class="field"><label for="nbn">Block name</label><input id="nbn" class="mono" value="FB_${blocks.length ? 'Block' + (blocks.length + 1) : 'Motor'}"></div><p class="muted" style="font-size:.85rem;margin:6px 0 0">Rule of thumb: if the block must remember anything from one scan to the next (a latch, a timer, an edge, a counter), it is an FB. If it only calculates its outputs from its inputs, an FC is enough.</p>`, [{ label: 'Cancel' }, { label: 'Create', cls: 'primary', run: (mm) => {
+          const kind = $('#nbk', mm).value;
+          let nm = $('#nbn', mm).value.trim();
+          if (kind === 'FC') nm = nm.replace(/^FB_/, 'FC_');
           if (!/^[A-Za-z_]\w*$/.test(nm) || blocks.some((x) => x.name === nm)) { toast('Use a new name with letters, digits and _ only'); return false; }
           this.prog.blocks = this.prog.blocks || [];
-          this.prog.blocks.push({ name: nm, comment: '', params: [{ dir: 'IN', name: 'Start', type: 'BOOL', comment: '' }, { dir: 'OUT', name: 'Run', type: 'BOOL', comment: '' }], rungs: [LL.emptyRung(this.prog.cols)] });
+          this.prog.blocks.push({ name: nm, kind, comment: '', params: [{ dir: 'IN', name: 'Start', type: 'BOOL', comment: '' }, { dir: 'OUT', name: 'Run', type: 'BOOL', comment: '' }], rungs: [LL.emptyRung(this.prog.cols)] });
           this.blk = nm; this.sel = null; this.commit('Block ' + nm + ' created. Write its rungs with #Start, #Run …, then CALL it from the main program.');
         } }]);
-        void m;
+        const kSel = $('#nbk', m), nIn = $('#nbn', m); if (kSel) kSel.onchange = () => { nIn.value = kSel.value === 'FC' ? nIn.value.replace(/^FB_/, 'FC_') : nIn.value.replace(/^FC_/, 'FB_'); };
       };
       if (!cur) return;
       const ren = (old, nw) => { const fix = (rungs) => rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.type === 'CALL' && c.block === old) c.block = nw; }))); fix(this.prog.rungs); blocks.forEach((b) => fix(b.rungs)); };
       $('[data-bname]', bar).onchange = (e) => { const nw = e.target.value.trim(); if (!/^[A-Za-z_]\w*$/.test(nw) || blocks.some((x) => x !== cur && x.name === nw)) { toast('Invalid or duplicate name'); e.target.value = cur.name; return; } ren(cur.name, nw); cur.name = nw; this.blk = nw; this.commit('Block renamed'); };
       $('[data-bcom]', bar).onchange = (e) => { cur.comment = e.target.value; this.commit(); };
+      $('[data-bkind]', bar).onchange = (e) => { cur.kind = e.target.value; this.commit(cur.name + ' is now ' + (cur.kind === 'FC' ? 'an FC: no memory, no instance' : 'an FB: every call needs an instance')); };
       $$('[data-pk]', bar).forEach((tr) => {
         const pp = cur.params[+tr.dataset.pk];
         $$('[data-pf]', tr).forEach((inp) => (inp.onchange = () => {
@@ -979,7 +990,13 @@
       if (LL.COUNTERS.includes(type)) { const u = this.usedNums(/^C(\d+)$/); let n = 0; while (u.has(n)) n++; return { addr: 'C' + n, pv: 5 }; }
       if (['COIL', 'NCOIL', 'SET', 'RST'].includes(type)) { const o = this.plant.outputs.find((x) => !used.has(x.addr)); return { addr: o ? o.addr : 'M0.0' }; }
       if (['NO', 'NC', 'P', 'N'].includes(type)) { const o = this.plant.inputs.find((x) => !used.has(x.addr)) || this.plant.inputs[0]; return { addr: o.addr }; }
-      if (type === 'CALL') { const bl = (this.prog.blocks || []).filter((x) => x.name !== this.blk); const b = bl[0]; const used2 = new Set(); [this.prog.rungs].concat((this.prog.blocks || []).map((x) => x.rungs)).flat().forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.type === 'CALL') used2.add(c.inst); }))); const base = b ? b.name.replace(/^FB_?/i, '') || 'Inst' : 'Inst'; let k = 1; while (used2.has(base + k)) k++; if (!b) toast('Create a block first with + Block above the ladder'); return { block: b ? b.name : '', inst: base + k, args: {} }; }
+      if (type === 'CALL') { const bl = (this.prog.blocks || []).filter((x) => x.name !== this.blk); const b = bl[0]; const used2 = new Set(); [this.prog.rungs].concat((this.prog.blocks || []).map((x) => x.rungs)).flat().forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.type === 'CALL') used2.add(c.inst); }))); const base = b ? b.name.replace(/^FB_?/i, '') || 'Inst' : 'Inst'; let k = 1; while (used2.has(base + k)) k++; if (!b) toast('Create a block first with + Block above the ladder'); return { block: b ? b.name : '', inst: b && b.kind === 'FC' ? '' : base + k, args: {} }; }
+      if (LL.MOTION.includes(type)) {
+        const usedMc = new Set(); [this.prog.rungs].concat((this.prog.blocks || []).map((x) => x.rungs)).flat().forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && /^MC\d/.test(c.addr || '')) usedMc.add(c.addr); })));
+        let k = 0; while (usedMc.has('MC' + k)) k++;
+        const home = (this.plant.inputs.find((x) => /home/i.test(x.name)) || this.plant.inputs[0]).addr;
+        return { MC_POWER: { ax: 'AX0' }, MC_JOG: { ax: 'AX0', a: '50' }, MC_HOME: { addr: 'MC' + k, ax: 'AX0', src: home }, MC_ABS: { addr: 'MC' + k, ax: 'AX0', a: '100', b: '200' }, MC_REL: { addr: 'MC' + k, ax: 'AX0', a: '50', b: '100' }, MC_STOP: { addr: 'MC' + k, ax: 'AX0' }, MC_RESET: { addr: 'MC' + k, ax: 'AX0' } }[type];
+      }
       if (type === 'PID') { const ai = this.plant.inputs.find((x) => /^AIW/.test(x.addr)), aq = this.plant.outputs.find((x) => /^AQW/.test(x.addr)); return { a: ai ? ai.addr : 'MW10', b: 'MW20', dst: aq ? aq.addr : 'MW30', kp: 1, ti: 10, td: 0 }; }
       if (type === 'SHRB') return { src: (this.plant.inputs.find((x) => x.kind === 'sensor') || this.plant.inputs[0]).addr, addr: 'M10.0', n: 8 };
       return {};
@@ -1161,8 +1178,16 @@
         const blocks = this.prog.blocks || [];
         if (blocks.length && !blocks.some((x) => x.name === cell.block)) { const first = blocks.find((x) => x.name !== this.blk); if (first) cell.block = first.name; }
         const b = blocks.find((x) => x.name === cell.block);
-        fields += `<div class="field"><label for="f-blk">Block</label><select id="f-blk" data-call="block">${blocks.length ? '' : '<option value="">(no blocks yet: create one with + Block)</option>'}${blocks.filter((x) => x.name !== this.blk).map((x) => `<option ${x.name === cell.block ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div><div class="field"><label for="f-inst">Instance name (its own memory)</label><input id="f-inst" class="mono" data-call="inst" value="${esc(cell.inst)}"></div>`;
+        fields += `<div class="field"><label for="f-blk">Block</label><select id="f-blk" data-call="block">${blocks.length ? '' : '<option value="">(no blocks yet: create one with + Block)</option>'}${blocks.filter((x) => x.name !== this.blk).map((x) => `<option ${x.name === cell.block ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>${b && b.kind === 'FC' ? `<p class="muted" style="font-size:.85rem;margin:0">${esc(b.name)} is an ${esc((LL.BRANDS[S.brand] || LL.BRANDS.ll).fc)}: no instance, no memory. Just connect the parameters.</p>` : `<div class="field"><label for="f-inst">${esc((LL.BRANDS[S.brand] || LL.BRANDS.ll).inst)}</label><input id="f-inst" class="mono" data-call="inst" value="${esc(cell.inst)}"></div>`}`;
         if (b) b.params.forEach((pp) => { fields += `<div class="field"><label>${pp.dir} ${esc(pp.name)} <span class="muted">${pp.type}${pp.comment ? ' · ' + esc(pp.comment) : ''}</span></label><input class="mono" data-arg="${esc(pp.name)}" data-ptype="${pp.type}" data-pdir="${pp.dir}" value="${esc((cell.args || {})[pp.name] || '')}" placeholder="${pp.type === 'INT' ? 'MW10, AIW0, 100 …' : pp.dir === 'IN' ? 'I0.0, M0.1 …' : 'Q0.0, M0.1 …'}"></div>`; });
+      } else if (LL.MOTION.includes(T)) {
+        const axSel = `<div class="field"><label for="f-ax">Axis</label><select id="f-ax" data-f="ax">${['AX0', 'AX1', 'AX2', 'AX3'].map((x) => `<option ${x === cell.ax ? 'selected' : ''}>${x}</option>`).join('')}</select></div>`;
+        const tagF = ['MC_POWER', 'MC_JOG'].includes(T) ? '' : `<div class="field"><label for="f-addr">Command tag (MC0 … MC99: its .DONE, .BUSY, .ERR, .ABORT bits)</label><input id="f-addr" class="mono" data-f="addr" value="${esc(cell.addr)}"></div>`;
+        const extra = T === 'MC_HOME' ? `<div class="field"><label for="f-src">Reference (home) switch</label><input id="f-src" class="mono" data-f="src" value="${esc(cell.src)}"></div>`
+          : T === 'MC_ABS' || T === 'MC_REL' ? `<div class="field"><label for="f-a">${T === 'MC_ABS' ? 'Position (mm)' : 'Distance (mm, negative = backwards)'}</label><input id="f-a" class="mono" data-f="a" value="${esc(cell.a)}"></div><div class="field"><label for="f-b">Velocity (mm/s)</label><input id="f-b" class="mono" data-f="b" value="${esc(cell.b)}"></div>`
+          : T === 'MC_JOG' ? `<div class="field"><label for="f-a">Velocity (mm/s, negative = backwards)</label><input id="f-a" class="mono" data-f="a" value="${esc(cell.a)}"></div>` : '';
+        fields += tagF + axSel + extra + `<p class="muted" style="font-size:.82rem;margin:4px 0 0">Read the axis with AX0.POS (mm), AX0.VEL, AX0.ON, AX0.HOMED, AX0.MOVING, AX0.ERR.</p>`;
+        if (T === 'MC_HOME') chips = this.quickChips('src', inputs);
       } else if (T === 'PID') {
         fields += `<div class="field"><label for="f-a">PV: measured value (word)</label><input id="f-a" class="mono" data-f="a" value="${esc(cell.a)}"></div><div class="field"><label for="f-b">SP: setpoint (word, same units)</label><input id="f-b" class="mono" data-f="b" value="${esc(cell.b)}"></div><div class="field"><label for="f-dst">OUT: 0 … 27648 = 0 … 100 %</label><input id="f-dst" class="mono" data-f="dst" value="${esc(cell.dst)}"></div><div class="field"><label for="f-kp">Kp: % output per unit of error</label><input id="f-kp" type="number" step="0.01" min="0.001" data-f="kp" value="${cell.kp}"></div><div class="field"><label for="f-ti">Ti: integral time in s (0 = no I)</label><input id="f-ti" type="number" step="0.1" min="0" data-f="ti" value="${cell.ti}"></div><div class="field"><label for="f-td">Td: derivative time in s (0 = no D)</label><input id="f-td" type="number" step="0.05" min="0" data-f="td" value="${cell.td}"></div>`;
         chips = this.quickChips('a', words);
@@ -1190,7 +1215,7 @@
           let a = LL.norm(v);
           const byName = Object.keys(tags).find((k) => tags[k] && tags[k].toUpperCase() === String(v).trim().toUpperCase());
           if (byName) a = byName;
-          const ok = T === 'SHRB' ? (f === 'src' ? LL.isBitAddr(a) : /^[QM]\d{1,2}\.[0-7]$/.test(a)) : f === 'addr' ? (LL.TIMERS.includes(T) ? /^T\d{1,2}$/.test(a) || (!!this.blk && /^#[A-Za-z_]\w*$/.test(a)) : LL.COUNTERS.includes(T) ? /^C\d{1,2}$/.test(a) || (!!this.blk && /^#[A-Za-z_]\w*$/.test(a)) : LL.isBitAddr(a) || (T === 'RST' && LL.isWritableWord(a))) : f === 'dst' ? LL.isWritableWord(a) : LL.isWordAddr(a);
+          const ok = LL.MOTION.includes(T) ? (f === 'addr' ? /^MC\d{1,2}$/.test(a) : f === 'ax' ? /^AX[0-3]$/.test(a) : f === 'src' ? LL.isBitAddr(a) : LL.isWordAddr(a)) : T === 'SHRB' ? (f === 'src' ? LL.isBitAddr(a) : /^[QM]\d{1,2}\.[0-7]$/.test(a)) : f === 'addr' ? (LL.TIMERS.includes(T) ? /^T\d{1,2}$/.test(a) || (!!this.blk && /^#[A-Za-z_]\w*$/.test(a)) : LL.COUNTERS.includes(T) ? /^C\d{1,2}$/.test(a) || (!!this.blk && /^#[A-Za-z_]\w*$/.test(a)) : LL.isBitAddr(a) || (T === 'RST' && LL.isWritableWord(a))) : f === 'dst' ? LL.isWritableWord(a) : LL.isWordAddr(a);
           inp && inp.classList.toggle('bad', !ok);
           if (!ok) return;
           cell[f] = a;
@@ -1201,7 +1226,7 @@
       };
       $$('[data-f]', box).forEach((inp) => { inp.addEventListener(inp.tagName === 'SELECT' ? 'change' : 'input', () => apply(inp.dataset.f, inp.value, inp)); });
       $$('[data-call]', box).forEach((inp) => inp.addEventListener(inp.tagName === 'SELECT' ? 'change' : 'input', () => {
-        if (inp.dataset.call === 'block') { cell.block = inp.value; this.commit(); return; }
+        if (inp.dataset.call === 'block') { cell.block = inp.value; const nb = (this.prog.blocks || []).find((x) => x.name === inp.value); if (nb && nb.kind === 'FC') cell.inst = ''; else if (!cell.inst) cell.inst = nb ? nb.name.replace(/^FB_?/i, '') + '1' : 'Inst1'; this.commit(); return; }
         const v = inp.value.trim(); const ok = /^[A-Za-z_]\w*$/.test(v); inp.classList.toggle('bad', !ok); if (!ok) return;
         cell.inst = v; clearTimeout(this._ft); this._ft = setTimeout(() => this.commit(), 300);
       }));

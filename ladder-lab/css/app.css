@@ -579,3 +579,9 @@ ul.guide { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 6
 .chal .iotable td { overflow-wrap: anywhere; }
 .lesson-nav .btn { max-width: 100%; white-space: normal; text-align: left; }
 .iotable .force-head td { white-space: normal; width: auto; font-family: inherit; color: inherit; }
+
+/* brand names for blocks */
+.blk-tabs .blk-kind { font: 600 .66rem var(--f-mono); opacity: .7; margin-left: 2px; }
+.blk-tabs .blk-brand { margin-left: auto; font-size: .78rem; display: inline-flex; align-items: center; gap: 6px; }
+.blk-tabs .blk-brand select { font-size: .78rem; }
+.blk-brand-note { margin-top: 8px; font-size: .84rem; }

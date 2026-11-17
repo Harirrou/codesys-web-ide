@@ -936,12 +936,26 @@ Valve B = (AUTO AND step wants B) OR (MANUAL AND Jog B AND A is out)   ← inter
 <div class="tbl"><table>
 <tr><th>Idea</th><th>Siemens TIA Portal</th><th>Rockwell Studio 5000</th><th>CODESYS</th><th>Ladder Lab</th></tr>
 <tr><td>Main program</td><td>OB1</td><td>MainRoutine</td><td>PLC_PRG</td><td>Main program tab</td></tr>
-<tr><td>Block without memory</td><td>FC</td><td>Subroutine (JSR)</td><td>FUNCTION</td><td>(a block that uses only parameters)</td></tr>
-<tr><td>Block with memory</td><td>FB + instance DB</td><td>Add-On Instruction</td><td>FUNCTION_BLOCK</td><td>BLOCK + CALL with an instance name</td></tr>
+<tr><td>Block without memory</td><td>FC</td><td>Routine called with JSR (parameters with SBR / RET)</td><td>FUNCTION</td><td>Kind FC</td></tr>
+<tr><td>Block with memory</td><td>FB + instance DB</td><td>Add-On Instruction (AOI) + backing tag</td><td>FUNCTION_BLOCK + instance in VAR</td><td>Kind FB + CALL with an instance name</td></tr>
+<tr><td>The block's own memory</td><td>Static (in the instance DB)</td><td>Local tags of the AOI</td><td>VAR</td><td>other #names in an FB</td></tr>
+<tr><td>Scratch values, lost after the call</td><td>Temp</td><td>(local tags are kept)</td><td>VAR of a FUNCTION</td><td>other #names in an FC</td></tr>
 <tr><td>Inputs / outputs of a block</td><td>Input / Output / InOut</td><td>Input / Output parameters</td><td>VAR_INPUT / VAR_OUTPUT</td><td>PARAM IN / OUT / INOUT</td></tr>
 <tr><td>Inside the block</td><td>#Start</td><td>Start</td><td>Start</td><td>#Start</td></tr>
+<tr><td>A call in ladder</td><td>FB box with "Motor1_DB" above it; FC box</td><td>AOI box with the backing tag; JSR box</td><td>FB box with the instance name above it</td><td>CALL box</td></tr>
 <tr><td>Timer done / elapsed</td><td>#Delay.Q / #Delay.ET</td><td>Delay.DN / Delay.ACC</td><td>Delay.Q / Delay.ET</td><td>#Delay.Q (or #Delay) / #Delay.ET</td></tr>
 </table></div>
+<h3>FC or FB?</h3>
+<p>Ask one question: <b>does the block have to remember anything from one scan to the next?</b> A latch, a timer, a counter, an edge, a step number: that is memory, so it is an <b>FB</b>, and every call needs its own instance. If the outputs follow only from the inputs in this scan (logic, a calculation, a conversion), an <b>FC</b> is enough: no instance, nothing to manage.</p>
+<div class="tbl"><table>
+<tr><th>Job</th><th>Kind</th><th>Why</th></tr>
+<tr><td>Valve output and "arrived" signals of a cylinder</td><td>FC</td><td>pure logic</td></tr>
+<tr><td>Scale a raw value to °C</td><td>FC</td><td>a calculation</td></tr>
+<tr><td>Motor with start / stop seal-in</td><td>FB</td><td>the latch is memory</td></tr>
+<tr><td>Cylinder with a move timeout</td><td>FB</td><td>a timer is memory</td></tr>
+<tr><td>Alarm with acknowledge, drive with a watchdog, PID</td><td>FB</td><td>state, timers, integral</td></tr>
+</table></div>
+<p>Ladder Lab checks it for you: a timer, counter, edge or PID inside an FC is an error, just as the real tools refuse it or make you pass the memory in from outside. In the Lab, the <b>Names as</b> selector above the ladder shows every block, parameter and call in the words of TIA Portal, Studio 5000 or CODESYS.</p>
 <h3>Parameters and memory</h3>
 <ul>
 <li><b>Parameters</b> are the block's "terminals": <code>IN Start</code>, <code>OUT Run</code>. Inside the block you write <b>#Start</b>, never I0.0. At the call you connect <code>Start=I0.0</code>.</li>
@@ -961,9 +975,9 @@ Valve B = (AUTO AND step wants B) OR (MANUAL AND Jog B AND A is out)   ← inter
 <div class="callout tip"><b>Watching an instance:</b> in the Lab, open the block's tab and choose the instance to monitor: you see the power flow of Motor2, not Motor1. TIA Portal and Studio 5000 work the same way ("open instance" / "monitor in context").</div>
 <div class="callout where"><b>Where:</b> every professional project. Machine builders keep libraries of tested blocks (motor, valve, drive, analog input, alarm) and build new machines mostly by calling them.</div>`,
       sims: {},
-      takeaways: ['A block holds logic once; the main program calls it many times.', 'Parameters (IN/OUT) are the block\'s terminals; inside you write #Name.', 'Static #names are the block\'s memory; each instance has its own.', 'Every call needs its own instance name.', 'Fix the block once, and every instance is fixed.'],
+      takeaways: ['A block holds logic once; the main program calls it many times.', 'Needs memory (latch, timer, edge, counter)? FB with an instance. Only logic or a calculation? FC.', 'Parameters (IN/OUT) are the block\'s terminals; inside you write #Name.', 'Static #names are the block\'s memory; each instance has its own.', 'Every call needs its own instance name.', 'Fix the block once, and every instance is fixed.'],
       mistakes: ['Copying rungs instead of making a block.', 'Using real addresses (I0.0) inside a block instead of parameters.', 'Calling two devices with the same instance name.', 'Putting the CALL behind a condition and wondering why the block "freezes".'],
-      challenges: ['blk-motors', 'drive-1', 'drive-line'],
+      challenges: ['blk-motors', 'blk-fc', 'blk-fb-timeout', 'drive-1', 'drive-line'],
     },
     {
       id: 'drives', level: 5, title: 'Variable-speed drives (VFD) in practice', min: 12,
@@ -1336,6 +1350,89 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
       takeaways: ['Bouncing contacts give several edges: filter first, then take the edge.', 'Change of value: compare with a stored copy and update it in the same rung.', 'Use a deadband on analog values.', 'P on a step bit = do it once when entering the step.', 'A pulse shorter than a scan can be missed.'],
       mistakes: ['Taking the edge of a raw, bouncing contact.', 'Comparing an analog value with its last-scan value (noise triggers all the time).', 'A debounce time shorter than the bounce.', 'Expecting to catch a 2 ms pulse with a 10 ms scan.'],
       challenges: ['trig-click', 'trig-bounce', 'trig-change'],
+    },
+    {
+      id: 'motion', level: 5, title: 'Motion control: servo motors from ladder', min: 15,
+      summary: 'Yes, a PLC drives servo motors from ladder. What a servo is, the three ways a PLC commands one, the axis, homing, and the motion instructions (PLCopen MC_… and Rockwell M…) with their Done / Busy / Error handshake.',
+      body: `
+<h3>What a servo is</h3>
+<p>A <b>servo axis</b> is three things: a motor, a <b>position sensor</b> on it (an encoder), and a <b>servo drive</b> that compares where the motor is with where it should be, thousands of times per second, and corrects. The result: the axis goes exactly to 350.0 mm, at exactly the speed you ask, with smooth acceleration, and holds there.</p>
+<div class="tbl"><table>
+<tr><th></th><th>Contactor motor</th><th>VFD (inverter)</th><th>Servo</th></tr>
+<tr><td>Controls</td><td>on / off</td><td>speed</td><td>position, speed and torque</td></tr>
+<tr><td>Stops at a position</td><td>no (needs sensors, overshoots)</td><td>roughly, with sensors or an encoder</td><td>exactly (0.01 mm)</td></tr>
+<tr><td>Typical use</td><td>pumps, fans</td><td>conveyors, mixers</td><td>pick and place, cut to length, robots, packaging</td></tr>
+</table></div>
+<h3>Can I really do it in ladder?</h3>
+<p>Yes. Every big brand has motion instructions in ladder. Three ways, from cheap to powerful:</p>
+<ol>
+<li><b>Pulse train (PTO)</b>: the PLC sends step pulses and a direction signal to a stepper or a simple servo drive (S7-1200, many compact PLCs). Each pulse = a small step.</li>
+<li><b>A drive that positions by itself</b>: the PLC sends a target and a start bit over the network (for example SINAMICS with EPOS); the drive does the rest.</li>
+<li><b>Motion instructions on an axis</b>: the PLC runs the axis (a <b>technology object</b> in TIA Portal, an <b>axis tag</b> in Studio 5000, a SoftMotion axis in CODESYS) and talks to the drive over PROFINET, EtherNet/IP or EtherCAT. This is what Ladder Lab simulates.</li>
+</ol>
+<h3>The axis</h3>
+<p>You configure the axis once: units (mm), how many encoder counts are one mm, maximum speed and acceleration, <b>software limits</b> (here 0 … 600 mm). After that your program only speaks mm and mm/s. The axis also tells you its state: <code>AX0.POS</code> (mm), <code>AX0.VEL</code>, <code>AX0.ON</code>, <code>AX0.HOMED</code>, <code>AX0.MOVING</code>, <code>AX0.ERR</code>.</p>
+<h3>Homing</h3>
+<p>An incremental encoder only counts: after power-up the axis does not know where it is. <b>Homing</b> moves slowly to a reference switch and calls that point 0. Until the axis is homed, absolute moves are refused and the software limits are not active. With several axes, home them in a <b>safe order</b> (the gripper up first, then the horizontal axis).</p>
+<h3>The instructions, in every brand</h3>
+<div class="tbl"><table>
+<tr><th>Job</th><th>Ladder Lab</th><th>TIA Portal / CODESYS (PLCopen)</th><th>Studio 5000</th></tr>
+<tr><td>Switch the drive on</td><td>MC_POWER(AX0)</td><td>MC_Power</td><td>MSO (off: MSF)</td></tr>
+<tr><td>Homing</td><td>MC_HOME(MC0,AX0,switch)</td><td>MC_Home</td><td>MAH</td></tr>
+<tr><td>Go to a position</td><td>MC_ABS(MC1,AX0,pos,vel)</td><td>MC_MoveAbsolute</td><td>MAM (absolute)</td></tr>
+<tr><td>Move a distance</td><td>MC_REL(MC2,AX0,dist,vel)</td><td>MC_MoveRelative</td><td>MAM (incremental)</td></tr>
+<tr><td>Jog while a button is held</td><td>MC_JOG(AX0,vel)</td><td>MC_MoveJog / MC_Jog</td><td>MAJ, then MAS</td></tr>
+<tr><td>Stop</td><td>MC_STOP(MC3,AX0)</td><td>MC_Stop / MC_Halt</td><td>MAS</td></tr>
+<tr><td>Clear an error</td><td>MC_RESET(MC4,AX0)</td><td>MC_Reset</td><td>MAFR</td></tr>
+<tr><td>Status of a command</td><td>MC1.DONE, .BUSY, .ERR, .ABORT</td><td>Done, Busy, Error, CommandAborted</td><td>.DN / .PC, .IP, .ER</td></tr>
+</table></div>
+[[sim:servo]]
+<h3>The handshake: Execute, Busy, Done</h3>
+<ul>
+<li>A move <b>starts on the rising edge</b> of its rung (Execute). Holding the rung true does not start it again; the rung must go false and true again.</li>
+<li><b>BUSY</b> while it moves, <b>DONE</b> when it has arrived, <b>ERR</b> if it was refused or failed, <b>ABORT</b> if another command on the same axis took over.</li>
+<li>DONE / ERR stay on while the rung is true and clear when it goes false (PLCopen). In Studio 5000, .DN stays on until the instruction runs again.</li>
+<li>Give every motion instruction its <b>own command tag</b> (MC0, MC1, …). Two instructions with the same tag mix up their DONE bits.</li>
+</ul>
+<div class="callout tip"><b>Safety:</b> MC_Stop is not an emergency stop. Emergency stops and guard doors switch the drive's <b>STO</b> (Safe Torque Off) input through a safety relay or safety PLC.</div>
+<div class="callout where"><b>Where:</b> pick and place, palletisers, cut-to-length and flying saws, labelling and packaging machines, CNC loaders, any axis that must stop exactly.</div>`,
+      sims: { servo: { program: 'NAME One servo axis (no plant: the reference switch is always on)\nRUNG Servo on\nNO(I0.4) MC_POWER(AX0)\nRUNG Homing: here the reference switch is always reached at once\nP(I0.0) MC_HOME(MC0,AX0,SM0.0)\nRUNG Go to 300 mm at 150 mm/s\nP(I0.1) MC_ABS(MC1,AX0,300,150)\nRUNG Back to 0 mm\nP(I0.2) MC_ABS(MC2,AX0,0,150)\nRUNG Show the position in MW0\nNO(SM0.0) MOV(AX0.POS,MW0)\nRUNG Ready lamp\nNO(AX0.ON) NO(AX0.HOMED) COIL(Q0.0)\nRUNG Moving lamp\nNO(AX0.MOVING) COIL(Q0.1)', inputs: { 'I0.4': sw('Servo on'), 'I0.0': pb('Home'), 'I0.1': pb('Go 300 mm'), 'I0.2': pb('Go 0 mm') }, outputs: { 'Q0.0': 'Ready', 'Q0.1': 'Moving' }, note: 'Servo on, then try "Go 300 mm": refused (not homed: watch the box say ERR). Home, then go to 300 and back: MW0 shows the position ramping up and down.' } },
+      takeaways: ['A servo = motor + encoder + drive: exact position and speed.', 'Ladder drives it with motion instructions: MC_Power, MC_Home, MC_MoveAbsolute … (Rockwell MSO, MAH, MAM …).', 'Home before absolute moves; home axes in a safe order.', 'A move starts on the rising edge; watch BUSY, DONE, ERR.', 'One command tag per instruction. Emergency stop = STO, not MC_Stop.'],
+      mistakes: ['Holding Execute true and expecting a second move to start.', 'Moving to an absolute position before homing.', 'Two motion instructions sharing one command tag.', 'Using MC_Stop as the emergency stop.'],
+      challenges: ['mo-1', 'mo-2', 'mo-3'],
+    },
+    {
+      id: 'motion-practice', level: 6, title: 'Motion in practice: sequences, collisions and faults', min: 12,
+      summary: 'Build a multi-axis cycle with steps and motion instructions, keep axes from colliding, choose absolute or relative moves, and recover from a drive fault without dropping the part.',
+      body: `
+<h3>A motion sequence</h3>
+<p>Use the step method you already know: one memory bit per step. In each step one (or more) motion instructions start, triggered by the step bit; the transition to the next step waits for their <b>DONE</b>.</p>
+<pre class="code">NO(M10.4) MC_ABS(MC4,AX1,0,300)         step 4: Z up
+NO(M10.4) NO(MC4.DONE) → SET M10.5, RST M10.4
+NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
+<p>Put the motion rungs <b>above</b> the transition rungs, and a "done → reset request" rung above the move it resets, so every new step gives its move a clean rising edge.</p>
+<h3>Collisions: the program is the only thing in the way</h3>
+<p>A servo does what it is told, with a lot of force. Two axes started in the same step move at the same time. That is fast, but only safe if the path is free. Typical rules:</p>
+<ul>
+<li>Horizontal moves only with the gripper at a <b>safe height</b> (wait for Z DONE, or check AX1.POS &lt; 40 mm).</li>
+<li>Home vertical axes first.</li>
+<li>Check targets before moving: the software limits catch the worst, but not a box in the way.</li>
+</ul>
+<h3>Absolute or relative?</h3>
+<p><b>Absolute</b> (MC_MoveAbsolute): "go to 350 mm". Repeatable, needs homing. Use it for stations. <b>Relative</b> (MC_MoveRelative): "move 50 mm from here". Use it for indexing a feed or stepping along a row; small errors add up, so re-home or use absolute moves for the reference points.</p>
+<h3>Positions from data</h3>
+<p>Positions do not have to be fixed numbers: move to a word (MW12). Fill it from a recipe, the HMI, or a decision (metal → 350, plastic → 550). One move instruction then serves every variant.</p>
+<h3>Faults: hold, keep, resume</h3>
+<ol>
+<li>A drive fault (overload, following error, jam) puts the axis in <b>error</b>: it stops and refuses commands.</li>
+<li>Hold the sequence where it is. Do <b>not</b> drop what the gripper holds: the vacuum stays on.</li>
+<li>After the repair: <b>MC_Reset</b> clears the error, START continues. A "hold" contact in every motion rung makes the rung go false during the fault and true again on START: a fresh rising edge restarts the interrupted move.</li>
+</ol>
+<div class="callout where"><b>Where:</b> every multi-axis machine: gantries, palletisers, pick and place, labellers, case packers. These patterns are the same in TIA Portal, Studio 5000 and CODESYS.</div>`,
+      sims: {},
+      takeaways: ['Steps start moves; transitions wait for DONE.', 'Motion rungs above transitions: every move gets a clean rising edge.', 'Move horizontally only at a safe height; home vertical axes first.', 'Absolute for stations, relative for steps; positions can come from words.', 'On a fault: hold, keep the part, reset, resume.'],
+      mistakes: ['Starting X and Z in the same step without a free path.', 'Restarting a move by keeping its rung true.', 'Dropping the part when an axis faults.', 'Long chains of relative moves without a reference.'],
+      challenges: ['mo-4', 'bug-mo-crash', 'mo-5'],
     },
     {
       id: 'structure', level: 5, title: 'Program structure & troubleshooting', min: 9,
@@ -1835,6 +1932,15 @@ END_REPEAT</pre>
     ["Change of value (COV)", "A trigger that fires when a number changes: compare it with a stored copy, act, and update the copy."],
     ["Edge memory bit", "The bit an edge instruction uses to remember the signal of the last scan (TIA Portal: the bit under -|P|-; Rockwell: the ONS storage bit). Each edge needs its own."],
     ["Pulse catch", "Input-card option that stretches a very short pulse so the program sees it in the next scan."],
+    ["Servo (servo axis)", "Motor + encoder + servo drive in a closed loop: goes exactly to a position at a set speed and holds it."],
+    ["Axis / technology object", "The PLC object that represents one servo axis: units, limits, speed, acceleration and its state (position, homed, error). TIA Portal: technology object; Studio 5000: axis tag; CODESYS: SoftMotion axis."],
+    ["Homing (referencing)", "Moving an axis to a reference switch (or index pulse) to find its zero point after power-up."],
+    ["PLCopen motion", "Standard set of motion function blocks (MC_Power, MC_Home, MC_MoveAbsolute …) used by Siemens, CODESYS and many others."],
+    ["MC_MoveAbsolute / MAM", "Motion instruction: go to a position at a velocity, starting on the rising edge of Execute."],
+    ["Software limits", "Minimum and maximum positions set in the axis configuration; moves beyond them are refused once the axis is homed."],
+    ["Following error", "The difference between where the servo should be and where it is. Too big = jam or overload: the drive faults."],
+    ["Pulse train output (PTO)", "A PLC output that sends step pulses and a direction signal to a stepper or simple servo drive."],
+    ["FC / FB", "Siemens names for blocks: an FC (function) has no memory of its own; an FB (function block) keeps memory in an instance. Rockwell: routine (JSR) / Add-On Instruction; CODESYS: FUNCTION / FUNCTION_BLOCK."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -2016,5 +2122,15 @@ END_REPEAT</pre>
     { l: 5, q: "A worn button gives 4 edges per press. Best fix in the program?", a: ["debounce (TON 50 ms), then take the edge of the timer", "use an N contact", "count every 4th edge", "a faster scan"], c: 0, why: "Filter first, then the edge." },
     { l: 5, q: "Logging knob changes: why compare with a deadband?", a: ["analog noise would trigger all the time", "to save memory", "knobs are digital", "it is faster"], c: 0, why: "Only a real move should count." },
     { l: 5, q: "With short, long and double click on one button, why is the single click recognised a little late?", a: ["the program must wait to be sure no second click follows", "the scan is slow", "timers are inaccurate", "it is not"], c: 0, why: "The double-click window must pass first." },
+    { l: 5, q: "Can a PLC control a servo motor from ladder?", a: ["Yes, with motion instructions (MC_… / MAM …), pulse outputs, or a positioning drive", "No, only with a robot controller", "Only in Structured Text", "Only with a VFD"], c: 0, why: "All big brands have ladder motion instructions." },
+    { l: 5, q: "Why must an axis be homed before MC_MoveAbsolute?", a: ["An incremental encoder does not know the zero point after power-up", "Homing warms up the motor", "It is faster", "It is not needed"], c: 0, why: "Homing finds the reference." },
+    { l: 5, q: "A move instruction starts…", a: ["on the rising edge of its rung (Execute)", "every scan while its rung is true", "when DONE is on", "at power-up"], c: 0, why: "To start it again, the rung must go false and true again." },
+    { l: 5, q: "Two motion instructions use the same command tag MC1. What goes wrong?", a: ["their DONE / BUSY / ERR bits get mixed up", "nothing", "the axis moves twice as fast", "the PLC stops"], c: 0, why: "One tag per instruction." },
+    { l: 5, q: "The Rockwell instruction for an absolute move is…", a: ["MAM", "MSO", "MAH", "MAFR"], c: 0, why: "MAM = Motion Axis Move (absolute or incremental)." },
+    { l: 6, q: "X and Z start in the same step and the gripper hits the box. The fix:", a: ["move X only after Z reports DONE at the safe height", "make X slower", "raise the software limit", "add a timer of 1 s"], c: 0, why: "Wait for the real position, not for time." },
+    { l: 6, q: "A drive fault stops X while the gripper holds a part. Good practice:", a: ["hold the sequence, keep the vacuum on, reset and resume", "switch everything off at once", "drop the part", "restart the PLC"], c: 0, why: "Never drop the part." },
+    { l: 6, q: "The emergency stop of a servo machine should act on…", a: ["the drive's STO input through a safety device", "MC_Stop", "MC_Power", "the HMI"], c: 0, why: "Safety is hardware, not a motion command." },
+    { l: 5, q: "A block must remember a timer value from scan to scan. It must be…", a: ["an FB (with an instance)", "an FC", "a coil", "the main program"], c: 0, why: "An FC has no memory of its own." },
+    { l: 5, q: "In Studio 5000, the equivalent of a Siemens FB with its instance DB is…", a: ["an Add-On Instruction with a backing tag", "a JSR", "an ONS", "a MOV"], c: 0, why: "AOI + backing tag = FB + instance DB." },
   ];
 })(typeof window !== 'undefined' ? window : globalThis);

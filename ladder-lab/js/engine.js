@@ -10,7 +10,8 @@
 
   // ───────────────────────── element catalogue ─────────────────────────
   const LOGIC = ['WIRE', 'NO', 'NC', 'P', 'N', 'NOT', 'CMP'];
-  const OUTPUT = ['COIL', 'NCOIL', 'SET', 'RST', 'TON', 'TOF', 'TP', 'RTO', 'CTU', 'CTD', 'MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'SHRB', 'CALL', 'PID'];
+  const OUTPUT = ['COIL', 'NCOIL', 'SET', 'RST', 'TON', 'TOF', 'TP', 'RTO', 'CTU', 'CTD', 'MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'SHRB', 'CALL', 'PID', 'MC_POWER', 'MC_HOME', 'MC_ABS', 'MC_REL', 'MC_JOG', 'MC_STOP', 'MC_RESET'];
+  const MOTION = ['MC_POWER', 'MC_HOME', 'MC_ABS', 'MC_REL', 'MC_JOG', 'MC_STOP', 'MC_RESET'];
   const TIMERS = ['TON', 'TOF', 'TP', 'RTO'];
   const COUNTERS = ['CTU', 'CTD'];
   const MATH = ['ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR'];
@@ -30,13 +31,17 @@
     aqw: /^AQW(\d{1,2})$/,
     md: /^MD(\d{1,3})$/,
     hc: /^HC(\d)$/,
+    axBit: /^AX([0-3])\.(ON|HOMED|MOVING|ERR)$/,
+    axWord: /^AX([0-3])\.(POS|VEL)$/,
+    ax: /^AX([0-3])$/,
+    mc: /^MC(\d{1,2})(?:\.(DONE|BUSY|ERR|ABORT))?$/,
     int: /^-?\d+$/,
     loc: /^#[A-Za-z_]\w*(?:\.(Q|DN|TT|EN|ET|PT|CV|PV))?$/,
     locBase: /^#[A-Za-z_]\w*$/,
   };
   const norm = (s) => { const t = String(s == null ? '' : s).trim().replace(/\s+/g, ''); if (t[0] === '#') { const i = t.indexOf('.'); return i < 0 ? t : t.slice(0, i) + t.slice(i).toUpperCase(); } return t.toUpperCase(); };
-  const isBitAddr = (a) => RE.bit.test(a) || RE.sm.test(a) || RE.tBit.test(a) || RE.cBit.test(a) || RE.loc.test(a);
-  const isWordAddr = (a) => RE.tWord.test(a) || RE.cWord.test(a) || RE.mw.test(a) || RE.md.test(a) || RE.hc.test(a) || RE.aiw.test(a) || RE.aqw.test(a) || RE.int.test(a) || RE.loc.test(a);
+  const isBitAddr = (a) => RE.bit.test(a) || RE.sm.test(a) || RE.tBit.test(a) || RE.cBit.test(a) || RE.loc.test(a) || RE.axBit.test(a) || RE.mc.test(a);
+  const isWordAddr = (a) => RE.tWord.test(a) || RE.cWord.test(a) || RE.mw.test(a) || RE.md.test(a) || RE.hc.test(a) || RE.axWord.test(a) || RE.aiw.test(a) || RE.aqw.test(a) || RE.int.test(a) || RE.loc.test(a);
   const isWritableWord = (a) => RE.mw.test(a) || RE.md.test(a) || RE.aqw.test(a) || RE.locBase.test(a);
   const isWritableBit = (a) => /^[QM]\d{1,2}\.[0-7]$/.test(a) || RE.locBase.test(a);
   const timerNo = (a) => { const m = /^T(\d{1,2})/.exec(a); return m ? +m[1] : -1; };
@@ -66,7 +71,7 @@
     if (type === 'CMP') { c.a = c.a || 'MW0'; c.op = c.op || '=='; c.b = c.b == null ? '0' : c.b; }
     if (type === 'MOV') { c.src = c.src == null ? '0' : c.src; c.dst = c.dst || 'MW0'; }
     if (MATH.includes(type)) { c.a = c.a || 'MW0'; c.b = c.b == null ? '1' : c.b; c.dst = c.dst || 'MW0'; }
-    if (type === 'CALL') { c.block = c.block || ''; c.inst = c.inst || 'Inst1'; c.args = c.args || {}; }
+    if (type === 'CALL') { c.block = c.block || ''; c.inst = c.inst == null ? 'Inst1' : c.inst; c.args = c.args || {}; }
     if (type === 'PID') { c.a = c.a || 'MW10'; c.b = c.b || 'MW20'; c.dst = c.dst || 'AQW0'; c.kp = c.kp == null ? 1 : c.kp; c.ti = c.ti == null ? 10 : c.ti; c.td = c.td == null ? 0 : c.td; }
     if (type === 'SHRB') { c.src = c.src || 'I0.0'; c.addr = c.addr || 'M10.0'; c.n = c.n == null ? 8 : c.n; }
     return c;
@@ -97,7 +102,7 @@
   function parseToken(tok) {
     if (tok === '-') return mkCell('WIRE');
     if (tok === '.') return null;
-    const m = /^([A-Za-z]+)(?:\((.*)\))?$/.exec(tok);
+    const m = /^([A-Za-z_]+)(?:\((.*)\))?$/.exec(tok);
     if (!m) throw new Error('Cannot read "' + tok + '"');
     const t = m[1].toUpperCase();
     const args = m[2] == null ? [] : m[2].split(',').map((x) => x.trim());
@@ -122,6 +127,11 @@
         raw.slice(2).forEach((kv) => { const i = kv.indexOf('='); if (i > 0) argsObj[kv.slice(0, i).trim()] = norm(kv.slice(i + 1)); });
         return mkCell('CALL', { block: raw[0] || '', inst: raw[1] || '', args: argsObj });
       }
+      case 'MC_POWER': return mkCell(t, { ax: norm(args[0] || 'AX0') });
+      case 'MC_JOG': return mkCell(t, { ax: norm(args[0] || 'AX0'), a: norm(args[1] || '100') });
+      case 'MC_HOME': return mkCell(t, { addr: norm(args[0] || 'MC0'), ax: norm(args[1] || 'AX0'), src: norm(args[2] || 'I0.0') });
+      case 'MC_ABS': case 'MC_REL': return mkCell(t, { addr: norm(args[0] || 'MC1'), ax: norm(args[1] || 'AX0'), a: norm(args[2] || '100'), b: norm(args[3] || '200') });
+      case 'MC_STOP': case 'MC_RESET': return mkCell(t, { addr: norm(args[0] || 'MC9'), ax: norm(args[1] || 'AX0') });
       case 'PID': return mkCell('PID', { a: norm(args[0]), b: norm(args[1]), dst: norm(args[2]), kp: parseFloat(args[3] || '1'), ti: parseFloat(args[4] || '0'), td: parseFloat(args[5] || '0') });
       case 'SHRB': return mkCell('SHRB', { src: norm(args[0]), addr: norm(args[1]), n: parseInt(args[2] || '8', 10) });
       case 'ADD': case 'SUB': case 'MUL': case 'DIV': case 'MOD': case 'SHL': case 'SHR':
@@ -141,6 +151,11 @@
       case 'MOV': return 'MOV(' + c.src + ',' + c.dst + ')';
       case 'ADD': case 'SUB': case 'MUL': case 'DIV': case 'MOD': case 'SHL': case 'SHR': return c.type + '(' + c.a + ',' + c.b + ',' + c.dst + ')';
       case 'SHRB': return 'SHRB(' + c.src + ',' + c.addr + ',' + c.n + ')';
+      case 'MC_POWER': return 'MC_POWER(' + c.ax + ')';
+      case 'MC_JOG': return 'MC_JOG(' + c.ax + ',' + c.a + ')';
+      case 'MC_HOME': return 'MC_HOME(' + c.addr + ',' + c.ax + ',' + c.src + ')';
+      case 'MC_ABS': case 'MC_REL': return c.type + '(' + c.addr + ',' + c.ax + ',' + c.a + ',' + c.b + ')';
+      case 'MC_STOP': case 'MC_RESET': return c.type + '(' + c.addr + ',' + c.ax + ')';
       case 'CALL': return 'CALL(' + [c.block, c.inst].concat(Object.keys(c.args || {}).map((k) => k + '=' + c.args[k])).join(',') + ')';
       case 'PID': return 'PID(' + [c.a, c.b, c.dst, +c.kp, +c.ti, +c.td].join(',') + ')';
       default: return c.type + '(' + (c.addr || '') + ')';
@@ -225,7 +240,7 @@
       if ((m = /^NAME\s+(.*)$/i.exec(line))) { prog.name = m[1].trim(); continue; }
       if ((m = /^COLS\s+(\d+)$/i.exec(line))) { prog.cols = Math.max(4, Math.min(12, +m[1])); continue; }
       if ((m = /^TAG\s+(\S+)\s+(.+)$/i.exec(line))) { prog.tags[norm(m[1])] = m[2].trim(); continue; }
-      if ((m = /^BLOCK\s+([A-Za-z_]\w*)\s*(.*)$/i.exec(line))) { flush(); blk = { name: m[1], comment: m[2].trim(), params: [], rungs: [] }; prog.blocks.push(blk); continue; }
+      if ((m = /^(BLOCK|FB|FC)\s+([A-Za-z_]\w*)\s*(.*)$/i.exec(line))) { flush(); blk = { name: m[2], kind: m[1].toUpperCase() === 'FC' ? 'FC' : 'FB', comment: m[3].trim(), params: [], rungs: [] }; prog.blocks.push(blk); continue; }
       if (blk && !cur && (m = /^PARAM\s+(IN|OUT|INOUT)\s+([A-Za-z_]\w*)\s*(BOOL|INT)?\s*(.*)$/i.exec(line))) { blk.params.push({ dir: m[1].toUpperCase(), name: m[2], type: (m[3] || 'BOOL').toUpperCase(), comment: m[4].trim() }); continue; }
       if ((m = /^RUNG\b\s*(.*)$/i.exec(line))) { flush(); cur = { comment: m[1].trim(), lines: [] }; continue; }
       if (!cur) cur = { comment: '', lines: [] };
@@ -243,7 +258,7 @@
       rungToLines(r).forEach((l) => out.push(l));
     });
     (prog.blocks || []).forEach((b) => {
-      out.push('BLOCK ' + b.name + (b.comment ? ' ' + b.comment : ''));
+      out.push((b.kind === 'FC' ? 'FC ' : 'BLOCK ') + b.name + (b.comment ? ' ' + b.comment : ''));
       b.params.forEach((pp) => out.push('PARAM ' + pp.dir + ' ' + pp.name + ' ' + pp.type + (pp.comment ? ' ' + pp.comment : '')));
       b.rungs.forEach((r) => { out.push('RUNG' + (r.comment ? ' ' + r.comment : '')); rungToLines(r).forEach((l) => out.push(l)); });
     });
@@ -287,6 +302,8 @@
       this.edges = {};
       this.inputs = {};
       this.pidState = {};
+      this.axes = {};
+      this.mcs = {};
       this.instances = {};
       this.ctx = null;
       this.scanCount = 0;
@@ -295,7 +312,7 @@
       this.load(this.prog);
     }
 
-    setInputs(obj) { for (const k in obj) this.inputs[k] = RE.aiw.test(k) || RE.hc.test(k) ? Math.round(+obj[k] || 0) : obj[k] ? 1 : 0; }
+    setInputs(obj) { for (const k in obj) this.inputs[k] = RE.aiw.test(k) || RE.hc.test(k) ? Math.round(+obj[k] || 0) : obj[k] ? 1 : 0; for (const n in this.axes) if (this.inputs['AX' + n + '.FAULT'] && !this.axes[n].err) { const ax = this.axes[n]; ax.err = 1; ax.msg = 'the drive reports a fault (overload / following error)'; if (ax.cmd) this.mcFinish(ax, false, ax.msg); } }
 
     // block context: #Name → mapped actual address, or instance memory "@Inst:Name"
     res(a) { return a && a[0] === '#' && this.ctx ? this.ctx.res(a) : a; }
@@ -314,7 +331,9 @@
       const b = this.blocks[cell.block];
       if (!b) { this.error = 'CALL: block "' + cell.block + '" does not exist.'; return; }
       if ((this.depth || 0) > 6) { this.error = 'Blocks call each other too deeply (recursion?).'; return; }
-      const inst = (this.ctx ? this.ctx.inst + '.' : '') + cell.inst;
+      const fc = b.kind === 'FC';
+      const inst = (this.ctx ? this.ctx.inst + '.' : '') + (fc ? b.name + '@' + cell.id : cell.inst);
+      if (fc) { const pre = '@' + inst + ':'; for (const k in this.bits) if (k.startsWith(pre)) delete this.bits[k]; for (const k in this.words) if (k.startsWith(pre)) delete this.words[k]; }
       const map = {};
       b.params.forEach((pp) => { const v = cell.args && cell.args[pp.name]; if (v != null && v !== '') map[pp.name] = this.res(v); });
       const ctx = { inst, map, res: (a) => { const mm = /^#(\w+)(?:\.(\w+))?$/.exec(a); if (!mm) return a; const base = map[mm[1]] != null ? map[mm[1]] : '@' + inst + ':' + mm[1]; return mm[2] ? base + '.' + mm[2] : base; } };
@@ -336,6 +355,59 @@
     }
     timer(n) { return this.timers[n] || (this.timers[n] = { type: '', pt: 0, et: 0, q: 0, tt: 0, en: 0, prevIn: 0 }); }
 
+    // ── motion: axes AX0..AX3 (position in mm, speed in mm/s) and motion command tags MC0..MC99 ──
+    axis(n) { return this.axes[n] || (this.axes[n] = { pos: 0, v: 0, en: 0, onT: 0, on: 0, homed: 0, err: 0, msg: '', cmd: null }); }
+    axCfg(n) { const c = (this.axisCfg || {})['AX' + n] || {}; return { min: c.min == null ? -1e9 : c.min, max: c.max == null ? 1e9 : c.max, acc: c.acc || 2000, vmax: c.vmax || 1000, homeVel: c.homeVel || 50 }; }
+    mcTag(t) { return this.mcs[t] || (this.mcs[t] = { done: 0, busy: 0, err: 0, abort: 0, msg: '' }); }
+    mcStart(ax, tag, cmd) {
+      const T = this.mcTag(tag);
+      T.done = 0; T.err = 0; T.abort = 0; T.msg = '';
+      const fail = (msg) => { T.err = 1; T.busy = 0; T.msg = msg; T.keep = T.ex ? 0 : 1; };
+      if (ax.err) return fail('the axis is in error: reset it first (MC_RESET)');
+      if (!ax.on) return fail('the axis is not powered (MC_POWER)');
+      if (cmd.type === 'ABS' && !ax.homed) return fail('the axis is not homed, so it does not know where it is: home it first');
+      const cfg = this.axCfg(ax.n);
+      if ((cmd.type === 'ABS' || cmd.type === 'REL') && !(cmd.vel > 0)) return fail('the velocity must be above 0');
+      if (cmd.type === 'REL') cmd.target = (ax.cmd && ax.cmd.target != null && ax.cmd.type !== 'HOME' ? ax.cmd.target : ax.pos) + cmd.dist;
+      if ((cmd.type === 'ABS' || cmd.type === 'REL') && ax.homed && (cmd.target < cfg.min || cmd.target > cfg.max)) { ax.err = 1; ax.msg = 'target ' + Math.round(cmd.target) + ' mm is outside the software limits (' + cfg.min + ' … ' + cfg.max + ' mm)'; return fail(ax.msg); }
+      if (cmd.vel) cmd.vel = Math.min(cmd.vel, cfg.vmax);
+      if (ax.cmd && ax.cmd.tag && ax.cmd.tag !== tag) { const o = this.mcTag(ax.cmd.tag); if (o.busy) { o.busy = 0; o.abort = 1; o.keep = o.ex ? 0 : 1; } }
+      cmd.tag = tag; ax.cmd = cmd; T.busy = 1;
+    }
+    mcFinish(ax, ok, msg) {
+      const c = ax.cmd; ax.cmd = null;
+      if (c && c.tag) { const T = this.mcTag(c.tag); T.busy = 0; T.keep = T.ex ? 0 : 1; if (ok) T.done = 1; else { T.err = 1; T.msg = msg || ''; } }
+    }
+    axisStep(n, dt) {
+      const ax = this.axis(n), cfg = this.axCfg(n), s = dt / 1000;
+      ax.n = n;
+      ax.onT = ax.en ? ax.onT + dt : 0;
+      const wasOn = ax.on;
+      ax.on = ax.en && ax.onT >= 100 && !ax.err ? 1 : 0;
+      if (!ax.on) { ax.v = 0; if (ax.cmd) this.mcFinish(ax, false, wasOn ? 'the axis was switched off' : 'the axis is not powered'); return; }
+      const c = ax.cmd;
+      const dv = cfg.acc * s;
+      const toward = (vdes, k) => { const d = dv * (k || 1); ax.v = ax.v < vdes ? Math.min(vdes, ax.v + d) : Math.max(vdes, ax.v - d); };
+      if (!c) { toward(0, 2); ax.pos += ax.v * s; }
+      else if (c.type === 'ABS' || c.type === 'REL') {
+        const d = c.target - ax.pos;
+        const vdes = Math.sign(d) * Math.min(c.vel, Math.sqrt(2 * cfg.acc * Math.abs(d)));
+        toward(vdes);
+        const step = ax.v * s;
+        if ((d >= 0 && step >= d) || (d <= 0 && step <= d) || Math.abs(d) < 0.001) { ax.pos = c.target; ax.v = 0; this.mcFinish(ax, true); }
+        else ax.pos += step;
+      } else if (c.type === 'JOG') { toward(Math.max(-cfg.vmax, Math.min(cfg.vmax, c.vel))); ax.pos += ax.v * s; if (c.off && ax.v === 0) ax.cmd = null; }
+      else if (c.type === 'STOP') { toward(0, 2); ax.pos += ax.v * s; if (ax.v === 0) this.mcFinish(ax, true); }
+      else if (c.type === 'HOME') {
+        if (this.bit(c.sensor)) { ax.pos = 0; ax.v = 0; ax.homed = 1; this.mcFinish(ax, true); }
+        else { toward(-cfg.homeVel); ax.pos += ax.v * s; }
+      }
+      if (ax.homed && (ax.pos < cfg.min - 0.5 || ax.pos > cfg.max + 0.5)) {
+        ax.pos = Math.max(cfg.min, Math.min(cfg.max, ax.pos)); ax.v = 0; ax.err = 1; ax.msg = 'software limit reached (' + cfg.min + ' … ' + cfg.max + ' mm)';
+        if (ax.cmd) this.mcFinish(ax, false, ax.msg); ax.cmd = null;
+      }
+    }
+
     bit(a) {
       if (!a) return 0;
       a = this.res(a);
@@ -348,6 +420,8 @@
       }
       let m;
       if (RE.bit.test(a) || RE.sm.test(a)) return this.bits[a] ? 1 : 0;
+      if ((m = RE.axBit.exec(a))) { const x = this.axes[+m[1]]; if (!x) return 0; return m[2] === 'ON' ? x.on : m[2] === 'HOMED' ? x.homed : m[2] === 'ERR' ? x.err : Math.abs(x.v) > 0.001 ? 1 : 0; }
+      if ((m = RE.mc.exec(a))) { const t = this.mcs['MC' + m[1]]; if (!t) return 0; return t[(m[2] || 'DONE').toLowerCase()] ? 1 : 0; }
       if ((m = RE.tBit.exec(a))) {
         const t = this.timers[+m[1]];
         if (!t) return 0;
@@ -374,6 +448,7 @@
       }
       if (RE.mw.test(a) || RE.aiw.test(a) || RE.aqw.test(a)) return this.words[a] | 0;
       if (RE.md.test(a) || RE.hc.test(a)) return this.words[a] || 0;
+      if ((m = RE.axWord.exec(a))) { const x = this.axes[+m[1]]; return x ? Math.round(m[2] === 'POS' ? x.pos : x.v) : 0; }
       if ((m = RE.tWord.exec(a))) { const t = this.timers[+m[1]]; return t ? (m[2] === 'ET' ? t.et : t.pt) : 0; }
       if ((m = RE.cWord.exec(a))) { const c = this.counters[+m[1]]; return c ? (m[2] === 'CV' ? c.cv : c.pv) : 0; }
       return 0;
@@ -441,6 +516,27 @@
     }
 
     execOutput(cell, p, dt) {
+      if (MOTION.includes(cell.type)) {
+        const mm = RE.ax.exec(cell.ax || ''); if (!mm) return;
+        const ax = this.axis(+mm[1]); ax.n = +mm[1];
+        const k = 'mc:' + cell.id, prev = this.edges[k]; this.edges[k] = p ? 1 : 0;
+        const rise = p && !prev;
+        // PLCopen: DONE / ERR / ABORT stay on while the rung (Execute) is true; when it is false they show for one scan, then clear
+        if (cell.addr && /^MC/.test(cell.addr)) { const T = this.mcTag(cell.addr); T.ex = p ? 1 : 0; if (p) T.keep = 0; else if (!T.busy) { if (T.keep) T.keep = 0; else { T.done = 0; T.err = 0; T.abort = 0; } } }
+        switch (cell.type) {
+          case 'MC_POWER': ax.en = p ? 1 : 0; break;
+          case 'MC_JOG':
+            if (p && ax.on && !ax.err) { if (!ax.cmd || ax.cmd.type !== 'JOG' || ax.cmd.cell !== cell.id) { if (ax.cmd && ax.cmd.tag) { const o = this.mcTag(ax.cmd.tag); if (o.busy) { o.busy = 0; o.abort = 1; } } ax.cmd = { type: 'JOG', cell: cell.id }; } ax.cmd.vel = this.word(cell.a); ax.cmd.off = false; }
+            else if (!p && ax.cmd && ax.cmd.type === 'JOG' && ax.cmd.cell === cell.id) { ax.cmd.vel = 0; ax.cmd.off = true; }
+            break;
+          case 'MC_HOME': if (rise) this.mcStart(ax, cell.addr, { type: 'HOME', sensor: cell.src }); break;
+          case 'MC_ABS': if (rise) this.mcStart(ax, cell.addr, { type: 'ABS', target: this.word(cell.a), vel: this.word(cell.b) }); break;
+          case 'MC_REL': if (rise) this.mcStart(ax, cell.addr, { type: 'REL', dist: this.word(cell.a), vel: this.word(cell.b) }); break;
+          case 'MC_STOP': if (rise) { const T = this.mcTag(cell.addr); T.done = 0; T.err = 0; T.abort = 0; if (ax.cmd && ax.cmd.tag) { const o = this.mcTag(ax.cmd.tag); if (o.busy) { o.busy = 0; o.abort = 1; } } ax.cmd = { type: 'STOP', tag: cell.addr }; T.busy = 1; } break;
+          case 'MC_RESET': if (rise) { const T = this.mcTag(cell.addr); T.done = 0; T.err = 0; T.keep = 0; if (this.inputs['AX' + ax.n + '.FAULT']) { T.err = 1; T.msg = 'the drive still reports a fault: remove the cause first'; } else { ax.err = 0; ax.msg = ''; T.done = 1; } } break;
+        }
+        return;
+      }
       switch (cell.type) {
         case 'COIL': this.setBit(cell.addr, p); break;
         case 'NCOIL': this.setBit(cell.addr, !p); break;
@@ -554,7 +650,7 @@
       this.bits['SM0.1'] = this.scanCount === 0 ? 1 : 0;
       this.bits['SM0.5'] = (this.time % 1000) < 500 ? 1 : 0;
     }
-    endScan(dt) { this.scanCount++; this.time += dt; }
+    endScan(dt) { for (const n in this.axes) this.axisStep(+n, dt); this.scanCount++; this.time += dt; }
 
     scan(dt) {
       dt = dt || 10;
@@ -595,7 +691,7 @@
     (prog.blocks || []).forEach((b) => lintRungs(prog, b.rungs, b, blocks).forEach((x) => all.push(Object.assign(x, { block: b.name }))));
     // instance names: one CALL per instance
     const seen = {};
-    const visit = (rungs, where) => rungs.forEach((r, i) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.type === 'CALL') { const k = (where ? where + '.' : '') + c.inst; if (seen[k]) all.push({ level: 'error', rung: i + 1, block: where || undefined, msg: 'Instance "' + c.inst + '" is called twice. Every call needs its own instance (its own memory), e.g. ' + c.inst + 'b.' }); seen[k] = 1; } })));
+    const visit = (rungs, where) => rungs.forEach((r, i) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.type === 'CALL' && c.inst && !(prog.blocks || []).some((b) => b.name === c.block && b.kind === 'FC')) { const k = (where ? where + '.' : '') + c.inst; if (seen[k]) all.push({ level: 'error', rung: i + 1, block: where || undefined, msg: 'Instance "' + c.inst + '" is called twice. Every call needs its own instance (its own memory), e.g. ' + c.inst + 'b.' }); seen[k] = 1; } })));
     visit(prog.rungs, '');
     (prog.blocks || []).forEach((b) => visit(b.rungs, b.name));
     return all;
@@ -635,12 +731,20 @@
         if (c.type === 'MOV' && (!isWordAddr(c.src) || !isWritableWord(c.dst))) issues.push({ level: 'error', rung: n, msg: 'MOV copies a number or word into an MW, MD or AQW word.' });
         if (MATH.includes(c.type) && (!isWordAddr(c.a) || !isWordAddr(c.b) || !isWritableWord(c.dst))) issues.push({ level: 'error', rung: n, msg: c.type + ' needs two operands and an MW, MD or AQW destination.' });
         ['addr', 'a', 'b', 'src', 'dst'].forEach((k) => { if (!blk && typeof c[k] === 'string' && c[k][0] === '#') issues.push({ level: 'error', rung: n, msg: c[k] + ' is a block variable: names with # only work inside a block.' }); });
+        if (blk && blk.kind === 'FC') {
+          const isParam = (a) => typeof a === 'string' && a[0] === '#' && blk.params.some((pp) => pp.name === a.slice(1).split('.')[0]);
+          if ((TIMERS.includes(c.type) || COUNTERS.includes(c.type)) && !isParam(c.addr)) issues.push({ level: 'error', rung: n, msg: 'FC ' + blk.name + ': a ' + c.type + ' needs memory that lasts from scan to scan, and an FC has none. Change the block to an FB (it then gets an instance).' });
+          if (c.type === 'P' || c.type === 'N') issues.push({ level: 'error', rung: n, msg: 'FC ' + blk.name + ': an edge must remember the signal of the last scan, and an FC has no memory. Change the block to an FB, or make the edge outside and pass the pulse in.' });
+          if (c.type === 'PID') issues.push({ level: 'error', rung: n, msg: 'FC ' + blk.name + ': a PID keeps its integral from scan to scan, so it needs an FB.' });
+          if (c.type === 'CALL' && blocks[c.block] && blocks[c.block].kind !== 'FC') issues.push({ level: 'error', rung: n, msg: 'FC ' + blk.name + ': it cannot hold the instance of FB ' + c.block + '. Call the FB from an FB or from the main program.' });
+        }
         if (c.type === 'CALL') {
           const b = blocks[c.block];
           if (!b) issues.push({ level: 'error', rung: n, msg: 'CALL: there is no block called "' + c.block + '".' });
           else {
             if (blk && b.name === blk.name) issues.push({ level: 'error', rung: n, msg: 'A block cannot call itself.' });
-            if (!/^[A-Za-z_]\w*$/.test(c.inst || '')) issues.push({ level: 'error', rung: n, msg: 'CALL ' + b.name + ': give the instance a name (letters, digits, _), e.g. ' + b.name.replace(/^FB_?/i, '') + '1.' });
+            if (b.kind !== 'FC' && !/^[A-Za-z_]\w*$/.test(c.inst || '')) issues.push({ level: 'error', rung: n, msg: 'CALL ' + b.name + ': an FB needs an instance name (its own memory: letters, digits, _), e.g. ' + b.name.replace(/^FB_?/i, '') + '1.' });
+            if (b.kind === 'FC' && c.inst) issues.push({ level: 'warn', rung: n, msg: 'CALL ' + b.name + ': an FC has no instance (no memory of its own), so the name "' + c.inst + '" is ignored.' });
             b.params.forEach((pp) => {
               const v = c.args && c.args[pp.name];
               if (v == null || v === '') { issues.push({ level: 'error', rung: n, msg: 'CALL ' + b.name + ': parameter ' + pp.name + ' is not connected.' }); return; }
@@ -650,6 +754,13 @@
             });
             Object.keys(c.args || {}).forEach((k) => { if (!b.params.some((pp) => pp.name === k)) issues.push({ level: 'warn', rung: n, msg: 'CALL ' + b.name + ': it has no parameter called ' + k + '.' }); });
           }
+        }
+        if (MOTION.includes(c.type)) {
+          if (!RE.ax.test(c.ax || '')) issues.push({ level: 'error', rung: n, msg: c.type + ': the axis must be AX0 … AX3.' });
+          if (!['MC_POWER', 'MC_JOG'].includes(c.type) && !/^MC\d{1,2}$/.test(c.addr || '')) issues.push({ level: 'error', rung: n, msg: c.type + ' needs a command tag like MC1 (it holds .DONE, .BUSY, .ERR).' });
+          if (c.type === 'MC_HOME' && !isBitAddr(c.src)) issues.push({ level: 'error', rung: n, msg: 'MC_HOME: the reference (home) switch must be a bit, e.g. I0.0.' });
+          if (['MC_ABS', 'MC_REL', 'MC_JOG'].includes(c.type) && (!isWordAddr(c.a) || (c.type !== 'MC_JOG' && !isWordAddr(c.b)))) issues.push({ level: 'error', rung: n, msg: c.type + ': position / distance and velocity must be numbers or words.' });
+          if (c.addr && /^MC/.test(c.addr)) (timers['mc:' + c.addr] = timers['mc:' + c.addr] || []).push(n);
         }
         if (c.type === 'PID') {
           if (!isWordAddr(c.a) || !isWordAddr(c.b) || !isWritableWord(c.dst)) issues.push({ level: 'error', rung: n, msg: 'PID needs PV and SP as words or numbers and OUT as a writable word (MW, AQW).' });
@@ -675,7 +786,7 @@
     for (const a in coils) if (coils[a].length > 1)
       issues.push({ level: 'warn', rung: coils[a][0], msg: 'Double coil: ' + a + ' is driven in rungs ' + coils[a].join(', ') + '. Only the last one wins each scan.' });
     for (const a in timers) if (timers[a].length > 1)
-      issues.push({ level: 'warn', rung: timers[a][0], msg: 'Timer ' + a + ' is used by rungs ' + timers[a].join(', ') + '. Give each timer instruction its own number.' });
+      issues.push({ level: 'warn', rung: timers[a][0], msg: /^mc:/.test(a) ? 'Command tag ' + a.slice(3) + ' is used by rungs ' + timers[a].join(', ') + '. Give every motion instruction its own MC tag, or their DONE / BUSY bits get mixed up.' : 'Timer ' + a + ' is used by rungs ' + timers[a].join(', ') + '. Give each timer instruction its own number.' });
     for (const a in ctr) if (ctr[a].length > 1)
       issues.push({ level: 'warn', rung: ctr[a][0], msg: 'The same counter instruction appears in rungs ' + ctr[a].join(', ') + '.' });
     return issues;
@@ -804,6 +915,11 @@
           case 'SHL': case 'SHR': out.push('IF ' + e + ' THEN ' + n(cell.dst) + ' := ' + cell.type + '(' + n(cell.a) + ', ' + n(cell.b) + '); END_IF'); break;
           case 'CALL': {
             const b = (prog.blocks || []).find((x) => x.name === cell.block);
+            if (b && b.kind === 'FC') {
+              const ps = b.params.map((pp) => pp.name + (pp.dir === 'OUT' ? ' => ' : ' := ') + n(cell.args[pp.name] || ''));
+              out.push('IF ' + e + ' THEN ' + b.name + '(' + ps.join(', ') + '); END_IF   (* FUNCTION: no instance *)');
+              break;
+            }
             used.inst = used.inst || {}; used.inst[cell.inst] = cell.block;
             const ins = b ? b.params.filter((pp) => pp.dir !== 'OUT').map((pp) => pp.name + ' := ' + n(cell.args[pp.name] || '')) : [];
             out.push('IF ' + e + ' THEN');
@@ -812,6 +928,13 @@
             out.push('END_IF');
             break;
           }
+          case 'MC_POWER': used.mc = used.mc || {}; used.mc['Power_' + cell.ax] = 'MC_Power'; out.push('Power_' + cell.ax + '(Axis := ' + cell.ax + ', Enable := ' + e + ');'); break;
+          case 'MC_JOG': used.mc = used.mc || {}; used.mc['Jog_' + cell.ax] = 'MC_Jog'; out.push('Jog_' + cell.ax + '(Axis := ' + cell.ax + ', JogForward := ' + e + ' AND ' + n(cell.a) + ' > 0, JogBackward := ' + e + ' AND ' + n(cell.a) + ' < 0, Velocity := ABS(' + n(cell.a) + '));'); break;
+          case 'MC_HOME': used.mc = used.mc || {}; used.mc[cell.addr] = 'MC_Home'; out.push(cell.addr + '(Axis := ' + cell.ax + ', Execute := ' + e + ');   (* reference switch ' + n(cell.src) + ' is set in the axis configuration *)'); break;
+          case 'MC_ABS': used.mc = used.mc || {}; used.mc[cell.addr] = 'MC_MoveAbsolute'; out.push(cell.addr + '(Axis := ' + cell.ax + ', Execute := ' + e + ', Position := ' + n(cell.a) + ', Velocity := ' + n(cell.b) + ');'); break;
+          case 'MC_REL': used.mc = used.mc || {}; used.mc[cell.addr] = 'MC_MoveRelative'; out.push(cell.addr + '(Axis := ' + cell.ax + ', Execute := ' + e + ', Distance := ' + n(cell.a) + ', Velocity := ' + n(cell.b) + ');'); break;
+          case 'MC_STOP': used.mc = used.mc || {}; used.mc[cell.addr] = 'MC_Stop'; out.push(cell.addr + '(Axis := ' + cell.ax + ', Execute := ' + e + ');'); break;
+          case 'MC_RESET': used.mc = used.mc || {}; used.mc[cell.addr] = 'MC_Reset'; out.push(cell.addr + '(Axis := ' + cell.ax + ', Execute := ' + e + ');'); break;
           case 'PID': used.pid = (used.pid || 0) + 1; out.push('IF ' + e + ' THEN  (* PID: Kp ' + cell.kp + ', Ti ' + cell.ti + ' s, Td ' + cell.td + ' s *)'); out.push('  PID' + used.pid + '(PV := ' + n(cell.a) + ', SP := ' + n(cell.b) + ');'); out.push('  ' + n(cell.dst) + ' := PID' + used.pid + '.Y;'); out.push('END_IF'); break;
           case 'SHRB': {
             const bits = shiftBits(cell.addr, Math.abs(cell.n)) || [];
@@ -833,6 +956,7 @@
     Object.keys(used.counters).forEach((c) => decl.push('  ' + c + ' : ' + (used.counters[c] === 'CTU' ? 'CTU' : 'CTD') + ';'));
     if (used.edges) decl.push('  (* R_TRIG / F_TRIG: each edge contact needs its own trigger instance *)');
     Object.keys(used.inst || {}).forEach((k) => decl.push('  ' + k + ' : ' + used.inst[k] + ';   (* instance = its own memory *)'));
+    Object.keys(used.mc || {}).forEach((k) => decl.push('  ' + k + ' : ' + used.mc[k] + ';   (* PLCopen motion block *)'));
     if (used.pid) for (let k = 1; k <= used.pid; k++) decl.push('  PID' + k + ' : PID;   (* the PLC\'s PID function block, e.g. PID_Compact / PIDE *)');
     decl.push('END_VAR');
     let fbs = '';
@@ -842,7 +966,8 @@
       b.rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (!c) return; ['addr', 'a', 'b', 'src', 'dst'].forEach((k) => { const v = c[k]; if (typeof v === 'string' && v[0] === '#') { const nm2 = v.slice(1).split('.')[0]; if (b.params.some((pp) => pp.name === nm2)) return; const ty = TIMERS.includes(c.type) && k === 'addr' ? (c.type === 'RTO' ? 'TONR' : c.type) : COUNTERS.includes(c.type) && k === 'addr' ? c.type : /\.(ET|PT|CV|PV)$/.test(v) || ['MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'CMP', 'PID'].includes(c.type) ? 'INT' : 'BOOL'; if (st[nm2] == null || (rank[st[nm2]] != null && (rank[ty] == null || rank[ty] > rank[st[nm2]]))) st[nm2] = ty; } }); })));
       const statics = new Set(Object.keys(st).map((k) => k + ' : ' + st[k] + ';'));
       const sec = (kw, dir) => { const ps = b.params.filter((pp) => pp.dir === dir); return ps.length ? [kw].concat(ps.map((pp) => '  ' + pp.name + ' : ' + pp.type + ';' + (pp.comment ? '   (* ' + pp.comment + ' *)' : '')), ['END_VAR']).join('\n') + '\n' : ''; };
-      fbs += '\nFUNCTION_BLOCK ' + b.name + (b.comment ? '   (* ' + b.comment + ' *)' : '') + '\n' + sec('VAR_INPUT', 'IN') + sec('VAR_OUTPUT', 'OUT') + sec('VAR_IN_OUT', 'INOUT') + (statics.size ? 'VAR\n' + [...statics].map((x) => '  ' + x).join('\n') + '\nEND_VAR\n' : '') + body + '\nEND_FUNCTION_BLOCK\n';
+      const fcB = b.kind === 'FC';
+      fbs += '\n' + (fcB ? 'FUNCTION ' + b.name + ' : BOOL' : 'FUNCTION_BLOCK ' + b.name) + (b.comment ? '   (* ' + b.comment + ' *)' : '') + '\n' + sec('VAR_INPUT', 'IN') + sec('VAR_OUTPUT', 'OUT') + sec('VAR_IN_OUT', 'INOUT') + (statics.size ? (fcB ? 'VAR   (* temporary: lost after every call *)\n' : 'VAR\n') + [...statics].map((x) => '  ' + x).join('\n') + '\nEND_VAR\n' : '') + body + '\n' + (fcB ? 'END_FUNCTION' : 'END_FUNCTION_BLOCK') + '\n';
     });
     if (prog._inBlock) return out.slice(1).join('\n');
     return (decl.length > 2 ? decl.join('\n') + '\n\n' : '') + out.join('\n') + (fbs ? '\n\n(* ═════ Function blocks ═════ *)' + fbs : '');
@@ -913,8 +1038,15 @@
         case 'CALL': {
           const b = (prog.blocks || []).find((x) => x.name === cell.block);
           const args = b ? b.params.map((pp) => tg((cell.args || {})[pp.name] || '?')) : [];
+          if (b && b.kind === 'FC') { const ins = b.params.filter((pp) => pp.dir !== 'OUT'), outs = b.params.filter((pp) => pp.dir !== 'IN'); notes.push('FC ' + b.name + ' = a routine called with JSR: input parameters, then return parameters (SBR / RET inside the routine).'); return 'JSR(' + b.name + ',' + ins.length + [''].concat(ins.map((pp) => tg((cell.args || {})[pp.name] || '?')), outs.map((pp) => tg((cell.args || {})[pp.name] || '?'))).join(',') + ')'; }
           return cell.block + '(' + [cell.inst].concat(args).join(',') + ')';
         }
+        case 'MC_POWER': notes.push('Logix: MSO switches the servo on (once, on the rung going true) and MSF switches it off.'); return 'MSO(' + cell.ax + ',MSO_' + cell.ax + ')';
+        case 'MC_JOG': notes.push('Logix: MAJ jogs, MAS stops it when the button is released. Operands shortened: Logix also asks for units, acceleration and profile.'); return 'MAJ(' + cell.ax + ',MAJ_' + cell.ax + ',' + (String(cell.a)[0] === '-' ? 'Reverse' : 'Forward') + ',' + tg(String(cell.a).replace(/^-/, '')) + ')';
+        case 'MC_HOME': return 'MAH(' + cell.ax + ',' + cell.addr + ')';
+        case 'MC_ABS': case 'MC_REL': notes.push('Logix MAM: move type 0 = absolute, 1 = incremental. Operands shortened: Logix also asks for units, acceleration, deceleration and profile.'); return 'MAM(' + cell.ax + ',' + cell.addr + ',' + (cell.type === 'MC_ABS' ? 0 : 1) + ',' + tg(cell.a) + ',' + tg(cell.b) + ')';
+        case 'MC_STOP': return 'MAS(' + cell.ax + ',' + cell.addr + ',All)';
+        case 'MC_RESET': return 'MAFR(' + cell.ax + ',' + cell.addr + ')';
         case 'PID': notes.push('PID: put SP = ' + tg(cell.b) + ', KP = ' + cell.kp + ', KI and KD in the PID tag (' + 'PID_' + tg(cell.dst) + '); many plants use PIDE in a function block diagram instead.'); return 'PID(PID_' + tg(cell.dst) + ',' + tg(cell.a) + ',0,' + tg(cell.dst) + ',0,0,0)';
       }
       return '';
@@ -970,9 +1102,9 @@
     rungs(prog.rungs, 'MainRoutine');
     (prog.blocks || []).forEach((b) => {
       out.push('');
-      out.push('// ═════ Add-On Instruction ' + b.name + (b.comment ? ': ' + b.comment : '') + ' ═════');
+      out.push('// ═════ ' + (b.kind === 'FC' ? 'Routine (called with JSR) ' : 'Add-On Instruction ') + b.name + (b.comment ? ': ' + b.comment : '') + ' ═════');
       b.params.forEach((pp) => out.push('//   ' + (pp.dir === 'IN' ? 'Input ' : pp.dir === 'OUT' ? 'Output' : 'InOut ') + ' ' + pp.name + ' : ' + (pp.type === 'INT' ? 'INT' : 'BOOL') + (pp.comment ? '   (' + pp.comment + ')' : '')));
-      out.push('//   Other names inside are local tags of the AOI (each instance tag has its own copy).');
+      out.push(b.kind === 'FC' ? '//   Other names inside are temporary tags: they keep nothing from one call to the next.' : '//   Other names inside are local tags of the AOI (each instance tag has its own copy).');
       rungs(b.rungs, b.name + ' Logic');
     });
     return out.join('\n');
@@ -990,7 +1122,7 @@
   }
 
   Object.assign(LL, {
-    LOGIC, OUTPUT, TIMERS, COUNTERS, MATH, CMP_OPS, RE,
+    LOGIC, OUTPUT, TIMERS, COUNTERS, MATH, CMP_OPS, RE, MOTION,
     isOutput, isLogic, isBitAddr, isWordAddr, isWritableBit, isWritableWord, norm,
     parseDuration, fmtDuration, shiftBits, mkCell, cloneCell, emptyRung,
     parseRung, rungToLines, parseProgram, programToText, cloneProgram, parseToken, cellToken,
