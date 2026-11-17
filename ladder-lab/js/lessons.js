@@ -1543,6 +1543,18 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 <tr><td>41–42</td><td>auxiliary NC contact</td><td>status only: never use it for safety</td></tr>
 </table></div>
 <p>Two contactors in series with read-back is the classic wiring for stop category 0. With a drive, the relay outputs usually go to the drive's STO inputs instead. Try the exercise <b>Fault finding: the safety relay will not reset</b>: the most common call-out on machines with safety relays.</p>
+<h3>Light curtains (safety light barriers)</h3>
+<p>A <b>safety light curtain</b> is a row of infrared beams across an opening. It replaces a door where people or material must pass often. Brands: SICK deTec4, Keyence GL-R, Omron F3SG, Schneider XUSL, Pilz PSENopt, Banner EZ-SCREEN.</p>
+<ul>
+<li><b>OSSD1 / OSSD2</b> (Output Signal Switching Devices): two safety outputs that are on while the field is clear. The curtain tests them with short pulses, so a short circuit is found. Wire both to the safety relay or safety inputs.</li>
+<li><b>Type 4</b> (up to PL e / SIL 3) for hands and bodies at dangerous machines; Type 2 only for lower risks.</li>
+<li><b>Resolution</b>: 14 mm detects a finger, 30 mm a hand, larger values a body.</li>
+<li><b>Restart interlock</b>: after an interruption, nothing restarts until a reset button is pressed, placed where the whole danger zone can be seen.</li>
+<li><b>Safety distance</b> (ISO 13855): the curtain must be far enough away that the machine has stopped before a hand gets there: <b>S = K × T + C</b>, with K = 2000 mm/s (approach speed), T = total stopping time (curtain + relay + machine), C = 8 × (d − 14) mm for resolution d. Example: T = 0.2 s, d = 14 mm → S = 400 mm.</li>
+<li><b>Muting</b>: the curtain is bypassed for a moment so material can pass (pallets on a conveyor). Muting sensors recognise the material by <b>order and timing</b> (A then B within a few seconds, only while the conveyor runs), a <b>muting lamp</b> must show it, and it has a maximum time. A person cannot produce that pattern; a dirty sensor must not either.</li>
+<li><b>Blanking</b>: some beams are ignored permanently where a fixed part of the machine always breaks them.</li>
+</ul>
+<p>In the safety blocks: PLCopen <code>SF_MutingSeq</code> / <code>SF_MutingPar</code>, TIA <code>MUTING</code>, GuardLogix <code>LC</code> (light curtain) and <code>TSAM</code> / <code>TSSM</code> / <code>FSBM</code> (two- and four-sensor muting). Practise it in <b>Light curtain 1</b> and <b>Light curtain 2</b>.</p>
 <h3>The building blocks of every safety function</h3>
 <ul>
 <li><b>Two channels</b>: an E-stop has two NC contacts, a guard door two switches. If one contact welds shut, the other still opens the circuit.</li>
@@ -1572,7 +1584,7 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
       sims: {},
       takeaways: ['Safety functions run in safety-rated hardware, never only in a normal PLC.', 'Safety relay for a few functions, safety PLC for many or for networks.', 'Two channels, discrepancy, manual reset and contactor feedback are in every safety function.', 'The normal program drops its run commands and shows what happened, so nothing restarts by itself.', 'Same ideas in every brand: SF_EmergencyStop / ESTOP1 / DCS, SF_EDM / FDBACK / CROUT.'],
       mistakes: ['A run seal-in that survives an E-stop, so the machine restarts after reset.', 'One channel only: one welded contact and the E-stop does nothing.', 'An E-stop as an ordinary PLC input or HMI button.', 'Bridging a door switch "for the test".'],
-      challenges: ['saf-1', 'diag-relay', 'saf-2'],
+      challenges: ['saf-1', 'diag-relay', 'saf-2', 'lc-1', 'lc-2'],
     },
     {
       id: 'barcode-printer', level: 6, title: 'Strings: barcode readers and label printers', min: 14,
@@ -2204,6 +2216,10 @@ END_REPEAT</pre>
     ["Data block (DB)", "A block of named data (fields, structures, arrays) with start values. Siemens: global or instance DB; Rockwell: tags; CODESYS: a GVL."],
     ["UDT / structure", "A user-defined data type: a named layout of fields (e.g. a recipe) used many times. TIA: PLC data type; Rockwell: UDT; CODESYS: STRUCT (DUT)."],
     ["Array index", "The number that picks one element of an array, e.g. Length[MW30]. Outside the declared range it stops a real PLC."],
+    ["Light curtain (safety light barrier)", "A row of infrared beams across an opening, with two self-tested safety outputs (OSSD1, OSSD2) that switch off when a beam is broken."],
+    ["OSSD", "Output Signal Switching Device: the safety output of a light curtain or laser scanner, usually two of them, pulse-tested to find short circuits."],
+    ["Muting", "Bypassing a safety light curtain for a moment so material can pass, recognised by muting sensors in a fixed order and time; shown by a muting lamp."],
+    ["Safety distance", "ISO 13855: S = K × T + C. How far a protective device must be from the hazard so the machine has stopped before a person reaches it."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -2418,5 +2434,9 @@ END_REPEAT</pre>
     { l: 6, q: "The operator types recipe 7, but the array is Length[1..3]. Reading Length[MW30]…", a: ["stops a real PLC (array index out of range) unless you check MW30 first", "reads 0", "reads the last element", "is fine"], c: 0, why: "Always check the index." },
     { l: 6, q: "What does Rockwell use instead of data blocks?", a: ["tags with user-defined data types (UDT) and arrays", "DB10", "M bits only", "the HMI"], c: 0, why: "Controller or program scoped tags." },
     { l: 6, q: "You download a data block again. What happens to values the operator changed on the HMI?", a: ["they are replaced by the start values (unless kept as retentive / not reinitialised)", "nothing", "they are doubled", "they move to M memory"], c: 0, why: "Download with care." },
+    { l: 5, q: "A light curtain has OSSD1 and OSSD2. The safety program should…", a: ["use both: run only when both are on", "use OSSD1 only", "use OSSD2 only", "use them as a counter"], c: 0, why: "One shorted wire must not defeat the stop." },
+    { l: 6, q: "Why does muting need sensor A first, then B within a few seconds?", a: ["so a person (or a dirty sensor) cannot produce the muting pattern", "to save energy", "to count pallets", "it does not"], c: 0, why: "Order and timing recognise the material." },
+    { l: 5, q: "Safety distance S = K × T + C. If the machine stops more slowly (T bigger), the curtain must be…", a: ["further away from the hazard", "closer to the hazard", "the same", "removed"], c: 0, why: "More stopping time, more distance." },
+    { l: 5, q: "After a person leaves the light curtain, the machine…", a: ["stays stopped until RESET and START (restart interlock)", "restarts at once", "restarts after 2 s", "restarts if it was running"], c: 0, why: "Restart interlock." },
   ];
 })(typeof window !== 'undefined' ? window : globalThis);

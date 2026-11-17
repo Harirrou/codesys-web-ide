@@ -2160,6 +2160,77 @@
     },
   };
 
+  // ───────────────────────── safety light curtain with muting (palletizer exit) ─────────────────────────
+  const LC = { a: 0.48, b: 0.54, curtain: 0.6, len: 0.12 };
+  P.curtain = {
+    id: 'curtain', name: 'Light curtain with muting (palletizer exit)', blurb: 'A palletizer cell. Full pallets leave on a conveyor through an opening protected by a safety light curtain (two OSSD outputs, like a SICK deTec4, Keyence GL-R, Omron F3SG or Schneider XUSL). Two muting sensors in front of the curtain recognise a pallet, so the pallet may pass; a person must stop the cell at once.',
+    inputs: [
+      { addr: 'I0.0', name: 'Curtain OSSD1', kind: 'sensor', note: 'Safety output 1 of the light curtain: 1 = protective field clear' },
+      { addr: 'I0.1', name: 'Curtain OSSD2', kind: 'sensor', note: 'Safety output 2 (both switch together)' },
+      { addr: 'I0.2', name: 'Muting sensor A', kind: 'sensor', note: 'first muting sensor, 1 = something there' },
+      { addr: 'I0.3', name: 'Muting sensor B', kind: 'sensor', note: 'second muting sensor, a bit further' },
+      { addr: 'I0.4', name: 'RESET', kind: 'pb', color: 'blue' },
+      { addr: 'I0.5', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.6', name: 'STOP', kind: 'pbnc', color: 'red' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Palletizer (safe output)', color: 'green' },
+      { addr: 'Q0.1', name: 'Exit conveyor (safe output)', color: 'green' },
+      { addr: 'Q0.2', name: 'Muting lamp', color: 'white' },
+      { addr: 'Q0.3', name: 'Reset lamp', color: 'blue' },
+      { addr: 'Q0.4', name: 'Running lamp', color: 'green' },
+    ],
+    actions: [
+      { id: 'person', label: 'A person walks into the opening', toggle: true, run(st) { st.person = !st.person; } },
+      { id: 'stuckA', label: 'Muting sensor A stuck on (dirty)', toggle: true, run(st) { st.stuckA = !st.stuckA; } },
+      { id: 'short1', label: 'OSSD1 wire shorted to +24 V', toggle: true, run(st) { st.short1 = !st.short1; } },
+    ],
+    init() { return { pallets: [], make: 2000, out: 0, t: 0, arm: 0, person: false, stuckA: false, danger: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      if (Q['Q0.0']) { st.arm += s * 3; if (!st.pallets.some((p) => p.x < 0.35)) { st.make -= dt; if (st.make <= 0) { st.pallets.push({ x: 0.2 }); st.make = 4000; } } }
+      if (Q['Q0.1']) st.pallets.forEach((p) => (p.x += 0.15 * s));
+      st.pallets = st.pallets.filter((p) => { if (p.x - LC.len > 1.05) { st.out++; return false; } return true; });
+      const covers = (pos) => st.pallets.some((p) => p.x - LC.len <= pos && pos <= p.x);
+      const broken = covers(LC.curtain) || st.person;
+      st.danger = st.person && (Q['Q0.0'] || Q['Q0.1']) ? st.danger + dt : 0;
+      if (st.danger > 100) st.fault = st.fault || 'DANGER: the palletizer kept running while a person was in the light curtain.';
+      const o = devices(this, ctrl);
+      o['I0.0'] = broken && !st.short1 ? 0 : 1; o['I0.1'] = broken ? 0 : 1;
+      o['I0.2'] = st.stuckA || covers(LC.a) ? 1 : 0;
+      o['I0.3'] = st.person || covers(LC.b) ? 1 : 0;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const X = (f) => 30 + f * 560, y = 220;
+      // cell fence and palletizer
+      c.strokeStyle = th.ink; c.lineWidth = 2; c.setLineDash([6, 4]); c.strokeRect(20, 40, X(LC.curtain) - 20, 230); c.setLineDash([]);
+      D.text(c, 'palletizer cell', 120, 30, { size: 10, weight: 700, color: th.muted });
+      c.save(); c.translate(110, 150); c.rotate(Math.sin(st.arm) * 0.8); c.fillStyle = Q['Q0.0'] ? th.amber : th.metal; c.fillRect(-6, -60, 12, 60); c.restore();
+      c.fillStyle = th.metalDark; c.beginPath(); c.arc(110, 150, 16, 0, 7); c.fill();
+      // conveyor
+      c.fillStyle = th.metalDark; D.rr(c, X(0.15), y, X(1.02) - X(0.15), 14, 7); c.fill();
+      st.pallets.forEach((p) => { c.fillStyle = th.box; c.strokeStyle = th.boxEdge; c.lineWidth = 1; c.fillRect(X(p.x - LC.len), y - 30, X(p.x) - X(p.x - LC.len), 30); c.strokeRect(X(p.x - LC.len), y - 30, X(p.x) - X(p.x - LC.len), 30); });
+      // muting sensors (beams across the conveyor)
+      [[LC.a, 'A', I['I0.2']], [LC.b, 'B', I['I0.3']]].forEach(([f, n, on]) => { c.strokeStyle = on ? th.amber : th.line; c.lineWidth = 2; c.setLineDash([2, 3]); c.beginPath(); c.moveTo(X(f), y - 50); c.lineTo(X(f), y); c.stroke(); c.setLineDash([]); D.text(c, n, X(f), y - 58, { size: 10, weight: 700, color: th.ink }); });
+      // light curtain: two posts and beams
+      const clear = I['I0.0'] && I['I0.1'];
+      c.fillStyle = th.ink; c.fillRect(X(LC.curtain) - 4, 64, 8, 166);
+      for (let k = 0; k < 14; k++) { const yy = 70 + k * 11; c.strokeStyle = Q['Q0.2'] ? 'rgba(250,204,21,.5)' : clear ? 'rgba(34,197,94,.45)' : 'rgba(226,59,59,.7)'; c.lineWidth = 1; c.beginPath(); c.moveTo(X(LC.curtain) - 4, yy); c.lineTo(X(LC.curtain) + 4, yy); c.stroke(); }
+      D.text(c, 'LIGHT CURTAIN', X(LC.curtain), 46, { size: 10, weight: 800, color: th.ink });
+      D.text(c, 'OSSD1 ' + (I['I0.0'] ? 1 : 0) + '  OSSD2 ' + (I['I0.1'] ? 1 : 0), X(LC.curtain), 262, { size: 9, mono: true, color: clear ? th.muted : th.red });
+      // muting lamp on top
+      D.lamp(c, th, X(LC.curtain) + 30, 66, 7, !!Q['Q0.2'], 'white', '', 'muting');
+      // person
+      if (st.person) { const px = X(LC.curtain) + 6; c.fillStyle = th.red; c.beginPath(); c.arc(px, 120, 10, 0, 7); c.fill(); c.fillRect(px - 7, 132, 14, 40); c.fillRect(px - 7, 172, 5, 34); c.fillRect(px + 2, 172, 5, 34); }
+      if (st.stuckA) D.text(c, 'sensor A dirty: always on', X(LC.a), y + 34, { size: 9, mono: true, color: th.red });
+      D.text(c, 'pallets out: ' + st.out, 520, 290, { size: 11, mono: true, weight: 700, color: th.ink });
+      D.lamp(c, th, 470, 120, 7, !!Q['Q0.3'], 'blue', 'reset'); D.lamp(c, th, 530, 120, 7, !!Q['Q0.4'], 'green', 'running');
+      D.fault(c, th, st.fault);
+    },
+  };
+
   // ───────────────────────── box sorter ─────────────────────────
   const SORT_PATTERN = [1, 0, 0, 1, 1, 0, 1, 0, 0, 1];
   P.sorter = {
@@ -3582,7 +3653,7 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'oldpanel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'gantry', 'servohmi', 'safecell', 'safeplc', 'labeler', 'alarms', 'feeder', 'handover', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
+  LL.PLANT_ORDER = ['panel', 'oldpanel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'gantry', 'servohmi', 'safecell', 'safeplc', 'curtain', 'labeler', 'alarms', 'feeder', 'handover', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
 
   // Outputs a plant sees: Q bits, AQW words, plus any memory words its HMI displays
   LL.plantOutputs = function (plant, m) {
