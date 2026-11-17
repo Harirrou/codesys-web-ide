@@ -150,8 +150,47 @@
     cds: { name: 'CODESYS', fb: 'FUNCTION_BLOCK', fc: 'FUNCTION', fbLong: 'FUNCTION_BLOCK: declare one instance per call in VAR', fcLong: 'FUNCTION: no instance and no memory', inst: 'Instance (declared in VAR)', dirs: { IN: 'VAR_INPUT', OUT: 'VAR_OUTPUT', INOUT: 'VAR_IN_OUT' }, stat: 'VAR', temp: 'VAR (temporary)', inside: 'Start', call: { FB: 'FB', FC: 'FUNC' },
       note: 'A FUNCTION_BLOCK is a type; you declare Motor1 : FB_Motor; in VAR and call Motor1 in the program. Inside you write Start, without #. A FUNCTION has no instance; its local VARs are fresh at every call.' },
   };
+  Object.assign(LL.BRANDS, {
+    sch: { name: 'Schneider Machine Expert', fb: 'FUNCTION_BLOCK', fc: 'FUNCTION', fbLong: 'FUNCTION_BLOCK (POU): declare one instance per call', fcLong: 'FUNCTION (POU): no instance, no memory', inst: 'Instance (declared in VAR)', dirs: { IN: 'VAR_INPUT', OUT: 'VAR_OUTPUT', INOUT: 'VAR_IN_OUT' }, stat: 'VAR', temp: 'VAR (temporary)', inside: 'Start', call: { FB: 'FB', FC: 'FUNC' },
+      note: 'Machine Expert (M241, M251, M262 …) is based on CODESYS: blocks are POUs of type FUNCTION_BLOCK or FUNCTION, instances are declared in VAR, and inside you write Start without #. The small M221 (Machine Expert Basic) has no user function blocks: there you use subroutines (SRi).' },
+    tc: { name: 'Beckhoff TwinCAT 3', fb: 'FUNCTION_BLOCK', fc: 'FUNCTION', fbLong: 'FUNCTION_BLOCK: one instance per call, declared in VAR', fcLong: 'FUNCTION: no instance, no memory', inst: 'Instance (declared in VAR)', dirs: { IN: 'VAR_INPUT', OUT: 'VAR_OUTPUT', INOUT: 'VAR_IN_OUT' }, stat: 'VAR', temp: 'VAR (temporary)', inside: 'Start', call: { FB: 'FB', FC: 'FUNC' },
+      note: 'TwinCAT 3 is CODESYS-based too: FUNCTION_BLOCK with VAR_INPUT / VAR_OUTPUT, an instance per call (fbMotor1 : FB_Motor;), and names without #. Beckhoff style prefixes names with their type: bStart, nCount, fbMotor1.' },
+    om: { name: 'Omron Sysmac Studio', fb: 'FB', fc: 'FUN', fbLong: 'Function block (FB): each call has its own instance variable', fcLong: 'Function (FUN): no instance, no memory', inst: 'Instance (a variable of the FB type)', dirs: { IN: 'Input', OUT: 'Output', INOUT: 'In-Out' }, stat: 'Internal variable', temp: 'Internal (FUN, not kept)', inside: 'Start', call: { FB: 'FB', FC: 'FUN' },
+      note: 'Sysmac Studio (NJ / NX): you create function blocks (FB) and functions (FUN) with Input, Output, In-Out and Internal variables. Each FB call needs an instance (a variable of the FB type). FBs have EN / ENO in ladder. On the older CX-Programmer (CP1 / CJ), FBs exist too, with instances.' },
+  });
   LL.brand = 'll';
   LL.blockKinds = {};
+
+  /* The same element in every brand: used by the "Other brands" window and the brand lesson. */
+  LL.BRAND_COLS = ['Ladder Lab', 'Siemens TIA Portal', 'Rockwell Studio 5000', 'Schneider Machine Expert (CODESYS)', 'Schneider M221 (Machine Expert Basic)', 'Beckhoff TwinCAT 3', 'Omron Sysmac Studio (NJ/NX)', 'Omron CX-Programmer (CP1/CJ)'];
+  LL.BRAND_XREF = [
+    ['NO contact', 'NO(I0.0)', '-| |-', 'XIC', '-| |-', 'LD / AND / OR', '-| |-', '-| |-', 'LD / AND / OR'],
+    ['NC contact', 'NC(I0.0)', '-|/|-', 'XIO', '-|/|-', 'LDN / ANDN / ORN', '-|/|-', '-|/|-', 'LD NOT / AND NOT'],
+    ['Rising edge', 'P(I0.0)', '-|P|- or R_TRIG', 'ONS (OSR)', '-|P|- or R_TRIG', 'LDR', 'R_TRIG', 'Upward differentiation -|↑|- , R_TRIG', '@LD, DIFU'],
+    ['Falling edge', 'N(I0.0)', '-|N|- or F_TRIG', 'XIO + ONS (OSF)', '-|N|- or F_TRIG', 'LDF', 'F_TRIG', '-|↓|- , F_TRIG', '%LD, DIFD'],
+    ['Coil', 'COIL(Q0.0)', '-( )-', 'OTE', '-( )-', 'ST', '-( )-', '-( )-', 'OUT'],
+    ['Set / reset', 'SET / RST', '-(S)- / -(R)-', 'OTL / OTU', '-(S)- / -(R)-', 'S / R', '-(S)- / -(R)-', 'SET / RESET', 'SET / RSET (or KEEP)'],
+    ['On-delay timer', 'TON(T0,3s)', 'TON (IEC_TIMER instance DB), PT T#3s', 'TON, PRE 3000 (ms)', 'TON, PT T#3S', '%TM0, type TON, base 1 s / 100 ms', 'TON (Tc2_Standard)', 'TON', 'TIM 0000 #30 (0.1 s units)'],
+    ['Off-delay / pulse timer', 'TOF / TP', 'TOF / TP', 'TOF / (ONS + TON)', 'TOF / TP', '%TM type TOF / TP', 'TOF / TP', 'TOF / TP', '(TIM + logic)'],
+    ['Retentive timer', 'RTO', 'TONR', 'RTO', '(own FB or library)', '(%TM + counter)', '(own FB)', 'AccumulationTimer', 'TTIM'],
+    ['Timer done / elapsed', 'T0 (=T0.Q) / T0.ET', '"T0".Q / "T0".ET', 'T0.DN / T0.ACC', 'T0.Q / T0.ET', '%TM0.Q / %TM0.V', 'fbT0.Q / fbT0.ET', 'T0.Q / T0.ET', 'T0000 (done) / T0000 (PV)'],
+    ['Up counter', 'CTU(C0,5)', 'CTU (IEC_COUNTER)', 'CTU, .ACC / .DN', 'CTU', '%C0', 'CTU', 'CTU', 'CNT (counts DOWN) / CNTR'],
+    ['Compare', 'CMP(MW0>=5)', 'CMP >= box or contact', 'GEQ', 'GE (or >=)', '[%MW0 >= 5]', 'GE (or >=)', 'GE (or >=)', '>= (LD>=)'],
+    ['Move / add', 'MOV / ADD', 'MOVE / ADD', 'MOV / ADD', 'MOVE / ADD', '[%MW0 := %MW1 + 1]', ':= / ADD', 'MOVE / ADD', 'MOV / + (binary)'],
+    ['Input bit', 'I0.0', '%I0.0', 'Local:1:I.Data.0 (alias tag)', '%IX0.0', '%I0.0', 'bIn AT %I* (linked)', 'variable mapped in the I/O Map', '0.00 (CIO 0)'],
+    ['Output bit', 'Q0.0', '%Q0.0', 'Local:2:O.Data.0', '%QX0.0', '%Q0.0', 'bOut AT %Q*', 'variable mapped in the I/O Map', '100.00 (CIO 100)'],
+    ['Memory bit', 'M0.0', '%M0.0 (or a DB)', 'BOOL tag', '%MX0.0 or a variable', '%M0', 'a variable', 'a variable', 'W0.00 (H = kept)'],
+    ['Word / double word', 'MW10 / MD20', '%MW10 / %MD20', 'INT / DINT tag', '%MW10 / %MD20', '%MW10 / %MD20', 'INT / DINT variable', 'INT / DINT variable', 'D10 / D20 (2 words)'],
+    ['Analog input', 'AIW0 (0 … 27648)', '%IW64… (0 … 27648)', 'module channel (scaled in the module)', 'module variable', '%IW0.0 (0 … 1000 by default)', 'INT AT %I* (0 … 32767)', 'mapped variable', 'CIO word of the analog unit'],
+    ['First scan', 'SM0.1', 'FirstScan bit or OB100', 'S:FS', 'own bit / first-cycle flag', '%S13', '_TaskInfo[].FirstCycle', 'P_First_RunMode', 'A200.11'],
+    ['1 Hz clock', 'SM0.5', 'clock memory bit (e.g. %M0.5)', '(build it with a timer)', 'BLINK (Util)', '%S6', 'BLINK (Tc2_Utilities)', 'Get1sClk', 'P_1s'],
+    ['Block with memory', 'FB (BLOCK)', 'FB + instance DB', 'Add-On Instruction', 'FUNCTION_BLOCK', '— (subroutines only)', 'FUNCTION_BLOCK', 'FB', 'FB'],
+    ['Block without memory', 'FC', 'FC', 'Routine (JSR)', 'FUNCTION', 'Subroutine SRi', 'FUNCTION', 'FUN', 'Subroutine (SBS / SBN)'],
+    ['Servo: move to a position', 'MC_ABS', 'MC_MoveAbsolute', 'MAM', 'MC_MoveAbsolute (SoftMotion)', 'MC_MoveAbs_PTO (pulse output)', 'MC_MoveAbsolute (Tc2_MC2)', 'MC_MoveAbsolute', 'PLS2 / positioning unit'],
+    ['PID', 'PID', 'PID_Compact', 'PIDE / PID', 'PID (Util)', 'PID function', 'FB_CTRL_PID', 'PIDAT', 'PIDAT'],
+    ['Structured Text', 'as ST', 'SCL', 'ST', 'ST', '— (ladder / IL)', 'ST', 'ST', 'ST (in FBs)'],
+  ];
+  LL.brandTableHTML = () => '<div class="tbl brand-xref"><table><tr>' + ['What'].concat(LL.BRAND_COLS).map((c) => '<th>' + esc(c) + '</th>').join('') + '</tr>' + LL.BRAND_XREF.map((r) => '<tr>' + r.map((c, i) => (i ? '<td>' : '<td><b>') + esc(c) + (i ? '</td>' : '</b></td>')).join('') + '</tr>').join('') + '</table></div>';
 
   class LadderView {
     constructor(host, opts) {

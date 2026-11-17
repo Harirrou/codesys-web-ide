@@ -1136,3 +1136,236 @@
     Machine, lint, toST, toRockwell, stName, usedAddrs,
   });
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* Ladder Lab — the same program for other brands: TIA Portal SCL, TwinCAT 3 / Omron Sysmac ST
+ * with named variables, Schneider Machine Expert ST, Omron CX-Programmer mnemonics. */
+(function (G) {
+  'use strict';
+  const LL = G.LL;
+  const RE = LL.RE;
+  const san = (s) => String(s).replace(/[^A-Za-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').replace(/^(\d)/, '_$1');
+
+  // every address the program uses, with a variable name and an IEC type
+  function ioVars(prog) {
+    const tags = prog.tags || {};
+    const set = new Set(LL.usedAddrs(prog));
+    (prog.blocks || []).forEach((b) => LL.usedAddrs({ rungs: b.rungs }).forEach((a) => set.add(a)));
+    const out = [];
+    [...set].sort().forEach((a) => {
+      let kind = null, type = 'BOOL';
+      if (RE.bit.test(a)) kind = a[0];
+      else if (RE.aiw.test(a)) { kind = 'I'; type = 'INT'; }
+      else if (RE.aqw.test(a)) { kind = 'Q'; type = 'INT'; }
+      else if (RE.mw.test(a)) { kind = 'M'; type = 'INT'; }
+      else if (RE.md.test(a)) { kind = 'M'; type = 'DINT'; }
+      else if (RE.hc.test(a)) { kind = 'I'; type = 'DINT'; }
+      if (!kind) return;
+      const name = tags[a] ? san(tags[a]) : a.replace(/\./g, '_');
+      out.push({ a, kind, type, name, iec: LL.stName(a, {}) });
+    });
+    return out;
+  }
+  // ST with direct addresses replaced by variable names
+  function namedST(prog) {
+    const vars = ioVars(prog);
+    let st = LL.toST(Object.assign({}, prog, { tags: {} }));
+    vars.slice().sort((x, y) => y.iec.length - x.iec.length).forEach((v) => { st = st.split(v.iec).join(v.name); });
+    return { vars, st };
+  }
+  const splitDecl = (st) => {
+    const m = /^VAR\n([\s\S]*?)\nEND_VAR\n\n/.exec(st);
+    return m ? { decl: m[1].split('\n'), body: st.slice(m[0].length) } : { decl: [], body: st };
+  };
+
+  function toTwinCAT(prog, sysmac) {
+    const { vars, st } = namedST(prog);
+    const { decl, body } = splitDecl(st);
+    const out = [];
+    if (sysmac) {
+      out.push('// Omron Sysmac Studio (NJ / NX): ST program. Create these variables in the Global Variables table and');
+      out.push('// map the inputs and outputs to the EtherCAT I/O ports in the I/O Map. Timers, counters and FBs are instances.');
+    } else {
+      out.push('// Beckhoff TwinCAT 3: PROGRAM MAIN. "AT %I*" / "AT %Q*" variables are linked to the EtherCAT terminals');
+      out.push('// in the I/O tree (right-click the variable → Change Link). Timers come from Tc2_Standard.');
+    }
+    out.push(sysmac ? '' : 'PROGRAM MAIN');
+    out.push('VAR');
+    vars.forEach((v) => {
+      const at = sysmac ? '' : v.kind === 'I' ? ' AT %I*' : v.kind === 'Q' ? ' AT %Q*' : '';
+      out.push('  ' + v.name + at + ' : ' + v.type + ';   // ' + v.a + (sysmac && v.kind !== 'M' ? ' → map in the I/O Map' : ''));
+    });
+    decl.forEach((l) => out.push(l.replace(/\(\*/g, '//').replace(/\*\)/g, '')));
+    out.push('END_VAR');
+    out.push('');
+    let b = body.replace(/\bFirstScan\b/g, sysmac ? 'P_First_RunMode' : 'bFirstCycle').replace(/\bClock_1Hz\b/g, sysmac ? 'Get1sClk()' : 'fbBlink.OUT');
+    if (!sysmac && /bFirstCycle/.test(b)) out.splice(out.indexOf('END_VAR'), 0, '  bFirstCycle : BOOL;   // = _TaskInfo[GETCURTASKINDEXEX()].FirstCycle');
+    if (!sysmac && /fbBlink/.test(b)) out.splice(out.indexOf('END_VAR'), 0, '  fbBlink : BLINK := (TIMELOW := T#500MS, TIMEHIGH := T#500MS);   // Tc2_Utilities: call fbBlink(ENABLE := TRUE); once per cycle');
+    out.push(b);
+    if (!sysmac) out.push('END_PROGRAM');
+    return out.join('\n');
+  }
+
+  function toMachineExpert(prog) {
+    const st = LL.toST(Object.assign({}, prog, { tags: prog.tags || {} }));
+    return ['// Schneider EcoStruxure Machine Expert (M241 / M251 / M262 / M580 with IEC): based on CODESYS,',
+      '// so this Structured Text runs as it is. %IX / %QX are the controller\'s embedded I/O; with expansion',
+      '// modules, map variables in the I/O mapping instead. M221 (Machine Expert Basic) has no ST: see the',
+      '// brand table for its addresses (%I0.0, %Q0.0, %M0, %MW0, %TM0).', '', st].join('\n');
+  }
+
+  function toTIA(prog) {
+    // only the tags the program uses, with unique names
+    const used = new Set(LL.usedAddrs(prog)); (prog.blocks || []).forEach((bk) => LL.usedAddrs({ rungs: bk.rungs }).forEach((a) => used.add(a)));
+    const tags = {}, seenN = {};
+    Object.keys(prog.tags || {}).filter((a) => used.has(a)).forEach((a) => { let nm = san(prog.tags[a]) || a.replace(/\./g, '_'); if (seenN[nm]) nm += '_' + a.replace(/\./g, '_'); seenN[nm] = 1; tags[a] = nm; });
+    let st = LL.toST(Object.assign({}, prog, { tags }));
+    const main = st.split('\n\n(* ═════ Function blocks ═════ *)');
+    const { decl, body } = splitDecl(main[0]);
+    const inst = {};
+    decl.forEach((l) => { const m = /^\s*(\w+)\s*:\s*(\w+);/.exec(l); if (m) inst[m[1]] = m[2]; });
+    const quoteNames = new Set(Object.values(tags));
+    // apply a replacement only to the code, never inside (* comments *)
+    const codeOnly = (txt, fn) => txt.split(/(\(\*[\s\S]*?\*\))/).map((part, i) => (i % 2 ? part : fn(part))).join('');
+    let b = body;
+    b = b.replace(/%IX(\d+)\.(\d)/g, '%I$1.$2').replace(/%QX(\d+)\.(\d)/g, '%Q$1.$2').replace(/%MX(\d+)\.(\d)/g, '%M$1.$2');
+    b = codeOnly(b, (code) => { let c2 = code;
+    Object.keys(inst).forEach((k) => {
+      const t = inst[k];
+      if (/^(TON|TOF|TP|TONR|CTU|CTD)$/.test(t)) c2 = c2.replace(new RegExp('(^|\\n)(\\s*)' + k + '\\(', 'g'), '$1$2"' + k + '".' + t + '(');
+      else c2 = c2.replace(new RegExp('(^|[^".#\\w])' + k + '\\(', 'g'), '$1"' + k + '"(');
+      c2 = c2.replace(new RegExp('(^|[^".#\\w])' + k + '\\.', 'g'), '$1"' + k + '".');
+    });
+    quoteNames.forEach((nm) => { c2 = c2.replace(new RegExp('(^|[^".#\\w%])' + nm + '(?![\\w"])', 'g'), '$1"' + nm + '"'); });
+    c2 = c2.replace(/\bFirstScan\b/g, '"FirstScan"').replace(/\bClock_1Hz\b/g, '"Clock_1Hz"');
+    // a servo axis is a technology object in TIA Portal
+    c2 = c2.replace(/\bAX(\d)\.(ON|HOMED|ERR|MOVING|POS|VEL)\b/g, (m, n, f) => ({ ON: '"AX' + n + '".StatusBits.Enable', HOMED: '"AX' + n + '".StatusBits.HomingDone', ERR: '"AX' + n + '".StatusBits.Error', MOVING: 'NOT "AX' + n + '".StatusBits.StandStill', POS: '"AX' + n + '".ActualPosition', VEL: '"AX' + n + '".ActualVelocity' })[f]).replace(/(^|[^"\w])(AX\d)\b/g, '$1"$2"');
+    return c2; });
+    b = b.replace(/END_IF(?!;)/g, 'END_IF;');
+    const out = ['// Siemens TIA Portal: SCL (Structured Control Language) for an S7-1200 / S7-1500 block, e.g. OB1 or an FB.',
+      '// Create in the PLC tag table: ' + (Object.keys(tags).length ? Object.keys(tags).map((a) => '"' + tags[a] + '" = %' + a.replace(/^AIW/, 'IW').replace(/^AQW/, 'QW')).join(', ') : 'the addresses used below') + '.'];
+    const td = Object.keys(inst);
+    if (td.length) out.push('// Create these instance data blocks (or multi-instances in an FB): ' + td.map((k) => '"' + k + '" : ' + (/^(TON|TOF|TP|TONR)$/.test(inst[k]) ? 'IEC_TIMER' : /^(CTU|CTD)$/.test(inst[k]) ? 'IEC_COUNTER' : inst[k])).join(', ') + '.');
+    if (/"FirstScan"/.test(b)) out.push('// "FirstScan": the first-cycle bit of the system memory byte (Device configuration → System and clock memory), or use OB100.');
+    if (/"Clock_1Hz"/.test(b)) out.push('// "Clock_1Hz": bit 5 of the clock memory byte (Device configuration → System and clock memory).');
+    if (/R_TRIG\(|F_TRIG\(/.test(b)) out.push('// Edges: TIA needs an R_TRIG / F_TRIG instance per edge ("R_TRIG_DB"(CLK := …); then "R_TRIG_DB".Q), or the P_TRIG / N_TRIG edge-flag instructions.');
+    out.push('');
+    out.push(b);
+    if (main[1]) {
+      let fbs = main[1];
+      fbs = fbs.replace(/\nFUNCTION_BLOCK (\w+)/g, '\nFUNCTION_BLOCK "$1"').replace(/\nFUNCTION (\w+) : BOOL/g, '\nFUNCTION "$1" : Void');
+      // inside a block TIA writes its own variables with #, and the code starts after BEGIN
+      fbs = fbs.split(/\n(?=FUNCTION)/).map((sec) => {
+        const names = []; sec.replace(/^\s+(\w+)\s*:\s*\w+;/gm, (m, n) => names.push(n));
+        const i = sec.lastIndexOf('END_VAR');
+        if (i < 0) return sec;
+        let head = sec.slice(0, i + 7), code = sec.slice(i + 7);
+        names.forEach((n) => { code = code.replace(new RegExp('(^|[^".#\\w])' + n + '(?!\\w)', 'g'), '$1#' + n); });
+        code = code.replace(/END_IF(?!;)/g, 'END_IF;');
+        return head + '\nBEGIN' + code;
+      }).join('\n');
+      out.push('');
+      out.push('// ═════ Blocks (an SCL source file: Program blocks → External source files → Generate blocks) ═════');
+      out.push(fbs);
+    }
+    return out.join('\n');
+  }
+
+  // ── Omron CX-Programmer (CP1 / CJ) mnemonics ──
+  function omAddr(a) {
+    let m;
+    if (a === 'SM0.0') return 'P_On';
+    if (a === 'SM0.1') return 'A200.11';
+    if (a === 'SM0.5') return 'P_1s';
+    if ((m = RE.bit.exec(a))) { const ch = m[1] === 'I' ? +m[2] : m[1] === 'Q' ? 100 + +m[2] : +m[2]; return (m[1] === 'M' ? 'W' : '') + ch + '.' + String(m[3]).padStart(2, '0'); }
+    if ((m = RE.tBit.exec(a))) return 'T' + String(m[1]).padStart(4, '0');
+    if ((m = RE.cBit.exec(a))) return 'C' + String(m[1]).padStart(4, '0');
+    if ((m = RE.tWord.exec(a))) return 'T' + String(m[1]).padStart(4, '0') + (m[2] === 'ET' ? '' : ' (preset)');
+    if ((m = RE.cWord.exec(a))) return 'C' + String(m[1]).padStart(4, '0');
+    if ((m = RE.mw.exec(a)) || (m = RE.md.exec(a))) return 'D' + m[1];
+    if ((m = RE.aiw.exec(a))) return 'AIN' + m[1];
+    if ((m = RE.aqw.exec(a))) return 'AOUT' + m[1];
+    if (RE.int.test(a)) return '#' + a;
+    return a;
+  }
+  function toOmronCX(prog) {
+    const out = ['// Omron CX-Programmer (CP1 / CJ series): mnemonic list. Type it in the mnemonic view, or read it against',
+      '// the ladder. Inputs CIO 0.00 …, outputs CIO 100.00 …, work bits W, data words D, timers TIM (0.1 s units),',
+      '// counters CNT (they count DOWN from the set value). @LD = rising edge, %LD = falling edge.', ''];
+    const LOGIC = new Set(['NO', 'NC', 'P', 'N', 'CMP', 'NOT', 'WIRE']);
+    if ((prog.blocks || []).length) out.push('// This program uses blocks: in CX-Programmer they become function blocks (FB) drawn in ladder or ST; the main program is listed here.', '');
+    prog.rungs.forEach((rung, ri) => {
+      const R = rung.rows, C = rung.cols;
+      let cur = new Array(R).fill({ t: 'true' });
+      const AND = (a, b) => (!a || !b ? null : a.t === 'true' ? b : b.t === 'true' ? a : { t: 'and', items: [].concat(a.t === 'and' ? a.items : [a], b.t === 'and' ? b.items : [b]) });
+      const OR = (xs) => { xs = xs.filter(Boolean); if (!xs.length) return null; if (xs.some((x) => x.t === 'true')) return { t: 'true' }; const uniq = []; const seen = new Set(); xs.forEach((x) => { const k = JSON.stringify(x); if (!seen.has(k)) { seen.add(k); uniq.push(x); } }); return uniq.length === 1 ? uniq[0] : { t: 'or', items: [].concat(...uniq.map((x) => (x.t === 'or' ? x.items : [x]))) }; };
+      for (let c = 0; c < C - 1; c++) {
+        const next = [];
+        for (let r = 0; r < R; r++) {
+          const cell = rung.cells[r][c];
+          let e = null;
+          if (cell && LOGIC.has(cell.type)) {
+            if (cell.type === 'WIRE') e = cur[r];
+            else if (cell.type === 'NOT') e = cur[r] ? { t: 'not', x: cur[r] } : null;
+            else if (cell.type === 'CMP') e = AND(cur[r], { t: 'v', op: { '==': '=', '<>': '<>', '>': '>', '>=': '>=', '<': '<', '<=': '<=' }[cell.op], a: omAddr(cell.a), b: omAddr(cell.b) });
+            else e = AND(cur[r], { t: 'v', pre: cell.type === 'NC' ? 'NOT' : cell.type === 'P' ? '@' : cell.type === 'N' ? '%' : '', s: omAddr(cell.addr) });
+          }
+          next.push(e);
+        }
+        let r = 0;
+        while (r < R) { const s = r; while (r < R - 1 && rung.links[r][c + 1]) r++; if (r > s) { const g = OR(next.slice(s, r + 1)); for (let k = s; k <= r; k++) next[k] = g; } r++; }
+        cur = next;
+      }
+      const lines = [];
+      const leaf = (n, first) => {
+        if (n.op) return (first ? 'LD' : 'AND') + n.op + ' ' + n.a + ' ' + n.b;
+        if (n.pre === 'NOT') return (first ? 'LD NOT ' : 'AND NOT ') + n.s;
+        return n.pre + (first ? 'LD ' : 'AND ') + n.s;
+      };
+      const orLeaf = (n) => (n.op ? 'OR' + n.op + ' ' + n.a + ' ' + n.b : n.pre === 'NOT' ? 'OR NOT ' + n.s : n.pre + 'OR ' + n.s);
+      const block = (n) => {
+        if (n.t === 'true') { lines.push('LD P_On'); return; }
+        if (n.t === 'v') { lines.push(leaf(n, true)); return; }
+        if (n.t === 'not') { block(n.x); lines.push('NOT'); return; }
+        if (n.t === 'and') n.items.forEach((it, i) => { if (i === 0) block(it); else if (it.t === 'v') lines.push(leaf(it, false)); else { block(it); lines.push('AND LD'); } });
+        if (n.t === 'or') n.items.forEach((it, i) => { if (i === 0) block(it); else if (it.t === 'v') lines.push(orLeaf(it)); else { block(it); lines.push('OR LD'); } });
+      };
+      out.push('// Rung ' + (ri + 1) + (rung.comment ? ': ' + rung.comment : ''));
+      for (let r = 0; r < R; r++) {
+        const cell = rung.cells[r][C - 1];
+        if (!cell || !cur[r] || LOGIC.has(cell.type)) continue;
+        block(cur[r]);
+        const T = cell.type, A = omAddr(cell.addr || '');
+        const nT = (a) => String(+(/\d+/.exec(a) || [0])[0]).padStart(4, '0');
+        switch (T) {
+          case 'COIL': lines.push('OUT ' + A); break;
+          case 'NCOIL': lines.push('OUT NOT ' + A); break;
+          case 'SET': lines.push('SET ' + A); break;
+          case 'RST': lines.push(/^[TC]\d/.test(cell.addr) ? 'CNR(545) ' + A + ' ' + A : 'RSET ' + A); break;
+          case 'TON': lines.push('TIM ' + nT(cell.addr) + ' #' + Math.max(1, Math.round(cell.pt / 100))); break;
+          case 'TOF': lines.push('// TOF: no TIM type for it on CP1: NOT of the input into a TIM, or TOF in Sysmac'); lines.push('TIM ' + nT(cell.addr) + ' #' + Math.max(1, Math.round(cell.pt / 100))); break;
+          case 'TP': lines.push('// TP: make a pulse with DIFU + KEEP + TIM'); lines.push('TIM ' + nT(cell.addr) + ' #' + Math.max(1, Math.round(cell.pt / 100))); break;
+          case 'RTO': lines.push('TTIM(087) ' + nT(cell.addr) + ' #' + Math.max(1, Math.round(cell.pt / 100)) + '   // accumulative timer'); break;
+          case 'CTU': case 'CTD': lines.push('LD P_Off   // reset input of the counter (use CNR elsewhere)'); lines.push('CNT ' + nT(cell.addr) + ' #' + cell.pv + (T === 'CTU' ? '   // counts DOWN from ' + cell.pv + ': done at 0' : '')); break;
+          case 'MOV': lines.push('MOV(021) ' + omAddr(cell.src) + ' ' + omAddr(cell.dst)); break;
+          case 'ADD': lines.push('+(400) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst)); break;
+          case 'SUB': lines.push('-(410) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst)); break;
+          case 'MUL': lines.push('*(420) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst)); break;
+          case 'DIV': case 'MOD': lines.push('/(430) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst) + (T === 'MOD' ? '   // the remainder is in the next word (D+1)' : '')); break;
+          case 'SHL': case 'SHR': lines.push((T === 'SHL' ? 'ASL(025) ' : 'ASR(026) ') + omAddr(cell.dst) + '   // one bit per execution: repeat ' + cell.b + ' times or use NASL / NASR'); break;
+          case 'SHRB': lines.push('SFT(010) ' + omAddr(cell.addr).replace(/\.\d+$/, '') + ' ' + omAddr(cell.addr).replace(/\.\d+$/, '') + '   // data and reset inputs before it'); break;
+          case 'CALL': lines.push('// CALL ' + cell.block + ': place the FB instance ' + (cell.inst || '') + ' in the ladder'); break;
+          case 'PID': lines.push('PIDAT(191) ' + omAddr(cell.a) + ' D100 ' + omAddr(cell.dst) + '   // set point and gains in the parameter words D100 …'); break;
+          default: lines.push('// ' + T + ': use the motion / positioning instructions of the unit (e.g. PLS2, ACC on CP1)');
+        }
+      }
+      out.push(...lines, '');
+    });
+    return out.join('\n');
+  }
+
+  LL.toTIA = toTIA;
+  LL.toTwinCAT = (p) => toTwinCAT(p, false);
+  LL.toSysmac = (p) => toTwinCAT(p, true);
+  LL.toMachineExpert = toMachineExpert;
+  LL.toOmronCX = toOmronCX;
+})(typeof window !== 'undefined' ? window : globalThis);

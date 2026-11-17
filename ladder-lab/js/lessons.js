@@ -1111,7 +1111,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
       challenges: ['diag-reed', 'diag-stop', 'diag-eye', 'diag-tank', 'diag-vacuum', 'diag-door'],
     },
     {
-      id: 'real-software', level: 5, title: 'From Ladder Lab to TIA Portal, Studio 5000 and CODESYS', min: 14,
+      id: 'real-software', level: 5, title: 'From Ladder Lab to TIA Portal, Studio 5000, Schneider, TwinCAT, Omron and CODESYS', min: 16,
       summary: 'Everything you built here exists in the real tools, with different names. How to start a project in each, the instruction-by-instruction translation, and the traps when you change brand.',
       body: `
 <h3>The three big tools</h3>
@@ -1131,28 +1131,19 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 <li><b>Compile</b>, fix the errors, <b>download</b> to the PLC (or the simulator: PLCSIM, Logix Emulate, CODESYS Control Win).</li>
 <li><b>Go online</b>: the same green power flow you see in Ladder Lab. Watch tables and force tables are the I/O table of the Lab.</li>
 </ol>
-<h3>Instruction by instruction</h3>
-<div class="tbl"><table>
-<tr><th>Ladder Lab</th><th>TIA Portal (LAD)</th><th>Studio 5000</th><th>CODESYS (LD)</th></tr>
-<tr><td>NO / NC contact</td><td>-| |- / -|/|-</td><td>XIC / XIO</td><td>-| |- / -|/|-</td></tr>
-<tr><td>P / N edge</td><td>-|P|- / -|N|- (or R_TRIG)</td><td>ONS (one-shot), OSR / OSF</td><td>-|P|- / -|N|-, R_TRIG / F_TRIG</td></tr>
-<tr><td>Coil, SET, RESET</td><td>-( )-, -(S)-, -(R)-</td><td>OTE, OTL, OTU</td><td>-( )-, -(S)-, -(R)-</td></tr>
-<tr><td>TON(T0,3s)</td><td>TON with an instance DB, PT = T#3s</td><td>TON on a TIMER tag, PRE = 3000 (ms)</td><td>TON instance, PT := T#3S</td></tr>
-<tr><td>T0 (= T0.Q) / T0.ET</td><td>"T0".Q / "T0".ET</td><td>T0.DN / T0.ACC</td><td>T0.Q / T0.ET</td></tr>
-<tr><td>RTO</td><td>TONR</td><td>RTO</td><td>LTONR or a library block</td></tr>
-<tr><td>CTU(C0,5), C0.CV</td><td>CTU, CV</td><td>CTU on a COUNTER tag, .ACC</td><td>CTU, CV</td></tr>
-<tr><td>Compare CMP(MW0>=5)</td><td>CMP >= contact</td><td>GEQ(a,b)</td><td>GE box</td></tr>
-<tr><td>MOV, ADD … MOD</td><td>MOVE, ADD … MOD</td><td>MOV, ADD … MOD (or CPT)</td><td>MOVE, ADD … MOD</td></tr>
-<tr><td>SHRB (bit shift register)</td><td>SHL / SHR on words, or an array</td><td>BSL / BSR</td><td>SHL / SHR, arrays</td></tr>
-<tr><td>BLOCK + CALL</td><td>FB + instance DB (or FC)</td><td>Add-On Instruction (AOI), or JSR to a routine</td><td>FUNCTION_BLOCK instance</td></tr>
-<tr><td>PID</td><td>PID_Compact</td><td>PIDE (or PID)</td><td>PID from the Util library</td></tr>
-<tr><td>MW10 / MD20</td><td>%MW10 / %MD20, better: a tag in a DB</td><td>INT / DINT tags</td><td>%MW10 / %MD20, or INT / DINT variables</td></tr>
-<tr><td>AIW0, 0 … 27648</td><td>%IW64…, 0 … 27648</td><td>module channel, already scaled in the module setup</td><td>depends on the I/O module</td></tr>
-</table></div>
+<h3>Schneider, Beckhoff and Omron</h3>
+<ul>
+<li><b>Schneider Electric</b>: <b>EcoStruxure Machine Expert</b> for M241 / M251 / M262 is built on CODESYS: the same IEC languages, POUs, FUNCTION_BLOCKs and %IX / %QX addresses. The small <b>M221</b> uses <b>Machine Expert Basic</b>: ladder or IL with %I0.0, %Q0.0, %M0, %MW0, timers %TM0, counters %C0. Big process PLCs (M340 / M580) use <b>Control Expert</b>.</li>
+<li><b>Beckhoff TwinCAT 3</b>: a PLC on an industrial PC, programmed inside Visual Studio, also CODESYS-based. Variables are declared with AT %I* / AT %Q* and linked to the EtherCAT terminals; ST is used most, ladder works too.</li>
+<li><b>Omron</b>: <b>Sysmac Studio</b> for NJ / NX: IEC ladder and ST with variables mapped to EtherCAT I/O, FBs and FUNs. The older <b>CX-Programmer</b> for CP1 / CJ: addresses like 0.00 (inputs), 100.00 (outputs), W bits, D words, TIM / CNT (and CNT counts <i>down</i>).</li>
+</ul>
+<h3>The same element in every brand</h3>
+<p>Scroll sideways. In the Lab, the <b>Other brands</b> button shows <i>your own program</i> for TIA Portal, Studio 5000, Schneider, TwinCAT, Omron Sysmac, Omron CX and IEC ST, and the <b>Names as</b> selector above the ladder renames blocks and parameters in your brand's words.</p>
+[[brands:table]]
 <h3>Reading Rockwell rung text</h3>
 <p>Studio 5000 can show every rung as one line of text, and you can type or paste a rung that way (double-click the rung number). Series elements are written one after another, a parallel branch is <code>[ A ,B ]</code>:</p>
 <pre class="code">[XIC(Start),XIC(Motor)]XIO(Stop_Pressed)OTE(Motor);</pre>
-<p>In the Lab, the <b>as Studio 5000</b> button shows your own program this way, and <b>as ST</b> shows it as Structured Text (SCL in TIA Portal, ST in CODESYS and Studio 5000).</p>
+<p>In the Lab, the <b>Other brands</b> button shows your own program this way (tab Studio 5000), and in all the other brands.</p>
 <h3>Traps when you change brand</h3>
 <ul>
 <li><b>Siemens memory overlaps</b>: MW10 is the bytes MB10 and MB11, MD10 is MW10 + MW12, and M10.0 is a bit inside MB10. Writing MD10 changes MW12! Ladder Lab keeps them separate; in TIA, use tags in data blocks and the problem disappears.</li>
@@ -1164,7 +1155,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 <div class="callout tip"><b>The good news:</b> the thinking is the same in every brand: scan, contacts, seal-in, edges, timers, step bits, blocks. Learn the logic once, and a new tool is just new menus and new names.</div>
 <div class="callout where"><b>Where:</b> you will meet all three. Siemens dominates in Europe, Rockwell in North America, CODESYS-based PLCs everywhere in machine building.</div>`,
       sims: {},
-      takeaways: ['TIA Portal, Studio 5000 and CODESYS all run the same ideas with different names.', 'XIC = NO, XIO = NC, OTE = coil, OTL / OTU = set / reset, [ , ] = branch.', 'T0.DN (Rockwell) = T0.Q (Siemens, CODESYS).', 'Siemens M memory overlaps: MD10 contains MW12.', 'Use the "as Studio 5000" and "as ST" buttons to see your program in other forms.'],
+      takeaways: ['TIA Portal, Studio 5000, Machine Expert, TwinCAT, Sysmac and CODESYS all run the same ideas with different names.', 'Machine Expert and TwinCAT are CODESYS-based: IEC ST and FBs carry over almost unchanged.', 'Omron CX counters count down; M221 timers are %TM blocks.', 'XIC = NO, XIO = NC, OTE = coil, OTL / OTU = set / reset, [ , ] = branch.', 'T0.DN (Rockwell) = T0.Q (Siemens, CODESYS).', 'Siemens M memory overlaps: MD10 contains MW12.', 'Use the Other brands button to see your program in each brand.'],
       mistakes: ['Using MD10 and MW12 for different things on a Siemens PLC.', 'Entering a Rockwell timer preset in seconds instead of ms.', 'Assuming the analog range is the same on every brand.'],
       challenges: ['port-rk'],
     },
@@ -1480,6 +1471,50 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
       takeaways: ['Steps start moves; transitions wait for DONE.', 'Motion rungs above transitions: every move gets a clean rising edge.', 'Move horizontally only at a safe height; home vertical axes first.', 'Absolute for stations, relative for steps; positions can come from words.', 'On a fault: hold, keep the part, reset, resume.'],
       mistakes: ['Starting X and Z in the same step without a free path.', 'Restarting a move by keeping its rung true.', 'Dropping the part when an axis faults.', 'Long chains of relative moves without a reference.'],
       challenges: ['mo-4', 'bug-mo-crash', 'mo-5'],
+    },
+    {
+      id: 'interview-prep', level: 6, title: 'Preparing for a PLC programming interview', min: 15,
+      summary: 'What PLC interviews look like, how to attack a practical programming task, the questions that come up again and again, and where to practise each one in Ladder Lab.',
+      body: `
+<h3>What to expect</h3>
+<ul>
+<li><b>Oral questions</b>: scan cycle, NO / NC, timers, counters, analog signals, safety, networks. Short, clear answers with an example win.</li>
+<li><b>A practical task</b>, often 30 minutes to 2 hours on a real PLC or simulator: start / stop, a sequence, a traffic light, a tank, a clock, a quiz buzzer … Usually 8–10 rungs of good logic.</li>
+<li><b>Reading or fixing someone else's program</b>: "why does this motor not start?" They want to see how you think.</li>
+<li><b>The brand of the job</b>: TIA Portal, Studio 5000, Machine Expert, TwinCAT or Sysmac. Know its names for the basics (the Other brands button and the brand table help).</li>
+</ul>
+<h3>How to attack a practical task</h3>
+<ol>
+<li><b>Ask</b> what is not clear: what happens on power-up, on STOP during a cycle, when a sensor fails?</li>
+<li><b>Write the I/O list</b> first, with NO / NC for every input. STOP and overload are NC contacts in the field.</li>
+<li><b>Describe the sequence</b> in steps (or a GRAFCET) before drawing rungs.</li>
+<li><b>Program in a clear structure</b>: inputs and conditions, modes, sequence (one bit per step), outputs. One coil per output.</li>
+<li><b>Comment every rung</b>. The interviewer reads your comments first.</li>
+<li><b>Test the edge cases</b> out loud: both buttons at once, STOP in every step, power-up, a held button, a sensor that never comes (watchdog).</li>
+<li><b>Explain your choices</b> and what you would add on a real machine (alarms, safety relay, HMI).</li>
+</ol>
+<h3>Questions that come back again and again</h3>
+<div class="tbl"><table>
+<tr><th>Question</th><th>The short answer</th><th>Practise</th></tr>
+<tr><td>What happens in one scan?</td><td>Read inputs → solve rungs top to bottom → write outputs</td><td>Lesson "The scan cycle"</td></tr>
+<tr><td>Why is STOP wired NC?</td><td>A broken wire must stop the machine (fail-safe)</td><td>The NC stop button trap</td></tr>
+<tr><td>TON, TOF, TP, RTO?</td><td>On-delay, off-delay, fixed pulse, keeps its time</td><td>Timer drill in the Quiz</td></tr>
+<tr><td>What is a seal-in / latch?</td><td>The output's own contact keeps it on after the button is released</td><td>Start / stop with seal-in</td></tr>
+<tr><td>Why do you need edges?</td><td>So something happens once per event, not every scan</td><td>Edges 1–4, Count presses</td></tr>
+<tr><td>What is a double coil?</td><td>The same output in two rungs: only the last one counts</td><td>Bug hunt: double coil</td></tr>
+<tr><td>4–20 mA: why not 0–20?</td><td>The live zero shows a broken wire (below 4 mA)</td><td>Scale a 4–20 mA signal</td></tr>
+<tr><td>FB or FC?</td><td>Needs memory (timer, latch, edge) → FB with an instance</td><td>Blocks: FC for three cylinders</td></tr>
+<tr><td>P, I and D?</td><td>Now, the past (removes the offset), the trend</td><td>PID 1 and 2</td></tr>
+<tr><td>Sinking or sourcing input?</td><td>PNP sensors switch +24 V (sourcing) into a sinking input card</td><td>Lesson "Field devices"</td></tr>
+<tr><td>What does a watchdog do?</td><td>Raises a fault when an expected signal does not come in time</td><td>Cylinders with a timeout, heartbeat</td></tr>
+<tr><td>Emergency stop in the PLC?</td><td>No: safety relay or safety PLC, STO on drives</td><td>Lesson "Safety basics"</td></tr>
+</table></div>
+<div class="callout tip"><b>Use the Interview path:</b> the Path page has an <b>Interview preparation</b> path with the classic tasks in order: warm-up questions, classic programs, reading and fixing code, whole machines, and senior topics.</div>
+<div class="callout where"><b>In the room:</b> think out loud, keep it simple first and improve after, and never hide a doubt about safety. "I would check this with the risk assessment" is a good answer.</div>`,
+      sims: {},
+      takeaways: ['Ask about power-up, STOP and sensor failure before you start.', 'I/O list first, sequence in steps, one coil per output, comments everywhere.', 'Test the edge cases out loud.', 'Know the basics in the brand of the job.', 'Safety is never just a PLC rung.'],
+      mistakes: ['Starting to draw rungs before understanding the sequence.', 'A STOP that does not work with a broken wire.', 'No comments.', 'Forgetting what happens on power-up.'],
+      challenges: ['iv-buzzer', 'iv-reverse', 'iv-seqstop', 'iv-testbench', 'iv-clock', 'iv-direction'],
     },
     {
       id: 'structure', level: 5, title: 'Program structure & troubleshooting', min: 9,
@@ -2185,5 +2220,12 @@ END_REPEAT</pre>
     { l: 6, q: "The setter jogs to a mark at 250 mm on the frame and touches SET HOME. What should the home value be?", a: ["250", "0", "the jog speed", "the old position"], c: 0, why: "The home value is the position the axis should have at that point." },
     { l: 6, q: "Why allow TEACH only when the axis is homed?", a: ["the position of an unhomed axis means nothing", "teaching is slow", "the HMI cannot show it", "it is not needed"], c: 0, why: "After homing the numbers match the machine." },
     { l: 6, q: "Which homing needs no movement at every power-up?", a: ["an absolute encoder, adjusted once", "reference switch search", "jogging", "MC_Stop"], c: 0, why: "The encoder always knows where it is." },
+    { l: 2, q: "In an interview you are asked to write start / stop. What do you check first?", a: ["that STOP is wired NC and stops with a broken wire", "that START is red", "the scan time", "the HMI colours"], c: 0, why: "Fail-safe stop first." },
+    { l: 3, q: "Three motors start 3 s apart. Which timer keeps motor 2 running for 3 s after motor 3 stops?", a: ["TOF", "TON", "TP", "RTO"], c: 0, why: "Off-delay." },
+    { l: 4, q: "A 24-hour clock made from a 1 s pulse drifts. What does a real machine use?", a: ["the PLC real-time clock", "a faster scan", "a TOF", "an HMI"], c: 0, why: "Timer-based clocks drift and forget the time at power-off." },
+    { l: 2, q: "Quiz buzzer: why use P contacts for the player buttons?", a: ["so a button held during the reset cannot win", "to make it faster", "because buttons are NC", "it is not needed"], c: 0, why: "Only a new press counts." },
+    { l: 5, q: "Which brand calls a block with memory an Add-On Instruction?", a: ["Rockwell Studio 5000", "Siemens TIA Portal", "Beckhoff TwinCAT", "Omron Sysmac"], c: 0, why: "TIA: FB; CODESYS / TwinCAT: FUNCTION_BLOCK; Sysmac: FB." },
+    { l: 5, q: "On an Omron CP1, the counter CNT…", a: ["counts down from its set value", "counts up", "is a timer", "needs no reset"], c: 0, why: "CNT is a decrementing counter; CNTR counts both ways." },
+    { l: 5, q: "TwinCAT 3 and Schneider Machine Expert are both based on…", a: ["CODESYS", "TIA Portal", "Studio 5000", "CX-Programmer"], c: 0, why: "So IEC ST and FBs carry over almost unchanged." },
   ];
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -311,6 +311,7 @@
         <a class="card path" href="#learn"><span class="ic">${I.learn}</span><h3>Lessons</h3><p>What, why and where, each with live examples you can press.</p></a>
         <a class="card path" href="#lab"><span class="ic">${I.lab}</span><h3>Lab</h3><p>Draw rungs and drive a motor, tank, conveyor, elevator, mixer, sorter, filling line or the 3 cylinders from your video.</p></a>
         <a class="card path" href="#path"><span class="ic">${I.arrow}</span><h3>Guided path</h3><p>All tasks in the order to solve them, from your first contact to whole machines.</p></a>
+        <a class="card path" href="#path-interview"><span class="ic">${I.arrow}</span><h3>Interview preparation</h3><p>The classic PLC interview tasks and questions, in the order to prepare them.</p></a>
         <a class="card path" href="#challenges"><span class="ic">${I.target}</span><h3>Challenges</h3><p>Real tasks with automatic tests, hints and bug hunts.</p></a>
         <a class="card path" href="#quiz"><span class="ic">${I.quiz}</span><h3>Quiz</h3><p>Concept questions plus endless "predict the output" drills.</p></a>
       </div>
@@ -342,7 +343,7 @@
     if (i < 0) return pageLearn();
     const l = LL.LESSONS[i], prev = LL.LESSONS[i - 1], next = LL.LESSONS[i + 1];
     const lvl = LL.LEVELS[l.level - 1];
-    let body = l.body.replace(/\[\[sim:(\w+)\]\]/g, (m, k) => `<div class="sim-ph" data-sim="${k}"></div>`).replace(/\[\[mem:explorer\]\]/g, '<div class="mem-ph"></div>');
+    let body = l.body.replace(/\[\[sim:(\w+)\]\]/g, (m, k) => `<div class="sim-ph" data-sim="${k}"></div>`).replace(/\[\[mem:explorer\]\]/g, '<div class="mem-ph"></div>').replace(/\[\[brands:table\]\]/g, () => LL.brandTableHTML());
     const el = h(`<div class="wrap"><div class="lesson">
       <article>
         <a class="btn small ghost" href="#learn">${I.back} All lessons</a>
@@ -707,8 +708,7 @@
             <span class="sep"></span>
             <button class="btn small ld-only" data-a="undo" title="Undo">${I.undo}</button>
             <button class="btn small ld-only" data-a="redo" title="Redo">${I.redo}</button>
-            <button class="btn small ld-only" data-a="st" title="Show this ladder as Structured Text">${I.code} as ST</button>
-            <button class="btn small ld-only" data-a="rk" title="Show this ladder as Studio 5000 rung text">${I.code} as Studio 5000</button>
+            <button class="btn small ld-only" data-a="brands" title="This ladder in TIA Portal, Studio 5000, Schneider, TwinCAT, Omron and as Structured Text">${I.code} Other brands</button>
             <button class="btn small" data-a="clear" title="Empty the editor">${I.trash}<span class="hide-s">Clear</span></button>
             <button class="btn small" data-a="file" title="New, examples, import/export">${I.file} File</button>
             <span class="scanstate"></span>
@@ -1061,6 +1061,33 @@
         case 'zoom': this.ladder.opts.zoom = this.ladder.opts.zoom === 'fit' ? 1 : 'fit'; this.ladder.fit(); toast(this.ladder.opts.zoom === 'fit' ? 'Zoom: fit width' : 'Zoom: 100 %'); break;
         case 'undo': if (this.hi > 0) { this.hi--; this.restore(this.hist[this.hi]); } break;
         case 'redo': if (this.hi < this.hist.length - 1) { this.hi++; this.restore(this.hist[this.hi]); } break;
+        case 'brands': {
+          const prog = Object.assign({}, this.prog, { tags: this.tags() });
+          const TABS = [
+            ['tia', 'TIA Portal', 'Siemens TIA Portal (S7-1200 / S7-1500) as SCL, with the tags and instance DBs to create.', () => LL.toTIA(prog)],
+            ['rk', 'Studio 5000', 'Rockwell rung text: XIC = NO, XIO = NC, OTE = coil, OTL / OTU = set / reset, [ , ] = branch. Paste a rung after double-clicking its number in Logix Designer.', () => LL.toRockwell(prog)],
+            ['sch', 'Schneider', 'Schneider EcoStruxure Machine Expert (CODESYS-based) Structured Text.', () => LL.toMachineExpert(prog)],
+            ['tc', 'TwinCAT 3', 'Beckhoff TwinCAT 3: PROGRAM MAIN with AT %I* / %Q* variables to link to the terminals.', () => LL.toTwinCAT(prog)],
+            ['om', 'Omron Sysmac', 'Omron Sysmac Studio (NJ / NX) Structured Text with the variables to create.', () => LL.toSysmac(prog)],
+            ['cx', 'Omron CX', 'Omron CX-Programmer (CP1 / CJ) mnemonics: LD, AND, OR, OUT, TIM, CNT …', () => LL.toOmronCX(prog)],
+            ['st', 'IEC ST', 'IEC 61131-3 Structured Text as in CODESYS: the common language of all of them.', () => LL.toST(prog)],
+            ['xref', 'Brand table', 'The same element in every brand.', null],
+          ];
+          const pick = { tia: 'tia', rk: 'rk', sch: 'sch', tc: 'tc', om: 'om', cds: 'st' }[S.brand] || S.exportTab || 'tia';
+          const m = modal('This program in other brands', `<div class="brand-tabs">${TABS.map(([k, n]) => `<button class="${k === pick ? 'on' : ''}" data-bt="${k}">${esc(n)}</button>`).join('')}</div><p class="muted brand-note" style="margin:8px 0"></p><div class="brand-out"></div>`, [{ label: 'Copy', run: () => { const t = $('.brand-out pre', m); if (t && navigator.clipboard) { navigator.clipboard.writeText(t.textContent).then(() => toast('Copied'), () => toast('Copy failed: select the text by hand')); } return false; } }, { label: 'Close', cls: 'primary' }]);
+          m.classList.add('wide');
+          const show = (k) => {
+            const t = TABS.find((x) => x[0] === k) || TABS[0];
+            S.exportTab = t[0]; save();
+            $$('[data-bt]', m).forEach((b) => b.classList.toggle('on', b.dataset.bt === t[0]));
+            $('.brand-note', m).textContent = t[2];
+            let out; try { out = t[3] ? `<pre class="code brand-pre">${esc(t[3]())}</pre>` : LL.brandTableHTML(); } catch (e) { out = `<p class="muted">Could not translate this program: ${esc(e.message)}</p>`; }
+            $('.brand-out', m).innerHTML = out;
+          };
+          $$('[data-bt]', m).forEach((b) => (b.onclick = () => show(b.dataset.bt)));
+          show(pick);
+          break;
+        }
         case 'rk': modal('Studio 5000 rung text', `<p class="muted" style="margin:0 0 10px">The same ladder in Rockwell's rung text (XIC = NO contact, XIO = NC contact, OTE = coil, OTL / OTU = set / reset, [ , ] = a parallel branch). Logix Designer shows it when you edit a rung as text, and you can paste a rung into it. See the lesson "From Ladder Lab to the real software".</p><pre>${esc(LL.toRockwell(Object.assign({}, this.prog, { tags: this.tags() })))}</pre>`, [{ label: 'Close' }]); break;
         case 'st': modal('Structured Text', `<p class="muted" style="margin:0 0 10px">The same logic written as IEC 61131-3 Structured Text, as in CODESYS. Reading both side by side is a great way to learn.</p><pre>${esc(LL.toST(Object.assign({}, this.prog, { tags: this.tags() })))}</pre>`, [{ label: 'Close' }]); break;
         case 'file': this.fileMenu(); break;

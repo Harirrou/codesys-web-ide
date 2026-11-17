@@ -585,3 +585,19 @@ ul.guide { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 6
 .blk-tabs .blk-brand { margin-left: auto; font-size: .78rem; display: inline-flex; align-items: center; gap: 6px; }
 .blk-tabs .blk-brand select { font-size: .78rem; }
 .blk-brand-note { margin-top: 8px; font-size: .84rem; }
+
+/* other brands window */
+.modal.wide .card { max-width: min(980px, 96vw); width: 100%; }
+.brand-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.brand-tabs button { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 6px 12px; font: 600 .82rem var(--f-body, inherit); cursor: pointer; }
+.brand-tabs button.on { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.brand-pre { max-height: 58vh; overflow: auto; font-size: .76rem !important; white-space: pre; margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-family: var(--f-mono); }
+.brand-xref { max-height: 62vh; overflow: auto; }
+.brand-xref table { font-size: .78rem; }
+.brand-xref td, .brand-xref th { white-space: nowrap; }
+.brand-xref th:first-child, .brand-xref td:first-child { position: sticky; left: 0; background: var(--surface); }
+.modal.wide .card { width: min(980px, 96vw); box-sizing: border-box; }
+.modal.wide .mb { min-width: 0; }
+.brand-out { max-width: 100%; min-width: 0; }
+.brand-out .brand-pre { min-height: 40vh; max-height: 55vh; }
+.brand-pre { max-width: 100%; box-sizing: border-box; }
