@@ -10,7 +10,8 @@
 
   // ───────────────────────── element catalogue ─────────────────────────
   const LOGIC = ['WIRE', 'NO', 'NC', 'P', 'N', 'NOT', 'CMP'];
-  const OUTPUT = ['COIL', 'NCOIL', 'SET', 'RST', 'TON', 'TOF', 'TP', 'RTO', 'CTU', 'CTD', 'MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'SHRB', 'CALL', 'PID', 'MC_POWER', 'MC_HOME', 'MC_ABS', 'MC_REL', 'MC_JOG', 'MC_STOP', 'MC_RESET', 'MC_SETPOS'];
+  const OUTPUT = ['COIL', 'NCOIL', 'SET', 'RST', 'TON', 'TOF', 'TP', 'RTO', 'CTU', 'CTD', 'MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'SHRB', 'CALL', 'PID', 'MC_POWER', 'MC_HOME', 'MC_ABS', 'MC_REL', 'MC_JOG', 'MC_STOP', 'MC_RESET', 'MC_SETPOS', 'SMOV', 'CONCAT', 'ITOS', 'SMID'];
+  const STRING_OPS = ['SMOV', 'CONCAT', 'ITOS', 'SMID'];
   const MOTION = ['MC_POWER', 'MC_HOME', 'MC_ABS', 'MC_REL', 'MC_JOG', 'MC_STOP', 'MC_RESET', 'MC_SETPOS'];
   const TIMERS = ['TON', 'TOF', 'TP', 'RTO'];
   const COUNTERS = ['CTU', 'CTD'];
@@ -35,6 +36,8 @@
     axWord: /^AX([0-3])\.(POS|VEL)$/,
     ax: /^AX([0-3])$/,
     mc: /^MC(\d{1,2})(?:\.(DONE|BUSY|ERR|ABORT))?$/,
+    str: /^(STR\d{1,2}|ISTR\d|QSTR\d)$/,
+    strLit: /^'[^']*'$/,
     int: /^-?\d+$/,
     loc: /^#[A-Za-z_]\w*(?:\.(Q|DN|TT|EN|ET|PT|CV|PV))?$/,
     locBase: /^#[A-Za-z_]\w*$/,
@@ -43,6 +46,8 @@
   const isBitAddr = (a) => RE.bit.test(a) || RE.sm.test(a) || RE.tBit.test(a) || RE.cBit.test(a) || RE.loc.test(a) || RE.axBit.test(a) || RE.mc.test(a);
   const isWordAddr = (a) => RE.tWord.test(a) || RE.cWord.test(a) || RE.mw.test(a) || RE.md.test(a) || RE.hc.test(a) || RE.axWord.test(a) || RE.aiw.test(a) || RE.aqw.test(a) || RE.int.test(a) || RE.loc.test(a);
   const isWritableWord = (a) => RE.mw.test(a) || RE.md.test(a) || RE.aqw.test(a) || RE.locBase.test(a);
+  const isStrAddr = (a) => RE.str.test(a) || RE.strLit.test(a);
+  const isWritableStr = (a) => /^(STR\d{1,2}|QSTR\d)$/.test(a);
   const isWritableBit = (a) => /^[QM]\d{1,2}\.[0-7]$/.test(a) || RE.locBase.test(a);
   const timerNo = (a) => { const m = /^T(\d{1,2})/.exec(a); return m ? +m[1] : -1; };
   const counterNo = (a) => { const m = /^C(\d{1,2})/.exec(a); return m ? +m[1] : -1; };
@@ -121,6 +126,10 @@
       case 'CTU': case 'CTD':
         return mkCell(t, { addr: norm(args[0]), pv: parseInt(args[1] || '5', 10) });
       case 'MOV': return mkCell('MOV', { src: norm(args[0]), dst: norm(args[1]) });
+      case 'SMOV': return mkCell(t, { src: norm(args[0] || "''"), dst: norm(args[1] || 'STR0') });
+      case 'CONCAT': return mkCell(t, { a: norm(args[0] || 'STR0'), b: norm(args[1] || 'STR1'), dst: norm(args[2] || 'STR2') });
+      case 'ITOS': return mkCell(t, { a: norm(args[0] || 'MW0'), n: parseInt(args[1] || '4', 10), dst: norm(args[2] || 'STR0') });
+      case 'SMID': return mkCell(t, { src: norm(args[0] || 'ISTR0'), a: norm(args[1] || '1'), b: norm(args[2] || '4'), dst: norm(args[3] || 'STR0') });
       case 'CALL': {
         const raw = m[2] == null ? [] : m[2].split(',').map((x) => x.trim());
         const argsObj = {};
@@ -150,6 +159,10 @@
       case 'TON': case 'TOF': case 'TP': case 'RTO': return c.type + '(' + c.addr + ',' + fmtDuration(c.pt) + ')';
       case 'CTU': case 'CTD': return c.type + '(' + c.addr + ',' + c.pv + ')';
       case 'MOV': return 'MOV(' + c.src + ',' + c.dst + ')';
+      case 'SMOV': return 'SMOV(' + c.src + ',' + c.dst + ')';
+      case 'CONCAT': return 'CONCAT(' + c.a + ',' + c.b + ',' + c.dst + ')';
+      case 'ITOS': return 'ITOS(' + c.a + ',' + c.n + ',' + c.dst + ')';
+      case 'SMID': return 'SMID(' + c.src + ',' + c.a + ',' + c.b + ',' + c.dst + ')';
       case 'ADD': case 'SUB': case 'MUL': case 'DIV': case 'MOD': case 'SHL': case 'SHR': return c.type + '(' + c.a + ',' + c.b + ',' + c.dst + ')';
       case 'SHRB': return 'SHRB(' + c.src + ',' + c.addr + ',' + c.n + ')';
       case 'MC_POWER': return 'MC_POWER(' + c.ax + ')';
@@ -307,6 +320,7 @@
       this.axes = {};
       this.mcs = {};
       this.hmiPrev = {};
+      this.strs = {};
       this.instances = {};
       this.ctx = null;
       this.scanCount = 0;
@@ -315,7 +329,9 @@
       this.load(this.prog);
     }
 
-    setInputs(obj) { this.hmiPrev = this.hmiPrev || {}; for (const k in obj) if (/^M\d{1,2}\.[0-7]$/.test(k)) { const v = obj[k] ? 1 : 0; if (this.hmiPrev[k] !== v) { this.bits[k] = v; this.hmiPrev[k] = v; } } for (const k in obj) if (!/^M\d/.test(k)) this.inputs[k] = RE.aiw.test(k) || RE.hc.test(k) ? Math.round(+obj[k] || 0) : obj[k] ? 1 : 0; for (const n in this.axes) if (this.inputs['AX' + n + '.FAULT'] && !this.axes[n].err) { const ax = this.axes[n]; ax.err = 1; ax.msg = 'the drive reports a fault (overload / following error)'; if (ax.cmd) this.mcFinish(ax, false, ax.msg); } }
+    str(a) { a = this.res(a); if (RE.strLit.test(a)) return a.slice(1, -1); if (/^ISTR/.test(a)) return String(this.inputs[a] == null ? '' : this.inputs[a]); return (this.strs || {})[a] || ''; }
+    setStr(a, v) { a = this.res(a); if (isWritableStr(a)) { this.strs = this.strs || {}; this.strs[a] = String(v).slice(0, 80); } }
+    setInputs(obj) { this.hmiPrev = this.hmiPrev || {}; for (const k in obj) if (/^ISTR\d$/.test(k)) this.inputs[k] = String(obj[k] == null ? '' : obj[k]); for (const k in obj) if (/^M\d{1,2}\.[0-7]$/.test(k)) { const v = obj[k] ? 1 : 0; if (this.hmiPrev[k] !== v) { this.bits[k] = v; this.hmiPrev[k] = v; } } for (const k in obj) if (!/^M\d/.test(k) && !/^ISTR/.test(k)) this.inputs[k] = RE.aiw.test(k) || RE.hc.test(k) ? Math.round(+obj[k] || 0) : obj[k] ? 1 : 0; for (const n in this.axes) if (this.inputs['AX' + n + '.FAULT'] && !this.axes[n].err) { const ax = this.axes[n]; ax.err = 1; ax.msg = 'the drive reports a fault (overload / following error)'; if (ax.cmd) this.mcFinish(ax, false, ax.msg); } }
 
     // block context: #Name → mapped actual address, or instance memory "@Inst:Name"
     res(a) { return a && a[0] === '#' && this.ctx ? this.ctx.res(a) : a; }
@@ -467,6 +483,7 @@
     }
 
     compare(a, op, b) {
+      if (isStrAddr(this.res(a) || '') || isStrAddr(this.res(b) || '')) { const x = this.str(a), y = this.str(b); return op === '==' ? x === y : op === '<>' ? x !== y : op === '>' ? x > y : op === '>=' ? x >= y : op === '<' ? x < y : x <= y; }
       const x = this.word(a), y = this.word(b);
       switch (op) {
         case '==': return x === y;
@@ -587,6 +604,10 @@
           break;
         }
         case 'MOV': if (p) this.setWord(cell.dst, this.word(cell.src)); break;
+        case 'SMOV': if (p) this.setStr(cell.dst, this.str(cell.src)); break;
+        case 'CONCAT': if (p) this.setStr(cell.dst, this.str(cell.a) + this.str(cell.b)); break;
+        case 'ITOS': if (p) { const v = Math.trunc(this.word(cell.a)), neg = v < 0; let t = String(Math.abs(v)); while (t.length < cell.n) t = '0' + t; this.setStr(cell.dst, (neg ? '-' : '') + t); } break;
+        case 'SMID': if (p) { const st0 = Math.max(1, this.word(cell.a)), ln = Math.max(0, this.word(cell.b)); this.setStr(cell.dst, this.str(cell.src).substr(st0 - 1, ln)); } break;
         case 'ADD': if (p) this.setWord(cell.dst, this.word(cell.a) + this.word(cell.b)); break;
         case 'SUB': if (p) this.setWord(cell.dst, this.word(cell.a) - this.word(cell.b)); break;
         case 'MUL': if (p) this.setWord(cell.dst, this.word(cell.a) * this.word(cell.b)); break;
@@ -681,9 +702,10 @@
       const o = {};
       for (const k in this.bits) if (k[0] === 'Q') o[k] = this.bits[k];
       for (const k in this.words) if (RE.aqw.test(k)) o[k] = this.words[k];
+      for (const k in this.strs || {}) if (/^QSTR/.test(k)) o[k] = this.strs[k];
       return o;
     }
-    read(a) { return isWordAddr(a) ? this.word(a) : this.bit(a); }
+    read(a) { return isStrAddr(a) ? this.str(a) : isWordAddr(a) ? this.word(a) : this.bit(a); }
   }
 
   // ───────────────────────── lint ─────────────────────────
@@ -729,7 +751,17 @@
           if (!(RE.cBit.test(c.addr) || (blk && RE.locBase.test(c.addr))) || /\./.test(c.addr)) issues.push({ level: 'error', rung: n, msg: c.type + ' needs a counter name like C0' + (blk ? ' or #Count' : '') + '.' });
           (ctr[c.addr + c.type] = ctr[c.addr + c.type] || []).push(n);
         }
-        if (c.type === 'CMP') {
+        if (STRING_OPS.includes(c.type)) {
+          const S = (x) => isStrAddr(x || '');
+          if (!isWritableStr(c.dst || '')) issues.push({ level: 'error', rung: n, msg: c.type + ': the result must go to a string: STR0 … STR31, or QSTR0 (to a device such as a printer).' });
+          if (c.type === 'SMOV' && !S(c.src)) issues.push({ level: 'error', rung: n, msg: "SMOV copies a string: STRn, ISTRn (from a device) or a text in quotes like 'ABC'." });
+          if (c.type === 'CONCAT' && (!S(c.a) || !S(c.b))) issues.push({ level: 'error', rung: n, msg: 'CONCAT joins two strings (STRn, ISTRn or a text in quotes).' });
+          if (c.type === 'ITOS' && (!isWordAddr(c.a) || !(c.n >= 0 && c.n <= 10))) issues.push({ level: 'error', rung: n, msg: 'ITOS turns a word into text: ITOS(MW10,4,STR1) gives 0007 for 7 (4 = number of digits, 0 = no leading zeros).' });
+          if (c.type === 'SMID' && (!S(c.src) || !isWordAddr(c.a) || !isWordAddr(c.b))) issues.push({ level: 'error', rung: n, msg: 'SMID(source,start,length,destination): take part of a string, start counts from 1.' });
+        }
+        if (c.type === 'CMP' && (isStrAddr(c.a || '') || isStrAddr(c.b || ''))) {
+          if (!isStrAddr(c.a || '') || !isStrAddr(c.b || '')) issues.push({ level: 'error', rung: n, msg: 'A string can only be compared with another string, e.g. CMP(STR0==ISTR1).' });
+        } else if (c.type === 'CMP') {
           if (!isWordAddr(c.a) || !isWordAddr(c.b)) issues.push({ level: 'error', rung: n, msg: 'Compare needs numbers or words (MW0, T0.ET, C0.CV).' });
         }
         if (c.type === 'MOV' && (!isWordAddr(c.src) || !isWritableWord(c.dst))) issues.push({ level: 'error', rung: n, msg: 'MOV copies a number or word into an MW, MD or AQW word.' });
@@ -917,6 +949,10 @@
           case 'CTU': if (cell.addr[0] !== '#') used.counters[cell.addr] = 'CTU'; out.push(n(cell.addr) + '(CU := ' + e + ', PV := ' + cell.pv + ');'); break;
           case 'CTD': if (cell.addr[0] !== '#') used.counters[cell.addr] = used.counters[cell.addr] || 'CTD'; out.push(n(cell.addr) + '(CD := ' + e + ', PV := ' + cell.pv + ');'); break;
           case 'MOV': out.push('IF ' + e + ' THEN ' + n(cell.dst) + ' := ' + n(cell.src) + '; END_IF'); break;
+          case 'SMOV': out.push('IF ' + e + ' THEN ' + n(cell.dst) + ' := ' + n(cell.src) + '; END_IF'); break;
+          case 'CONCAT': out.push('IF ' + e + ' THEN ' + n(cell.dst) + ' := CONCAT(' + n(cell.a) + ', ' + n(cell.b) + '); END_IF'); break;
+          case 'ITOS': out.push('IF ' + e + ' THEN ' + n(cell.dst) + ' := ' + (cell.n ? "RIGHT(CONCAT('" + '0'.repeat(cell.n) + "', INT_TO_STRING(" + n(cell.a) + ')), ' + cell.n + ')' : 'INT_TO_STRING(' + n(cell.a) + ')') + '; END_IF'); break;
+          case 'SMID': out.push('IF ' + e + ' THEN ' + n(cell.dst) + ' := MID(' + n(cell.src) + ', ' + n(cell.b) + ', ' + n(cell.a) + ');   (* MID(text, length, start) *) END_IF'); break;
           case 'SHL': case 'SHR': out.push('IF ' + e + ' THEN ' + n(cell.dst) + ' := ' + cell.type + '(' + n(cell.a) + ', ' + n(cell.b) + '); END_IF'); break;
           case 'CALL': {
             const b = (prog.blocks || []).find((x) => x.name === cell.block);
@@ -1034,6 +1070,10 @@
         case 'TP': notes.push('Logix ladder has no pulse timer (TP): use a one-shot (ONS) that latches a bit, and a TON that unlatches it.'); return 'TON(' + tmr(cell.addr) + ',' + cell.pt + ',0)';
         case 'CTU': case 'CTD': return t + '(' + tmr(cell.addr) + ',' + cell.pv + ',0)';
         case 'MOV': return 'MOV(' + tg(cell.src) + ',' + tg(cell.dst) + ')';
+        case 'SMOV': notes.push('Logix strings are STRING tags: copy one with COP(src,dest,1), or MOV the .LEN and COP the .DATA.'); return 'COP(' + tg(cell.src) + ',' + tg(cell.dst) + ',1)';
+        case 'CONCAT': return 'CONCAT(' + tg(cell.a) + ',' + tg(cell.b) + ',' + tg(cell.dst) + ')';
+        case 'ITOS': notes.push('DTOS turns a number into a string; add the leading zeros with CONCAT, or CPT the number + 10000 and MID the last digits.'); return 'DTOS(' + tg(cell.a) + ',' + tg(cell.dst) + ')';
+        case 'SMID': return 'MID(' + tg(cell.src) + ',' + tg(cell.b) + ',' + tg(cell.a) + ',' + tg(cell.dst) + ')';
         case 'ADD': case 'SUB': case 'MUL': case 'DIV': case 'MOD': return t + '(' + tg(cell.a) + ',' + tg(cell.b) + ',' + tg(cell.dst) + ')';
         case 'SHL': case 'SHR': {
           const n = parseInt(cell.b, 10);
@@ -1122,14 +1162,14 @@
     const s = new Set();
     prog.rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => {
       if (!c) return;
-      ['addr', 'a', 'b', 'src', 'dst'].forEach((k) => { if (c[k] && typeof c[k] === 'string' && !RE.int.test(c[k]) && c[k][0] !== '#') s.add(c[k]); });
+      ['addr', 'a', 'b', 'src', 'dst'].forEach((k) => { if (c[k] && typeof c[k] === 'string' && !RE.int.test(c[k]) && c[k][0] !== '#' && !RE.strLit.test(c[k])) s.add(c[k]); });
       if (c.type === 'CALL') Object.values(c.args || {}).forEach((v) => { if (v && !RE.int.test(v) && v[0] !== '#') s.add(v); });
     })));
     return s;
   }
 
   Object.assign(LL, {
-    LOGIC, OUTPUT, TIMERS, COUNTERS, MATH, CMP_OPS, RE, MOTION,
+    LOGIC, OUTPUT, TIMERS, COUNTERS, MATH, CMP_OPS, RE, MOTION, STRING_OPS, isStrAddr, isWritableStr,
     isOutput, isLogic, isBitAddr, isWordAddr, isWritableBit, isWritableWord, norm,
     parseDuration, fmtDuration, shiftBits, mkCell, cloneCell, emptyRung,
     parseRung, rungToLines, parseProgram, programToText, cloneProgram, parseToken, cellToken,
@@ -1347,6 +1387,10 @@
           case 'RTO': lines.push('TTIM(087) ' + nT(cell.addr) + ' #' + Math.max(1, Math.round(cell.pt / 100)) + '   // accumulative timer'); break;
           case 'CTU': case 'CTD': lines.push('LD P_Off   // reset input of the counter (use CNR elsewhere)'); lines.push('CNT ' + nT(cell.addr) + ' #' + cell.pv + (T === 'CTU' ? '   // counts DOWN from ' + cell.pv + ': done at 0' : '')); break;
           case 'MOV': lines.push('MOV(021) ' + omAddr(cell.src) + ' ' + omAddr(cell.dst)); break;
+          case 'SMOV': lines.push('MOV$(664) ' + cell.src + ' ' + cell.dst + '   // string move'); break;
+          case 'CONCAT': lines.push('+$(656) ' + cell.a + ' ' + cell.b + ' ' + cell.dst + '   // string concatenation'); break;
+          case 'ITOS': lines.push('STR4(601) ' + omAddr(cell.a) + ' ' + cell.dst + '   // number to ASCII'); break;
+          case 'SMID': lines.push('MID$(652) ' + cell.src + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.a) + ' ' + cell.dst); break;
           case 'ADD': lines.push('+(400) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst)); break;
           case 'SUB': lines.push('-(410) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst)); break;
           case 'MUL': lines.push('*(420) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst)); break;

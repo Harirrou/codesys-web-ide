@@ -625,6 +625,7 @@
     [['TON', 'TON'], ['TOF', 'TOF'], ['TP', 'TP'], ['RTO', 'RTO'], ['CTU', 'CTU'], ['CTD', 'CTD']],
     [['MOV', 'MOV'], ['ADD', 'ADD'], ['SUB', 'SUB'], ['MUL', 'MUL'], ['DIV', 'DIV'], ['MOD', 'MOD']],
     [['SHRB', 'SHRB'], ['SHL', 'SHL'], ['SHR', 'SHR']],
+    [['SMOV', 'S MOV'], ['CONCAT', 'CONCAT'], ['ITOS', 'INT→STR'], ['SMID', 'MID']],
     [['CALL', 'CALL block'], ['PID', 'PID']],
     [['MC_POWER', 'MC Power'], ['MC_HOME', 'MC Home'], ['MC_ABS', 'Move abs'], ['MC_REL', 'Move rel'], ['MC_JOG', 'MC Jog'], ['MC_STOP', 'MC Stop'], ['MC_RESET', 'MC Reset'], ['MC_SETPOS', 'Set pos']],
   ];
@@ -1214,6 +1215,12 @@
         const b = blocks.find((x) => x.name === cell.block);
         fields += `<div class="field"><label for="f-blk">Block</label><select id="f-blk" data-call="block">${blocks.length ? '' : '<option value="">(no blocks yet: create one with + Block)</option>'}${blocks.filter((x) => x.name !== this.blk).map((x) => `<option ${x.name === cell.block ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>${b && b.kind === 'FC' ? `<p class="muted" style="font-size:.85rem;margin:0">${esc(b.name)} is an ${esc((LL.BRANDS[S.brand] || LL.BRANDS.ll).fc)}: no instance, no memory. Just connect the parameters.</p>` : `<div class="field"><label for="f-inst">${esc((LL.BRANDS[S.brand] || LL.BRANDS.ll).inst)}</label><input id="f-inst" class="mono" data-call="inst" value="${esc(cell.inst)}"></div>`}`;
         if (b) b.params.forEach((pp) => { fields += `<div class="field"><label>${pp.dir} ${esc(pp.name)} <span class="muted">${pp.type}${pp.comment ? ' · ' + esc(pp.comment) : ''}</span></label><input class="mono" data-arg="${esc(pp.name)}" data-ptype="${pp.type}" data-pdir="${pp.dir}" value="${esc((cell.args || {})[pp.name] || '')}" placeholder="${pp.type === 'INT' ? 'MW10, AIW0, 100 …' : pp.dir === 'IN' ? 'I0.0, M0.1 …' : 'Q0.0, M0.1 …'}"></div>`; });
+      } else if (LL.STRING_OPS.includes(T)) {
+        const fld = (f, label) => `<div class="field"><label for="f-${f}">${label}</label><input id="f-${f}" class="mono" data-f="${f}" value="${esc(cell[f])}"></div>`;
+        if (T === 'SMOV') fields += fld('src', "Source: STRn, ISTRn or a text in quotes 'ABC'") + fld('dst', 'Destination: STRn or QSTRn');
+        if (T === 'CONCAT') fields += fld('a', 'First string') + fld('b', "Second string (e.g. '-')") + fld('dst', 'Result: STRn or QSTRn');
+        if (T === 'ITOS') fields += fld('a', 'Number (word)') + `<div class="field"><label for="f-n">Digits (leading zeros; 0 = none)</label><input id="f-n" type="number" min="0" max="10" data-f="n" value="${cell.n}"></div>` + fld('dst', 'Result: STRn or QSTRn');
+        if (T === 'SMID') fields += fld('src', 'Source string') + fld('a', 'Start position (from 1)') + fld('b', 'Number of characters') + fld('dst', 'Result: STRn or QSTRn');
       } else if (LL.MOTION.includes(T)) {
         const axSel = `<div class="field"><label for="f-ax">Axis</label><select id="f-ax" data-f="ax">${['AX0', 'AX1', 'AX2', 'AX3'].map((x) => `<option ${x === cell.ax ? 'selected' : ''}>${x}</option>`).join('')}</select></div>`;
         const tagF = ['MC_POWER', 'MC_JOG'].includes(T) ? '' : `<div class="field"><label for="f-addr">Command tag (MC0 … MC99: its .DONE, .BUSY, .ERR, .ABORT bits)</label><input id="f-addr" class="mono" data-f="addr" value="${esc(cell.addr)}"></div>`;
@@ -1245,7 +1252,9 @@
         else if (f === 'pv') { const n = parseInt(v, 10); if (isNaN(n)) { inp && inp.classList.add('bad'); return; } cell.pv = n; }
         else if (f === 'op') cell.op = v;
         else if (f === 'kp' || f === 'ti' || f === 'td') { const x = parseFloat(v); if (isNaN(x) || x < 0 || (f === 'kp' && x <= 0)) { inp && inp.classList.add('bad'); return; } cell[f] = x; }
+        else if (f === 'n' && T === 'ITOS') { const n = parseInt(v, 10); if (isNaN(n) || n < 0 || n > 10) { inp && inp.classList.add('bad'); return; } cell.n = n; }
         else if (f === 'n') { const n = parseInt(v, 10); if (isNaN(n) || n === 0 || Math.abs(n) > 64) { inp && inp.classList.add('bad'); return; } cell.n = n; }
+        else if (LL.STRING_OPS.includes(T) || (T === 'CMP' && /'|STR/i.test(String(v)))) { const a = /^'.*'$/.test(String(v).trim()) ? "'" + String(v).trim().slice(1, -1).toUpperCase().replace(/\s+/g, '') + "'" : LL.norm(v); const ok = f === 'dst' ? LL.isWritableStr(a) : (T === 'ITOS' || (T === 'SMID' && f !== 'src')) ? LL.isWordAddr(a) : LL.isStrAddr(a); inp && inp.classList.toggle('bad', !ok); if (!ok) return; cell[f] = a; }
         else {
           let a = LL.norm(v);
           const byName = Object.keys(tags).find((k) => tags[k] && tags[k].toUpperCase() === String(v).trim().toUpperCase());
@@ -1456,7 +1465,7 @@
       this.drawPlant();
       const Q = this.m.outputs();
       this.lampEls.forEach((l) => l.classList.toggle('on', !!Q[l.dataset.a]));
-      this.ioCells.forEach((c) => { const a = c.dataset.io; const F = this.forces || {}; const v = a in F ? F[a] : a[0] === 'I' || /^(AIW|HC)/.test(a) ? (this.I[a] || 0) : /^(AQW|MW|MD)/.test(a) ? this.m.word(a) : this.m.bit(a); if (c._v !== v) { c.textContent = v; c.className = v === 1 ? 'v1' : ''; c._v = v; } });
+      this.ioCells.forEach((c) => { const a = c.dataset.io; const F = this.forces || {}; const v = a in F ? F[a] : a[0] === 'I' || /^(AIW|HC)/.test(a) ? (this.I[a] || 0) : /^(AQW|MW|MD)/.test(a) ? this.m.word(a) : /STR/.test(a) ? "'" + this.m.str(a) + "'" : this.m.bit(a); if (c._v !== v) { c.textContent = v; c.className = v === 1 ? 'v1' : ''; c._v = v; } });
       this.renderVals();
       const fh = $('.fault-host', this.el);
       const f = this.pst.fault ? 'Machine fault: ' + this.pst.fault : this.m.error ? 'PLC in STOP · ' + this.m.error : '';
@@ -1478,11 +1487,12 @@
       [...used].sort().forEach((a) => {
         if (/^T\d+$/.test(a)) { const t = this.m.timers[+a.slice(1)]; parts.push([a + '.ET', t ? (t.et / 1000).toFixed(2) + ' s' : '0.00 s'], [a + ' done', this.m.bit(a)]); }
         else if (/^C\d+$/.test(a)) parts.push([a + '.CV', this.m.word(a + '.CV')], [a + ' done', this.m.bit(a)]);
-        else if (/^(MW|AQW)\d+$/.test(a)) parts.push([a, this.m.word(a)]);
+        else if (/^(MW|AQW|MD)\d+$/.test(a)) parts.push([a, this.m.word(a)]);
+        else if (/STR\d/.test(a)) parts.push([a, "'" + this.m.str(a) + "'"]);
         else if (/^M\d/.test(a)) parts.push([a, this.m.bit(a)]);
       });
       const tags = this.tags();
-      const html = parts.map(([a, v]) => `<tr><td>${esc(a)}</td><td>${esc(tags[a] || '')}<span class="kind">${/^M\d/.test(a) ? 'memory' : ''}</span></td><td class="${v === 1 ? 'v1' : ''}">${v}</td></tr>`).join('');
+      const html = parts.map(([a, v]) => `<tr><td>${esc(a)}</td><td>${esc(tags[a] || '')}<span class="kind">${/^M\d/.test(a) ? 'memory' : ''}</span></td><td class="${v === 1 ? 'v1' : ''}">${esc(v)}</td></tr>`).join('');
       const tb = $('.valrows', this.el);
       if (tb && tb._h !== html) { tb.innerHTML = html; tb._h = html; }
     }

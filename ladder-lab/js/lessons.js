@@ -1563,6 +1563,81 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
       challenges: ['saf-1', 'saf-2'],
     },
     {
+      id: 'barcode-printer', level: 6, title: 'Strings: barcode readers and label printers', min: 14,
+      summary: 'How a PLC reads a barcode, builds a label text with a running serial number, sends it to a print-and-apply printer and checks the result, with the string instructions of every brand.',
+      body: `
+<h3>The barcode reader (BCR)</h3>
+<ul>
+<li><b>Trigger</b>: the PLC starts a read when a sensor sees the product (or the reader reads continuously).</li>
+<li><b>Result</b>: a status (<b>read OK</b> / <b>no read</b>) and the <b>data</b>, a string such as <code>A100</code>.</li>
+<li><b>Connection</b>: today usually PROFINET or EtherNet/IP (Cognex, SICK, Keyence, Datalogic …): the result appears in the PLC's input area, with a result counter or a "new result" bit as handshake. Older readers use RS-232 / serial.</li>
+<li>Always handle <b>no read</b>: a damaged label must never let a product through unchecked.</li>
+</ul>
+<h3>Strings in the PLC</h3>
+<div class="tbl"><table>
+<tr><th>Job</th><th>Ladder Lab</th><th>TIA Portal</th><th>Studio 5000</th><th>CODESYS / TwinCAT / Machine Expert</th><th>Omron</th></tr>
+<tr><td>String variable</td><td>STR0 … STR31</td><td>STRING[n] in a DB</td><td>STRING tag (.LEN, .DATA)</td><td>STRING(n)</td><td>STRING</td></tr>
+<tr><td>Copy</td><td>SMOV</td><td>S_MOVE / :=</td><td>COP</td><td>:=</td><td>MOV$ / :=</td></tr>
+<tr><td>Join</td><td>CONCAT</td><td>CONCAT</td><td>CONCAT</td><td>CONCAT</td><td>+$ / CONCAT</td></tr>
+<tr><td>Number → text</td><td>ITOS (with leading zeros)</td><td>S_CONV, VAL_STRG</td><td>DTOS</td><td>INT_TO_STRING</td><td>STR4 / IntToString</td></tr>
+<tr><td>Part of a text</td><td>SMID</td><td>MID</td><td>MID</td><td>MID</td><td>MID$ / MID</td></tr>
+<tr><td>Compare</td><td>CMP(STR1==ISTR0)</td><td>CMP == on strings</td><td>EQU / NEQ on strings</td><td>= / &lt;&gt;</td><td>=$ / EQ</td></tr>
+</table></div>
+<h3>The label printer</h3>
+<p>The label layout (logo, fonts, barcode type) is stored in the printer. The PLC only sends the <b>variable data</b> and a print command, either as fields over the network or as a small printer-language message. For a Zebra printer, a Code 128 barcode with the text <code>A100-0007</code> is:</p>
+<pre class="code">^XA^FO50,50^BCN,100,Y,N,N^FDA100-0007^FS^XZ</pre>
+<p>A <b>print-and-apply</b> printer also puts the label on the product: the product must stand still (or the speed must be known) until "label applied".</p>
+<h3>Running serial numbers</h3>
+<ul>
+<li>Keep the counter in <b>retentive</b> memory: after a power cut the next number must not repeat one already printed.</li>
+<li>Always the same width: <b>leading zeros</b> (0007, not 7), and a clear rule after the maximum (9999 → 0001).</li>
+<li>Count only labels that were really applied, and log them if traceability is required.</li>
+</ul>
+<h3>Check what you printed</h3>
+<p>A second scanner after the printer reads the label and compares it with what was sent. Smudged print, a missing label or a wrong product: <b>reject</b> the product and tell the operator. The data must follow the right product: with one product between two stations a single bit is enough; with several, use a shift register or a FIFO of product records.</p>
+<div class="callout where"><b>Where:</b> packaging and logistics lines, automotive part marking, pharmaceutical serialisation, warehouse sorting. "Scan, print, verify" is one of the most common PLC jobs.</div>`,
+      sims: {},
+      takeaways: ['A BCR gives a status (read OK / no read) and a string; always handle no read.', 'String instructions: move, join, number to text, part of text, compare: same idea in every brand.', 'The printer stores the layout; the PLC sends the variable data and a print command.', 'Serial numbers: fixed width with leading zeros, retentive, a clear roll-over rule.', 'Verify the printed label and reject what does not match.'],
+      mistakes: ['Printing a label for a product that was not read.', 'A serial number that restarts at 1 after a power cut.', 'Moving the product while the label is being applied.', 'Data that ends up on the wrong product (no tracking).'],
+      challenges: ['bcr-1', 'bcr-2', 'bcr-3'],
+    },
+    {
+      id: 'hmi-texts', level: 6, title: 'HMI text lists and alarm texts', min: 10,
+      summary: 'Why the PLC sends numbers and bits, not sentences, and how the HMI turns them into messages, step texts and alarms with text lists.',
+      body: `
+<h3>The PLC sends numbers, the HMI owns the words</h3>
+<p>A PLC program does not build sentences for the operator. It writes a <b>number</b> (a message number, a step number, a fault code) or sets <b>alarm bits</b>. The HMI has the texts. That way the texts can be changed or translated without touching the PLC, and the same number shows in English, Arabic or French on the same screen.</p>
+<h3>Text list: number → text</h3>
+<div class="tbl"><table>
+<tr><th>MW50</th><th>Text on the HMI</th></tr>
+<tr><td>1</td><td>Stopped: press START</td></tr>
+<tr><td>2</td><td>Running</td></tr>
+<tr><td>4</td><td>No read: box rejected</td></tr>
+<tr><td>5</td><td>Label check failed: box rejected</td></tr>
+<tr><td>6</td><td>Printer not ready: check the labels</td></tr>
+</table></div>
+<p>In ladder: one MOV per message, from the least to the most important. The last rung that is true wins in each scan, so the most important message is shown. A step number with a text list ("Step 30: waiting for the clamp") is the best help a maintenance technician can get.</p>
+<h3>Alarms: one bit per alarm</h3>
+<ul>
+<li><b>Discrete (bit) alarms</b>: the PLC sets bit n of an alarm word, the HMI shows alarm text n with a time stamp, a class (fault, warning) and keeps a history. The operator acknowledges on the HMI, which writes an acknowledge bit back.</li>
+<li><b>Analog alarms</b>: the HMI watches a value against limits ("Temperature too high: 287 °C").</li>
+<li><b>Values in texts</b>: texts can include live values: "Box @1@ rejected", where @1@ is a tag.</li>
+</ul>
+<div class="tbl"><table>
+<tr><th>Brand</th><th>Text lists</th><th>Alarms</th></tr>
+<tr><td>Siemens WinCC (TIA Portal)</td><td>Text and graphic lists</td><td>HMI alarms (discrete / analog), Program_Alarm, ProDiag</td></tr>
+<tr><td>Rockwell FactoryTalk View</td><td>Multistate indicator, local messages</td><td>Alarms and Events (or HMI alarms)</td></tr>
+<tr><td>Schneider EcoStruxure Operator Terminal Expert</td><td>Message / state displays</td><td>Alarm groups</td></tr>
+<tr><td>Omron NA / NB (Sysmac)</td><td>Text lists in the HMI project</td><td>User alarms</td></tr>
+<tr><td>CODESYS / TwinCAT visualisation</td><td>Text lists</td><td>Alarm manager</td></tr>
+</table></div>
+<div class="callout tip"><b>Practice:</b> the labelling line has an HMI line that shows the text for MW50, and a number without a text shows in red, as on a real panel with a missing entry.</div>`,
+      sims: {},
+      takeaways: ['The PLC writes numbers and bits; the HMI holds the texts.', 'Text list: message number or step number → text.', 'One MOV per message, the most important last.', 'Bit alarms: bit n → alarm text n, with class, time and acknowledge.'],
+      mistakes: ['Building operator texts in the PLC.', 'Several messages fighting over the same word without an order.', 'A message number with no text on the HMI.'],
+      challenges: ['bcr-3'],
+    },
+    {
       id: 'structure', level: 5, title: 'Program structure & troubleshooting', min: 9,
       summary: 'How to lay out a program others can maintain, and how to find faults fast.',
       body: `
@@ -2075,6 +2150,10 @@ END_REPEAT</pre>
     ["Discrepancy time", "The time two channels of a safety input may disagree before it is a fault (broken wire, stuck contact)."],
     ["EDM (feedback monitoring)", "External Device Monitoring: reading back the NC auxiliary contacts of the contactors, to find a welded contactor before the next start."],
     ["Stop category 0 / 1 / 2", "IEC 60204-1: 0 = cut the power at once; 1 = controlled stop, then cut the power; 2 = controlled stop with the power kept."],
+    ["String", "A text variable (STRING). In PLCs it has a maximum length; instructions copy, join, cut and compare strings."],
+    ["Barcode reader (BCR)", "A scanner that reads 1D / 2D codes when triggered and returns a status (read OK / no read) and the data string."],
+    ["Print and apply", "A label printer that also puts the label on the product; the product must stand still or move at a known speed."],
+    ["Text list", "An HMI table that turns a number from the PLC into a text (message, step, state)."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -2282,5 +2361,9 @@ END_REPEAT</pre>
     { l: 5, q: "What does EDM (feedback monitoring) find?", a: ["a welded contactor, before the next start", "a broken PLC", "a slow scan", "an HMI error"], c: 0, why: "The NC auxiliary contact must show \"open\" before switching on." },
     { l: 5, q: "A safety relay or a safety PLC? A machine with 8 guard doors, 4 E-stops and safe speed on 3 drives:", a: ["safety PLC", "one safety relay", "a normal PLC", "a timer relay"], c: 0, why: "Many functions and drives: a safety controller." },
     { l: 5, q: "In a machine with a safety relay, the normal PLC program must…", a: ["drop its run commands when the relay trips", "switch the safety relay", "bypass the relay for jogging", "nothing"], c: 0, why: "So nothing restarts by itself after the reset." },
+    { l: 6, q: "The serial on a label must always have 4 digits. Number 7 becomes…", a: ["0007", "7", "7000", "07"], c: 0, why: "Leading zeros: ITOS(MW10,4,…)." },
+    { l: 6, q: "The barcode reader reports \"no read\". What must the line do?", a: ["not label the product, and reject it", "print an empty label", "print the last code again", "ignore it"], c: 0, why: "A product without a valid code must never pass unchecked." },
+    { l: 6, q: "Why does the PLC send a message NUMBER to the HMI and not the text?", a: ["the HMI holds the texts, so they can be changed and translated without a PLC download", "strings are not allowed", "numbers are faster to type", "it does not matter"], c: 0, why: "Text lists on the HMI." },
+    { l: 6, q: "Where should the serial counter of a label printer be kept?", a: ["in retentive memory, so it never repeats after a power cut", "in a normal M word", "in the printer only", "in a timer"], c: 0, why: "Unique numbers must survive a power cut." },
   ];
 })(typeof window !== 'undefined' ? window : globalThis);

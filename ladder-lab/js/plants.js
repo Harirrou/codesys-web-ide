@@ -2027,6 +2027,122 @@
   P.safecell = makeSafeCell(true);
   P.safeplc = makeSafeCell(false);
 
+  // ───────────────────────── labelling line: barcode reader → label printer → check scanner ─────────────────────────
+  const LBL_CODES = ['A100', 'B205', 'A100', 'C310', 'B205', 'D402', 'A100', 'C310'];
+  const LBL_TEXTS = ['', 'Stopped: press START', 'Running', 'Waiting for the printer', 'No read: box rejected', 'Label check failed: box rejected', 'Printer not ready: check the labels'];
+  const LBL = { scan: 0.2, print: 0.45, verify: 0.65, reject: 0.82 };
+  P.labeler = {
+    id: 'labeler', name: 'Labelling line: scanner, printer, check scanner', blurb: 'Boxes carry a product barcode. A barcode reader (BCR) reads it, a print-and-apply printer prints a label for the box, a second scanner checks the printed label, and a pusher can reject a box. Strings travel between the PLC and the devices (ISTR = text from a device, QSTR = text to a device), and the HMI shows messages from a text list chosen by a number.',
+    inputs: [
+      { addr: 'I0.0', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'Box at scanner', kind: 'sensor' },
+      { addr: 'I0.3', name: 'BCR read OK', kind: 'sensor', note: 'On after a read, until the next trigger. The code is in ISTR0' },
+      { addr: 'I0.4', name: 'BCR no read', kind: 'sensor', note: 'On when the last trigger found no readable code' },
+      { addr: 'I0.5', name: 'Box at printer', kind: 'sensor' },
+      { addr: 'I0.6', name: 'Printer ready', kind: 'sensor', note: 'Idle and has labels' },
+      { addr: 'I0.7', name: 'Label applied', kind: 'sensor', note: 'On after print & apply, until the next print command' },
+      { addr: 'I1.0', name: 'Box at check scanner', kind: 'sensor' },
+      { addr: 'I1.1', name: 'Check read OK', kind: 'sensor', note: 'The printed label text is in ISTR1' },
+      { addr: 'I1.2', name: 'Box at reject', kind: 'sensor' },
+      { addr: 'I1.3', name: 'Check no read', kind: 'sensor' },
+      { addr: 'ISTR0', name: 'BCR data', kind: 'sensor', note: 'Text read by the barcode reader' },
+      { addr: 'ISTR1', name: 'Check scanner data', kind: 'sensor', note: 'Text read from the printed label' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Conveyor', color: 'green' },
+      { addr: 'Q0.1', name: 'BCR trigger', color: 'blue' },
+      { addr: 'Q0.2', name: 'Print & apply', color: 'amber' },
+      { addr: 'Q0.3', name: 'Reject pusher', color: 'red' },
+      { addr: 'Q0.4', name: 'Running lamp', color: 'green' },
+      { addr: 'Q0.5', name: 'Alarm lamp', color: 'red' },
+      { addr: 'Q0.6', name: 'Check scanner trigger', color: 'blue' },
+      { addr: 'QSTR0', name: 'Print data', color: 'blue' },
+    ],
+    hmi: ['MW10', 'MW50'],
+    actions: [
+      { id: 'damaged', label: 'Damaged barcodes (every 3rd box)', toggle: true, run(st) { st.damaged = !st.damaged; } },
+      { id: 'smudge', label: 'Printer smudges labels', toggle: true, run(st) { st.smudge = !st.smudge; } },
+      { id: 'nolabels', label: 'Printer out of labels', toggle: true, run(st) { st.nolabels = !st.nolabels; } },
+    ],
+    init() { return { boxes: [], n: 0, gap: 0.3, t: 0, bcr: { trig: 0, t: -1, ok: 0, no: 0, data: '' }, chk: { trig: 0, t: -1, ok: 0, no: 0, data: '' }, prn: { trig: 0, busy: 0, applied: 0, data: '' }, lastSerial: null, printed: 0, shipped: 0, okPlain: 0, okSerial: 0, badShipped: 0, noLabel: 0, rejected: 0, goodRejected: 0, wasted: 0, lastLabel: '', fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000, run = !!Q['Q0.0'];
+      // boxes
+      if (run) {
+        st.boxes.forEach((b) => (b.x += 0.15 * s));
+        st.gap += 0.15 * s;
+        if (st.gap >= 0.45) { st.gap = 0; const k = st.n++; st.boxes.push({ x: 0, code: LBL_CODES[k % LBL_CODES.length], readable: !(st.damaged && k % 3 === 2), label: null, id: k }); }
+      }
+      const near = (pos, w) => st.boxes.find((b) => Math.abs(b.x - pos) < w);
+      // barcode reader: result 150 ms after the rising edge of the trigger
+      const sense = (dev, trig, pos, readFn) => {
+        if (trig && !dev.trig) { dev.t = 150; dev.ok = 0; dev.no = 0; dev.data = ''; }
+        dev.trig = trig ? 1 : 0;
+        if (dev.t >= 0) { dev.t -= dt; if (dev.t < 0) { const b = near(pos, 0.04); const r = b ? readFn(b) : null; if (r) { dev.ok = 1; dev.data = r; } else dev.no = 1; } }
+      };
+      sense(st.bcr, !!Q['Q0.1'], LBL.scan, (b) => (b.readable ? b.code : null));
+      sense(st.chk, !!Q['Q0.6'], LBL.verify, (b) => b.label);
+      // printer: print & apply 600 ms after the rising edge, if ready
+      const ready = !st.nolabels && !st.prn.busy;
+      if (Q['Q0.2'] && !st.prn.trig) { st.prn.applied = 0; if (ready) { st.prn.busy = 600; st.prn.data = String(Q['QSTR0'] || ''); } }
+      st.prn.trig = Q['Q0.2'] ? 1 : 0;
+      if (st.prn.busy) {
+        st.prn.busy = Math.max(0, st.prn.busy - dt);
+        if (!st.prn.busy) {
+          const b = near(LBL.print, 0.05);
+          let txt = st.prn.data; if (st.smudge && txt) txt = txt.slice(0, -1) + '#';
+          st.printed++; st.lastLabel = st.prn.data;
+          if (b) { b.label = txt; b.sent = st.prn.data; } else st.wasted++;
+          st.prn.applied = 1;
+          // serial check: CODE-nnnn with nnnn one more than the last label (9999 → 0001)
+          const m = /^([A-Z0-9]+)-(\d{4})$/.exec(st.prn.data);
+          if (m) { const v = +m[2]; const okNext = st.lastSerial == null || v === (st.lastSerial >= 9999 ? 1 : st.lastSerial + 1); if (b && b.code === m[1] && okNext && v >= 1) st.okSerial++; st.lastSerial = v; }
+          if (b && st.prn.data === b.code) st.okPlain++;
+        }
+      }
+      if (run && st.prn.busy && near(LBL.print, 0.05)) st.fault = st.fault || 'The conveyor moved the box away while the printer was applying the label: stop the conveyor until "Label applied".';
+      // reject pusher
+      if (Q['Q0.3']) st.boxes = st.boxes.filter((b) => { if (Math.abs(b.x - LBL.reject) < 0.05) { st.rejected++; if (b.readable && b.label && b.label === b.sent) st.goodRejected++; return false; } return true; });
+      // boxes leaving the line
+      st.boxes = st.boxes.filter((b) => { if (b.x > 1.03) { st.shipped++; if (!b.label) st.noLabel++; if (!b.readable || !b.label || b.label !== b.sent) st.badShipped++; return false; } return true; });
+      const o = devices(this, ctrl);
+      const at = (pos) => (st.boxes.some((b) => Math.abs(b.x - pos) < 0.012) ? 1 : 0);
+      o['I0.2'] = at(LBL.scan); o['I0.3'] = st.bcr.ok; o['I0.4'] = st.bcr.no; o['ISTR0'] = st.bcr.data;
+      o['I0.5'] = at(LBL.print); o['I0.6'] = ready ? 1 : 0; o['I0.7'] = st.prn.applied;
+      o['I1.0'] = at(LBL.verify); o['I1.1'] = st.chk.ok; o['I1.3'] = st.chk.no; o['ISTR1'] = st.chk.data;
+      o['I1.2'] = at(LBL.reject);
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const x0 = 30, L = 560, y = 210, X = (f) => x0 + f * L;
+      c.fillStyle = th.metalDark; D.rr(c, x0 - 10, y, L + 20, 16, 8); c.fill();
+      // stations
+      const station = (f, label, active, color) => { c.strokeStyle = active ? color : th.line; c.lineWidth = 2; c.setLineDash([4, 3]); c.beginPath(); c.moveTo(X(f), y - 70); c.lineTo(X(f), y); c.stroke(); c.setLineDash([]); D.text(c, label, X(f), y - 80, { size: 10, weight: 700, color: th.ink }); };
+      station(LBL.scan, 'BCR', !!Q['Q0.1'], th.blue); station(LBL.verify, 'CHECK', !!Q['Q0.6'], th.blue);
+      c.fillStyle = Q['Q0.2'] || st.prn.busy ? th.amber : th.metal; D.rr(c, X(LBL.print) - 26, y - 100, 52, 40, 5); c.fill();
+      D.text(c, 'PRINTER', X(LBL.print), y - 88, { size: 9, weight: 800, color: '#111' }); D.text(c, st.nolabels ? 'NO LABELS' : st.prn.busy ? 'printing' : 'ready', X(LBL.print), y - 72, { size: 9, mono: true, color: '#111' });
+      c.fillStyle = Q['Q0.3'] ? th.red : th.metal; c.fillRect(X(LBL.reject) - 8, y + 18, 16, Q['Q0.3'] ? 30 : 14);
+      D.text(c, 'reject', X(LBL.reject), y + 60, { size: 10, color: th.muted });
+      // boxes
+      st.boxes.forEach((b) => {
+        const bx = X(b.x);
+        c.fillStyle = th.box; c.strokeStyle = th.boxEdge; c.lineWidth = 1; c.fillRect(bx - 22, y - 34, 44, 34); c.strokeRect(bx - 22, y - 34, 44, 34);
+        D.text(c, b.readable ? b.code : '▒▒▒', bx, y - 26, { size: 9, mono: true, weight: 700, color: '#111' });
+        if (b.label) { c.fillStyle = '#fff'; c.fillRect(bx - 21, y - 18, 42, 14); D.text(c, b.label.length > 9 ? b.label.slice(-9) : b.label, bx, y - 11, { size: 8, mono: true, color: '#111' }); }
+      });
+      // HMI
+      c.fillStyle = '#0f172a'; D.rr(c, 20, 16, 600, 62, 8); c.fill();
+      const msg = LBL_TEXTS[Q['MW50'] | 0];
+      D.text(c, 'HMI  message ' + (Q['MW50'] | 0) + ': ' + (msg === undefined ? '(no text for this number)' : msg || '—'), 32, 32, { size: 12, weight: 700, color: msg === undefined ? '#fca5a5' : '#e2e8f0', align: 'left' });
+      D.text(c, 'serial MW10 = ' + String(Q['MW10'] | 0).padStart(4, '0') + '   to printer: ' + (Q['QSTR0'] || "''") + '   last label: ' + (st.lastLabel || '—'), 32, 52, { size: 10, mono: true, color: '#9fb0c4', align: 'left' });
+      D.text(c, 'shipped ' + st.shipped + ' · no label ' + st.noLabel + ' · rejected ' + st.rejected + ' · bad shipped ' + st.badShipped, 32, 68, { size: 10, mono: true, color: '#9fb0c4', align: 'left' });
+      D.lamp(c, th, 540, 290, 7, !!Q['Q0.4'], 'green', 'running'); D.lamp(c, th, 600, 290, 7, !!Q['Q0.5'], 'red', 'alarm');
+      D.fault(c, th, st.fault);
+    },
+  };
+
   // ───────────────────────── box sorter ─────────────────────────
   const SORT_PATTERN = [1, 0, 0, 1, 1, 0, 1, 0, 0, 1];
   P.sorter = {
@@ -3449,14 +3565,14 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'oldpanel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'gantry', 'servohmi', 'safecell', 'safeplc', 'alarms', 'feeder', 'handover', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
+  LL.PLANT_ORDER = ['panel', 'oldpanel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'gantry', 'servohmi', 'safecell', 'safeplc', 'labeler', 'alarms', 'feeder', 'handover', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
 
   // Outputs a plant sees: Q bits, AQW words, plus any memory words its HMI displays
   LL.plantOutputs = function (plant, m) {
     if (plant.axes && m.axisCfg !== plant.axes) m.axisCfg = plant.axes;
     const o = m.outputs();
     for (const n in m.axes || {}) { const x = m.axes[n]; o['AX' + n + '.V'] = x.v; o['AX' + n + '.POS'] = x.pos; o['AX' + n + '.ON'] = x.on; o['AX' + n + '.HOMED'] = x.homed; o['AX' + n + '.ERR'] = x.err; }
-    (plant.hmi || []).forEach((a) => (o[a] = /^M\d/.test(a) ? m.bit(a) : m.word(a)));
+    (plant.hmi || []).forEach((a) => (o[a] = /STR/.test(a) ? m.str(a) : /^M\d/.test(a) ? m.bit(a) : m.word(a)));
     if (m.axes) { for (const n in m.axes) if (m.axes[n].msg) o['AX' + n + '.MSG'] = m.axes[n].msg; for (const t in m.mcs || {}) if (m.mcs[t].err && m.mcs[t].msg) o['MC.MSG'] = t + ': ' + m.mcs[t].msg; }
     return o;
   };
@@ -3483,8 +3599,8 @@
     const never = opts.never || [];
     let t = 0, I = {};
     const name = (a) => (opts.tags && opts.tags[a] ? opts.tags[a] + ' (' + a + ')' : a);
-    const val = (a) => (/^I\d/.test(a) || /^AIW/.test(a) ? (I[a] || 0) : m.read(a));
-    const parseConds = (arr) => arr.map((s) => { const [a, v] = s.split('='); return { a: LL.norm(a), v: +v }; });
+    const val = (a) => (/^ISTR/.test(a) ? String(I[a] || '') : /^I\d/.test(a) || /^AIW/.test(a) ? (I[a] || 0) : m.read(a));
+    const parseConds = (arr) => arr.map((s) => { const i = s.indexOf('='); const a = s.slice(0, i), v = s.slice(i + 1); return { a: LL.norm(a), v: /^'.*'$/.test(v) ? v.slice(1, -1) : +v }; });
     const condOk = (cs) => cs.every((x) => val(x.a) === x.v);
     const fmt = (v, a) => (LL.isBitAddr(a) || /^[IQM]\d+\.[0-7]$/.test(a) || /\.(Q|Q1)$/.test(a) ? (v ? 'ON' : 'OFF') : String(v));
     function tick() {

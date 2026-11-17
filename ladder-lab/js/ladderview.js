@@ -37,6 +37,10 @@
     MOD: ['Modulo (remainder)', 'Result = A MOD B, the remainder of the division A ÷ B. 1234 MOD 1000 = 234. Use it to split a number into digits or to do something every Nth part.'],
     SHR: ['Shift right', 'OUT = IN shifted right by N bits (16-bit word). Each place = ÷2. Runs every scan while powered.'],
     CALL: ['Call a block', 'Runs a reusable block (FB) while the rung is true. Each call has an instance name: its own memory. Connect every parameter to an address of this machine.'],
+    SMOV: ['Move a string', "Copies text: SMOV(ISTR0,STR1) or SMOV('ABC',QSTR0). Strings live in STR0 … STR31; ISTRn come from devices (a barcode reader), QSTRn go to devices (a printer). TIA S_MOVE, Rockwell COP, CODESYS :=."],
+    CONCAT: ['Join two strings', "CONCAT(STR1,'-',STR2): STR2 = STR1 followed by '-'. TIA / Rockwell / CODESYS: CONCAT."],
+    ITOS: ['Number to text', 'ITOS(MW10,4,STR3): 7 becomes 0007 (4 digits with leading zeros; 0 = no leading zeros). TIA S_CONV / VAL_STRG, Rockwell DTOS, CODESYS INT_TO_STRING.'],
+    SMID: ['Part of a string', 'SMID(ISTR0,1,4,STR1): 4 characters from position 1. TIA / CODESYS MID, Rockwell MID.'],
     MC_POWER: ['MC_Power (servo on)', 'While the rung is true the axis drive is switched on (enabled). AX0.ON tells you it is ready. Rung false = drive off, the axis stops. Rockwell: MSO / MSF.'],
     MC_HOME: ['MC_Home (homing)', 'On the rising edge of the rung, the axis moves slowly backwards until the reference switch closes, and calls that point 0 mm. Until then it does not know where it is (AX0.HOMED = 0). DONE / BUSY / ERR on the command tag. Rockwell: MAH.'],
     MC_ABS: ['MC_MoveAbsolute', 'On the rising edge: move to the position (mm) at the velocity (mm/s), with smooth acceleration. Needs a powered, homed axis. DONE when it has arrived. Rockwell: MAM (absolute).'],
@@ -107,6 +111,9 @@
       s += `<text class="bx-addr" x="${bx1 - 7}" y="${by + 12.5}">${esc(cell.addr)}</text>`;
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 33}">PV ${cell.pv}</text><text class="bx-l bx-v bx-big" data-v="cv" x="${bx1 - 7}" y="${by + 37}" text-anchor="end">0</text>`;
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 49}">CV</text>`;
+    } else if (LL.STRING_OPS && LL.STRING_OPS.includes(t)) {
+      const l1 = t === 'SMOV' ? cell.src + ' →' : t === 'CONCAT' ? cell.a + ' + ' + cell.b : t === 'ITOS' ? cell.a + ' → ' + cell.n + ' digits' : cell.src + ' [' + cell.a + ',' + cell.b + ']';
+      s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 32}">${esc(trunc(l1, 18))}</text><text class="bx-l bx-v" x="${bx0 + 7}" y="${by + 48}">${esc(cell.dst)} = <tspan data-v="dst">''</tspan></text>`;
     } else if (t === 'MOV') {
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 32}">${esc(trunc(cell.src, 10))} →</text><text class="bx-l bx-v" x="${bx0 + 7}" y="${by + 48}">${esc(cell.dst)} = <tspan data-v="dst">0</tspan></text>`;
     } else if (t === 'CALL') {
@@ -334,7 +341,7 @@
           }
           if (st.mcst !== v) { p.mcst.textContent = v; st.mcst = v; }
         }
-        if (p.dst) { const v = on ? m.word(cell.dst) : 0; if (st.dst !== v) { p.dst.textContent = v; st.dst = v; } }
+        if (p.dst) { const v = LL.isStrAddr && LL.isStrAddr(cell.dst || '') ? (on && m.str ? "'" + trunc(m.str(cell.dst), 10) + "'" : "''") : on ? m.word(cell.dst) : 0; if (st.dst !== v) { p.dst.textContent = v; st.dst = v; } }
         if (p.reg && p.reg.length) { const v = on ? p.reg.map((r) => m.bit(r.dataset.b)).join('') : ''; if (st.reg !== v) { p.reg.forEach((r, k) => r.classList.toggle('on', v[k] === '1')); st.reg = v; } }
       }
       for (const l of this.linkEls) {
