@@ -37,18 +37,29 @@
     ax: /^AX([0-3])$/,
     mc: /^MC(\d{1,2})(?:\.(DONE|BUSY|ERR|ABORT))?$/,
     str: /^(STR\d{1,2}|ISTR\d|QSTR\d)$/,
+    dbf: /^DB(\d{1,3})\.([A-Z_]\w*)(?:\[(-?\d{1,4}|MW\d{1,3}|#\w+)\])?$/,
     strLit: /^'[^']*'$/,
     int: /^-?\d+$/,
     loc: /^#[A-Za-z_]\w*(?:\.(Q|DN|TT|EN|ET|PT|CV|PV))?$/,
     locBase: /^#[A-Za-z_]\w*$/,
   };
   const norm = (s) => { const t = String(s == null ? '' : s).trim().replace(/\s+/g, ''); if (t[0] === '#') { const i = t.indexOf('.'); return i < 0 ? t : t.slice(0, i) + t.slice(i).toUpperCase(); } return t.toUpperCase(); };
-  const isBitAddr = (a) => RE.bit.test(a) || RE.sm.test(a) || RE.tBit.test(a) || RE.cBit.test(a) || RE.loc.test(a) || RE.axBit.test(a) || RE.mc.test(a);
-  const isWordAddr = (a) => RE.tWord.test(a) || RE.cWord.test(a) || RE.mw.test(a) || RE.md.test(a) || RE.hc.test(a) || RE.axWord.test(a) || RE.aiw.test(a) || RE.aqw.test(a) || RE.int.test(a) || RE.loc.test(a);
-  const isWritableWord = (a) => RE.mw.test(a) || RE.md.test(a) || RE.aqw.test(a) || RE.locBase.test(a);
-  const isStrAddr = (a) => RE.str.test(a) || RE.strLit.test(a);
-  const isWritableStr = (a) => /^(STR\d{1,2}|QSTR\d)$/.test(a);
-  const isWritableBit = (a) => /^[QM]\d{1,2}\.[0-7]$/.test(a) || RE.locBase.test(a);
+  const isBitAddr = (a) => dbType(a) === 'BOOL' || RE.bit.test(a) || RE.sm.test(a) || RE.tBit.test(a) || RE.cBit.test(a) || RE.loc.test(a) || RE.axBit.test(a) || RE.mc.test(a);
+  const isWordAddr = (a) => dbType(a) === 'INT' || dbType(a) === 'DINT' || RE.tWord.test(a) || RE.cWord.test(a) || RE.mw.test(a) || RE.md.test(a) || RE.hc.test(a) || RE.axWord.test(a) || RE.aiw.test(a) || RE.aqw.test(a) || RE.int.test(a) || RE.loc.test(a);
+  const isWritableWord = (a) => dbType(a) === 'INT' || dbType(a) === 'DINT' || RE.mw.test(a) || RE.md.test(a) || RE.aqw.test(a) || RE.locBase.test(a);
+  // data blocks: DB10.LENGTH or DB10.LENGTH[2] / [MW30]; the type comes from the DB declaration in use
+  LL._dbs = [];
+  const dbField = (a) => {
+    const m = RE.dbf.exec(a || '');
+    if (!m) return null;
+    const db = (LL._dbs || []).find((d) => d.num === +m[1]);
+    const f = db && db.fields.find((x) => x.name.toUpperCase() === m[2]);
+    return { m, db, f, idx: m[3] };
+  };
+  const dbType = (a) => { const d = dbField(a); return d && d.f ? d.f.type : null; };
+  const isStrAddr = (a) => RE.str.test(a) || RE.strLit.test(a) || dbType(a) === 'STRING';
+  const isWritableStr = (a) => /^(STR\d{1,2}|QSTR\d)$/.test(a) || dbType(a) === 'STRING';
+  const isWritableBit = (a) => dbType(a) === 'BOOL' || /^[QM]\d{1,2}\.[0-7]$/.test(a) || RE.locBase.test(a);
   const timerNo = (a) => { const m = /^T(\d{1,2})/.exec(a); return m ? +m[1] : -1; };
   const counterNo = (a) => { const m = /^C(\d{1,2})/.exec(a); return m ? +m[1] : -1; };
 
@@ -244,8 +255,8 @@
    */
   function parseProgram(text, opts) {
     opts = opts || {};
-    const prog = { name: 'Untitled', cols: opts.cols || 7, tags: {}, rungs: [], blocks: [] };
-    let cur = null, blk = null;
+    const prog = { name: 'Untitled', cols: opts.cols || 7, tags: {}, rungs: [], blocks: [], dbs: [] };
+    let cur = null, blk = null, dbx = null;
     const flush = () => { if (cur) { (blk ? blk.rungs : prog.rungs).push(parseRung(cur.lines.length ? cur.lines : [''], prog.cols, cur.comment)); cur = null; } };
     const lines = String(text).replace(/\r/g, '').split('\n');
     for (let raw of lines) {
@@ -255,13 +266,20 @@
       if ((m = /^NAME\s+(.*)$/i.exec(line))) { prog.name = m[1].trim(); continue; }
       if ((m = /^COLS\s+(\d+)$/i.exec(line))) { prog.cols = Math.max(4, Math.min(12, +m[1])); continue; }
       if ((m = /^TAG\s+(\S+)\s+(.+)$/i.exec(line))) { prog.tags[norm(m[1])] = m[2].trim(); continue; }
-      if ((m = /^(BLOCK|FB|FC)\s+([A-Za-z_]\w*)\s*(.*)$/i.exec(line))) { flush(); blk = { name: m[2], kind: m[1].toUpperCase() === 'FC' ? 'FC' : 'FB', comment: m[3].trim(), params: [], rungs: [] }; prog.blocks.push(blk); continue; }
+      if ((m = /^DB\s+(\d{1,3})\s+([A-Za-z_]\w*)\s*(.*)$/i.exec(line))) { flush(); blk = null; dbx = { num: +m[1], name: m[2], comment: m[3].trim(), fields: [] }; prog.dbs.push(dbx); continue; }
+      if (dbx && (m = /^FIELD\s+([A-Za-z_]\w*)\s+(BOOL|INT|DINT|STRING)(?:\[(-?\d+)\.\.(-?\d+)\])?\s*(\S*)\s*(.*)$/i.exec(line))) {
+        const lo = m[3] == null ? null : +m[3], hi = m[4] == null ? null : +m[4];
+        dbx.fields.push({ name: m[1], type: m[2].toUpperCase(), lo, hi, init: m[5] && m[5] !== '-' ? m[5].split(',') : [], comment: m[6].trim() });
+        continue;
+      }
+      if ((m = /^(BLOCK|FB|FC)\s+([A-Za-z_]\w*)\s*(.*)$/i.exec(line))) { flush(); dbx = null; blk = { name: m[2], kind: m[1].toUpperCase() === 'FC' ? 'FC' : 'FB', comment: m[3].trim(), params: [], rungs: [] }; prog.blocks.push(blk); continue; }
       if (blk && !cur && (m = /^PARAM\s+(IN|OUT|INOUT)\s+([A-Za-z_]\w*)\s*(BOOL|INT)?\s*(.*)$/i.exec(line))) { blk.params.push({ dir: m[1].toUpperCase(), name: m[2], type: (m[3] || 'BOOL').toUpperCase(), comment: m[4].trim() }); continue; }
-      if ((m = /^RUNG\b\s*(.*)$/i.exec(line))) { flush(); cur = { comment: m[1].trim(), lines: [] }; continue; }
+      if ((m = /^RUNG\b\s*(.*)$/i.exec(line))) { flush(); dbx = null; cur = { comment: m[1].trim(), lines: [] }; continue; }
       if (!cur) cur = { comment: '', lines: [] };
       cur.lines.push(line);
     }
     flush();
+    LL._dbs = prog.dbs;
     return prog;
   }
 
@@ -276,6 +294,10 @@
       out.push((b.kind === 'FC' ? 'FC ' : 'BLOCK ') + b.name + (b.comment ? ' ' + b.comment : ''));
       b.params.forEach((pp) => out.push('PARAM ' + pp.dir + ' ' + pp.name + ' ' + pp.type + (pp.comment ? ' ' + pp.comment : '')));
       b.rungs.forEach((r) => { out.push('RUNG' + (r.comment ? ' ' + r.comment : '')); rungToLines(r).forEach((l) => out.push(l)); });
+    });
+    (prog.dbs || []).forEach((d) => {
+      out.push('DB ' + d.num + ' ' + d.name + (d.comment ? ' ' + d.comment : ''));
+      d.fields.forEach((f) => out.push('FIELD ' + f.name + ' ' + f.type + (f.lo != null ? '[' + f.lo + '..' + f.hi + ']' : '') + ' ' + (f.init && f.init.length ? f.init.join(',') : '-') + (f.comment ? ' ' + f.comment : '')));
     });
     return out.join('\n');
   }
@@ -292,6 +314,7 @@
 
     load(prog) {
       this.prog = prog;
+      LL._dbs = prog.dbs || [];
       // Counter modes: a counter that has any CTU counts up (done at CV ≥ PV),
       // a counter that only has CTD starts at PV and is done at CV ≤ 0.
       this.cMode = {};
@@ -321,6 +344,14 @@
       this.mcs = {};
       this.hmiPrev = {};
       this.strs = {};
+      // data blocks start with their start values (like a fresh download)
+      this.dbv = {};
+      (this.prog && this.prog.dbs || []).forEach((d) => d.fields.forEach((f) => {
+        const conv = (v) => (f.type === 'STRING' ? String(v == null ? '' : v).replace(/^'|'$/g, '') : f.type === 'BOOL' ? (/^(1|TRUE)$/i.test(String(v)) ? 1 : 0) : Math.trunc(+v || 0));
+        const key = 'DB' + d.num + '.' + f.name.toUpperCase();
+        if (f.lo == null) this.dbv[key] = conv(f.init[0]);
+        else for (let k = f.lo; k <= f.hi; k++) this.dbv[key + '[' + k + ']'] = conv(f.init[k - f.lo]);
+      }));
       this.instances = {};
       this.ctx = null;
       this.scanCount = 0;
@@ -329,8 +360,8 @@
       this.load(this.prog);
     }
 
-    str(a) { a = this.res(a); if (RE.strLit.test(a)) return a.slice(1, -1); if (/^ISTR/.test(a)) return String(this.inputs[a] == null ? '' : this.inputs[a]); return (this.strs || {})[a] || ''; }
-    setStr(a, v) { a = this.res(a); if (isWritableStr(a)) { this.strs = this.strs || {}; this.strs[a] = String(v).slice(0, 80); } }
+    str(a) { a = this.res(a); if (RE.dbf.test(a)) { const k = this.dbKey(a); return k ? String(this.dbv[k] == null ? '' : this.dbv[k]) : ''; } if (RE.strLit.test(a)) return a.slice(1, -1); if (/^ISTR/.test(a)) return String(this.inputs[a] == null ? '' : this.inputs[a]); return (this.strs || {})[a] || ''; }
+    setStr(a, v) { a = this.res(a); if (RE.dbf.test(a)) { const k = this.dbKey(a); if (k) this.dbv[k] = String(v).slice(0, 80); return; } if (isWritableStr(a)) { this.strs = this.strs || {}; this.strs[a] = String(v).slice(0, 80); } }
     setInputs(obj) { this.hmiPrev = this.hmiPrev || {}; for (const k in obj) if (/^ISTR\d$/.test(k)) this.inputs[k] = String(obj[k] == null ? '' : obj[k]); for (const k in obj) if (/^M\d{1,2}\.[0-7]$/.test(k)) { const v = obj[k] ? 1 : 0; if (this.hmiPrev[k] !== v) { this.bits[k] = v; this.hmiPrev[k] = v; } } for (const k in obj) if (!/^M\d/.test(k) && !/^ISTR/.test(k)) this.inputs[k] = RE.aiw.test(k) || RE.hc.test(k) ? Math.round(+obj[k] || 0) : obj[k] ? 1 : 0; for (const n in this.axes) if (this.inputs['AX' + n + '.FAULT'] && !this.axes[n].err) { const ax = this.axes[n]; ax.err = 1; ax.msg = 'the drive reports a fault (overload / following error)'; if (ax.cmd) this.mcFinish(ax, false, ax.msg); } }
 
     // block context: #Name → mapped actual address, or instance memory "@Inst:Name"
@@ -375,6 +406,16 @@
     timer(n) { return this.timers[n] || (this.timers[n] = { type: '', pt: 0, et: 0, q: 0, tt: 0, en: 0, prevIn: 0 }); }
 
     // ── motion: axes AX0..AX3 (position in mm, speed in mm/s) and motion command tags MC0..MC99 ──
+    // resolve a data-block address to its storage key; an index outside the array stops the PLC, as on a real one
+    dbKey(a) {
+      const d = dbField(a);
+      if (!d || !d.f) { this.error = 'Unknown data-block field ' + a + '.'; return null; }
+      const key = 'DB' + d.db.num + '.' + d.f.name.toUpperCase();
+      if (d.f.lo == null) return key;
+      let i = d.idx == null ? null : RE.int.test(d.idx) ? +d.idx : this.word(d.idx);
+      if (i == null || i < d.f.lo || i > d.f.hi) { this.error = 'Array index out of range: ' + a + (d.idx && !RE.int.test(d.idx) ? ' with ' + d.idx + ' = ' + i : '') + ' (allowed ' + d.f.lo + ' … ' + d.f.hi + '). A real PLC stops here or calls its error routine.'; return null; }
+      return key + '[' + i + ']';
+    }
     axis(n) { return this.axes[n] || (this.axes[n] = { pos: 0, v: 0, en: 0, onT: 0, on: 0, homed: 0, err: 0, msg: '', cmd: null }); }
     axCfg(n) { const c = (this.axisCfg || {})['AX' + n] || {}; return { min: c.min == null ? -1e9 : c.min, max: c.max == null ? 1e9 : c.max, acc: c.acc || 2000, vmax: c.vmax || 1000, homeVel: c.homeVel || 50 }; }
     mcTag(t) { return this.mcs[t] || (this.mcs[t] = { done: 0, busy: 0, err: 0, abort: 0, msg: '' }); }
@@ -430,6 +471,7 @@
     bit(a) {
       if (!a) return 0;
       a = this.res(a);
+      if (RE.dbf.test(a)) { const k = this.dbKey(a); return k ? (this.dbv[k] ? 1 : 0) : 0; }
       if (a === 'TRUE' || a === '1') return 1;
       if (a[0] === '@') {
         const [base, f] = a.split('.');
@@ -458,6 +500,7 @@
       let m;
       if (a == null) return 0;
       a = this.res(a);
+      if (RE.dbf.test(a)) { const k = this.dbKey(a); return k ? +this.dbv[k] || 0 : 0; }
       if (RE.int.test(a)) return parseInt(a, 10);
       if (a[0] === '@') {
         const [base, f] = a.split('.');
@@ -472,9 +515,10 @@
       if ((m = RE.cWord.exec(a))) { const c = this.counters[+m[1]]; return c ? (m[2] === 'CV' ? c.cv : c.pv) : 0; }
       return 0;
     }
-    setBit(a, v) { a = this.res(a); if (a && a[0] === '@') this.bits[a] = v ? 1 : 0; else if (isWritableBit(a)) this.bits[a] = v ? 1 : 0; }
+    setBit(a, v) { a = this.res(a); if (RE.dbf.test(a)) { const k = this.dbKey(a); if (k) this.dbv[k] = v ? 1 : 0; return; } if (a && a[0] === '@') this.bits[a] = v ? 1 : 0; else if (isWritableBit(a)) this.bits[a] = v ? 1 : 0; }
     setWord(a, v) {
       a = this.res(a);
+      if (RE.dbf.test(a)) { const k = this.dbKey(a); if (k) { const dint = dbType(a) === 'DINT'; v = Math.trunc(v); const hi = dint ? 2147483647 : 32767; this.dbv[k] = Math.max(-hi - 1, Math.min(hi, v)); } return; }
       if (!(a && a[0] === '@') && !isWritableWord(a)) return;
       v = Math.trunc(v);
       const big = RE.md.test(a), hi = big ? 2147483647 : 32767, lo = big ? -2147483648 : -32768;   // MD = 32-bit double word (DINT)
@@ -711,6 +755,23 @@
   // ───────────────────────── lint ─────────────────────────
   function lint(prog) {
     const all = [];
+    LL._dbs = prog.dbs || [];
+    // data blocks: every DB address must name a declared field, with an index only for arrays
+    const dbCheck = (rungs, where) => rungs.forEach((r, i) => r.cells.forEach((row) => row.forEach((c) => {
+      if (!c) return;
+      ['addr', 'a', 'b', 'src', 'dst'].forEach((k) => {
+        const v = c[k]; if (typeof v !== 'string' || !/^DB\d/.test(v)) return;
+        const d = dbField(v), msg = (t) => all.push({ level: 'error', rung: i + 1, block: where || undefined, msg: t });
+        if (!d) return msg('"' + v + '" is not a valid data-block address: write DB10.NAME or DB10.NAME[index].');
+        if (!d.db) return msg('There is no DB ' + d.m[1] + ' in this program (add it with + DB).');
+        if (!d.f) return msg('DB' + d.db.num + ' (' + d.db.name + ') has no field ' + d.m[2] + '.');
+        if (d.f.lo != null && d.idx == null) return msg(v + ' is an array: give an index, e.g. ' + v + '[' + d.f.lo + '] or ' + v + '[MW30].');
+        if (d.f.lo == null && d.idx != null) return msg(d.f.name + ' is not an array: remove the [ ].');
+        if (d.idx != null && RE.int.test(d.idx) && (+d.idx < d.f.lo || +d.idx > d.f.hi)) msg('Index ' + d.idx + ' is outside ' + d.f.name + '[' + d.f.lo + '..' + d.f.hi + '].');
+      });
+    })));
+    dbCheck(prog.rungs, '');
+    (prog.blocks || []).forEach((b) => dbCheck(b.rungs, b.name));
     const blocks = {};
     (prog.blocks || []).forEach((b) => (blocks[b.name] = b));
     all.push(...lintRungs(prog, prog.rungs, null, blocks));
@@ -832,6 +893,7 @@
   // ───────────────────────── Structured Text translation ─────────────────────────
   function stName(a, tags) {
     if (a && a[0] === '#') return a.slice(1);
+    { const d = dbField(a); if (d && d.db && d.f) return d.db.name + '.' + d.f.name + (d.idx != null ? '[' + (RE.int.test(d.idx) ? d.idx : stName(d.idx, tags)) + ']' : ''); }
     if (a === 'SM0.0') return 'TRUE';
     if (a === 'SM0.1') return 'FirstScan';
     if (a === 'SM0.5') return 'Clock_1Hz';
@@ -1012,7 +1074,14 @@
       fbs += '\n' + (fcB ? 'FUNCTION ' + b.name + ' : BOOL' : 'FUNCTION_BLOCK ' + b.name) + (b.comment ? '   (* ' + b.comment + ' *)' : '') + '\n' + sec('VAR_INPUT', 'IN') + sec('VAR_OUTPUT', 'OUT') + sec('VAR_IN_OUT', 'INOUT') + (statics.size ? (fcB ? 'VAR   (* temporary: lost after every call *)\n' : 'VAR\n') + [...statics].map((x) => '  ' + x).join('\n') + '\nEND_VAR\n' : '') + body + '\n' + (fcB ? 'END_FUNCTION' : 'END_FUNCTION_BLOCK') + '\n';
     });
     if (prog._inBlock) return out.slice(1).join('\n');
-    return (decl.length > 2 ? decl.join('\n') + '\n\n' : '') + out.join('\n') + (fbs ? '\n\n(* ═════ Function blocks ═════ *)' + fbs : '');
+    // data blocks = global structures
+    let dbs = '';
+    (prog.dbs || []).forEach((d) => {
+      const ty = (f) => (f.type === 'STRING' ? 'STRING(80)' : f.type);
+      const val = (f, v) => (f.type === 'STRING' ? "'" + String(v).replace(/^'|'$/g, '') + "'" : f.type === 'BOOL' ? (/^(1|TRUE)$/i.test(String(v)) ? 'TRUE' : 'FALSE') : String(+v || 0));
+      dbs += '\nTYPE ST_' + d.name + ' :   (* data block DB' + d.num + (d.comment ? ': ' + d.comment : '') + ' *)\nSTRUCT\n' + d.fields.map((f) => '  ' + f.name + ' : ' + (f.lo != null ? 'ARRAY[' + f.lo + '..' + f.hi + '] OF ' : '') + ty(f) + (f.init.length ? ' := ' + (f.lo != null ? '[' + f.init.map((v) => val(f, v)).join(', ') + ']' : val(f, f.init[0])) : '') + ';' + (f.comment ? '   (* ' + f.comment + ' *)' : '')).join('\n') + '\nEND_STRUCT\nEND_TYPE\nVAR_GLOBAL\n  ' + d.name + ' : ST_' + d.name + ';\nEND_VAR\n';
+    });
+    return (dbs ? '(* ═════ Data blocks ═════ *)' + dbs + '\n' : '') + (decl.length > 2 ? decl.join('\n') + '\n\n' : '') + out.join('\n') + (fbs ? '\n\n(* ═════ Function blocks ═════ *)' + fbs : '');
   }
 
   /* Rockwell Studio 5000 / Logix Designer: the same ladder as "neutral text", the rung text that
@@ -1030,6 +1099,7 @@
       if (a == null) return '?';
       a = String(a);
       if (RE.int.test(a)) return a;
+      { const d = LL.dbField(a); if (d && d.db && d.f) return d.db.name + '.' + d.f.name + (d.idx != null ? '[' + (RE.int.test(d.idx) ? d.idx : tg(d.idx)) + ']' : ''); }
       if (a === 'SM0.1') return 'S:FS';
       if (a === 'SM0.5') return 'Clock_1Hz';
       const loc = a[0] === '#';
@@ -1170,7 +1240,7 @@
 
   Object.assign(LL, {
     LOGIC, OUTPUT, TIMERS, COUNTERS, MATH, CMP_OPS, RE, MOTION, STRING_OPS, isStrAddr, isWritableStr,
-    isOutput, isLogic, isBitAddr, isWordAddr, isWritableBit, isWritableWord, norm,
+    isOutput, isLogic, isBitAddr, isWordAddr, isWritableBit, isWritableWord, norm, dbField,
     parseDuration, fmtDuration, shiftBits, mkCell, cloneCell, emptyRung,
     parseRung, rungToLines, parseProgram, programToText, cloneProgram, parseToken, cellToken,
     Machine, lint, toST, toRockwell, stName, usedAddrs,
@@ -1280,11 +1350,13 @@
     // a servo axis is a technology object in TIA Portal
     c2 = c2.replace(/\bAX(\d)\.(ON|HOMED|ERR|MOVING|POS|VEL)\b/g, (m, n, f) => ({ ON: '"AX' + n + '".StatusBits.Enable', HOMED: '"AX' + n + '".StatusBits.HomingDone', ERR: '"AX' + n + '".StatusBits.Error', MOVING: 'NOT "AX' + n + '".StatusBits.StandStill', POS: '"AX' + n + '".ActualPosition', VEL: '"AX' + n + '".ActualVelocity' })[f]).replace(/(^|[^"\w])(AX\d)\b/g, '$1"$2"');
     return c2; });
+    (prog.dbs || []).forEach((d) => { b = codeOnly(b, (code) => code.replace(new RegExp('(^|[^"\\w])' + d.name + '\\.', 'g'), '$1"' + d.name + '".')); });
     b = b.replace(/END_IF(?!;)/g, 'END_IF;');
     const out = ['// Siemens TIA Portal: SCL (Structured Control Language) for an S7-1200 / S7-1500 block, e.g. OB1 or an FB.',
       '// Create in the PLC tag table: ' + (Object.keys(tags).length ? Object.keys(tags).map((a) => '"' + tags[a] + '" = %' + a.replace(/^AIW/, 'IW').replace(/^AQW/, 'QW')).join(', ') : 'the addresses used below') + '.'];
     const td = Object.keys(inst);
     if (td.length) out.push('// Create these instance data blocks (or multi-instances in an FB): ' + td.map((k) => '"' + k + '" : ' + (/^(TON|TOF|TP|TONR)$/.test(inst[k]) ? 'IEC_TIMER' : /^(CTU|CTD)$/.test(inst[k]) ? 'IEC_COUNTER' : inst[k])).join(', ') + '.');
+    (prog.dbs || []).forEach((d) => out.push('// Global DB "' + d.name + '" (DB' + d.num + '): ' + d.fields.map((f) => f.name + ' : ' + (f.lo != null ? 'Array[' + f.lo + '..' + f.hi + '] of ' : '') + (f.type === 'STRING' ? 'String' : f.type === 'BOOL' ? 'Bool' : f.type === 'INT' ? 'Int' : 'DInt')).join(', ') + ' (start values in the DB editor).'));
     if (/"FirstScan"/.test(b)) out.push('// "FirstScan": the first-cycle bit of the system memory byte (Device configuration → System and clock memory), or use OB100.');
     if (/"Clock_1Hz"/.test(b)) out.push('// "Clock_1Hz": bit 5 of the clock memory byte (Device configuration → System and clock memory).');
     if (/R_TRIG\(|F_TRIG\(/.test(b)) out.push('// Edges: TIA needs an R_TRIG / F_TRIG instance per edge ("R_TRIG_DB"(CLK := …); then "R_TRIG_DB".Q), or the P_TRIG / N_TRIG edge-flag instructions.');

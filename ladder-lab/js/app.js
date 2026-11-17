@@ -917,8 +917,8 @@
       const BR = LL.BRANDS[S.brand] || LL.BRANDS.ll; LL.brand = S.brand || 'll';
       const kindOf = (b) => (b.kind === 'FC' ? 'FC' : 'FB');
       LL.blockKinds = {}; blocks.forEach((b) => (LL.blockKinds[b.name] = kindOf(b)));
-      let html = `<div class="blk-tabs"><button class="${cur ? '' : 'on'}" data-blk="">Main program</button>${blocks.map((b) => `<button class="${cur && cur.name === b.name ? 'on' : ''}" data-blk="${esc(b.name)}">${esc(b.name)} <small class="blk-kind">${esc(BR[kindOf(b) === 'FC' ? 'fc' : 'fb'])}</small></button>`).join('')}<button data-blk-new title="Create a reusable block">+ Block</button><label class="blk-brand muted">Names as <select data-brand>${Object.keys(LL.BRANDS).map((k) => `<option value="${k}" ${k === (S.brand || 'll') ? 'selected' : ''}>${esc(LL.BRANDS[k].name)}</option>`).join('')}</select></label></div>`;
-      if (cur) {
+      let html = `<div class="blk-tabs"><button class="${cur || this.dbSel != null ? '' : 'on'}" data-blk="">Main program</button>${blocks.map((b) => `<button class="${cur && cur.name === b.name ? 'on' : ''}" data-blk="${esc(b.name)}">${esc(b.name)} <small class="blk-kind">${esc(BR[kindOf(b) === 'FC' ? 'fc' : 'fb'])}</small></button>`).join('')}<button data-blk-new title="Create a reusable block">+ Block</button>${(this.prog.dbs || []).map((d) => `<button class="${this.dbSel === d.num ? 'on' : ''}" data-db="${d.num}">DB${d.num} ${esc(d.name)} <small class="blk-kind">DB</small></button>`).join('')}<button data-db-new title="Create a data block: named values, arrays, recipes">+ DB</button><label class="blk-brand muted">Names as <select data-brand>${Object.keys(LL.BRANDS).map((k) => `<option value="${k}" ${k === (S.brand || 'll') ? 'selected' : ''}>${esc(LL.BRANDS[k].name)}</option>`).join('')}</select></label></div>`;
+      if (cur && this.dbSel == null) {
         const insts = [];
         const scan = (rungs, pre) => rungs.forEach((r, ri) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.type === 'CALL' && c.block === cur.name) insts.push(kindOf(cur) === 'FC' ? { key: pre + cur.name + '@' + c.id, label: 'call in rung ' + (ri + 1) } : { key: pre + c.inst, label: c.inst }); })));
         scan(this.prog.rungs, '');
@@ -931,9 +931,45 @@
           <div class="row"><button class="btn small" data-padd>+ Parameter</button><span class="muted" style="font-size:.8rem">${isFC ? 'Any other #name you use inside is ' + esc(BR.temp) + ': it is cleared at every call, so an FC cannot remember anything (no latches, timers or edges inside: use an FB for that).' : 'Any other #name you use inside (e.g. #Latch, #Delay) is ' + esc(BR.stat) + ' memory: every ' + esc(BR.inst.split(' (')[0].toLowerCase()) + ' gets its own copy.'}</span></div>
           <div class="hint blk-brand-note"><b>${esc(BR.name)}:</b> ${esc(BR.note)}</div></div>`;
       }
+      const dbc = this.dbSel != null && (this.prog.dbs || []).find((d) => d.num === this.dbSel);
+      if (dbc) {
+        const cur2 = (f) => {
+          const key = 'DB' + dbc.num + '.' + f.name.toUpperCase();
+          const show = (k) => { const v = this.m.dbv ? this.m.dbv[k] : undefined; return v === undefined ? '—' : f.type === 'STRING' ? "'" + v + "'" : String(v); };
+          if (f.lo == null) return show(key);
+          const xs = []; for (let k = f.lo; k <= Math.min(f.hi, f.lo + 7); k++) xs.push(show(key + '[' + k + ']')); return xs.join(', ') + (f.hi - f.lo > 7 ? ' …' : '');
+        };
+        html += `<div class="card blk-iface"><div class="row" style="justify-content:space-between;gap:8px"><span class="eyebrow">Data block · ${esc((LL.BRANDS[S.brand] || LL.BRANDS.ll).name)}: ${esc({ ll: 'global DB', tia: 'global data block (DB) with a PLC data type', rk: 'controller tags of a user-defined data type (UDT)', cds: 'GVL with a STRUCT (DUT)', sch: 'GVL with a STRUCT (DUT)', tc: 'GVL with a STRUCT (DUT)', om: 'global variable of a structure data type' }[S.brand] || 'global DB')}</span><button class="btn small" data-db-del style="color:var(--danger)">Delete DB</button></div>
+          <div class="blk-row"><label>Number <input data-dbnum class="mono" value="${dbc.num}" style="width:70px"></label><label>Name <input data-dbname class="mono" value="${esc(dbc.name)}"></label><label style="flex:1">Comment <input data-dbcom value="${esc(dbc.comment || '')}"></label></div>
+          <table class="blk-params"><tr><th>Field</th><th>Type</th><th>Array</th><th>Start values</th><th>Now</th><th>Comment</th><th></th></tr>${dbc.fields.map((f, k) => `<tr data-fk="${k}"><td><input data-ff="name" class="mono" value="${esc(f.name)}"></td><td><select data-ff="type">${['BOOL', 'INT', 'DINT', 'STRING'].map((t) => `<option ${t === f.type ? 'selected' : ''}>${t}</option>`).join('')}</select></td><td><input data-ff="range" class="mono" placeholder="e.g. 1..3" value="${f.lo != null ? f.lo + '..' + f.hi : ''}" style="width:70px"></td><td><input data-ff="init" class="mono" placeholder="${f.lo != null ? '500,300,800' : '0'}" value="${esc((f.init || []).join(','))}"></td><td class="mono muted" style="font-size:.78rem;white-space:nowrap">${esc(cur2(f))}</td><td><input data-ff="comment" value="${esc(f.comment || '')}"></td><td><button class="btn small ghost" data-fdel>✕</button></td></tr>`).join('')}</table>
+          <div class="row"><button class="btn small" data-fadd>+ Field</button><span class="muted" style="font-size:.8rem">Use it in the ladder as <b>DB${dbc.num}.NAME</b>, or for an array <b>DB${dbc.num}.NAME[2]</b> / <b>DB${dbc.num}.NAME[MW30]</b> (the index from a word). Start values are loaded at every download.</span></div></div>`;
+      }
       bar.innerHTML = html;
       const bs = $('[data-brand]', bar); if (bs) bs.onchange = () => { S.brand = bs.value; save(); this.refresh(); toast('Block names shown as ' + LL.BRANDS[bs.value].name); };
-      $$('[data-blk]', bar).forEach((b) => (b.onclick = () => { this.blk = b.dataset.blk || null; this.sel = null; this.refresh(); }));
+      $$('[data-blk]', bar).forEach((b) => (b.onclick = () => { this.blk = b.dataset.blk || null; this.dbSel = null; this.sel = null; this.refresh(); }));
+      $$('[data-db]', bar).forEach((b) => (b.onclick = () => { this.dbSel = +b.dataset.db; this.blk = null; this.sel = null; this.refresh(); }));
+      const ndb = $('[data-db-new]', bar);
+      if (ndb) ndb.onclick = () => { this.prog.dbs = this.prog.dbs || []; let n = 10; while (this.prog.dbs.some((d) => d.num === n)) n++; this.prog.dbs.push({ num: n, name: n === 10 ? 'Recipes' : 'Data' + n, comment: '', fields: [{ name: 'Value', type: 'INT', lo: 1, hi: 3, init: ['0', '0', '0'], comment: '' }] }); this.dbSel = n; this.blk = null; this.commit('DB' + n + ' created: add fields, then use DB' + n + '.VALUE[1] in the ladder'); };
+      if (dbc) {
+        $('[data-dbnum]', bar).onchange = (e) => { const n = parseInt(e.target.value, 10); if (!(n >= 1 && n <= 999) || this.prog.dbs.some((d) => d !== dbc && d.num === n)) { toast('Use a free DB number 1 … 999'); e.target.value = dbc.num; return; } dbc.num = n; this.dbSel = n; this.commit('Renumbered: update the DB addresses in your rungs'); };
+        $('[data-dbname]', bar).onchange = (e) => { const v = e.target.value.trim(); if (!/^[A-Za-z_]\w*$/.test(v)) { toast('Letters, digits and _ only'); e.target.value = dbc.name; return; } dbc.name = v; this.commit(); };
+        $('[data-dbcom]', bar).onchange = (e) => { dbc.comment = e.target.value; this.commit(); };
+        $('[data-db-del]', bar).onclick = () => modal('Delete DB' + dbc.num + '?', '<p>The data block is removed. Rungs that use it will show errors until you change them. Undo brings it back.</p>', [{ label: 'Cancel' }, { label: 'Delete', cls: 'primary', run: () => { this.prog.dbs.splice(this.prog.dbs.indexOf(dbc), 1); this.dbSel = null; this.commit('DB deleted'); } }]);
+        $('[data-fadd]', bar).onclick = () => { let k = dbc.fields.length + 1; while (dbc.fields.some((f) => f.name.toUpperCase() === 'FIELD' + k)) k++; dbc.fields.push({ name: 'Field' + k, type: 'INT', lo: null, hi: null, init: ['0'], comment: '' }); this.commit(); };
+        $$('[data-fk]', bar).forEach((tr) => {
+          const f = dbc.fields[+tr.dataset.fk];
+          $('[data-fdel]', tr).onclick = () => { dbc.fields.splice(+tr.dataset.fk, 1); this.commit('Field removed'); };
+          $$('[data-ff]', tr).forEach((inp) => (inp.onchange = () => {
+            const k = inp.dataset.ff, v = inp.value.trim();
+            if (k === 'name') { if (!/^[A-Za-z_]\w*$/.test(v) || dbc.fields.some((x) => x !== f && x.name.toUpperCase() === v.toUpperCase())) { toast('Invalid or duplicate field name'); inp.value = f.name; return; } f.name = v; }
+            else if (k === 'type') f.type = v;
+            else if (k === 'range') { if (!v) { f.lo = null; f.hi = null; } else { const m = /^(-?\d+)\s*\.\.\s*(-?\d+)$/.exec(v); if (!m || +m[2] < +m[1] || +m[2] - +m[1] > 999) { toast('Write the array range like 1..10'); inp.value = f.lo != null ? f.lo + '..' + f.hi : ''; return; } f.lo = +m[1]; f.hi = +m[2]; } }
+            else if (k === 'init') f.init = v ? v.split(',').map((x) => x.trim()) : [];
+            else f.comment = v;
+            this.commit();
+          }));
+        });
+      }
       const nb = $('[data-blk-new]', bar);
       if (nb) nb.onclick = () => {
         const m = modal('New block', `<p class="muted" style="margin:0 0 10px">A block is a piece of ladder you write once and call many times, each call with its own inputs, outputs and memory (an FB with an instance in TIA Portal, an Add-On Instruction in Studio 5000, a function block in CODESYS).</p><div class="field"><label for="nbk">Kind</label><select id="nbk"><option value="FB">${esc(BR.fbLong)}</option><option value="FC">${esc(BR.fcLong)}</option></select></div><div class="field"><label for="nbn">Block name</label><input id="nbn" class="mono" value="FB_${blocks.length ? 'Block' + (blocks.length + 1) : 'Motor'}"></div><p class="muted" style="font-size:.85rem;margin:6px 0 0">Rule of thumb: if the block must remember anything from one scan to the next (a latch, a timer, an edge, a counter), it is an FB. If it only calculates its outputs from its inputs, an FC is enough.</p>`, [{ label: 'Cancel' }, { label: 'Create', cls: 'primary', run: (mm) => {
@@ -1489,6 +1525,7 @@
         else if (/^C\d+$/.test(a)) parts.push([a + '.CV', this.m.word(a + '.CV')], [a + ' done', this.m.bit(a)]);
         else if (/^(MW|AQW|MD)\d+$/.test(a)) parts.push([a, this.m.word(a)]);
         else if (/STR\d/.test(a)) parts.push([a, "'" + this.m.str(a) + "'"]);
+        else if (/^DB\d/.test(a)) { const e0 = this.m.error; let v = LL.isStrAddr(a) ? "'" + this.m.str(a) + "'" : this.m.read(a); if (!e0) this.m.error = e0; parts.push([a, v]); }
         else if (/^M\d/.test(a)) parts.push([a, this.m.bit(a)]);
       });
       const tags = this.tags();

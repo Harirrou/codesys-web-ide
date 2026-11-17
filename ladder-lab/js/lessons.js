@@ -1638,6 +1638,41 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
       challenges: ['bcr-3'],
     },
     {
+      id: 'data-blocks', level: 6, title: 'Data blocks, structures and arrays (recipes)', min: 13,
+      summary: 'Where real programs keep their data: data blocks with named fields, structures and arrays, an index to pick a recipe, start values and retentive data, and the same idea in every brand.',
+      body: `
+<h3>Why data blocks</h3>
+<p>A small program can live with M bits and MW words. A real machine has hundreds of values: recipes, parameters, counters, product data, alarm bits. Scattering them over numbered addresses is how mistakes happen. A <b>data block</b> groups them under names: <code>Recipes.Length[2]</code> says what it is; <code>MW124</code> does not.</p>
+<h3>The parts</h3>
+<ul>
+<li><b>Fields</b> with a name and a type (BOOL, INT, DINT, STRING …) and a <b>start value</b>.</li>
+<li><b>Structures</b> (a PLC data type / UDT / STRUCT): a reusable layout, e.g. "Recipe" = Length + Qty + Name.</li>
+<li><b>Arrays</b>: the same field many times, <code>Length[1..3]</code>, chosen by an <b>index</b>. With the index in a word (<code>Length[MW30]</code>), one rung serves every recipe.</li>
+<li><b>Retain</b>: data that must survive a power cut (serial numbers, counters, recipes changed on the HMI) is marked retentive.</li>
+</ul>
+<h3>The index must be checked</h3>
+<p><code>Length[MW30]</code> with MW30 = 7 reads outside the array. A real PLC stops (TIA Portal: STOP or the programming-error OB121, Studio 5000: a major fault, CODESYS: an exception or wrong data). Always check the index first: <code>CMP(MW30&gt;=1) CMP(MW30&lt;=3)</code>.</p>
+<h3>Start values and a download</h3>
+<p>Every data block has start values. Downloading the block again (or "reinitialising" it) puts the start values back and loses what the operator changed on the HMI. Keep recipes that operators edit in retentive blocks, and download them with care.</p>
+<h3>The same idea in every brand</h3>
+<div class="tbl"><table>
+<tr><th>Brand</th><th>Where the data lives</th><th>Layout</th><th>Example</th></tr>
+<tr><td>Ladder Lab</td><td>DB sections</td><td>fields, arrays</td><td>DB10.LENGTH[MW30]</td></tr>
+<tr><td>Siemens TIA Portal</td><td>global DB, instance DB</td><td>PLC data type (UDT)</td><td>"Recipes".Length["RecipeNo"]</td></tr>
+<tr><td>Rockwell Studio 5000</td><td>controller / program tags (no DBs)</td><td>user-defined data type (UDT), arrays</td><td>Recipes.Length[RecipeNo]</td></tr>
+<tr><td>CODESYS, TwinCAT 3, Schneider Machine Expert</td><td>GVL (global variable list)</td><td>DUT: STRUCT, ARRAY</td><td>Recipes.Length[nRecipe]</td></tr>
+<tr><td>Omron Sysmac Studio</td><td>global variables</td><td>structure data types, arrays</td><td>Recipes.Length[RecipeNo]</td></tr>
+<tr><td>Omron CX / Schneider M221</td><td>DM area (D) / %MW tables</td><td>word addresses</td><td>D100 + index, %MW100[%MW30]</td></tr>
+</table></div>
+<h3>In the Lab</h3>
+<p><b>+ DB</b> above the ladder creates a data block. Add fields (type, an array range like 1..3, start values separated by commas) and use them as <code>DB10.NAME</code> or <code>DB10.NAME[2]</code> / <code>DB10.NAME[MW30]</code>. The "Now" column shows the actual values while the PLC runs, and the Other brands window shows the block as a structure in each brand.</p>
+<div class="callout where"><b>Where:</b> recipes and product data, machine parameters, alarm words for the HMI, data per station or per product in tracking, instance data of function blocks.</div>`,
+      sims: {},
+      takeaways: ['Data blocks give data names, types and start values.', 'Structures and arrays: one rung with an index serves every recipe.', 'Check every index before using it: out of range stops a real PLC.', 'Retentive data survives a power cut; a download restores start values.', 'TIA: DB + UDT; Rockwell: tags + UDT; CODESYS / TwinCAT / Machine Expert: GVL + STRUCT; Sysmac: global variables + structures.'],
+      mistakes: ['Using an index from the HMI without a range check.', 'Recipes in non-retentive memory.', 'Downloading a data block and losing the operator\'s values.', 'Absolute addresses (DB10.DBW4) where a name would be clear.'],
+      challenges: ['db-recipe', 'bug-db-index'],
+    },
+    {
       id: 'structure', level: 5, title: 'Program structure & troubleshooting', min: 9,
       summary: 'How to lay out a program others can maintain, and how to find faults fast.',
       body: `
@@ -2154,6 +2189,9 @@ END_REPEAT</pre>
     ["Barcode reader (BCR)", "A scanner that reads 1D / 2D codes when triggered and returns a status (read OK / no read) and the data string."],
     ["Print and apply", "A label printer that also puts the label on the product; the product must stand still or move at a known speed."],
     ["Text list", "An HMI table that turns a number from the PLC into a text (message, step, state)."],
+    ["Data block (DB)", "A block of named data (fields, structures, arrays) with start values. Siemens: global or instance DB; Rockwell: tags; CODESYS: a GVL."],
+    ["UDT / structure", "A user-defined data type: a named layout of fields (e.g. a recipe) used many times. TIA: PLC data type; Rockwell: UDT; CODESYS: STRUCT (DUT)."],
+    ["Array index", "The number that picks one element of an array, e.g. Length[MW30]. Outside the declared range it stops a real PLC."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -2365,5 +2403,8 @@ END_REPEAT</pre>
     { l: 6, q: "The barcode reader reports \"no read\". What must the line do?", a: ["not label the product, and reject it", "print an empty label", "print the last code again", "ignore it"], c: 0, why: "A product without a valid code must never pass unchecked." },
     { l: 6, q: "Why does the PLC send a message NUMBER to the HMI and not the text?", a: ["the HMI holds the texts, so they can be changed and translated without a PLC download", "strings are not allowed", "numbers are faster to type", "it does not matter"], c: 0, why: "Text lists on the HMI." },
     { l: 6, q: "Where should the serial counter of a label printer be kept?", a: ["in retentive memory, so it never repeats after a power cut", "in a normal M word", "in the printer only", "in a timer"], c: 0, why: "Unique numbers must survive a power cut." },
+    { l: 6, q: "The operator types recipe 7, but the array is Length[1..3]. Reading Length[MW30]…", a: ["stops a real PLC (array index out of range) unless you check MW30 first", "reads 0", "reads the last element", "is fine"], c: 0, why: "Always check the index." },
+    { l: 6, q: "What does Rockwell use instead of data blocks?", a: ["tags with user-defined data types (UDT) and arrays", "DB10", "M bits only", "the HMI"], c: 0, why: "Controller or program scoped tags." },
+    { l: 6, q: "You download a data block again. What happens to values the operator changed on the HMI?", a: ["they are replaced by the start values (unless kept as retentive / not reinitialised)", "nothing", "they are doubled", "they move to M memory"], c: 0, why: "Download with care." },
   ];
 })(typeof window !== 'undefined' ? window : globalThis);
