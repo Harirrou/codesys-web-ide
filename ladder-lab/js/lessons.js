@@ -334,30 +334,56 @@
       challenges: ['interlock'],
     },
     {
-      id: 'edges', level: 2, title: 'Edges & one-shots', min: 8,
-      summary: 'Do something once at the moment a signal changes, not for as long as it stays on.',
+      id: 'edges', level: 2, title: 'Edges & one-shots (triggers)', min: 14,
+      summary: 'Do something once at the moment a signal changes, not for as long as it stays on. Rising and falling edges, how they work inside, edges on outputs and timers, and the classic traps.',
       body: `
-<h3>What it is</h3>
-<p>A normal contact is <b>level</b>-sensitive: true for every scan the bit is 1. An <b>edge</b> contact is true for exactly <b>one scan</b>:</p>
+<h3>Level or edge?</h3>
+<p>A normal contact is <b>level</b>-sensitive: true for every scan the bit is 1. An <b>edge</b> contact (a <b>trigger</b>, a <b>one-shot</b>) is true for exactly <b>one scan</b>:</p>
 <ul>
-<li><code>-|P|-</code> rising edge: the scan where the bit goes 0 → 1.</li>
-<li><code>-|N|-</code> falling edge: the scan where the bit goes 1 → 0.</li>
+<li><code>-|P|-</code> <b>rising edge</b>: the scan where the bit goes 0 → 1 (the moment you press).</li>
+<li><code>-|N|-</code> <b>falling edge</b>: the scan where the bit goes 1 → 0 (the moment you let go).</li>
 </ul>
-<p>Other names: one-shot (ONS, OSR), R_TRIG / F_TRIG in IEC and CODESYS, positive / negative transition.</p>
+<div class="sfc-wrap"><svg class="sfc" viewBox="0 0 560 250" width="560" style="max-width:100%;height:auto" role="img" aria-label="Timing diagram of NO, P and N contacts"><g font-family="IBM Plex Mono, monospace" font-size="11" fill="currentColor"><line x1="120.0" y1="14" x2="120.0" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="146.2" y1="14" x2="146.2" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="172.5" y1="14" x2="172.5" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="198.8" y1="14" x2="198.8" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="225.0" y1="14" x2="225.0" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="251.2" y1="14" x2="251.2" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="277.5" y1="14" x2="277.5" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="303.8" y1="14" x2="303.8" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="330.0" y1="14" x2="330.0" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="356.2" y1="14" x2="356.2" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="382.5" y1="14" x2="382.5" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="408.8" y1="14" x2="408.8" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="435.0" y1="14" x2="435.0" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="461.2" y1="14" x2="461.2" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="487.5" y1="14" x2="487.5" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="513.8" y1="14" x2="513.8" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="540.0" y1="14" x2="540.0" y2="216" stroke="currentColor" stroke-opacity=".15"/><text x="120" y="236" font-size="10" fill-opacity=".7">each column = one scan (10 ms)</text><text x="8" y="48" font-weight="700">Button I0.0</text><path d="M120.0 56.0 L146.2 56.0 L146.2 56.0 L172.5 56.0 L172.5 56.0 L198.8 56.0 L198.8 56.0 L198.8 30.0 L225.0 30.0 L225.0 30.0 L251.2 30.0 L251.2 30.0 L277.5 30.0 L277.5 30.0 L303.8 30.0 L303.8 30.0 L330.0 30.0 L330.0 30.0 L356.2 30.0 L356.2 30.0 L382.5 30.0 L382.5 30.0 L408.8 30.0 L408.8 30.0 L408.8 56.0 L435.0 56.0 L435.0 56.0 L461.2 56.0 L461.2 56.0 L487.5 56.0 L487.5 56.0 L513.8 56.0 L513.8 56.0 L540.0 56.0" fill="none" stroke="#22c55e" stroke-width="2.5"/><text x="8" y="98" font-weight="700">NO(I0.0)</text><path d="M120.0 106.0 L146.2 106.0 L146.2 106.0 L172.5 106.0 L172.5 106.0 L198.8 106.0 L198.8 106.0 L198.8 80.0 L225.0 80.0 L225.0 80.0 L251.2 80.0 L251.2 80.0 L277.5 80.0 L277.5 80.0 L303.8 80.0 L303.8 80.0 L330.0 80.0 L330.0 80.0 L356.2 80.0 L356.2 80.0 L382.5 80.0 L382.5 80.0 L408.8 80.0 L408.8 80.0 L408.8 106.0 L435.0 106.0 L435.0 106.0 L461.2 106.0 L461.2 106.0 L487.5 106.0 L487.5 106.0 L513.8 106.0 L513.8 106.0 L540.0 106.0" fill="none" stroke="#22c55e" stroke-width="2.5"/><text x="8" y="148" font-weight="700">P(I0.0)</text><path d="M120.0 156.0 L146.2 156.0 L146.2 156.0 L172.5 156.0 L172.5 156.0 L198.8 156.0 L198.8 156.0 L198.8 130.0 L225.0 130.0 L225.0 130.0 L225.0 156.0 L251.2 156.0 L251.2 156.0 L277.5 156.0 L277.5 156.0 L303.8 156.0 L303.8 156.0 L330.0 156.0 L330.0 156.0 L356.2 156.0 L356.2 156.0 L382.5 156.0 L382.5 156.0 L408.8 156.0 L408.8 156.0 L435.0 156.0 L435.0 156.0 L461.2 156.0 L461.2 156.0 L487.5 156.0 L487.5 156.0 L513.8 156.0 L513.8 156.0 L540.0 156.0" fill="none" stroke="#f5a524" stroke-width="2.5"/><text x="8" y="198" font-weight="700">N(I0.0)</text><path d="M120.0 206.0 L146.2 206.0 L146.2 206.0 L172.5 206.0 L172.5 206.0 L198.8 206.0 L198.8 206.0 L225.0 206.0 L225.0 206.0 L251.2 206.0 L251.2 206.0 L277.5 206.0 L277.5 206.0 L303.8 206.0 L303.8 206.0 L330.0 206.0 L330.0 206.0 L356.2 206.0 L356.2 206.0 L382.5 206.0 L382.5 206.0 L408.8 206.0 L408.8 206.0 L408.8 180.0 L435.0 180.0 L435.0 180.0 L435.0 206.0 L461.2 206.0 L461.2 206.0 L487.5 206.0 L487.5 206.0 L513.8 206.0 L513.8 206.0 L540.0 206.0" fill="none" stroke="#3b82f6" stroke-width="2.5"/><text x="229.0" y="142" font-size="10">one scan at 0 → 1</text><text x="439.0" y="192" font-size="10">one scan at 1 → 0</text></g></svg></div>
 <h3>Why it matters</h3>
-<p>A button press lasts ~200 ms, which is maybe 20 scans. Anything that <i>adds</i>, <i>toggles</i> or <i>moves</i> would happen 20 times. Edges make it happen once.</p>
+<p>A button press lasts about 200 ms: 20 scans. Anything that <i>adds</i>, <i>toggles</i>, <i>shifts</i> or <i>moves to the next step</i> would happen 20 times. Edges make it happen once.</p>
 [[sim:edge]]
+<h3>When to use the falling edge</h3>
+<ul>
+<li><b>Start on release</b>: a taped-down or jammed START button can never start the machine.</li>
+<li><b>A part has left the sensor</b>: count a box when it has completely passed, or release the next one only when the previous one is gone.</li>
+<li><b>Something stopped</b>: N on the motor output counts stops, whatever caused them.</li>
+</ul>
+<h3>How a P contact works inside</h3>
+<p>The PLC keeps the value of the signal from the <b>previous scan</b> in a memory bit. Rising edge = "1 now AND 0 last scan". You can build it yourself with two rungs, and you must be able to read it: older programs are full of it.</p>
+[[sim:own]]
+<p>The order matters: the edge rung must come <b>before</b> the rung that stores the signal, otherwise it compares the signal with itself and never fires. For a falling edge: NC(signal) NO(last scan).</p>
+<h3>Edges work on any bit</h3>
+<p>Not only on buttons: on an output (P on the motor = "the motor has just started"), on a timer's done bit ("the time has just run out"), on a counter's done bit ("the box has just become full"), on a step bit ("we just entered step 3"). The edge of a timer or counter done bit is a very common way to do something <b>once</b> when it finishes.</p>
 <h3>The toggle trick (one button ON/OFF)</h3>
 <p>Rung 1 makes a one-scan pulse. Rung 2 flips the lamp on that pulse: <code>Lamp := Pulse XOR Lamp</code>.</p>
 [[sim:toggle]]
-<div class="callout where"><b>Where:</b> counting parts, adding to totals, toggling modes with one button, acknowledging alarms, starting a sequence step exactly once.</div>`,
+<h3>The same thing in every brand</h3>
+<div class="tbl"><table>
+<tr><th>Ladder Lab</th><th>TIA Portal</th><th>Studio 5000</th><th>CODESYS</th></tr>
+<tr><td>P(I0.0)</td><td>-|P|- with its own edge memory bit (written below the contact), or R_TRIG</td><td>XIC(I0.0)ONS(storage bit), or OSR</td><td>-|P|- or an R_TRIG instance</td></tr>
+<tr><td>N(I0.0)</td><td>-|N|- with its own edge memory bit, or F_TRIG</td><td>XIO(I0.0)ONS(storage bit), or OSF</td><td>-|N|- or an F_TRIG instance</td></tr>
+</table></div>
+<h3>Traps</h3>
+<ul>
+<li><b>No edge</b>: ADD, MOV, SHRB or a toggle on a level contact runs every scan while the button is held.</li>
+<li><b>Shared edge memory</b>: in TIA Portal and Studio 5000 each edge has its own memory (storage) bit. Using the same one for two edges makes one of them never fire. Ladder Lab gives each edge its own automatically.</li>
+<li><b>A one-scan pulse on a lamp</b>: on for 10 ms, nobody sees it. Use the pulse to SET, toggle, count or start a timer.</li>
+<li><b>Bouncing contacts and noisy signals</b>: several edges for one press. Filter first, then take the edge (see "Triggers in practice").</li>
+</ul>
+<div class="callout where"><b>Where:</b> counting parts, adding to totals, toggling modes with one button, acknowledging alarms, advancing a sequence step exactly once, logging events, starting on release.</div>`,
       sims: {
-        edge: { program: 'RUNG Add 1 per scan while held (level)\nNO(I0.0) ADD(MW0,1,MW0)\nRUNG Add 1 per press (edge)\nP(I0.0) ADD(MW2,1,MW2)', inputs: { 'I0.0': pb('Button') }, outputs: {}, note: 'Press once. MW0 races up (+1 every scan), MW2 adds exactly 1.' },
+        edge: { program: 'RUNG Add 1 per scan while held (level)\nNO(I0.0) ADD(MW0,1,MW0)\nRUNG Add 1 per press (edge)\nP(I0.0) ADD(MW2,1,MW2)\nRUNG Add 1 per release (falling edge)\nN(I0.0) ADD(MW4,1,MW4)', inputs: { 'I0.0': pb('Button') }, outputs: {}, note: 'Press once and hold. MW0 races up (+1 every scan), MW2 adds exactly 1 when you press, MW4 adds 1 when you let go.' },
+        own: { program: 'RUNG Rising edge by hand: 1 now AND 0 in the last scan\nNO(I0.0) NC(M1.0) COIL(M0.0)\nRUNG Remember the button for the next scan (AFTER the edge rung)\nNO(I0.0) COIL(M1.0)\nRUNG Count the pulses\nNO(M0.0) ADD(MW0,1,MW0)', inputs: { 'I0.0': pb('Button') }, outputs: {}, step: true, note: 'Use Step to go through one scan at a time while you hold the button: M0.0 is 1 only in the first scan, because from then on M1.0 remembers that the button was already pressed.' },
         toggle: { program: 'RUNG One-scan pulse on each press\nP(I0.0) COIL(M0.0)\nRUNG Flip the lamp on each pulse\nNO(M0.0) NC(Q0.0) | COIL(Q0.0)\nNC(M0.0) NO(Q0.0)', inputs: { 'I0.0': pb('ON/OFF') }, outputs: { 'Q0.0': 'Lamp' } },
       },
-      takeaways: ['P = one scan on 0→1, N = one scan on 1→0.', 'Use edges for counting, adding, toggling.'],
-      mistakes: ['ADD or MOV with a level contact: runs every scan.', 'Using the same edge memory in two places.'],
-      challenges: ['toggle'],
+      takeaways: ['P = one scan on 0→1, N = one scan on 1→0.', 'Use edges for counting, adding, toggling, shifting and stepping.', 'Inside, an edge compares the signal with its value in the last scan.', 'Edges work on any bit: outputs, timers, counters, steps.', 'Each edge needs its own memory.'],
+      mistakes: ['ADD or MOV with a level contact: runs every scan.', 'Using the same edge memory in two places.', 'Hand-made edge with the "remember" rung above the edge rung.', 'Putting a one-scan pulse on a lamp.'],
+      challenges: ['toggle', 'trig-release', 'trig-own', 'bug-trig-flicker', 'trig-count', 'trig-motor', 'bug-trig-batch'],
     },
     {
       id: 'scan-traps', level: 2, title: 'Scan traps: rung order & double coils', min: 7,
@@ -1282,6 +1308,36 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
       challenges: ['comm-1', 'comm-2', 'comm-3'],
     },
     {
+      id: 'triggers-advanced', level: 5, title: 'Triggers in practice: clicks, bounce and changes', min: 12,
+      summary: 'Real signals are not clean. Debounce contacts before taking an edge, detect a change of a value with a deadband, act once when entering a step, and give one button several commands.',
+      body: `
+<h3>Contact bounce</h3>
+<p>A mechanical contact does not close cleanly: the metal springs back and the contact opens and closes several times within a few ms. A fast PLC sees several edges for one press. Worn buttons, limit switches and relay contacts all do it; photo-eyes on shiny or uneven parts flicker in the same way.</p>
+<p><b>Fix: filter first, then take the edge.</b> NO(input) TON(T,50ms) is only done when the signal has been steady for 50 ms; then use P(T). The filter time must be longer than the longest single bounce, and short enough that nobody notices.</p>
+<h3>Change of a value</h3>
+<p>A trigger can also be "this number has changed": the operator turned a knob, a recipe number changed, a step number moved on. Keep a copy of the value; when the value differs from the copy, act and update the copy in the same rung. The difference disappears, so the trigger lasts exactly one scan.</p>
+<p>Analog values always move a little (noise). Compare with a <b>deadband</b>: only a difference bigger than, say, 200 counts is a change. The copy is the value at the last logged change, not the value of the last scan, so slow drift is caught as well.</p>
+[[sim:cov]]
+<h3>Do it once when entering a step</h3>
+<p>In a sequence, P on a step bit runs something once when the step becomes active: reset a timer, store a time stamp, count a cycle, send a message. The same with N when leaving a step.</p>
+<h3>One button, several commands</h3>
+<div class="tbl"><table>
+<tr><th>Gesture</th><th>How to recognise it</th></tr>
+<tr><td>Long press</td><td>TON on the button; act on P of the timer (at the moment the time is reached) and remember "this press was long"</td></tr>
+<tr><td>Short click</td><td>N of the button while the press was not long; then wait</td></tr>
+<tr><td>Double click</td><td>P of the button while still waiting after a short click</td></tr>
+<tr><td>Single click confirmed</td><td>the waiting timer ran out without a second press</td></tr>
+</table></div>
+<p>A single click can only be confirmed after the double-click window: that small delay is the price of having both.</p>
+<h3>Shorter than a scan</h3>
+<p>An edge needs the PLC to see the signal at least once. A pulse shorter than the scan time can fall between two scans and be lost. For fast signals use a high-speed counter, a hardware interrupt (e.g. a TIA Portal hardware interrupt OB), or the "pulse catch" option of the input card.</p>
+<div class="callout where"><b>Where:</b> old operator panels, limit switches, mechanical counters, HMI setpoints that must be logged for quality, recipe changes, sequences that write a record per cycle, single-button devices.</div>`,
+      sims: { cov: { program: 'NAME Change of value with a deadband\nRUNG At power-up: the current value is the reference\nNO(SM0.1) MOV(AIW0,MW12)\nRUNG Distance from the last logged value\nNO(SM0.0) SUB(AIW0,MW12,MW14)\nRUNG A real change: more than 2000 counts up or down\nCMP(MW14>2000) | COIL(M0.0)\nCMP(MW14<-2000)\nRUNG Log it: count, new reference, lamp for 2 s\nNO(M0.0) ~ | ADD(MW20,1,MW20)\n. . . . . . | MOV(AIW0,MW12)\nTP(T0,2s)\nRUNG Changed lamp\nNO(T0) COIL(Q0.0)', inputs: { 'AIW0': { name: 'Knob', kind: 'ana', min: 0, max: 27648, value: 13824 } }, outputs: { 'Q0.0': 'Changed' }, note: 'Move the knob a little: nothing. Move it more than 2000 counts away from MW12 (the last logged value): MW20 counts once and the lamp lights for 2 s.' } },
+      takeaways: ['Bouncing contacts give several edges: filter first, then take the edge.', 'Change of value: compare with a stored copy and update it in the same rung.', 'Use a deadband on analog values.', 'P on a step bit = do it once when entering the step.', 'A pulse shorter than a scan can be missed.'],
+      mistakes: ['Taking the edge of a raw, bouncing contact.', 'Comparing an analog value with its last-scan value (noise triggers all the time).', 'A debounce time shorter than the bounce.', 'Expecting to catch a 2 ms pulse with a 10 ms scan.'],
+      challenges: ['trig-click', 'trig-bounce', 'trig-change'],
+    },
+    {
       id: 'structure', level: 5, title: 'Program structure & troubleshooting', min: 9,
       summary: 'How to lay out a program others can maintain, and how to find faults fast.',
       body: `
@@ -1774,6 +1830,11 @@ END_REPEAT</pre>
     ["Modbus", "Simple, universal protocol (TCP or serial RTU) for reading and writing registers (words) and coils (bits)."],
     ["XIC / XIO / OTE", "Rockwell names: examine if closed (NO contact), examine if open (NC contact), output energize (coil). OTL / OTU = latch / unlatch (SET / RESET)."],
     ["Add-On Instruction (AOI)", "Rockwell's reusable block with its own parameters and memory: the same idea as a Siemens FB or a CODESYS FUNCTION_BLOCK."],
+    ["Contact bounce", "A mechanical contact opens and closes several times within a few ms when it is operated. The PLC can see several edges for one press."],
+    ["Deadband", "A band around a value inside which changes are ignored, so noise does not trigger an action."],
+    ["Change of value (COV)", "A trigger that fires when a number changes: compare it with a stored copy, act, and update the copy."],
+    ["Edge memory bit", "The bit an edge instruction uses to remember the signal of the last scan (TIA Portal: the bit under -|P|-; Rockwell: the ONS storage bit). Each edge needs its own."],
+    ["Pulse catch", "Input-card option that stretches a very short pulse so the program sees it in the next scan."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -1948,5 +2009,12 @@ END_REPEAT</pre>
     { l: 6,  q: "In a hand-over handshake, B sets \"part received\" when…",  a: ["the part has really arrived at B", "after a fixed time", "when A says part ready", "at power-up"],  c: 0,  why: "Each side answers what it has seen." },
     { l: 6,  q: "When should B read the part data (e.g. the part type) from A?",  a: ["while A says the data is valid, and keep it", "whenever the part arrives, even if A dropped \"valid\"", "once at power-up", "never"],  c: 0,  why: "Data is only valid while A offers it." },
     { l: 6,  q: "An emergency stop between two machines should go over…",  a: ["a safety network (PROFIsafe, CIP Safety) or hard wiring", "an ordinary PROFINET bit", "Modbus", "the HMI"],  c: 0,  why: "Ordinary bits are not safety rated." },
+    { l: 2, q: "A falling-edge contact N(I0.0) is true…", a: ["for one scan when I0.0 goes from 1 to 0", "while I0.0 is 0", "for one scan when I0.0 goes 0 to 1", "never"], c: 0, why: "N = the moment the signal drops." },
+    { l: 2, q: "Why start a machine on the RELEASE of START?", a: ["a stuck or taped-down button can never start it", "it is faster", "buttons last longer", "it saves an input"], c: 0, why: "A falling edge needs the button to be let go." },
+    { l: 2, q: "A hand-made rising edge is NO(I0.0) NC(M1.0) COIL(M0.0) with NO(I0.0) COIL(M1.0). Where must the second rung be?", a: ["after the first one", "before the first one", "anywhere", "in a block"], c: 0, why: "Otherwise M1.0 already holds this scan's value and the edge never fires." },
+    { l: 4, q: "You want to count how often a motor really started. Put the P contact on…", a: ["the motor output", "the START button", "the STOP button", "SM0.0"], c: 0, why: "Pressing START while running is not a start." },
+    { l: 5, q: "A worn button gives 4 edges per press. Best fix in the program?", a: ["debounce (TON 50 ms), then take the edge of the timer", "use an N contact", "count every 4th edge", "a faster scan"], c: 0, why: "Filter first, then the edge." },
+    { l: 5, q: "Logging knob changes: why compare with a deadband?", a: ["analog noise would trigger all the time", "to save memory", "knobs are digital", "it is faster"], c: 0, why: "Only a real move should count." },
+    { l: 5, q: "With short, long and double click on one button, why is the single click recognised a little late?", a: ["the program must wait to be sure no second click follows", "the scan is slow", "timers are inaccurate", "it is not"], c: 0, why: "The double-click window must pass first." },
   ];
 })(typeof window !== 'undefined' ? window : globalThis);

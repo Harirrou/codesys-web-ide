@@ -1689,6 +1689,48 @@
     },
   };
 
+  // ───────────────────────── worn operator panel: bouncing buttons, noisy knob ─────────────────────────
+  P.oldpanel = {
+    id: 'oldpanel', name: 'Worn operator panel', blurb: 'An old panel on a real machine: the push buttons bounce (the contact chatters for about 60 ms each time it is pressed or released) and the speed knob has electrical noise on its cable. Programs that work on the trainer panel can go wrong here.',
+    inputs: [
+      { addr: 'I0.0', name: 'PB1', kind: 'pb', color: 'green', note: 'Worn: bounces for about 60 ms on press and on release' },
+      { addr: 'I0.1', name: 'PB2', kind: 'pb', color: 'green', note: 'Worn: bounces for about 60 ms on press and on release' },
+      { addr: 'I0.2', name: 'PB3', kind: 'pb', color: 'black', note: 'Worn: bounces for about 60 ms on press and on release' },
+      { addr: 'I0.3', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'AIW0', name: 'Speed knob', kind: 'ana', min: 0, max: 27648, value: 13824, unit: 'V', note: '0–10 V = 0–27648, with a little noise on the cable' },
+    ],
+    outputs: ['green', 'amber', 'blue', 'red'].map((col, i) => ({ addr: 'Q0.' + i, name: 'L' + (i + 1), color: col })),
+    actions: [
+      { id: 'newbtn', label: 'Fit new buttons (no bounce)', toggle: true, run(st) { st.newbtn = !st.newbtn; } },
+      { id: 'quiet', label: 'Shielded knob cable (no noise)', toggle: true, run(st) { st.quiet = !st.quiet; } },
+    ],
+    init() { return { t: 0, last: {}, chg: {}, bounces: 0, hist: [], newbtn: false, quiet: false }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const o = devices(this, ctrl);
+      ['I0.0', 'I0.1', 'I0.2'].forEach((a) => {
+        const raw = o[a];
+        if (st.last[a] !== raw) { if (st.last[a] !== undefined) st.chg[a] = st.t; st.last[a] = raw; }
+        const age = st.chg[a] == null ? 1e9 : st.t - st.chg[a];
+        if (!st.newbtn && age < 60) { const flip = (age >= 20 && age < 30) || (age >= 50 && age < 60); o[a] = flip ? (raw ? 0 : 1) : raw; if (flip) st.bounces++; }   // uneven bounce: 20 on, 10 off, 20 on, 10 off
+      });
+      if (!st.quiet) o['AIW0'] = clamp(Math.round(o['AIW0'] + wob(st.t * 7, 15)), 0, 27648);
+      st.hist.push(o['I0.1']); if (st.hist.length > 60) st.hist.shift();
+      return o;
+    },
+    draw(c, st, th, Q, I, tags) {
+      c.fillStyle = th.panel; D.rr(c, 16, 16, 608, 328, 14); c.fill(); c.strokeStyle = th.line; c.lineWidth = 1; c.stroke();
+      this.outputs.forEach((o, i) => D.lamp(c, th, 90 + i * 110, 80, 18, !!Q[o.addr], o.color, (tags && tags[o.addr]) || o.name, o.addr));
+      D.text(c, 'PB2 AS THE PLC SEES IT (last 0.6 s)', 40, 160, { size: 10, weight: 700, color: th.muted, align: 'left' });
+      c.fillStyle = '#0b1220'; D.rr(c, 40, 172, 560, 60, 6); c.fill();
+      c.strokeStyle = '#7CFC9A'; c.lineWidth = 2; c.beginPath();
+      st.hist.forEach((v, i) => { const x = 50 + i * 9.1, y = v ? 186 : 218; if (i) { c.lineTo(x, c._py); c.lineTo(x, y); } else c.moveTo(x, y); c._py = y; });
+      c.stroke();
+      D.text(c, st.newbtn ? 'new buttons: clean signal' : 'worn buttons: ' + st.bounces + ' bounce flips so far', 320, 250, { size: 11, mono: true, color: st.newbtn ? th.muted : th.amber });
+      D.text(c, 'knob AIW0 = ' + (I['AIW0'] || 0) + (st.quiet ? '  (shielded)' : '  (noisy)'), 320, 290, { size: 13, mono: true, weight: 700, color: th.ink });
+    },
+  };
+
   // ───────────────────────── box sorter ─────────────────────────
   const SORT_PATTERN = [1, 0, 0, 1, 1, 0, 1, 0, 0, 1];
   P.sorter = {
@@ -3111,7 +3153,7 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'alarms', 'feeder', 'handover', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
+  LL.PLANT_ORDER = ['panel', 'oldpanel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'alarms', 'feeder', 'handover', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
 
   // Outputs a plant sees: Q bits, AQW words, plus any memory words its HMI displays
   LL.plantOutputs = function (plant, m) {
@@ -3263,6 +3305,11 @@
       (prog.rungs || []).forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.type === 'CALL') cnt[c.block] = (cnt[c.block] || 0) + 1; })));
       const best = Math.max(0, ...Object.values(cnt));
       if (best < ch.needCalls) return ch.tests.map((t, i) => ({ name: t.name, ok: false, msg: i === 0 ? 'This project is about reusable code: write the logic once as a block (+ Block) and CALL it ' + ch.needCalls + ' times from the main program (found ' + best + ' call' + (best === 1 ? '' : 's') + ' of one block).' : 'Not run.' }));
+    }
+    if (ch.forbid && prog.lang !== 'st') {
+      const found = new Set();
+      [prog.rungs || []].concat((prog.blocks || []).map((b) => b.rungs)).forEach((rs) => rs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && ch.forbid.includes(c.type)) found.add(c.type); }))));
+      if (found.size) return ch.tests.map((t, i) => ({ name: t.name, ok: false, msg: i === 0 ? 'This task is about building it yourself: do it without ' + ch.forbid.join(' / ') + ' elements (found ' + [...found].join(', ') + ').' : 'Not run.' }));
     }
     const tags = Object.assign({}, LL.plantTags(ch.plant), ch.tags || {});
     return ch.tests.map((t) => {
