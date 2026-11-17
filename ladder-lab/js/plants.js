@@ -2160,6 +2160,145 @@
     },
   };
 
+  // ───────────────────────── hydraulic press with its power unit (HPU) ─────────────────────────
+  const HP = { slow: 0.6, contact: 0.78, squash: 0.03 };
+  P.hpress = {
+    id: 'hpress', name: 'Hydraulic press with power unit', blurb: 'A 4-column hydraulic press. A hydraulic power unit (oil tank, pump motor, unloading valve, relief valve, oil cooler, filter) feeds a double-acting cylinder through a 4/3 valve with a closed centre (Y1 down, Y2 up, both off = the ram stops and holds). Fast approach, slow pressing until a pressure switch, dwell, decompression, return.',
+    inputs: [
+      { addr: 'I0.0', name: 'Pump START', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'Pump STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'Cycle START (left hand)', kind: 'pb', color: 'green' },
+      { addr: 'I0.3', name: 'Right hand button', kind: 'pb', color: 'green' },
+      { addr: 'I0.4', name: 'B1 ram at top', kind: 'sensor', note: '1 = ram fully up' },
+      { addr: 'I0.5', name: 'B2 slow-down point', kind: 'sensor', note: '1 = ram below the slow-down point (just above the part)' },
+      { addr: 'I0.6', name: 'Pressure switch 150 bar', kind: 'sensor', note: '1 = cylinder pressure ≥ 150 bar (pressing force reached)' },
+      { addr: 'I0.7', name: 'Pump motor overload OK', kind: 'sensor', note: 'NC contact of the motor protection: 1 = OK, 0 = tripped' },
+      { addr: 'I1.0', name: 'Oil level OK', kind: 'sensor', note: 'float switch in the tank: 1 = enough oil' },
+      { addr: 'I1.1', name: 'Filter clogged', kind: 'sensor', note: 'differential pressure switch on the return filter: 1 = change the filter' },
+      { addr: 'I1.2', name: 'RESET', kind: 'pb', color: 'blue' },
+      { addr: 'AIW0', name: 'Oil temperature', kind: 'sensor', note: 'PT100 in the tank, in 0.1 °C (452 = 45.2 °C)' },
+      { addr: 'AIW2', name: 'Cylinder pressure', kind: 'sensor', note: 'transducer 0–250 bar = 0–27648' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Pump motor', color: 'green' },
+      { addr: 'Q0.1', name: 'Y0 unloading valve (1 = pressure on)', color: 'amber' },
+      { addr: 'Q0.2', name: 'Y1 ram DOWN', color: 'blue' },
+      { addr: 'Q0.3', name: 'Y2 ram UP', color: 'blue' },
+      { addr: 'Q0.4', name: 'Y3 fast approach', color: 'blue' },
+      { addr: 'Q0.5', name: 'Oil cooler fan', color: 'green' },
+      { addr: 'Q0.6', name: 'Fault lamp', color: 'red' },
+      { addr: 'Q0.7', name: 'Filter warning lamp', color: 'amber' },
+      { addr: 'Q1.0', name: 'Pump ready lamp', color: 'green' },
+    ],
+    actions: [
+      { id: 'leak', label: 'Oil leak: level low (again = refilled)', toggle: true, run(st) { st.leak = !st.leak; } },
+      { id: 'ovl', label: 'Pump motor overload trips (again = reset by hand)', toggle: true, run(st) { st.ovl = !st.ovl; } },
+      { id: 'filter', label: 'Return filter clogged', toggle: true, run(st) { st.filter = !st.filter; } },
+    ],
+    init() { return { pos: 0, posm: 0, p: 0, pc: 0, pcb: 0, T: 38, tC: 380, run: 0, leak: false, ovl: false, filter: false, dry: 0, hold: 0, touched: false, good: 0, bad: 0, relief: 0, t: 0, prevUp: 0, fault: null, last: '' }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000, dn = !!Q['Q0.2'], up = !!Q['Q0.3'];
+      const motor = !!Q['Q0.0'] && !st.ovl;
+      st.run = motor ? st.run + dt : 0;
+      if (motor && Q['Q0.1'] && st.run > 0 && st.run < 800) st.fault = st.fault || 'The pump motor tripped: it was started against full pressure (Y0 on). Start the pump unloaded and switch Y0 on after about 2 s.';
+      const pump = motor && st.run >= 500, loaded = pump && !!Q['Q0.1'];
+      st.dry = pump && st.leak ? st.dry + dt : 0;
+      if (st.dry > 1000) st.fault = st.fault || 'The pump ran with too little oil (it sucks air, cavitation): the pump is damaged. Stop it at once when the level switch drops.';
+      if (dn && up) st.fault = st.fault || 'Y1 and Y2 are on together: the 4/3 valve cannot be in two positions at once (the solenoids fight and burn).';
+      let moving = false;
+      if (loaded && dn && !up) {
+        if (st.pos < HP.contact) {
+          const v = Q['Q0.4'] ? 0.45 : 0.1;
+          if (Q['Q0.4'] && st.pos + v * s >= HP.contact - 0.002) st.fault = st.fault || 'The ram hit the part at fast speed: tool and part damaged. Switch to slow speed at the slow-down point B2.';
+          st.pos = Math.min(HP.contact, st.pos + v * s); st.pc = Q['Q0.4'] ? 60 : 40; moving = true;
+        } else {
+          st.touched = true;
+          st.pc = Math.min(200, Math.max(st.pc, 40) + 250 * s);
+          st.pos = HP.contact + HP.squash * Math.max(0, Math.min(1, (st.pc - 40) / 110));
+          if (st.pc >= 150) st.hold += dt;
+        }
+      } else if (!dn) st.pc -= st.pc * Math.min(1, s * 12);             // decompression through the valve's small orifice
+      if (up && !st.prevUp && st.pc > 60) st.fault = st.fault || 'Pressure shock: Y2 (up) opened while the cylinder was still at ' + Math.round(st.pc) + ' bar. Centre the valve for about 0.3 s first (decompression), then go up.';
+      st.prevUp = up;
+      if (loaded && up && !dn) {
+        if (st.pos > 0) {
+          if (st.touched && st.pos > HP.contact - 0.01) { const ok = st.hold >= 1000; if (ok) st.good++; else st.bad++; st.last = 'part ' + (st.good + st.bad) + (ok ? ' good' : ' bad: left the part before 1 s at full pressure'); st.touched = false; st.hold = 0; }
+          st.pos = Math.max(0, st.pos - 0.35 * s); moving = true;
+        }
+      }
+      if (st.pos <= 0 && st.touched === false) st.hold = 0;
+      // system pressure: unloaded ≈ 5 bar; moving ≈ load pressure; nothing moving with Y0 on → relief valve (200 bar) → heat
+      const blocked = loaded && !moving && !(dn && st.pos >= HP.contact && st.pc < 199);
+      st.p = !pump ? st.p - st.p * Math.min(1, s * 8) : !Q['Q0.1'] ? 5 : blocked ? 200 : moving ? Math.max(st.pc, 40) : Math.max(st.pc, 40);
+      if (blocked && !dn) st.relief += dt;           // oil over the relief valve while the press is NOT pressing (waste)
+      // oil temperature (time-lapse): the pump warms the oil, oil through the relief valve heats it fast
+      st.T += ((pump ? 0.5 : 0) + (blocked ? 2.5 : 0) - (st.T - 25) * (Q['Q0.5'] ? 0.065 : 0.005)) * s;
+      st.tC = Math.round(st.T * 10); st.posm = Math.round(st.pos * 1000);
+      if (st.T > 70) st.fault = st.fault || 'The oil overheated (over 70 °C): seals and oil are damaged. Unload the pump (Y0 off) when nothing moves, never leave a valve on at an end stop, and run the cooler.';
+      const o = devices(this, ctrl);
+      o['I0.4'] = st.pos <= 0.003 ? 1 : 0;
+      o['I0.5'] = st.pos >= HP.slow ? 1 : 0;
+      o['I0.6'] = st.pc >= 150 ? 1 : 0;
+      o['I0.7'] = st.ovl ? 0 : 1;
+      o['I1.0'] = st.leak ? 0 : 1;
+      o['I1.1'] = st.filter ? 1 : 0;
+      o['AIW0'] = Math.round(st.T * 10);
+      o['AIW2'] = Math.round(Math.max(0, st.pc) / 250 * 27648);
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      // press frame
+      const fx = 360, top = 30, bed = 250, cx = fx + 90;
+      c.fillStyle = th.metalDark; c.fillRect(fx, top, 180, 26); c.fillRect(fx, bed, 180, 22);
+      c.fillStyle = th.metal; c.fillRect(fx + 10, top + 26, 10, bed - top - 26); c.fillRect(fx + 160, top + 26, 10, bed - top - 26);
+      // cylinder + ram
+      c.fillStyle = th.metalDark; D.rr(c, cx - 26, top - 6, 52, 70, 6); c.fill();
+      const ry = top + 64 + st.pos * 120;
+      c.fillStyle = th.metal; c.fillRect(cx - 7, top + 60, 14, ry - top - 60);
+      c.fillStyle = Q['Q0.2'] && st.pos >= HP.contact ? th.red : th.metalDark; c.fillRect(cx - 48, ry, 96, 22);
+      D.text(c, 'ram', cx, ry + 11, { size: 9, weight: 700, color: '#fff' });
+      // part on the bed
+      const ph = 40 - (st.pos > HP.contact ? (st.pos - HP.contact) / HP.squash * 12 : 0);
+      c.fillStyle = th.amber; c.fillRect(cx - 30, bed - ph, 60, ph);
+      // sensors B1, B2 (left of the frame)
+      [[0, 'B1', I['I0.4']], [HP.slow, 'B2', I['I0.5']]].forEach(([f, n, on]) => { const yy = top + 64 + f * 120 + 11; c.fillStyle = on ? th.green : th.metal; c.beginPath(); c.arc(fx + 194, yy, 5, 0, 7); c.fill(); D.text(c, n, fx + 212, yy, { size: 9, mono: true, weight: 700, color: th.muted }); });
+      // valve symbol: 4/3 closed centre
+      const vx = 235, vy = 96, w = 32;
+      const pos = Q['Q0.2'] && !Q['Q0.3'] ? 0 : Q['Q0.3'] && !Q['Q0.2'] ? 2 : 1;
+      ['Y1↓', 'stop', 'Y2↑'].forEach((n, k) => { c.strokeStyle = th.ink; c.lineWidth = 1.5; c.fillStyle = k === pos ? th.blue : th.metal; c.globalAlpha = k === pos ? 0.55 : 0.2; c.fillRect(vx + k * w, vy, w, 28); c.globalAlpha = 1; c.strokeRect(vx + k * w, vy, w, 28); D.text(c, n, vx + k * w + w / 2, vy + 38, { size: 8, mono: true, color: th.muted }); });
+      D.text(c, '4/3 valve', vx - 8, vy + 14, { size: 9, weight: 700, align: 'right', color: th.ink });
+      // pipes valve → cylinder (cap side red when under pressure)
+      c.lineWidth = 4;
+      c.strokeStyle = st.pc > 100 ? th.red : th.line; c.beginPath(); c.moveTo(vx + 40, vy); c.lineTo(vx + 40, top + 6); c.lineTo(cx - 26, top + 6); c.stroke();
+      c.strokeStyle = th.line; c.beginPath(); c.moveTo(vx + 56, vy); c.lineTo(vx + 56, top + 50); c.lineTo(cx - 26, top + 50); c.stroke();
+      // power unit: tank, motor + pump, pressure line to the valve
+      const tx = 20, ty = 190;
+      c.strokeStyle = st.p > 195 ? th.red : th.line; c.beginPath(); c.moveTo(tx + 46, ty - 26); c.lineTo(vx + 32, ty - 26); c.lineTo(vx + 32, vy + 28); c.stroke();
+      c.fillStyle = th.metalDark; D.rr(c, tx, ty, 160, 76, 6); c.fill();
+      c.fillStyle = st.T > 60 ? '#c2410c' : '#b45309'; c.globalAlpha = 0.85; c.fillRect(tx + 6, ty + (st.leak ? 56 : 26), 148, st.leak ? 14 : 44); c.globalAlpha = 1;
+      D.text(c, 'oil ' + st.T.toFixed(1) + ' °C', tx + 80, ty + 13, { size: 10, mono: true, weight: 700, color: '#fff' });
+      if (st.leak) D.text(c, 'LEVEL LOW', tx + 80, ty + 40, { size: 10, weight: 800, color: '#fff' });
+      const motor = Q['Q0.0'] && !st.ovl;
+      c.fillStyle = th.metalDark; c.beginPath(); c.arc(tx + 30, ty - 26, 15, 0, 7); c.fill();
+      c.save(); c.translate(tx + 30, ty - 26); c.rotate(motor ? st.t / 50 : 0); c.fillStyle = motor ? th.green : th.metal; for (let k = 0; k < 3; k++) { c.rotate(2.09); c.fillRect(-2.5, 0, 5, 13); } c.restore();
+      D.text(c, st.ovl ? 'MOTOR TRIPPED' : 'pump', tx + 30, ty - 50, { size: 9, mono: true, weight: 700, color: st.ovl ? th.red : th.ink });
+      // Y0 unloading valve as a lamp on the pressure line
+      D.lamp(c, th, tx + 120, ty - 64, 6, !!Q['Q0.1'], 'amber', 'Y0 ' + (Q['Q0.1'] ? 'loaded' : 'unloaded'));
+      if (st.p > 195) D.text(c, 'RELIEF VALVE OPEN: the oil heats up', tx + 80, ty + 90, { size: 9, mono: true, weight: 700, color: th.red });
+      // cooler fan
+      c.save(); c.translate(tx + 190, ty + 30); c.rotate(Q['Q0.5'] ? st.t / 60 : 0); c.fillStyle = Q['Q0.5'] ? th.blue : th.metal; for (let k = 0; k < 4; k++) { c.rotate(Math.PI / 2); c.fillRect(-2, 0, 4, 12); } c.restore();
+      D.text(c, 'cooler', tx + 190, ty + 54, { size: 8, mono: true, color: th.muted });
+      // pressures and lamps
+      D.text(c, 'system ' + Math.round(st.p) + ' bar', 20, 22, { size: 11, mono: true, weight: 700, align: 'left', color: st.p > 195 ? th.red : th.ink });
+      D.text(c, 'cylinder ' + Math.round(Math.max(0, st.pc)) + ' bar', 20, 40, { size: 11, mono: true, weight: 700, align: 'left', color: I['I0.6'] ? th.red : th.ink });
+      D.text(c, 'pressure switch 150 bar: ' + (I['I0.6'] ? 1 : 0), 20, 57, { size: 9, mono: true, align: 'left', color: th.muted });
+      D.lamp(c, th, 32, 90, 6, !!Q['Q0.6'], 'red', 'fault'); D.lamp(c, th, 82, 90, 6, !!Q['Q0.7'], 'amber', 'filter'); D.lamp(c, th, 132, 90, 6, !!Q['Q1.0'], 'green', 'ready');
+      D.text(c, 'parts good ' + st.good + '  bad ' + st.bad, fx + 90, 290, { size: 11, mono: true, weight: 700, color: th.ink });
+      D.fault(c, th, st.fault);
+    },
+  };
+
   // ───────────────────────── safety light curtain with muting (palletizer exit) ─────────────────────────
   const LC = { a: 0.48, b: 0.54, curtain: 0.6, len: 0.12 };
   P.curtain = {
@@ -3653,7 +3792,7 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'oldpanel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'gantry', 'servohmi', 'safecell', 'safeplc', 'curtain', 'labeler', 'alarms', 'feeder', 'handover', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
+  LL.PLANT_ORDER = ['panel', 'oldpanel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'hpress', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'gantry', 'servohmi', 'safecell', 'safeplc', 'curtain', 'labeler', 'alarms', 'feeder', 'handover', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
 
   // Outputs a plant sees: Q bits, AQW words, plus any memory words its HMI displays
   LL.plantOutputs = function (plant, m) {

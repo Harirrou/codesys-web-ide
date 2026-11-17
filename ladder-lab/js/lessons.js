@@ -863,6 +863,58 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
       challenges: ['cyl-once', 'cyl-repeat', 'pp-feed', 'pp-axis', 'pp-pick', 'pp-cycle', 'bug-pp-crash', 'pp-sort', 'pp-auto', 'pp-home', 'pp-station'],
     },
     {
+      id: 'hydraulics', level: 5, title: "Hydraulics: how it differs from pneumatics", min: 13,
+      summary: "Oil instead of air: the power unit the PLC must run (unloaded start, oil level, temperature, filter), 4/3 closed-centre valves that hold a load, pressing on pressure, dwell and decompression, and why a valve left on at the end stop heats the oil.",
+      body: `
+<h3>Air or oil: what changes for the PLC?</h3>
+<p>Both move cylinders with valves and solenoids, so the ladder looks similar. But oil does not compress, works at 100–300 bar instead of 6 bar, and the machine has its <b>own pump</b>. That changes the program in several places.</p>
+<div class="tbl"><table>
+<tr><th></th><th>Pneumatics</th><th>Hydraulics</th></tr>
+<tr><td>Medium, pressure</td><td>air, about 6 bar</td><td>oil, 100–300 bar: 50 × more force from the same size</td></tr>
+<tr><td>Energy source</td><td>the factory air network (compressor somewhere else)</td><td>its own <b>power unit</b> (HPU): tank, pump motor, relief valve, filter, cooler. <b>The PLC runs it.</b></td></tr>
+<tr><td>Typical valve</td><td>5/2 (spring or bistable)</td><td>4/3 <b>spring-centred</b>, two solenoids: Y1 one way, Y2 the other, <b>both off = stop</b></td></tr>
+<tr><td>Stop in the middle</td><td>poor: air is a spring</td><td>yes: closed centre (and a pilot check valve) <b>holds the load</b></td></tr>
+<tr><td>Valve on at the end stop</td><td>harmless, often kept on</td><td>oil goes over the relief valve at full pressure: <b>heat, wasted energy</b>. Switch off, or unload the pump.</td></tr>
+<tr><td>End of a pressing move</td><td>position sensor</td><td>often <b>pressure</b> (pressure switch or transducer): force, not position</td></tr>
+<tr><td>Speed</td><td>fast, hard to control</td><td>slower, controlled: two speeds (fast approach / slow press) or a proportional valve with an analog output</td></tr>
+<tr><td>Switching to the other direction</td><td>just switch</td><td>after high pressure: <b>decompress</b> first (valve centred a moment), or a pressure shock (bang)</td></tr>
+<tr><td>Leaks</td><td>noise, cost</td><td>oil on the floor, fire risk: <b>level switch</b> stops the pump</td></tr>
+<tr><td>Monitoring</td><td>pressure switch on the air supply</td><td>oil level, oil temperature, filter clogged, motor overload, pressure</td></tr>
+</table></div>
+<h3>The circuit of the press in the Lab</h3>
+<div class="sfc-wrap"><svg class="sfc" viewBox="0 0 560 300" width="560" style="max-width:100%;height:auto" role="img" aria-label="Hydraulic circuit of the press"><g fill="none" stroke="currentColor" stroke-width="1.6" font-family="IBM Plex Sans, sans-serif" font-size="11">
+<rect x="20" y="240" width="150" height="40"/><text x="95" y="265" text-anchor="middle" stroke="none" fill="currentColor">oil tank (+ level, temperature)</text>
+<circle cx="60" cy="190" r="18"/><path d="M60 172 l-8 14 h16 z" fill="currentColor"/><text x="60" y="160" text-anchor="middle" stroke="none" fill="currentColor">pump + motor (Q0.0)</text>
+<path d="M60 208 V240"/><path d="M60 172 V120 H330"/>
+<rect x="110" y="135" width="40" height="30"/><path d="M118 158 l24 -16"/><path d="M130 120 V135"/><path d="M130 165 V240"/><text x="130" y="185" text-anchor="middle" stroke="none" fill="currentColor" font-size="10">relief 200 bar</text>
+<rect x="190" y="135" width="40" height="30"/><path d="M200 150 h20"/><path d="M210 120 V135"/><path d="M210 165 V240"/><text x="210" y="185" text-anchor="middle" stroke="none" fill="currentColor" font-size="10">Y0 unloading</text>
+<rect x="280" y="80" width="40" height="30"/><rect x="320" y="80" width="40" height="30"/><rect x="360" y="80" width="40" height="30"/>
+<path d="M290 110 l20 -30 M310 110 l-20 -30" stroke-width="1"/><path d="M332 95 h16 M340 88 v14" stroke-width="1"/><path d="M370 110 v-30 M390 110 v-30" stroke-width="1"/>
+<text x="300" y="72" text-anchor="middle" stroke="none" fill="currentColor" font-size="10">Y2 up</text><text x="340" y="72" text-anchor="middle" stroke="none" fill="currentColor" font-size="10">centre: closed</text><text x="380" y="72" text-anchor="middle" stroke="none" fill="currentColor" font-size="10">Y1 down</text>
+<path d="M330 120 V110"/><path d="M350 110 V240 H170"/>
+<path d="M330 80 V40 H470"/><path d="M350 80 V60 H470" />
+<rect x="470" y="25" width="70" height="60"/><path d="M490 25 V85" stroke-width="3"/><path d="M490 55 H560"/>
+<text x="505" y="105" text-anchor="middle" stroke="none" fill="currentColor">cylinder</text>
+<text x="420" y="140" stroke="none" fill="currentColor" font-size="10">pressure switch 150 bar</text><circle cx="460" cy="40" r="4" fill="currentColor"/>
+</g></svg></div>
+<h3>The power unit, step by step</h3>
+<ul>
+<li><b>Start unloaded.</b> A motor that starts against full pressure draws a huge current and trips. Keep the unloading valve Y0 off at the start (or use a star-delta starter), and allow pressure after about 2 s.</li>
+<li><b>Unload when idle.</b> With a fixed pump and a closed-centre valve, oil that is not used goes over the relief valve: all the motor power becomes heat. Switch Y0 on only while a valve moves the cylinder (or use a pressure-compensated pump).</li>
+<li><b>Oil level</b>: stop the pump at once when it is low; a pump sucking air is destroyed in seconds.</li>
+<li><b>Oil temperature</b>: cooler on at about 45 °C, off at 40 °C (hysteresis); stop the machine above about 60–70 °C. In winter, some units heat the oil before starting.</li>
+<li><b>Filter clogged</b>: a warning for maintenance, not a stop.</li>
+</ul>
+<h3>The press cycle</h3>
+<p>Fast approach → slow-down point → press until the pressure switch → <b>dwell</b> (hold the force) → <b>decompression</b> (valve centred 0.2–0.5 s) → up → everything off and the pump unloaded. Pump STOP or a fault: the valve centres and the ram holds where it is. Never Y1 and Y2 together.</p>
+<p>A press is a dangerous machine: the closing stroke needs a <b>two-hand control</b> (both buttons within 0.5 s, held during the stroke) or a light curtain, built with safety hardware. Accumulators keep pressure after the pump stops: they must be discharged before maintenance.</p>
+<div class="callout where"><b>Where:</b> presses, injection moulding machines, press brakes, steel mills, mobile machines (excavators, cranes), lifting tables, test benches. Everything that needs a lot of force or must hold a load.</div>`,
+      sims: {},
+      takeaways: ["A hydraulic machine has its own power unit, and the PLC runs and monitors it.", "Start the pump unloaded; unload it whenever nothing moves.", "4/3 closed-centre valve: both solenoids off = stop and hold. Never both on.", "Pressing ends on pressure, then dwell, then decompress before going back."],
+      mistakes: ["Programming it like pneumatics: valve left on at the end stop, so the oil heats.", "Starting the pump loaded: the motor trips.", "Switching straight from pressing to up: pressure shock.", "Fast speed into the part.", "Running the pump on a low oil level."],
+      challenges: ['hyd-1', 'hyd-2', 'bug-hyd', 'hyd-3'],
+    },
+    {
       id: 'safety', level: 5, title: 'Safety, E-stops, alarms & first scan', min: 10,
       summary: 'What must never depend on your program, and how to handle faults like a pro.',
       body: `
@@ -2220,6 +2272,12 @@ END_REPEAT</pre>
     ["OSSD", "Output Signal Switching Device: the safety output of a light curtain or laser scanner, usually two of them, pulse-tested to find short circuits."],
     ["Muting", "Bypassing a safety light curtain for a moment so material can pass, recognised by muting sensors in a fixed order and time; shown by a muting lamp."],
     ["Safety distance", "ISO 13855: S = K × T + C. How far a protective device must be from the hazard so the machine has stopped before a person reaches it."],
+    ["Hydraulic power unit (HPU)", "The pump, motor, oil tank, relief valve, filter and cooler that supply a hydraulic machine; the PLC starts it, unloads it and monitors level, temperature and filter."],
+    ["Unloading valve", "Sends the pump flow back to the tank at low pressure, so the pump can start unloaded and runs without making heat while nothing moves."],
+    ["Relief valve", "Limits the maximum pressure in a hydraulic system by sending oil back to the tank; all the oil that goes through it turns into heat."],
+    ["4/3 valve (closed centre)", "A directional valve with 4 ports and 3 positions; spring-centred, both solenoids off = all ports closed, so the cylinder stops and holds."],
+    ["Decompression", "Letting the oil pressure in a cylinder fall for a moment (valve centred) before switching it to the other direction, to avoid a pressure shock."],
+    ["Two-hand control", "Both buttons pressed within 0.5 s and held during the dangerous stroke (ISO 13851), so the operator's hands are away from the tool."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -2438,5 +2496,11 @@ END_REPEAT</pre>
     { l: 6, q: "Why does muting need sensor A first, then B within a few seconds?", a: ["so a person (or a dirty sensor) cannot produce the muting pattern", "to save energy", "to count pallets", "it does not"], c: 0, why: "Order and timing recognise the material." },
     { l: 5, q: "Safety distance S = K × T + C. If the machine stops more slowly (T bigger), the curtain must be…", a: ["further away from the hazard", "closer to the hazard", "the same", "removed"], c: 0, why: "More stopping time, more distance." },
     { l: 5, q: "After a person leaves the light curtain, the machine…", a: ["stays stopped until RESET and START (restart interlock)", "restarts at once", "restarts after 2 s", "restarts if it was running"], c: 0, why: "Restart interlock." },
+    { l: 4, q: "A hydraulic press waits at the top with the pump running. What should the PLC do with the unloading valve?", a: ["switch it off: the pump runs unloaded, no heat", "keep the pressure on so it is ready", "switch the pump motor off and on every cycle", "nothing, it does not matter"], c: 0, why: "Oil over the relief valve turns all the motor power into heat." },
+    { l: 5, q: "Why does the pump of a hydraulic unit start unloaded?", a: ["a motor starting against full pressure draws too much current and trips", "to save oil", "to warm up the valves", "it does not, it starts loaded"], c: 0, why: "Load it after about 2 s." },
+    { l: 5, q: "The 4/3 valve of a press is spring-centred with a closed centre. Both solenoids off means…", a: ["the cylinder stops and holds its position", "the cylinder goes back", "the cylinder floats freely", "the pump stops"], c: 0, why: "Oil does not compress, so the ram stays where it is." },
+    { l: 5, q: "The ram has pressed at 200 bar. Why wait 0.3 s with the valve centred before going up?", a: ["decompression: otherwise a pressure shock (bang) in pipes and valves", "to cool the oil", "to count the part", "there is no reason"], c: 0, why: "Let the pressure fall, then switch to up." },
+    { l: 4, q: "A pneumatic cylinder valve stays on at the end stop. A hydraulic one should…", a: ["switch off (or the pump is unloaded): otherwise the oil goes over the relief valve and heats", "also stay on, it is the same", "pulse on and off", "switch both solenoids on"], c: 0, why: "Hydraulics is not pneumatics." },
+    { l: 6, q: "Two-hand control: one button is taped down, the other is pressed 2 s later. The press…", a: ["does not start: both must come within 0.5 s", "starts", "starts slowly", "starts after 0.5 s"], c: 0, why: "Synchronous actuation stops tie-down tricks." },
   ];
 })(typeof window !== 'undefined' ? window : globalThis);
