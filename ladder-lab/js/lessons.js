@@ -1517,6 +1517,52 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
       challenges: ['iv-buzzer', 'iv-reverse', 'iv-seqstop', 'iv-testbench', 'iv-clock', 'iv-direction'],
     },
     {
+      id: 'safety-practice', level: 5, title: 'Machine safety in practice: safety relay or safety PLC', min: 15,
+      summary: 'How real machines are made safe: E-stops and guard doors with two channels, safety relays and safety PLCs, reset, feedback monitoring, and what your normal ladder program still has to do.',
+      body: `
+<h3>The rule</h3>
+<p>A normal PLC program can have a bug, a forced bit or a stuck output. So a normal PLC is <b>never</b> the only thing between a person and a moving blade. Safety functions (E-stop, guard doors, light curtains, two-hand controls, safe speed) run in <b>safety-rated</b> hardware, designed to the standards (ISO 13849 with its PL a … e, IEC 62061 with its SIL) after a <b>risk assessment</b>.</p>
+<h3>Two ways to build it</h3>
+<div class="tbl"><table>
+<tr><th></th><th>Safety relay</th><th>Safety PLC (or safety I/O + safety CPU)</th></tr>
+<tr><td>What it is</td><td>a small box per safety function, wired</td><td>a PLC with a certified safety program, often in the same CPU as the normal program</td></tr>
+<tr><td>Good for</td><td>1–3 safety functions, simple machines</td><td>many devices, zones, muting, safe speed, lines with networks</td></tr>
+<tr><td>Change the logic</td><td>rewire</td><td>change the safety program (with a password and a new validation)</td></tr>
+<tr><td>Examples</td><td>Pilz PNOZ, Schneider Preventa XPS, Omron G9SE, Siemens 3SK, ABB Jokab</td><td>Siemens F-CPU (TIA Safety), Rockwell GuardLogix, Omron NX-SL, Beckhoff TwinSAFE, Schneider Modicon safety, Pilz PSS</td></tr>
+<tr><td>Over the network</td><td>status contacts to the PLC</td><td>PROFIsafe, CIP Safety, FSoE (Safety over EtherCAT)</td></tr>
+</table></div>
+<h3>The building blocks of every safety function</h3>
+<ul>
+<li><b>Two channels</b>: an E-stop has two NC contacts, a guard door two switches. If one contact welds shut, the other still opens the circuit.</li>
+<li><b>Discrepancy monitoring</b>: the two channels must change together (within e.g. 0.5 s). If not, a wire is broken or a contact is stuck: fault, and no restart until both channels have opened together.</li>
+<li><b>Manual reset</b>: after a trip, releasing the E-stop must <b>not</b> restart anything. A deliberate RESET is needed, and then a START.</li>
+<li><b>Feedback (EDM)</b>: two contactors in series, each with an NC auxiliary contact read back. A welded contactor is found at the next start, and the other contactor still cuts the motor.</li>
+<li><b>Stop categories</b>: 0 = cut the power at once; 1 = brake under control, then cut; 2 = controlled stop, power stays. A drive's <b>STO</b> (Safe Torque Off) is the usual way to cut it.</li>
+</ul>
+<h3>What your normal ladder program does</h3>
+<ul>
+<li>Reads the safety status (relay OK, or the "enable" bits from the safety program) and <b>drops its own run commands</b> when it goes off, so nothing restarts by itself.</li>
+<li>Shows the operator what happened: which E-stop, which door, reset needed (flashing reset lamp), and the text on the HMI.</li>
+<li>Stops the process in a controlled way where it can (a cycle stop, or braking before the safety cuts the power).</li>
+<li>Never bypasses or "helps" the safety function.</li>
+</ul>
+<h3>The safety blocks in each brand</h3>
+<div class="tbl"><table>
+<tr><th>Function</th><th>PLCopen Safety (Omron, Beckhoff, CODESYS Safety)</th><th>Siemens TIA Safety</th><th>Rockwell GuardLogix</th></tr>
+<tr><td>E-stop, two channels</td><td>SF_EmergencyStop + SF_Equivalent</td><td>ESTOP1 (F-I/O does the discrepancy)</td><td>DCS (dual channel input), ESTOP</td></tr>
+<tr><td>Guard door</td><td>SF_GuardMonitoring, SF_GuardLocking</td><td>SFDOOR</td><td>DCS</td></tr>
+<tr><td>Contactor feedback</td><td>SF_EDM</td><td>FDBACK</td><td>CROUT (configurable redundant output)</td></tr>
+<tr><td>Reset / acknowledge</td><td>inputs of the blocks</td><td>ACK_GL, ACK_NEC</td><td>reset inputs, DCSRT</td></tr>
+<tr><td>Two-hand control</td><td>SF_TwoHandControlTypeII / III</td><td>TWO_HAND</td><td>THRSe</td></tr>
+</table></div>
+<div class="callout tip"><b>About the exercises:</b> in Ladder Lab you write this logic in normal ladder to understand how it works. On a real machine you use the certified blocks of a safety controller, or a safety relay, and the machine is validated by a competent person.</div>
+<div class="callout where"><b>Where:</b> every machine with a moving hazard: presses, saws, robots cells, palletisers, conveyors with access points.</div>`,
+      sims: {},
+      takeaways: ['Safety functions run in safety-rated hardware, never only in a normal PLC.', 'Safety relay for a few functions, safety PLC for many or for networks.', 'Two channels, discrepancy, manual reset and contactor feedback are in every safety function.', 'The normal program drops its run commands and shows what happened, so nothing restarts by itself.', 'Same ideas in every brand: SF_EmergencyStop / ESTOP1 / DCS, SF_EDM / FDBACK / CROUT.'],
+      mistakes: ['A run seal-in that survives an E-stop, so the machine restarts after reset.', 'One channel only: one welded contact and the E-stop does nothing.', 'An E-stop as an ordinary PLC input or HMI button.', 'Bridging a door switch "for the test".'],
+      challenges: ['saf-1', 'saf-2'],
+    },
+    {
       id: 'structure', level: 5, title: 'Program structure & troubleshooting', min: 9,
       summary: 'How to lay out a program others can maintain, and how to find faults fast.',
       body: `
@@ -2025,6 +2071,10 @@ END_REPEAT</pre>
     ["FC / FB", "Siemens names for blocks: an FC (function) has no memory of its own; an FB (function block) keeps memory in an instance. Rockwell: routine (JSR) / Add-On Instruction; CODESYS: FUNCTION / FUNCTION_BLOCK."],
     ["Teach-in", "Setting a position by jogging the axis to the right spot and storing its present position, instead of typing a measured number."],
     ["Direct homing (set position)", "Giving an axis its home without moving: the present position becomes the home value. TIA Portal MC_Home mode 0, PLCopen MC_SetPosition, Rockwell MRP."],
+    ["Safety PLC (F-CPU)", "A PLC certified to run safety programs (TIA F-CPU, GuardLogix, NX-SL, TwinSAFE). Safety I/O talks to it over PROFIsafe, CIP Safety or FSoE."],
+    ["Discrepancy time", "The time two channels of a safety input may disagree before it is a fault (broken wire, stuck contact)."],
+    ["EDM (feedback monitoring)", "External Device Monitoring: reading back the NC auxiliary contacts of the contactors, to find a welded contactor before the next start."],
+    ["Stop category 0 / 1 / 2", "IEC 60204-1: 0 = cut the power at once; 1 = controlled stop, then cut the power; 2 = controlled stop with the power kept."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -2227,5 +2277,10 @@ END_REPEAT</pre>
     { l: 5, q: "Which brand calls a block with memory an Add-On Instruction?", a: ["Rockwell Studio 5000", "Siemens TIA Portal", "Beckhoff TwinCAT", "Omron Sysmac"], c: 0, why: "TIA: FB; CODESYS / TwinCAT: FUNCTION_BLOCK; Sysmac: FB." },
     { l: 5, q: "On an Omron CP1, the counter CNT…", a: ["counts down from its set value", "counts up", "is a timer", "needs no reset"], c: 0, why: "CNT is a decrementing counter; CNTR counts both ways." },
     { l: 5, q: "TwinCAT 3 and Schneider Machine Expert are both based on…", a: ["CODESYS", "TIA Portal", "Studio 5000", "CX-Programmer"], c: 0, why: "So IEC ST and FBs carry over almost unchanged." },
+    { l: 5, q: "Why does an E-stop have two contacts wired to two inputs?", a: ["if one contact welds shut, the other still stops the machine", "to make it twice as fast", "one for the HMI", "for the alarm lamp"], c: 0, why: "Redundancy." },
+    { l: 5, q: "After the E-stop is released, the machine should…", a: ["stay off until RESET and then START", "restart by itself", "restart after 5 s", "restart if it was running"], c: 0, why: "No automatic restart." },
+    { l: 5, q: "What does EDM (feedback monitoring) find?", a: ["a welded contactor, before the next start", "a broken PLC", "a slow scan", "an HMI error"], c: 0, why: "The NC auxiliary contact must show \"open\" before switching on." },
+    { l: 5, q: "A safety relay or a safety PLC? A machine with 8 guard doors, 4 E-stops and safe speed on 3 drives:", a: ["safety PLC", "one safety relay", "a normal PLC", "a timer relay"], c: 0, why: "Many functions and drives: a safety controller." },
+    { l: 5, q: "In a machine with a safety relay, the normal PLC program must…", a: ["drop its run commands when the relay trips", "switch the safety relay", "bypass the relay for jogging", "nothing"], c: 0, why: "So nothing restarts by itself after the reset." },
   ];
 })(typeof window !== 'undefined' ? window : globalThis);

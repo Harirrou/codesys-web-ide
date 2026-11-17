@@ -1924,6 +1924,109 @@
     },
   };
 
+  // ───────────────────────── safety cell: safety relay or safety PLC ─────────────────────────
+  function makeSafeCell(relay) {
+    const inputs = [
+      { addr: 'I0.0', name: 'E-stop channel A', kind: 'sensor', note: 'NC contact: 1 = not pressed' },
+      { addr: 'I0.1', name: 'E-stop channel B', kind: 'sensor', note: 'second NC contact of the same E-stop' },
+      { addr: 'I0.2', name: 'Guard door channel A', kind: 'sensor', note: '1 = door closed' },
+      { addr: 'I0.3', name: 'Guard door channel B', kind: 'sensor', note: 'second switch on the door (different principle)' },
+    ];
+    if (relay) inputs.push({ addr: 'I0.4', name: 'Safety relay OK', kind: 'sensor', note: 'auxiliary contact of the safety relay outputs: 1 = safe, enabled' });
+    inputs.push(
+      { addr: 'I0.5', name: 'K1 feedback', kind: 'sensor', note: 'NC auxiliary contact of K1: 1 = K1 open (released)' },
+      { addr: 'I0.6', name: 'K2 feedback', kind: 'sensor', note: 'NC auxiliary contact of K2: 1 = K2 open' },
+      { addr: 'I0.7', name: 'RESET', kind: 'pb', color: 'blue' },
+      { addr: 'I1.0', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I1.1', name: 'STOP', kind: 'pbnc', color: 'red' });
+    return {
+      id: relay ? 'safecell' : 'safeplc', name: relay ? 'Safety cell with a safety relay' : 'Safety cell with a safety PLC',
+      blurb: relay
+        ? 'A machine with a dangerous blade, an E-stop and a guard door, both with two channels. A safety relay (like a PNOZ, a Schneider XPS or an Omron G9SE) watches them and switches the power of the two motor contactors K1 and K2 in hardware. The standard PLC only sees the relay status and must never restart the machine on its own.'
+        : 'The same machine, but the E-stop, the door and the contactor feedback go to a safety PLC (Siemens F-CPU, GuardLogix, Omron NX-SL, TwinSAFE …). Here the two contactors K1 and K2 are switched directly by safety outputs, so your safety program does the job of the relay: two channels, discrepancy, reset and feedback monitoring.',
+      inputs,
+      outputs: [
+        { addr: 'Q0.0', name: 'K1 contactor', color: 'green' },
+        { addr: 'Q0.1', name: 'K2 contactor', color: 'green' },
+        { addr: 'Q0.2', name: 'Reset lamp', color: 'blue' },
+        { addr: 'Q0.3', name: 'Running lamp', color: 'green' },
+        { addr: 'Q0.5', name: 'Safety fault lamp', color: 'red' },
+      ],
+      actions: [
+        { id: 'estop', label: 'Press / release the E-stop', toggle: true, run(st) { st.estop = !st.estop; } },
+        { id: 'door', label: 'Open / close the guard door', toggle: true, run(st) { st.door = !st.door; } },
+        { id: 'wireA', label: 'E-stop channel A: wire broken', toggle: true, run(st) { st.wireA = !st.wireA; } },
+        { id: 'weldA', label: 'E-stop channel A: contact welded shut', toggle: true, run(st) { st.weldA = !st.weldA; } },
+        { id: 'weldK1', label: 'K1 contacts welded', toggle: true, run(st) { st.weldK1 = !st.weldK1; } },
+      ],
+      init() { return { estop: false, door: false, wireA: false, weldK1: false, relayOK: 0, prevRst: 0, k1: 0, k2: 0, speed: 0, powered: 0, danger: 0, needReset: 1, needStart: 1, t: 0, fault: null }; },
+      step(st, ctrl, Q, dt) {
+        st.t += dt;
+        const chA = st.weldA ? 1 : st.estop || st.wireA ? 0 : 1, chB = st.estop ? 0 : 1;
+        const dA = st.door ? 0 : 1, dB = st.door ? 0 : 1;
+        const allOK = chA && chB && dA && dB && !st.estop;
+        const rst = !!ctrl['I0.7'];
+        const fb1 = st.k1 ? 0 : 1, fb2 = st.k2 ? 0 : 1;
+        if (relay) {
+          // the safety relay: both channels of both devices, feedback loop closed, manual reset on the RESET button
+          if (!allOK) st.relayOK = 0;
+          else if (rst && !st.prevRst && fb1 && fb2) st.relayOK = 1;
+        }
+        st.prevRst = rst;
+        const en = relay ? st.relayOK : 1;
+        st.k1 = (Q['Q0.0'] && en) || st.weldK1 ? 1 : 0;
+        st.k2 = Q['Q0.1'] && en ? 1 : 0;
+        st.powered = st.k1 && st.k2 ? 1 : 0;
+        st.speed = Math.max(0, Math.min(1, st.speed + (st.powered ? 1 : -0.5) * dt / 1000));
+        // what the machine checks (as an assessor would)
+        if (!allOK) { st.needReset = 1; st.needStart = 1; }
+        if (rst && allOK) st.needReset = 0;
+        if (ctrl['I1.0'] && !st.needReset) st.needStart = 0;
+        st.danger = st.powered && !allOK ? st.danger + dt : 0;
+        if (st.danger > 60) st.fault = st.fault || 'DANGER: the blade motor was powered while the ' + (st.estop ? 'E-stop was pressed' : st.door ? 'guard door was open' : 'safety circuit was open') + '.';
+        if (st.powered && !st.prevPowered && (st.needReset || st.needStart)) st.fault = st.fault || 'DANGER: the machine started again without RESET and START after the safety device was released.';
+        st.prevPowered = st.powered;
+        const o = devices(this, ctrl);
+        o['I0.0'] = chA; o['I0.1'] = chB; o['I0.2'] = dA; o['I0.3'] = dB;
+        if (relay) o['I0.4'] = st.relayOK;
+        o['I0.5'] = st.k1 ? 0 : 1; o['I0.6'] = st.k2 ? 0 : 1;
+        return o;
+      },
+      draw(c, st, th, Q, I) {
+        // guard + blade
+        c.strokeStyle = th.ink; c.lineWidth = 2; c.strokeRect(30, 40, 230, 200);
+        c.fillStyle = st.door ? th.amber : th.metal; c.fillRect(st.door ? 30 : 255, 60, 8, 160);
+        D.text(c, st.door ? 'GUARD OPEN' : 'guard closed', 145, 30, { size: 11, weight: 700, color: st.door ? th.red : th.muted });
+        c.save(); c.translate(145, 140); c.rotate(st.t / 1000 * st.speed * 20);
+        c.fillStyle = st.speed > 0.02 ? th.red : th.metalDark; for (let k = 0; k < 6; k++) { c.rotate(Math.PI / 3); c.beginPath(); c.moveTo(0, 0); c.lineTo(46, -8); c.lineTo(46, 8); c.closePath(); c.fill(); }
+        c.restore();
+        D.text(c, st.powered ? 'BLADE POWERED' : st.speed > 0.02 ? 'running down' : 'stopped', 145, 214, { size: 11, mono: true, weight: 700, color: st.powered ? th.red : th.muted });
+        // E-stop
+        c.fillStyle = '#facc15'; c.beginPath(); c.arc(320, 80, 30, 0, 7); c.fill();
+        c.fillStyle = th.red; c.beginPath(); c.arc(320, st.estop ? 84 : 78, 22, 0, 7); c.fill();
+        D.text(c, st.estop ? 'E-STOP PRESSED' : 'E-stop', 320, 126, { size: 10, weight: 700, color: st.estop ? th.red : th.ink });
+        D.text(c, 'ch A ' + (I['I0.0'] ? '1' : '0') + '  ch B ' + (I['I0.1'] ? '1' : '0') + (st.wireA ? '  (wire A broken)' : st.weldA ? '  (A welded)' : ''), 320, 142, { size: 9, mono: true, color: st.wireA ? th.red : th.muted });
+        // safety relay
+        if (relay) {
+          c.fillStyle = '#e5e7eb'; D.rr(c, 280, 168, 80, 62, 6); c.fill(); c.strokeStyle = th.ink; c.lineWidth = 1; c.stroke();
+          D.text(c, 'SAFETY RELAY', 320, 180, { size: 9, weight: 800, color: '#111' });
+          D.lamp(c, th, 300, 204, 5, !!st.relayOK, 'green', '', 'OUT'); D.lamp(c, th, 340, 204, 5, !st.relayOK, 'amber', '', 'RESET?');
+        } else {
+          c.fillStyle = '#fde047'; D.rr(c, 280, 168, 80, 62, 6); c.fill();
+          D.text(c, 'SAFETY PLC', 320, 184, { size: 9, weight: 800, color: '#111' }); D.text(c, 'F-outputs', 320, 202, { size: 9, mono: true, color: '#111' });
+        }
+        // contactors
+        D.contactor(c, th, 430, 90, 'K1', !!st.k1, 'fb I0.5 = ' + (I['I0.5'] ? 1 : 0) + (st.weldK1 ? ' WELDED' : ''));
+        D.contactor(c, th, 520, 90, 'K2', !!st.k2, 'fb I0.6 = ' + (I['I0.6'] ? 1 : 0));
+        D.text(c, 'the blade runs only when K1 AND K2 are closed', 475, 150, { size: 9, color: th.muted });
+        D.lamp(c, th, 420, 230, 8, !!Q['Q0.2'], 'blue', 'reset'); D.lamp(c, th, 490, 230, 8, !!Q['Q0.3'], 'green', 'running'); D.lamp(c, th, 560, 230, 8, !!Q['Q0.5'], 'red', 'safety fault');
+        D.fault(c, th, st.fault);
+      },
+    };
+  }
+  P.safecell = makeSafeCell(true);
+  P.safeplc = makeSafeCell(false);
+
   // ───────────────────────── box sorter ─────────────────────────
   const SORT_PATTERN = [1, 0, 0, 1, 1, 0, 1, 0, 0, 1];
   P.sorter = {
@@ -3346,7 +3449,7 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'oldpanel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'gantry', 'servohmi', 'alarms', 'feeder', 'handover', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
+  LL.PLANT_ORDER = ['panel', 'oldpanel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'gantry', 'servohmi', 'safecell', 'safeplc', 'alarms', 'feeder', 'handover', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
 
   // Outputs a plant sees: Q bits, AQW words, plus any memory words its HMI displays
   LL.plantOutputs = function (plant, m) {
