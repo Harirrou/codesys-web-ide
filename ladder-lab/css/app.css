@@ -295,6 +295,8 @@ main { padding-block: 24px 48px; }
 .ladder .bar-bg { fill: var(--surface-3); }
 .ladder .bar-fg { fill: var(--accent-bg); }
 .ladder .el.act .bar-fg { fill: var(--power-bright); }
+.ladder .bx-q { font: 700 10px var(--f-mono); fill: var(--muted); }
+.ladder .el.act .bx-q { fill: var(--power-bright); }
 .ladder .ph { fill: transparent; stroke: var(--line); stroke-width: 1.2; stroke-dasharray: 3 4; }
 .ladder .ph-out { stroke: var(--accent-bg); stroke-opacity: .6; }
 .ladder .hit { fill: transparent; cursor: pointer; }

@@ -22,7 +22,7 @@
     NCOIL: ['Negated coil', 'Writes the inverse of the rung result.'],
     SET: ['Set coil', 'Writes 1 when powered; otherwise leaves the bit alone.'],
     RST: ['Reset coil', 'Writes 0 when powered. Also clears timers, counters and words.'],
-    TON: ['On-delay timer', 'Done bit turns on after the rung has been powered for PT.'],
+    TON: ['On-delay timer', 'Done bit Q turns on after the rung has been powered for PT. Read it with a contact on T0 (same as T0.Q, or T0.DN in Rockwell); read the elapsed time as T0.ET.'],
     TOF: ['Off-delay timer', 'Done bit on immediately; turns off PT after the rung loses power.'],
     TP: ['Pulse timer', 'Gives a fixed PT-long pulse on each rising edge.'],
     RTO: ['Retentive timer', 'Accumulates powered time, keeps it when off. Clear with RST.'],
@@ -91,7 +91,8 @@
     if (LL.TIMERS.includes(t)) {
       s += `<text class="bx-addr" x="${bx1 - 7}" y="${by + 12.5}">${esc(cell.addr)}</text>`;
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 31}">PT ${fmtMs(cell.pt)}</text><text class="bx-l bx-v" data-v="et" x="${bx1 - 7}" y="${by + 31}" text-anchor="end">ET 0</text>`;
-      s += `<rect class="bar-bg" x="${bx0 + 7}" y="${by + 40}" width="${bw - 14}" height="6" rx="3"/><rect class="bar-fg" data-v="bar" x="${bx0 + 7}" y="${by + 40}" width="0" height="6" rx="3"/>`;
+      s += `<rect class="bar-bg" x="${bx0 + 7}" y="${by + 40}" width="${bw - 30}" height="6" rx="3"/><rect class="bar-fg" data-v="bar" x="${bx0 + 7}" y="${by + 40}" width="0" height="6" rx="3"/>`;
+      s += `<text class="bx-q" x="${bx1 - 7}" y="${by + 47}" text-anchor="end">Q</text>`;
     } else if (LL.COUNTERS.includes(t)) {
       s += `<text class="bx-addr" x="${bx1 - 7}" y="${by + 12.5}">${esc(cell.addr)}</text>`;
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 33}">PV ${cell.pv}</text><text class="bx-l bx-v bx-big" data-v="cv" x="${bx1 - 7}" y="${by + 37}" text-anchor="end">0</text>`;

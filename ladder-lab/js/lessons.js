@@ -392,7 +392,7 @@
 [[sim:ton]]
 <div class="tbl"><table>
 <tr><th>Signal</th><th>Ladder Lab</th><th>Allen-Bradley</th><th>CODESYS</th></tr>
-<tr><td>Done</td><td>T0</td><td>T0.DN</td><td>T0.Q</td></tr>
+<tr><td>Done</td><td>T0 (= T0.Q)</td><td>T0.DN</td><td>T0.Q</td></tr>
 <tr><td>Timing</td><td>T0.TT</td><td>T0.TT</td><td>T0.IN AND NOT T0.Q</td></tr>
 <tr><td>Elapsed</td><td>T0.ET (ms)</td><td>T0.ACC</td><td>T0.ET</td></tr>
 </table></div>
@@ -914,11 +914,13 @@ Valve B = (AUTO AND step wants B) OR (MANUAL AND Jog B AND A is out)   ← inter
 <tr><td>Block with memory</td><td>FB + instance DB</td><td>Add-On Instruction</td><td>FUNCTION_BLOCK</td><td>BLOCK + CALL with an instance name</td></tr>
 <tr><td>Inputs / outputs of a block</td><td>Input / Output / InOut</td><td>Input / Output parameters</td><td>VAR_INPUT / VAR_OUTPUT</td><td>PARAM IN / OUT / INOUT</td></tr>
 <tr><td>Inside the block</td><td>#Start</td><td>Start</td><td>Start</td><td>#Start</td></tr>
+<tr><td>Timer done / elapsed</td><td>#Delay.Q / #Delay.ET</td><td>Delay.DN / Delay.ACC</td><td>Delay.Q / Delay.ET</td><td>#Delay.Q (or #Delay) / #Delay.ET</td></tr>
 </table></div>
 <h3>Parameters and memory</h3>
 <ul>
 <li><b>Parameters</b> are the block's "terminals": <code>IN Start</code>, <code>OUT Run</code>. Inside the block you write <b>#Start</b>, never I0.0. At the call you connect <code>Start=I0.0</code>.</li>
 <li><b>Static memory</b>: any other #name you use inside (a seal-in bit #Req, a timer #Delay, a counter) belongs to the block. Every <b>instance</b> (every call with its own name) gets its own copy. Motor1's timer and Motor2's timer run independently.</li>
+<li><b>Reading a timer inside a block:</b> a contact on <code>#Delay.Q</code> (or just <code>#Delay</code>, the same thing) is the timer's done output; <code>#Delay.ET</code> is its elapsed time in ms. Outside a block it is the same: <code>T0</code> = <code>T0.Q</code>. Rockwell calls the same bit <code>.DN</code> and the elapsed time <code>.ACC</code>; Ladder Lab accepts <code>.DN</code>, <code>.TT</code> and <code>.EN</code> too.</li>
 <li>The <b>instance name</b> is the memory. Two calls with the same instance name would share and fight over the same memory: always give each call its own instance.</li>
 </ul>
 <h3>How it runs</h3>
