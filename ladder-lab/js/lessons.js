@@ -1071,6 +1071,217 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
       challenges: ['diag-reed', 'diag-stop', 'diag-eye', 'diag-tank', 'diag-vacuum', 'diag-door'],
     },
     {
+      id: 'real-software', level: 5, title: 'From Ladder Lab to TIA Portal, Studio 5000 and CODESYS', min: 14,
+      summary: 'Everything you built here exists in the real tools, with different names. How to start a project in each, the instruction-by-instruction translation, and the traps when you change brand.',
+      body: `
+<h3>The three big tools</h3>
+<div class="tbl"><table>
+<tr><th></th><th>Siemens TIA Portal</th><th>Rockwell Studio 5000 (Logix Designer)</th><th>CODESYS</th></tr>
+<tr><td>PLCs</td><td>S7-1200, S7-1500</td><td>ControlLogix, CompactLogix</td><td>Many brands: Schneider (Machine Expert), WAGO, Beckhoff TwinCAT (based on it), ABB, Eaton, Festo …</td></tr>
+<tr><td>Main program</td><td>OB1 (Main)</td><td>MainTask → MainProgram → MainRoutine</td><td>PLC_PRG, called by a task</td></tr>
+<tr><td>Memory</td><td>Tags in the PLC tag table and data blocks (DB)</td><td>Tags only (no addresses)</td><td>Variables (with or without %I / %Q / %M addresses)</td></tr>
+<tr><td>Languages</td><td>LAD, FBD, SCL (= ST), GRAPH (= SFC)</td><td>Ladder, FBD, ST, SFC</td><td>LD, FBD, ST, SFC, IL, CFC</td></tr>
+<tr><td>Where to learn</td><td>Trial licence, many schools</td><td>Licence needed, many schools</td><td>Free download, with a soft-PLC on your PC</td></tr>
+</table></div>
+<h3>Your first project, in every tool</h3>
+<ol>
+<li><b>Create the project</b> and add the CPU you really have (hardware configuration). The I/O cards you add give you the addresses.</li>
+<li><b>Make the I/O list as tags</b>: Start = I0.0, Motor = Q0.0 … (In Studio 5000 you create tags and alias them to the module, e.g. Local:1:I.Data.0.)</li>
+<li><b>Write the ladder</b> in OB1 / MainRoutine / PLC_PRG, with the same rungs you wrote here.</li>
+<li><b>Compile</b>, fix the errors, <b>download</b> to the PLC (or the simulator: PLCSIM, Logix Emulate, CODESYS Control Win).</li>
+<li><b>Go online</b>: the same green power flow you see in Ladder Lab. Watch tables and force tables are the I/O table of the Lab.</li>
+</ol>
+<h3>Instruction by instruction</h3>
+<div class="tbl"><table>
+<tr><th>Ladder Lab</th><th>TIA Portal (LAD)</th><th>Studio 5000</th><th>CODESYS (LD)</th></tr>
+<tr><td>NO / NC contact</td><td>-| |- / -|/|-</td><td>XIC / XIO</td><td>-| |- / -|/|-</td></tr>
+<tr><td>P / N edge</td><td>-|P|- / -|N|- (or R_TRIG)</td><td>ONS (one-shot), OSR / OSF</td><td>-|P|- / -|N|-, R_TRIG / F_TRIG</td></tr>
+<tr><td>Coil, SET, RESET</td><td>-( )-, -(S)-, -(R)-</td><td>OTE, OTL, OTU</td><td>-( )-, -(S)-, -(R)-</td></tr>
+<tr><td>TON(T0,3s)</td><td>TON with an instance DB, PT = T#3s</td><td>TON on a TIMER tag, PRE = 3000 (ms)</td><td>TON instance, PT := T#3S</td></tr>
+<tr><td>T0 (= T0.Q) / T0.ET</td><td>"T0".Q / "T0".ET</td><td>T0.DN / T0.ACC</td><td>T0.Q / T0.ET</td></tr>
+<tr><td>RTO</td><td>TONR</td><td>RTO</td><td>LTONR or a library block</td></tr>
+<tr><td>CTU(C0,5), C0.CV</td><td>CTU, CV</td><td>CTU on a COUNTER tag, .ACC</td><td>CTU, CV</td></tr>
+<tr><td>Compare CMP(MW0>=5)</td><td>CMP >= contact</td><td>GEQ(a,b)</td><td>GE box</td></tr>
+<tr><td>MOV, ADD … MOD</td><td>MOVE, ADD … MOD</td><td>MOV, ADD … MOD (or CPT)</td><td>MOVE, ADD … MOD</td></tr>
+<tr><td>SHRB (bit shift register)</td><td>SHL / SHR on words, or an array</td><td>BSL / BSR</td><td>SHL / SHR, arrays</td></tr>
+<tr><td>BLOCK + CALL</td><td>FB + instance DB (or FC)</td><td>Add-On Instruction (AOI), or JSR to a routine</td><td>FUNCTION_BLOCK instance</td></tr>
+<tr><td>PID</td><td>PID_Compact</td><td>PIDE (or PID)</td><td>PID from the Util library</td></tr>
+<tr><td>MW10 / MD20</td><td>%MW10 / %MD20, better: a tag in a DB</td><td>INT / DINT tags</td><td>%MW10 / %MD20, or INT / DINT variables</td></tr>
+<tr><td>AIW0, 0 … 27648</td><td>%IW64…, 0 … 27648</td><td>module channel, already scaled in the module setup</td><td>depends on the I/O module</td></tr>
+</table></div>
+<h3>Reading Rockwell rung text</h3>
+<p>Studio 5000 can show every rung as one line of text, and you can type or paste a rung that way (double-click the rung number). Series elements are written one after another, a parallel branch is <code>[ A ,B ]</code>:</p>
+<pre class="code">[XIC(Start),XIC(Motor)]XIO(Stop_Pressed)OTE(Motor);</pre>
+<p>In the Lab, the <b>as Studio 5000</b> button shows your own program this way, and <b>as ST</b> shows it as Structured Text (SCL in TIA Portal, ST in CODESYS and Studio 5000).</p>
+<h3>Traps when you change brand</h3>
+<ul>
+<li><b>Siemens memory overlaps</b>: MW10 is the bytes MB10 and MB11, MD10 is MW10 + MW12, and M10.0 is a bit inside MB10. Writing MD10 changes MW12! Ladder Lab keeps them separate; in TIA, use tags in data blocks and the problem disappears.</li>
+<li><b>Rockwell timers are in ms</b> and counters keep counting past the preset (.ACC goes on, .DN stays on).</li>
+<li><b>NC STOP buttons</b> are the same everywhere: the contact in the program is NO, because the wire already does the inverting.</li>
+<li><b>Old Siemens timers</b> (S_ODT, T0 on S7-300) still exist in old machines; new projects use IEC timers (TON) with instance data.</li>
+<li><b>Analog values</b>: Siemens gives raw 0 … 27648; Rockwell usually scales in the module; always check the module manual.</li>
+</ul>
+<div class="callout tip"><b>The good news:</b> the thinking is the same in every brand: scan, contacts, seal-in, edges, timers, step bits, blocks. Learn the logic once, and a new tool is just new menus and new names.</div>
+<div class="callout where"><b>Where:</b> you will meet all three. Siemens dominates in Europe, Rockwell in North America, CODESYS-based PLCs everywhere in machine building.</div>`,
+      sims: {},
+      takeaways: ['TIA Portal, Studio 5000 and CODESYS all run the same ideas with different names.', 'XIC = NO, XIO = NC, OTE = coil, OTL / OTU = set / reset, [ , ] = branch.', 'T0.DN (Rockwell) = T0.Q (Siemens, CODESYS).', 'Siemens M memory overlaps: MD10 contains MW12.', 'Use the "as Studio 5000" and "as ST" buttons to see your program in other forms.'],
+      mistakes: ['Using MD10 and MW12 for different things on a Siemens PLC.', 'Entering a Rockwell timer preset in seconds instead of ms.', 'Assuming the analog range is the same on every brand.'],
+      challenges: ['port-rk'],
+    },
+    {
+      id: 'alarm-handling', level: 6, title: 'Alarms the professional way', min: 13,
+      summary: 'An alarm is more than a lamp. Filter it, latch it, make the operator acknowledge it, sound a horn for new ones, and show which alarm came first.',
+      body: `
+<h3>What an alarm must do</h3>
+<p>An alarm tells a person that something needs action. It must never be missed, even if the problem lasted only a moment, and it must not cry wolf. Every plant uses the same pattern (the standard ISA-18.2 describes it):</p>
+<div class="tbl"><table>
+<tr><th>State</th><th>Cause still there?</th><th>Acknowledged?</th><th>Lamp</th><th>Horn</th></tr>
+<tr><td>Normal</td><td>no</td><td>—</td><td>off</td><td>off</td></tr>
+<tr><td>New alarm</td><td>yes</td><td>no</td><td><b>flashing</b></td><td><b>on</b></td></tr>
+<tr><td>Acknowledged</td><td>yes</td><td>yes</td><td>steady</td><td>off</td></tr>
+<tr><td>Gone, not acknowledged</td><td>no</td><td>no</td><td>flashing</td><td>on</td></tr>
+<tr><td>Gone and acknowledged</td><td>no</td><td>yes</td><td>off (normal)</td><td>off</td></tr>
+</table></div>
+[[sim:alarm]]
+<h3>The building blocks</h3>
+<ul>
+<li><b>Filter</b>: a TON of 0.5 … 5 s on the raw signal, so a splash or a pressure dip does not stop the plant. Trips that protect people or equipment from instant damage get no delay.</li>
+<li><b>Latch</b>: SET "active" on the rising edge of the filtered signal. Without a latch, a 0.2 s fault leaves no trace.</li>
+<li><b>Not acknowledged</b>: a second bit, SET together with "active", RESET by ACK.</li>
+<li><b>Clear</b>: "active" resets only when the cause is gone <b>and</b> it was acknowledged.</li>
+<li><b>Lamp</b> = (not acknowledged AND clock) OR (active AND acknowledged). <b>Horn</b> = any alarm not acknowledged, so a new alarm sounds it again.</li>
+</ul>
+<h3>Trip or warning?</h3>
+<p>Give every alarm a class: a <b>trip</b> stops the machine (low oil pressure), a <b>warning</b> only informs (filter getting dirty). The program uses an "any trip active" bit to stop and to block the restart.</p>
+<h3>First-out</h3>
+<p>When a machine trips, one fault often causes others within a second: no oil → hot bearing → overload. All lamps light, but only the <b>first</b> one is the cause. A first-out memory stores the number of the first alarm since everything was clear: the edge of each alarm writes its number only if the memory is still 0.</p>
+<h3>Write it once</h3>
+<p>Alarm logic is the perfect block: FB_Alarm with Cond and Ack in, Active, Unack and Lamp out, called once per alarm. Plants often collect the alarm bits into words (16 alarms per word) for the HMI.</p>
+<div class="callout tip"><b>In the real tools:</b> TIA Portal HMIs read alarm bits and show texts, time stamps and acknowledgement (ProDiag can generate them). Rockwell has the ALMD / ALMA instructions and FactoryTalk alarms. CODESYS has an alarm manager. They all implement this same state table.</div>
+<div class="callout where"><b>Where:</b> every machine and process plant. Too many alarms at once (an "alarm flood") hide the important one: filter well, use first-out, and only alarm what needs an action.</div>`,
+      sims: { alarm: { program: 'NAME One alarm\nRUNG 1 s filter\nNO(I0.0) TON(T1,1s)\nRUNG Alarm comes: active + not acknowledged\nP(T1) ~ | SET(M1.0)\nSET(M1.1)\nRUNG ACK\nNO(I0.5) RST(M1.1)\nRUNG Clears when gone AND acknowledged\nNC(T1) NC(M1.1) RST(M1.0)\nRUNG Lamp: flashing = new, steady = acknowledged\nNO(M1.1) NO(SM0.5) | COIL(Q0.0)\nNO(M1.0) NC(M1.1)\nRUNG Horn\nNO(M1.1) COIL(Q0.5)', inputs: { 'I0.0': sw('Fault in the field'), 'I0.5': pb('ACK') }, outputs: { 'Q0.0': 'Alarm lamp', 'Q0.5': 'Horn' }, note: 'Switch the fault on for 2 s: horn and flashing lamp. ACK: steady. Fault off: lamp off. Now switch it on for 2 s and off again BEFORE ACK: it keeps flashing until you acknowledge.' } },
+      takeaways: ['Filter, latch, acknowledge: never miss a short fault, never cry wolf.', 'Flashing = new, steady = acknowledged but still there.', 'The horn sounds for any unacknowledged alarm, so a new one sounds it again.', 'First-out shows the cause of a trip.', 'One alarm block, called once per alarm.'],
+      mistakes: ['Lamp wired straight to the sensor: a short fault leaves no trace.', 'ACK clears the alarm while the cause is still there.', 'No filter: splashes and dips stop the plant.', 'One "general fault" lamp for everything.'],
+      challenges: ['alarm-1', 'alarm-2', 'alarm-3'],
+    },
+    {
+      id: 'dint-real', level: 6, title: 'Bigger numbers: 32-bit DINT and REAL', min: 12,
+      summary: 'A 16-bit word stops at 32 767. When to use 32-bit double words (DINT) and floating point (REAL), the multiply-first rule, MOD, and the traps of each.',
+      body: `
+<h3>The data types</h3>
+<div class="tbl"><table>
+<tr><th>Type</th><th>Size</th><th>Range</th><th>Ladder Lab</th><th>Use for</th></tr>
+<tr><td>BOOL</td><td>1 bit</td><td>0 / 1</td><td>I, Q, M bits</td><td>signals</td></tr>
+<tr><td>INT</td><td>16 bit</td><td>−32 768 … 32 767</td><td>MW, AIW, AQW</td><td>analog values, small counts, steps</td></tr>
+<tr><td>DINT</td><td>32 bit</td><td>−2 147 483 648 … 2 147 483 647</td><td><b>MD</b>, HC</td><td>totals, encoder positions, big intermediate results</td></tr>
+<tr><td>REAL</td><td>32 bit</td><td>±3.4·10<sup>38</sup>, about 7 digits</td><td>(not in the Lab)</td><td>physics, PID, flow totals</td></tr>
+</table></div>
+<h3>Overflow: the silent killer</h3>
+<p>(AIW0 − 6400) × 5000 is up to 128 000 000. In a 16-bit word that does not fit. Depending on the brand the result <b>wraps around</b> (32 767 + 1 = −32 768) and sets an overflow flag, or it is clamped; Ladder Lab clamps at the limit. Either way the number is garbage, and the program keeps running with it.</p>
+[[sim:dint]]
+<h3>Three rules for integer maths</h3>
+<ol>
+<li><b>Multiply first, divide last.</b> Integer division throws the fraction away: 5248 ÷ 256 = 20, not 20.5. Dividing first loses precision; multiplying first keeps it.</li>
+<li><b>Make the intermediate big enough</b>: put the product into a DINT (MD), divide, and the result fits back into an INT.</li>
+<li><b>Use MOD for the remainder</b>: 35 100 ÷ 1000 = 35 metres, 35 100 MOD 1000 = 100 mm.</li>
+</ol>
+<h3>Fixed point: decimals without REAL</h3>
+<p>Keep integers but choose a small unit: temperature in 0.1 °C (215 = 21.5 °C), pressure in 0.01 bar, weight in 10 g. Fast, exact and simple to compare. Many sensors (IO-Link) already send values this way.</p>
+<h3>REAL (floating point)</h3>
+<p>Real PLCs also calculate with REAL: in TIA Portal NORM_X and SCALE_X turn 0 … 27648 into 0.0 … 100.0 %; in Studio 5000 and CODESYS you write REAL tags in CPT or ST. Two traps:</p>
+<ul>
+<li><b>Never compare REALs with =</b>: 0.1 + 0.2 is not exactly 0.3. Use ≥ / ≤ or a band.</li>
+<li><b>REAL totals stop counting</b>: with about 7 digits, 16 777 216 + 1 is still 16 777 216. Keep totals in DINT (or LREAL).</li>
+</ul>
+<div class="callout tip"><b>Siemens memory:</b> MD20 is MW20 + MW22. If you use MD20, keep MW20 and MW22 free. In Ladder Lab MD and MW are separate.</div>
+<div class="callout where"><b>Where:</b> production totals, energy counters, encoder positions, recipe maths with big factors, flow totals. Every time a number can pass 32 767, use DINT.</div>`,
+      sims: { dint: { program: 'NAME 16 bit vs 32 bit\nRUNG Counts above 4 mA: 0 … 25600\nNO(SM0.0) SUB(AIW0,6400,MW0)\nRUNG WRONG: the 16-bit product overflows\nNO(SM0.0) MUL(MW0,5000,MW2)\nRUNG\nNO(SM0.0) DIV(MW2,25600,MW12)\nRUNG RIGHT: 32-bit product, then divide\nNO(SM0.0) MUL(MW0,5000,MD100)\nRUNG\nNO(SM0.0) DIV(MD100,25600,MW10)', inputs: { 'AIW0': { name: 'Level transmitter', kind: 'ana', min: 6400, max: 32000, value: 11648 } }, outputs: {}, note: 'MW10 = litres (0 … 5000), right. MW12 = the same formula in 16 bits: wrong almost everywhere. Move the slider and compare.' } },
+      takeaways: ['INT stops at 32 767; DINT goes to 2.1 billion.', 'Multiply first, divide last, with a DINT in between.', 'MOD gives the remainder.', 'Fixed point (0.1 °C, 0.01 bar) gives decimals with integers.', 'Never compare REALs with =; keep totals in DINT.'],
+      mistakes: ['Dividing first and losing the fraction.', 'A 16-bit total that stops (or wraps) at 32 767.', 'Comparing a REAL with = 0.3.', 'On Siemens: using MD20 and MW22 for different things.'],
+      challenges: ['dint-scale', 'enc-3'],
+    },
+    {
+      id: 'encoders', level: 6, title: 'Encoders and high-speed counters', min: 13,
+      summary: 'How a PLC measures length and position exactly: encoder pulses, why normal inputs miss them, the high-speed counter, and how to stop accurately with fast and creep speed.',
+      body: `
+<h3>What an encoder is</h3>
+<p>A disc with slots turns with the shaft; a light sensor gives a <b>pulse</b> for every slot. Count the pulses and you know how far the shaft turned. On a measuring wheel or a feed roll, that is how far the material moved.</p>
+<div class="tbl"><table>
+<tr><th>Type</th><th>Gives</th><th>Use</th></tr>
+<tr><td>Incremental, one track (A)</td><td>pulses</td><td>length, speed, one direction</td></tr>
+<tr><td>Incremental, A + B (quadrature)</td><td>pulses + direction (which track comes first)</td><td>position that can go back and forth</td></tr>
+<tr><td>Track Z (zero)</td><td>one pulse per revolution</td><td>exact reference for homing</td></tr>
+<tr><td>Absolute (SSI, PROFINET, EtherCAT)</td><td>the position itself, as a number</td><td>no homing needed after power loss</td></tr>
+</table></div>
+<p><b>Resolution</b>: a 1000-pulse encoder on a wheel of 100 mm circumference gives 10 pulses per mm. With quadrature (counting all edges of A and B) you get 4× more.</p>
+<h3>Why a normal input is not enough</h3>
+<p>A normal input is read once per scan (5 … 20 ms) and has an input filter of a few ms. It can follow perhaps 25 … 50 pulses per second. A strip at 400 mm/s with 10 pulses per mm makes <b>4000 pulses per second</b>: a normal input sees a random pattern and the count is worthless.</p>
+<p>A <b>high-speed counter (HSC)</b> counts in hardware, next to the input terminal, at 100 kHz and more. The program just reads its value (HC0 in the Lab, like the S7-200), compares it, and resets or preloads it.</p>
+<h3>Stopping accurately</h3>
+<ol>
+<li><b>Fast</b> until a slow-down point.</li>
+<li><b>Creep</b> (slow) for the last few mm: from creep speed the stop is almost instant.</li>
+<li><b>Stop</b> at the target count. Then do the work (cut, punch, label).</li>
+<li><b>Reset</b> (or preload) the counter at the reference point, e.g. after each cut.</li>
+</ol>
+<p>Why the creep? At 400 mm/s the drive needs about 18 mm to stop. Without it, every piece is 18 mm too long, and the error changes with the load. For even better accuracy, real systems use the counter's hardware comparison outputs or a positioning drive.</p>
+<h3>In the real tools</h3>
+<ul>
+<li><b>Siemens</b>: the S7-1200 has built-in HSCs (configure in the device view, read the count, control with CTRL_HSC); the S7-1500 uses Technology Modules (TM Count).</li>
+<li><b>Rockwell</b>: CompactLogix embedded or module HSCs (e.g. 1734-VHSC).</li>
+<li><b>CODESYS</b>: an encoder input module or an EtherCAT encoder terminal; the count appears as a DINT variable.</li>
+</ul>
+<div class="callout tip"><b>Counts are DINTs:</b> 10 pulses/mm passes 32 767 after only 3.3 m. Keep counts and positions in 32-bit, or reset at every piece.</div>
+<div class="callout where"><b>Where:</b> cut-to-length lines, label positioning, flying shears, palletiser lifts, conveyors with tracking, speed measurement (pulses per second).</div>`,
+      sims: {},
+      takeaways: ['An encoder gives pulses; pulses per mm turn them into length.', 'Normal inputs miss fast pulses; a high-speed counter counts them in hardware.', 'Fast → creep → stop: accurate whatever the speed.', 'Reset or preload the counter at a known point.', 'Counts are 32-bit.'],
+      mistakes: ['Counting encoder pulses with a normal input and CTU.', 'Stopping from full speed and wondering why every piece is too long.', 'Never resetting the counter, so the second piece is wrong.', 'Feeding with the knife (or tool) not in its home position.'],
+      challenges: ['enc-1', 'enc-2', 'enc-3'],
+    },
+    {
+      id: 'networks', level: 6, title: 'Networks: PLCs that talk to each other', min: 14,
+      summary: 'PROFINET, EtherNet/IP, Modbus and friends. How data from another PLC appears in yours, how to notice a dead link with a heartbeat, and how two machines hand over parts with a handshake.',
+      body: `
+<h3>Who talks to the PLC</h3>
+<ul>
+<li><b>Remote I/O and drives</b>: the I/O cards are in the field, the network brings them to the PLC.</li>
+<li><b>Other PLCs</b>: two machines in a line exchange "part ready", "ready to receive", recipe numbers.</li>
+<li><b>HMIs and SCADA</b>: screens read and write tags.</li>
+<li><b>IT and the cloud</b>: production data, often through OPC UA.</li>
+</ul>
+<div class="tbl"><table>
+<tr><th>Network</th><th>Typical with</th><th>Notes</th></tr>
+<tr><td>PROFINET</td><td>Siemens</td><td>cyclic I/O data; a PLC can be an "I-Device" for another PLC</td></tr>
+<tr><td>EtherNet/IP</td><td>Rockwell</td><td>produced / consumed tags between controllers</td></tr>
+<tr><td>Modbus TCP / RTU</td><td>everything</td><td>simple, universal: read and write registers (words) and coils (bits)</td></tr>
+<tr><td>EtherCAT</td><td>Beckhoff, motion</td><td>very fast I/O and drives</td></tr>
+<tr><td>IO-Link</td><td>sensors</td><td>digital point-to-point link to smart sensors (values, settings, diagnostics)</td></tr>
+<tr><td>OPC UA</td><td>SCADA, MES, IT</td><td>structured data with names, security</td></tr>
+</table></div>
+<h3>How the data appears in your program</h3>
+<p>With cyclic networks (PROFINET, EtherNet/IP), the partner's data simply <b>shows up as inputs</b>, refreshed every few ms, and your outputs arrive in the partner. You agree on a <b>transfer area</b>: "my Q8.1 is your I8.1". In the Lab, machine A's signals are I8.0, I8.1 and AIW20, and yours are Q8.0 … Q8.2 and AQW20. With Modbus or messages (Rockwell MSG, Siemens GET / PUT) you send read or write requests instead.</p>
+<h3>Heartbeat: is the other side alive?</h3>
+<p>When the link breaks, the inputs from the partner usually go to <b>0</b> (or freeze). Your program cannot tell "A has no part" from "the cable is cut". So each side sends a bit that <b>keeps changing</b> (a heartbeat), and each side checks that the partner's heartbeat changes at least every 1 … 3 s. If not: <b>comm fault</b>, stop handshakes, alarm.</p>
+[[sim:hb]]
+<h3>Handshake: both sides agree</h3>
+<div class="tbl"><table>
+<tr><th>Step</th><th>A (sender)</th><th>B (receiver, you)</th></tr>
+<tr><td>1</td><td>part ready = 1, data valid (part type)</td><td></td></tr>
+<tr><td>2</td><td></td><td>ready to receive = 1 (running, empty, link OK)</td></tr>
+<tr><td>3</td><td>moves the part</td><td>part arrives at the infeed</td></tr>
+<tr><td>4</td><td></td><td>part received = 1</td></tr>
+<tr><td>5</td><td>part ready = 0</td><td></td></tr>
+<tr><td>6</td><td></td><td>part received = 0 → back to step 1</td></tr>
+</table></div>
+<p>Each side changes its signal only after it has <b>seen</b> the other side's answer, so nothing depends on timing, and every step can have a <b>timeout</b> alarm. Take the <b>data</b> (part type, recipe) while it is guaranteed valid, at the start of the transfer, and keep it until the part has arrived.</p>
+<div class="callout tip"><b>Safety is different:</b> emergency stops and guard doors between machines use safety networks (PROFIsafe, CIP Safety) or hard wiring, never ordinary bits like these.</div>
+<div class="callout where"><b>Where:</b> every production line with more than one machine, robots taking parts from machines, drives on PROFINET, a SCADA system reading counters.</div>`,
+      sims: { hb: { program: 'NAME Heartbeat watchdog\nRUNG My heartbeat: 1 Hz clock\nNO(SM0.5) COIL(Q8.0)\nRUNG Partner heartbeat stuck at 1 for 2 s …\nNO(I8.0) TON(T1,2s)\nRUNG … or stuck at 0 for 2 s\nNC(I8.0) TON(T2,2s)\nRUNG Comm fault (latched)\nNO(T1) | SET(M0.1)\nNO(T2)\nRUNG RESET when the heartbeat is alive again\nNO(I0.2) NC(T1) NC(T2) RST(M0.1)\nRUNG Comm fault lamp\nNO(M0.1) COIL(Q0.1)', inputs: { 'I8.0': sw('Partner heartbeat (toggle it!)'), 'I0.2': pb('RESET') }, outputs: { 'Q8.0': 'My heartbeat', 'Q0.1': 'Comm fault' }, note: 'You are the partner: flip the heartbeat switch at least every 2 s and all is well. Stop flipping (the "cable is cut") and the comm fault comes. Flip again, then RESET.' } },
+      takeaways: ['Partner data appears as inputs and outputs in an agreed transfer area.', 'On link loss, inputs go to 0 or freeze: use a heartbeat to notice.', 'Handshake: each side answers only what it has seen.', 'Take the data while it is valid and keep it.', 'Safety signals between machines use safety networks or wires.'],
+      mistakes: ['Treating "input = 0" as "partner has nothing" without checking the heartbeat.', 'Moving a part on a timer instead of waiting for the answer.', 'Reading data after the partner has already dropped "data valid".', 'Sending an E-stop as an ordinary network bit.'],
+      challenges: ['comm-1', 'comm-2', 'comm-3'],
+    },
+    {
       id: 'structure', level: 5, title: 'Program structure & troubleshooting', min: 9,
       summary: 'How to lay out a program others can maintain, and how to find faults fast.',
       body: `
@@ -1498,11 +1709,9 @@ END_REPEAT</pre>
     ['Setpoint (SP)', 'The target value a controller tries to reach.'],
     ['Process value (PV)', 'The measured value being controlled.'],
     ['PID', 'Proportional–Integral–Derivative controller: output from the error, its sum over time, and its rate of change.'],
-    ['Offset (steady-state error)', 'The error that remains with P-only control; the I term removes it.'],
     ['Anti-windup', 'Stopping the integral term from growing while the output is clamped at 0 or 100 %.'],
     ['Duty / standby', 'Two machines for one job: the duty one runs, the standby one helps or takes over on a fault.'],
     ['Alternation (lead/lag)', 'Swapping the duty unit every cycle so both wear equally.'],
-    ['Tracking', 'Remembering data about an item (measured upstream) until it reaches the station that acts on it.'],
     ['Debounce', 'Ignoring short glitches so a signal is believed only when stable (often a short TON).'],
     ['Bistable valve (memory valve)', 'A 5/2 valve with two coils and no spring. A pulse on one coil switches it, and it stays there after the coil (or the power) goes off. Never energise both coils together.'],
     ['Monostable valve', 'A valve with one coil and a return spring: the cylinder stays out only while the coil is on, and goes back on power loss.'],
@@ -1547,6 +1756,24 @@ END_REPEAT</pre>
     ['HMI', 'Human-Machine Interface: touch panel showing machine state and accepting operator commands.'],
     ['SCADA', 'Supervisory system that monitors many PLCs across a plant.'],
     ['Jog / inching', 'Running a motor only while a button is held, with no latch. Used for setup.'],
+    ["DINT / double word (MD)", "32-bit signed integer, −2 147 483 648 … 2 147 483 647. For totals, encoder counts and big intermediate results. In Siemens memory MD20 = MW20 + MW22."],
+    ["REAL", "Floating-point number (about 7 significant digits). Good for physics and PID; never compare with =, and do not keep big totals in it."],
+    ["Overflow", "A result too big for its data type. Depending on the PLC it wraps around (32767 + 1 = −32768) or is clamped, and an overflow flag is set. Use a bigger type."],
+    ["MOD", "Modulo: the remainder of an integer division. 35100 MOD 1000 = 100."],
+    ["Fixed point", "Storing decimals as integers in a small unit: 215 = 21.5 °C (0.1 °C units)."],
+    ["Encoder", "Sensor that gives pulses (incremental) or a position number (absolute) as a shaft turns. Measures length, position and speed."],
+    ["Quadrature (A/B)", "Two encoder tracks a quarter period apart: the order of their edges gives the direction; counting all edges gives 4× resolution."],
+    ["High-speed counter (HSC)", "Hardware counter at the input terminals that counts pulses far faster than the scan (kHz … MHz). The program reads, resets or preloads its value."],
+    ["Creep speed", "A slow speed for the last part of a move, so the stop is accurate whatever the full speed was."],
+    ["First-out", "Alarm memory that shows which alarm came first when several follow one another: the cause of the trip."],
+    ["Acknowledge (ACK)", "The operator confirms they saw an alarm: the horn stops and the lamp goes from flashing to steady."],
+    ["Alarm flood", "Many alarms at once after one fault, hiding the important one. Filters, first-out and good alarm design prevent it."],
+    ["Heartbeat", "A bit that keeps toggling, sent to a partner so it can check the link is alive. If it stops changing: comm fault."],
+    ["Handshake", "An exchange of signals where each side answers only what it has seen from the other (ready → ready to receive → received → done)."],
+    ["PROFINET / EtherNet/IP", "Industrial Ethernet networks (Siemens / Rockwell) that exchange I/O data cyclically, every few ms."],
+    ["Modbus", "Simple, universal protocol (TCP or serial RTU) for reading and writing registers (words) and coils (bits)."],
+    ["XIC / XIO / OTE", "Rockwell names: examine if closed (NO contact), examine if open (NC contact), output energize (coil). OTL / OTU = latch / unlatch (SET / RESET)."],
+    ["Add-On Instruction (AOI)", "Rockwell's reusable block with its own parameters and memory: the same idea as a Siemens FB or a CODESYS FUNCTION_BLOCK."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -1703,5 +1930,23 @@ END_REPEAT</pre>
     { l: 6, q: 'Why keep STOP as a hard-wired button even on a machine with a touch HMI?', a: ['Safety functions must not depend on a screen or network', 'Touch screens cannot have buttons', 'It is cheaper', 'HMIs are read-only'], c: 0, why: 'Hard-wired is independent and always available.' },
     { l: 6, q: 'Tool A has 3 clamps, Tool B has 6. What protects the missing clamp ports on Tool A?', a: ['A "fitted" mask so only existing clamps are driven', 'Nothing is needed', 'A slower scan', 'An HMI message'], c: 0, why: 'Only drive what the tool actually has.' },
     { l: 7, q: 'In a CASE state machine, why can a button press not jump two states in one scan?', a: ['CASE runs only one branch per scan', 'Buttons are too slow', 'CASE has a delay', 'It can'], c: 0, why: 'One branch, then the scan continues after END_CASE.' },
+    { l: 5,  q: "In Studio 5000, XIC(Start) is…",  a: ["a normally-open contact on Start", "a coil", "a timer", "a normally-closed contact"],  c: 0,  why: "XIC = examine if closed: true when the bit is 1." },
+    { l: 5,  q: "Rockwell T1.DN is the same as…",  a: ["T1.Q in TIA Portal / CODESYS", "T1.ET", "the preset", "the timer input"],  c: 0,  why: "The done bit." },
+    { l: 5,  q: "On a Siemens PLC you use MD20 for a total. What else changes when MD20 is written?",  a: ["MW20 and MW22", "Nothing", "MW21 only", "M20.0 only"],  c: 0,  why: "MD20 is MW20 + MW22 (bytes MB20 … MB23)." },
+    { l: 6,  q: "An alarm lamp should be FLASHING when…",  a: ["the alarm is not acknowledged yet", "the alarm is acknowledged and still there", "everything is normal", "the horn is off"],  c: 0,  why: "Flashing = new; steady = acknowledged." },
+    { l: 6,  q: "A fault lasted 0.5 s and disappeared before anyone looked. A good alarm…",  a: ["keeps flashing until ACK", "goes off by itself", "is never shown", "resets the PLC"],  c: 0,  why: "Latched until acknowledged, so nobody misses it." },
+    { l: 6,  q: "Why put a 1 s filter (TON) on a pressure switch alarm?",  a: ["so short dips do not stop the plant", "to make it faster", "to save memory", "it is required by law"],  c: 0,  why: "Filter noise; but not on trips that protect against instant damage." },
+    { l: 6,  q: "Three alarms come within 2 s. Which one is most likely the cause?",  a: ["the first one (first-out)", "the last one", "the one with the lowest number", "all equally"],  c: 0,  why: "Later alarms are often consequences." },
+    { l: 6,  q: "(AIW0 − 6400) × 5000 ÷ 25600 in 16-bit integers gives nonsense because…",  a: ["the product overflows 32 767", "division is not allowed", "AIW0 is a REAL", "the scan is too slow"],  c: 0,  why: "Use a 32-bit DINT for the intermediate result." },
+    { l: 6,  q: "Integer maths: the best order is…",  a: ["multiply first, divide last", "divide first, multiply last", "it does not matter", "only add"],  c: 0,  why: "Dividing first throws the fraction away." },
+    { l: 6,  q: "35 100 MOD 1000 =",  a: ["100", "35", "35.1", "0"],  c: 0,  why: "The remainder." },
+    { l: 6,  q: "Why not compare a REAL with = 0.3?",  a: ["floating-point results are rarely exact", "REALs cannot be compared", "it is too slow", "it overflows"],  c: 0,  why: "Use a band or ≥ / ≤." },
+    { l: 6,  q: "An encoder gives 4000 pulses/s. Counting it with a normal input and CTU…",  a: ["misses most pulses", "works perfectly", "counts double", "is faster than an HSC"],  c: 0,  why: "A normal input is read once per scan; use a high-speed counter." },
+    { l: 6,  q: "Why slow down to creep speed before the target length?",  a: ["the stop from full speed takes many mm", "to save energy", "the encoder cannot count fast", "the knife needs time"],  c: 0,  why: "From creep the stop is almost instant and repeatable." },
+    { l: 6,  q: "An A/B (quadrature) encoder gives, compared with a single track…",  a: ["the direction, and up to 4× resolution", "absolute position", "only speed", "nothing more"],  c: 0,  why: "The order of the A and B edges gives the direction." },
+    { l: 6,  q: "The network cable to the partner PLC is pulled. Its inputs in your PLC usually…",  a: ["go to 0 or freeze: you need a heartbeat to notice", "show an error text", "stop your PLC", "keep toggling"],  c: 0,  why: "Without a heartbeat you cannot tell \"nothing to do\" from \"link dead\"." },
+    { l: 6,  q: "In a hand-over handshake, B sets \"part received\" when…",  a: ["the part has really arrived at B", "after a fixed time", "when A says part ready", "at power-up"],  c: 0,  why: "Each side answers what it has seen." },
+    { l: 6,  q: "When should B read the part data (e.g. the part type) from A?",  a: ["while A says the data is valid, and keep it", "whenever the part arrives, even if A dropped \"valid\"", "once at power-up", "never"],  c: 0,  why: "Data is only valid while A offers it." },
+    { l: 6,  q: "An emergency stop between two machines should go over…",  a: ["a safety network (PROFIsafe, CIP Safety) or hard wiring", "an ordinary PROFINET bit", "Modbus", "the HMI"],  c: 0,  why: "Ordinary bits are not safety rated." },
   ];
 })(typeof window !== 'undefined' ? window : globalThis);

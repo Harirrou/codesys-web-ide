@@ -34,6 +34,7 @@
     MUL: ['Multiply', 'dst = a × b while powered.'],
     DIV: ['Divide', 'dst = a ÷ b (integer) while powered.'],
     SHL: ['Shift left', 'OUT = IN shifted left by N bits (16-bit word). Each place = ×2. Runs every scan while powered.'],
+    MOD: ['Modulo (remainder)', 'Result = A MOD B, the remainder of the division A ÷ B. 1234 MOD 1000 = 234. Use it to split a number into digits or to do something every Nth part.'],
     SHR: ['Shift right', 'OUT = IN shifted right by N bits (16-bit word). Each place = ÷2. Runs every scan while powered.'],
     CALL: ['Call a block', 'Runs a reusable block (FB) while the rung is true. Each call has an instance name: its own memory. Connect every parameter to an address of this machine.'],
     PID: ['PID controller', 'Keeps PV at SP by adjusting OUT (0 … 27648 = 0 … 100 %). Kp = % output per unit of error, Ti = integral time (removes the remaining error), Td = derivative time. Off when the rung is false.'],
@@ -115,7 +116,7 @@
       const shown = bits.slice(0, 16), sq = Math.min(9, (bw - 14) / Math.max(1, shown.length) - 1.5);
       shown.forEach((b, k) => { s += `<rect class="sr-bit" data-b="${b}" x="${bx0 + 7 + k * (sq + 1.5)}" y="${by + 39}" width="${sq}" height="9" rx="2"/>`; });
     } else {
-      const op = { ADD: '+', SUB: '−', MUL: '×', DIV: '÷', SHL: '«', SHR: '»' }[t];
+      const op = { ADD: '+', SUB: '−', MUL: '×', DIV: '÷', MOD: 'mod', SHL: '«', SHR: '»' }[t];
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 32}">${esc(trunc(cell.a, 7))} ${op} ${esc(trunc(cell.b, 6))}</text><text class="bx-l bx-v" x="${bx0 + 7}" y="${by + 48}">→ ${esc(cell.dst)} = <tspan data-v="dst">0</tspan></text>`;
     }
     return { wi: `<line class="w wi" x1="${x0}" y1="${cy}" x2="${bx0}" y2="${cy}"/>`, wo: `<line class="w wo" x1="${bx1}" y1="${cy}" x2="${xR}" y2="${cy}"/>`, sym: s, box: true };

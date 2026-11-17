@@ -1413,6 +1413,282 @@
     },
   };
 
+  // ───────────────────────── pump station alarm panel (annunciator) ─────────────────────────
+  const ALARM_NAMES = ['—', 'Oil pressure low', 'Motor overload', 'Bearing hot'];
+  P.alarms = {
+    id: 'alarms', name: 'Pump station: alarm panel', blurb: 'A large pump with three protection signals: oil pressure, motor overload and bearing temperature. The operator panel has an alarm lamp for each, a horn and an ACK button. When something goes wrong, the pump must stop and the operator must see what happened, even if it was short.',
+    inputs: [
+      { addr: 'I0.0', name: 'Oil pressure low', kind: 'sensor', note: '1 = oil pressure too low (pressure switch)' },
+      { addr: 'I0.1', name: 'Motor overload', kind: 'sensor', note: '1 = the overload relay tripped' },
+      { addr: 'I0.2', name: 'Bearing hot', kind: 'sensor', note: '1 = bearing temperature too high' },
+      { addr: 'I0.3', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.4', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.5', name: 'ACK', kind: 'pb', color: 'black' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Oil lamp', color: 'red' },
+      { addr: 'Q0.1', name: 'Overload lamp', color: 'red' },
+      { addr: 'Q0.2', name: 'Bearing lamp', color: 'red' },
+      { addr: 'Q0.4', name: 'Pump motor', color: 'green' },
+      { addr: 'Q0.5', name: 'Horn', color: 'amber' },
+    ],
+    hmi: ['MW20'],
+    actions: [
+      { id: 'oil', label: 'Oil pressure low', toggle: true, run(st) { st.c[0] = !st.c[0]; } },
+      { id: 'ovl', label: 'Motor overload', toggle: true, run(st) { st.c[1] = !st.c[1]; } },
+      { id: 'temp', label: 'Bearing hot', toggle: true, run(st) { st.c[2] = !st.c[2]; } },
+      { id: 'spike', label: 'Oil pressure dips for 0.3 s', run(st) { st.spike = 300; } },
+      { id: 'cascade', label: 'Oil pump breaks (chain of alarms)', run(st) { st.casc = 1; } },
+      { id: 'fix', label: 'Repair the oil pump', run(st) { st.casc = 0; } },
+    ],
+    init() { return { c: [false, false, false], spike: 0, casc: 0, raw: [0, 0, 0], dry: 0, hot: 0, horn: 0, t: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      if (st.spike > 0) st.spike -= dt;
+      if (st.casc > 0) st.casc += dt;
+      st.raw = [st.c[0] || st.spike > 0 || st.casc > 0, st.c[1] || st.casc > 1200, st.c[2] || st.casc > 600].map((x) => (x ? 1 : 0));
+      const run = !!Q['Q0.4'];
+      st.dry = run && st.raw[0] ? st.dry + dt : 0;
+      st.hot = run && st.raw[1] ? st.hot + dt : 0;
+      if (st.dry > 2500) st.fault = st.fault || 'The pump ran without oil pressure for 2.5 s: the bearings seized.';
+      if (st.hot > 3000) st.fault = st.fault || 'The motor kept running on overload for 3 s: the winding burnt.';
+      if (Q['Q0.5']) st.horn += dt;
+      const o = devices(this, ctrl);
+      o['I0.0'] = st.raw[0]; o['I0.1'] = st.raw[1]; o['I0.2'] = st.raw[2];
+      return o;
+    },
+    draw(c, st, th, Q, I, tags) {
+      // annunciator
+      c.fillStyle = th.panel; D.rr(c, 20, 20, 360, 150, 12); c.fill(); c.strokeStyle = th.line; c.lineWidth = 1; c.stroke();
+      D.text(c, 'ALARM PANEL', 36, 36, { size: 10, weight: 700, color: th.muted, align: 'left' });
+      ['Q0.0', 'Q0.1', 'Q0.2'].forEach((q, i) => {
+        const x = 36 + i * 114, on = !!Q[q];
+        c.fillStyle = on ? th.red : th.lampOff; D.rr(c, x, 50, 104, 60, 6); c.fill();
+        if (on) { c.shadowColor = th.red; c.shadowBlur = 16; c.fill(); c.shadowBlur = 0; }
+        D.text(c, ALARM_NAMES[i + 1].toUpperCase(), x + 52, 74, { size: 11, weight: 800, color: on ? '#fff' : th.muted });
+        D.text(c, q, x + 52, 94, { size: 10, mono: true, color: on ? '#ffe' : th.muted });
+        D.text(c, 'field: ' + (st.raw[i] ? 'FAULT' : 'ok'), x + 52, 126, { size: 10, mono: true, weight: 700, color: st.raw[i] ? th.red : th.muted });
+      });
+      // first-out display
+      const fo = Q['MW20'] | 0;
+      c.fillStyle = '#0b1220'; D.rr(c, 36, 140, 330, 22, 4); c.fill();
+      D.text(c, 'FIRST OUT (MW20 = ' + fo + '): ' + (ALARM_NAMES[fo] || '?'), 46, 151, { size: 10, mono: true, weight: 700, color: fo ? '#ffb4b4' : '#7d8b9c', align: 'left' });
+      // horn
+      const hx = 450, hy = 80, on = !!Q['Q0.5'];
+      c.fillStyle = on ? th.amber : th.metal; c.beginPath(); c.moveTo(hx - 24, hy - 12); c.lineTo(hx, hy - 12); c.lineTo(hx + 26, hy - 30); c.lineTo(hx + 26, hy + 30); c.lineTo(hx, hy + 12); c.lineTo(hx - 24, hy + 12); c.closePath(); c.fill();
+      if (on) { c.strokeStyle = th.amber; c.lineWidth = 3; for (let k = 1; k <= 3; k++) { const r = 16 + k * 12 + (st.t / 40) % 12; c.globalAlpha = 1 - k * 0.25; c.beginPath(); c.arc(hx + 26, hy, r, -0.6, 0.6); c.stroke(); } c.globalAlpha = 1; }
+      D.text(c, 'HORN Q0.5', hx, hy + 48, { size: 11, weight: 700, color: th.ink });
+      // pump + motor
+      const px = 120, py = 250, run = !!Q['Q0.4'];
+      c.fillStyle = th.metalDark; c.fillRect(40, py - 6, 300, 12);
+      c.fillStyle = run ? th.green : th.metal; D.rr(c, px - 50, py - 34, 100, 68, 10); c.fill();
+      D.text(c, 'MOTOR', px, py - 8, { size: 12, weight: 800, color: '#fff' });
+      D.text(c, run ? 'RUNNING' : 'stopped', px, py + 12, { size: 10, mono: true, weight: 700, color: '#fff' });
+      c.fillStyle = th.blue; c.beginPath(); c.arc(px + 160, py, 34, 0, 7); c.fill();
+      c.save(); c.translate(px + 160, py); c.rotate(run ? st.t / 120 : 0); c.strokeStyle = '#fff'; c.lineWidth = 4; for (let k = 0; k < 4; k++) { c.rotate(1.57); c.beginPath(); c.moveTo(0, 0); c.lineTo(0, 26); c.stroke(); } c.restore();
+      D.text(c, 'PUMP', px + 160, py + 50, { size: 11, weight: 700, color: th.ink });
+      D.text(c, 'oil ' + (st.raw[0] ? 'LOW' : 'ok') + '   bearing ' + (st.raw[2] ? 'HOT' : 'ok'), 490, py - 10, { size: 11, mono: true, color: st.raw[0] || st.raw[2] ? th.red : th.muted });
+      if (st.casc > 0) D.text(c, 'oil pump broken: alarms follow', 490, py + 12, { size: 10, mono: true, color: th.red });
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  // ───────────────────────── cut-to-length line with an encoder ─────────────────────────
+  P.feeder = {
+    id: 'feeder', name: 'Cut-to-length line (encoder)', blurb: 'Steel strip comes off a coil and a feed roll pushes it under a knife. A measuring wheel with an encoder (10 pulses per mm) tells the PLC exactly how far the strip moved. Pieces must be cut to length within ±1.5 mm.',
+    inputs: [
+      { addr: 'I0.0', name: 'Encoder track A', kind: 'sensor', note: '10 pulses per mm: up to 4000 pulses/s, far too fast for a normal input' },
+      { addr: 'I0.1', name: 'Knife up', kind: 'sensor' },
+      { addr: 'I0.2', name: 'Knife down', kind: 'sensor' },
+      { addr: 'I0.3', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.4', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'HC0', name: 'High-speed counter', kind: 'sensor', note: 'Counts every encoder pulse in hardware: 10 pulses = 1 mm' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Feed fast', color: 'green' },
+      { addr: 'Q0.1', name: 'Feed slow (creep)', color: 'green' },
+      { addr: 'Q0.2', name: 'Knife down', color: 'amber' },
+      { addr: 'Q0.3', name: 'Reset counter HC0', color: 'blue' },
+      { addr: 'Q0.4', name: 'Running lamp', color: 'green' },
+    ],
+    hmi: ['MW10'],
+    actions: [],
+    init() { return { v: 0, pos: 0, cnt: 0, k: 0, cut: false, pieces: 0, good: 0, bad: 0, lastLen: 0, rest: 0, log: [], t: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      const tgt = Q['Q0.0'] ? 400 : Q['Q0.1'] ? 40 : 0;
+      st.v = st.v < tgt ? Math.min(tgt, st.v + 4000 * s) : Math.max(tgt, st.v - 4000 * s);
+      const d = st.v * s;
+      st.pos += d; st.cnt += d * 10;
+      if (Q['Q0.3']) st.cnt = 0;
+      st.k = clamp(st.k + (Q['Q0.2'] ? 1 : -1) * s / 0.25, 0, 1);
+      if (st.k > 0.05 && st.v > 1) st.fault = st.fault || 'The strip was pushed against the knife: feed only with the knife up.';
+      if (st.k >= 1 && !st.cut) {
+        st.cut = true;
+        const len = st.pos, target = (+Q['MW10'] || 0) > 0 ? +Q['MW10'] : 500;
+        st.pos = 0; st.pieces++; st.lastLen = Math.round(len * 10);
+        if (Math.abs(len - target) <= 1.5) st.good++;
+        else { st.bad++; st.last = 'piece ' + st.pieces + ' is ' + len.toFixed(1) + ' mm, it should be ' + target + ' mm'; }
+        st.log.push(len); if (st.log.length > 6) st.log.shift();
+      }
+      if (st.k < 0.5) st.cut = false;
+      st.rest = Math.round(st.pos);
+      if (st.pos > 3500) st.fault = st.fault || 'The strip ran into the end stop (3.5 m): it was never stopped at the length.';
+      const o = devices(this, ctrl);
+      o['I0.0'] = Math.floor(st.cnt * 2) % 2;
+      o['I0.1'] = st.k < 0.02 ? 1 : 0;
+      o['I0.2'] = st.k > 0.98 ? 1 : 0;
+      o['HC0'] = Math.floor(st.cnt);
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const y = 190, kx = 330;
+      // coil
+      c.fillStyle = th.metalDark; c.beginPath(); c.arc(70, y - 50, 48, 0, 7); c.fill();
+      c.fillStyle = th.metal; c.beginPath(); c.arc(70, y - 50, 18, 0, 7); c.fill();
+      c.save(); c.translate(70, y - 50); c.rotate(-st.cnt / 3000); c.strokeStyle = th.pipe; c.lineWidth = 2; c.beginPath(); c.moveTo(0, 0); c.lineTo(0, 46); c.stroke(); c.restore();
+      // strip: from coil to the knife, then the piece being measured beyond the knife
+      c.fillStyle = th.metal; c.fillRect(70, y - 4, kx - 70, 8);
+      const scale = 0.4, pieceW = Math.min(st.pos * scale, 260);
+      c.fillStyle = th.metal; c.fillRect(kx, y - 4, pieceW, 8);
+      // feed rolls + measuring wheel with encoder
+      [[200, y - 16], [200, y + 16]].forEach(([x, yy], k) => { c.fillStyle = Q['Q0.0'] || Q['Q0.1'] ? th.green : th.metalDark; c.beginPath(); c.arc(x, yy, 12, 0, 7); c.fill(); c.save(); c.translate(x, yy); c.rotate((k ? -1 : 1) * st.cnt / 200); c.strokeStyle = '#fff'; c.lineWidth = 2; c.beginPath(); c.moveTo(-10, 0); c.lineTo(10, 0); c.stroke(); c.restore(); });
+      D.text(c, 'feed roll', 200, y + 42, { size: 10, color: th.muted });
+      c.fillStyle = th.blue; c.beginPath(); c.arc(270, y - 18, 13, 0, 7); c.fill();
+      c.save(); c.translate(270, y - 18); c.rotate(st.cnt / 150); c.strokeStyle = '#fff'; c.lineWidth = 2; c.beginPath(); c.moveTo(0, 0); c.lineTo(0, 11); c.stroke(); c.restore();
+      D.text(c, 'encoder', 270, y - 42, { size: 10, color: th.muted });
+      // knife
+      const ky = y - 70 + st.k * 62;
+      c.fillStyle = th.metalDark; c.fillRect(kx - 14, 40, 28, ky - 40);
+      c.fillStyle = Q['Q0.2'] ? th.amber : th.pipe; c.beginPath(); c.moveTo(kx - 16, ky); c.lineTo(kx + 16, ky); c.lineTo(kx + 4, ky + 10); c.lineTo(kx - 16, ky + 10); c.closePath(); c.fill();
+      D.sensorDot(c, th, kx + 34, 52, !!I['I0.1'], 'up');
+      D.sensorDot(c, th, kx + 34, 74, !!I['I0.2'], 'down');
+      // ruler from the knife
+      c.strokeStyle = th.muted; c.lineWidth = 1;
+      for (let mm = 0; mm <= 600; mm += 50) { const x = kx + mm * scale; c.beginPath(); c.moveTo(x, y + 12); c.lineTo(x, y + (mm % 100 ? 17 : 22)); c.stroke(); if (mm % 100 === 0) D.text(c, mm, x, y + 32, { size: 9, mono: true, color: th.muted }); }
+      const tgt = (+Q['MW10'] || 0) > 0 ? +Q['MW10'] : 500;
+      c.strokeStyle = th.amber; c.setLineDash([4, 3]); c.beginPath(); c.moveTo(kx + tgt * scale, y - 26); c.lineTo(kx + tgt * scale, y + 12); c.stroke(); c.setLineDash([]);
+      D.text(c, 'target ' + tgt + ' mm', kx + tgt * scale, y - 34, { size: 9, mono: true, color: th.amber });
+      // readout
+      c.fillStyle = '#0b1220'; D.rr(c, 410, 26, 210, 92, 8); c.fill();
+      D.text(c, 'HC0 = ' + (I['HC0'] || 0), 515, 46, { size: 15, weight: 800, mono: true, color: '#7CFC9A' });
+      D.text(c, '= ' + ((I['HC0'] || 0) / 10).toFixed(1) + ' mm since reset', 515, 66, { size: 10, mono: true, color: '#9fb0c4' });
+      D.text(c, 'strip past knife ' + st.pos.toFixed(1) + ' mm', 515, 84, { size: 10, mono: true, color: '#9fb0c4' });
+      D.text(c, 'speed ' + Math.round(st.v) + ' mm/s', 515, 102, { size: 10, mono: true, color: '#9fb0c4' });
+      D.text(c, 'pieces ' + st.pieces + '   good ' + st.good + '   bad ' + st.bad, 320, 262, { size: 12, mono: true, weight: 700, color: st.bad ? th.red : th.ink });
+      D.text(c, 'last: ' + st.log.slice(-4).map((x) => x.toFixed(1)).join('  ') + (st.log.length ? ' mm' : '—'), 320, 282, { size: 10, mono: true, color: th.muted });
+      D.lamp(c, th, 590, 160, 8, !!Q['Q0.4'], 'green', 'running');
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  // ───────────────────────── two machines on a network (handshake) ─────────────────────────
+  const PART_TYPES = [1, 2, 2, 1, 2, 1, 1, 2, 2, 2, 1, 2];
+  P.handover = {
+    id: 'handover', name: 'Two machines on a network', blurb: 'Machine A, with its own PLC, makes parts and hands them over to your machine B. The two PLCs talk over PROFINET: the signals from A appear in your PLC as inputs I8.x and the word AIW20, and what you write to Q8.x and AQW20 arrives in A. A part may only move when both sides agree.',
+    inputs: [
+      { addr: 'I0.0', name: 'Part at infeed', kind: 'sensor' },
+      { addr: 'I0.1', name: 'Part at outfeed', kind: 'sensor', note: 'A robot takes the part once it has stood here for 1 s' },
+      { addr: 'I0.2', name: 'RESET', kind: 'pb', color: 'blue' },
+      { addr: 'I0.3', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.4', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I8.0', name: 'From A: heartbeat', kind: 'sensor', note: 'Over the network: A toggles it every 0.5 s while A runs and the link is up' },
+      { addr: 'I8.1', name: 'From A: part ready', kind: 'sensor', note: 'A has a part for you. AIW20 is valid while this is on' },
+      { addr: 'AIW20', name: 'From A: part type', kind: 'sensor', note: '1 = red, 2 = blue, 0 = no part offered' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Conveyor B', color: 'green' },
+      { addr: 'Q0.1', name: 'Comm fault lamp', color: 'red' },
+      { addr: 'Q0.2', name: 'Running lamp', color: 'green' },
+      { addr: 'Q8.0', name: 'To A: heartbeat', color: 'blue' },
+      { addr: 'Q8.1', name: 'To A: ready to receive', color: 'blue' },
+      { addr: 'Q8.2', name: 'To A: part received', color: 'blue' },
+      { addr: 'AQW20', name: 'To A: parts counted', color: 'blue' },
+    ],
+    hmi: ['MW10', 'MW12'],
+    actions: [
+      { id: 'cable', label: 'Unplug the network cable', toggle: true, run(st) { st.cable = !st.cable; } },
+    ],
+    init() { return { t: 0, cable: false, hbA: 0, hbT: 0, seenHb: 0, hbAge: 0, aErr: 0, make: 1200, has: false, type: 0, n: 0, as: 0, aT: 0, parts: [], stood: 0, out: 0, red: 0, blue: 0, sentRed: 0, sentBlue: 0, sent: 0, cntErr: 0, totErr: 0, fault: null }; },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000, link = !st.cable;
+      const QA = link ? Q : {};                              // what machine A receives from you
+      // A's heartbeat and A's watchdog on yours
+      st.hbT += dt; if (st.hbT >= 500) { st.hbT = 0; st.hbA = st.hbA ? 0 : 1; }
+      const hb = QA['Q8.0'] ? 1 : 0;
+      if (hb !== st.seenHb) { st.seenHb = hb; st.hbAge = 0; } else st.hbAge += dt;
+      st.aErr = st.hbAge > 2000 ? 1 : 0;
+      // A makes parts
+      if (!st.has) { st.make -= dt; if (st.make <= 0) { st.has = true; st.type = PART_TYPES[st.n++ % PART_TYPES.length]; st.make = 2500; } }
+      // A's side of the handshake
+      st.aT += dt;
+      const go = (n) => { st.as = n; st.aT = 0; };
+      if ((!link || st.aErr) && st.as !== 2) { if (st.as === 3 || st.as === 4) go(0); if (st.as === 1) go(0); }
+      else if (st.as === 0) { if (st.has) go(1); }
+      else if (st.as === 1) { if (QA['Q8.1']) go(2); }
+      else if (st.as === 2) {
+        if (st.aT >= 600) {
+          if (st.parts.some((p) => p.x < 0.3)) st.fault = st.fault || 'Machine A pushed a part onto a part that was still at your infeed: collision.';
+          st.parts.push({ x: 0, type: st.type, st: 0 });
+          if (st.type === 1) st.sentRed++; else st.sentBlue++;
+          st.sent++; st.has = false; go(3);
+        }
+      } else if (st.as === 3) {
+        if (QA['Q8.2']) go(4);
+        else if (st.aT > 5000) st.fault = st.fault || 'Machine A: handshake timeout. The part arrived but "part received" (Q8.2) never came.';
+      } else if (st.as === 4) {
+        if (!QA['Q8.2']) go(0);
+        else if (st.aT > 5000) st.fault = st.fault || 'Machine A: "part received" (Q8.2) stayed on: A cannot offer the next part.';
+      }
+      // your conveyor and the robot
+      if (Q['Q0.0']) st.parts.forEach((p) => (p.x += 0.4 * s));
+      st.parts.forEach((p) => { if (p.x >= 0.9 && !Q['Q0.0']) p.st += dt; else p.st = 0; });
+      if (st.parts.some((p) => p.x > 1.02)) st.fault = st.fault || 'A part fell off the end of conveyor B: stop it at the outfeed.';
+      st.parts = st.parts.filter((p) => { if (p.st >= 1000) { st.out++; if (p.type === 1) st.red++; else st.blue++; return false; } return true; });
+      st.cntErr = Math.abs((Q['MW10'] | 0) - st.sentRed) + Math.abs((Q['MW12'] | 0) - st.sentBlue);
+      st.totErr = Math.abs((Q['AQW20'] | 0) - st.sent);
+      const o = devices(this, ctrl);
+      o['I0.0'] = st.parts.some((p) => p.x < 0.1) ? 1 : 0;
+      o['I0.1'] = st.parts.some((p) => p.x >= 0.9) ? 1 : 0;
+      const offer = st.as >= 1 && st.as <= 3;
+      o['I8.0'] = link ? st.hbA : 0;
+      o['I8.1'] = link && offer ? 1 : 0;
+      o['AIW20'] = link && offer ? st.type : 0;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const col = (t) => (t === 1 ? th.red : th.blue);
+      // machine A
+      c.fillStyle = th.panel2; D.rr(c, 20, 40, 190, 170, 10); c.fill(); c.strokeStyle = th.line; c.lineWidth = 1; c.stroke();
+      D.text(c, 'MACHINE A  (PLC A)', 115, 56, { size: 11, weight: 800, color: th.ink });
+      const aTxt = st.cable ? 'no link' : st.aErr ? 'comm fault: B silent' : ['idle', 'offering a part', 'pushing', 'waiting: received?', 'waiting: received off'][st.as];
+      D.text(c, aTxt, 115, 76, { size: 10, mono: true, weight: 700, color: st.cable || st.aErr ? th.red : th.muted });
+      c.fillStyle = th.metalDark; c.fillRect(40, 150, 170, 12);
+      if (st.has) { const px = st.as === 2 ? 150 + Math.min(1, st.aT / 600) * 70 : 150; c.fillStyle = col(st.type); D.rr(c, px, 126, 26, 24, 4); c.fill(); }
+      D.lamp(c, th, 60, 98, 6, !st.cable && !!st.hbA, 'green', '', 'heartbeat');
+      D.text(c, 'counted by B: ' + (Q['AQW20'] | 0), 140, 98, { size: 10, mono: true, color: th.muted });
+      // network
+      c.strokeStyle = st.cable ? th.red : th.green; c.lineWidth = 3; c.setLineDash(st.cable ? [6, 6] : []);
+      c.beginPath(); c.moveTo(115, 40); c.lineTo(115, 20); c.lineTo(520, 20); c.lineTo(520, 40); c.stroke(); c.setLineDash([]);
+      D.text(c, st.cable ? 'PROFINET: CABLE UNPLUGGED' : 'PROFINET', 318, 30, { size: 10, mono: true, weight: 700, color: st.cable ? th.red : th.muted });
+      // signals table
+      const sig = [['I8.0 heartbeat A', I['I8.0']], ['I8.1 part ready', I['I8.1']], ['AIW20 type ' + (I['AIW20'] | 0), (I['AIW20'] | 0) > 0], ['Q8.0 heartbeat B', Q['Q8.0']], ['Q8.1 ready to receive', Q['Q8.1']], ['Q8.2 part received', Q['Q8.2']]];
+      sig.forEach(([t, v], k) => { const x = 236 + (k > 2 ? 140 : 0), y = 52 + (k % 3) * 18; c.fillStyle = v ? th.on : th.chip; D.rr(c, x, y - 7, 10, 10, 2); c.fill(); D.text(c, t, x + 14, y - 2, { size: 10, mono: true, color: th.ink, align: 'left' }); });
+      // machine B
+      const x0 = 236, x1 = 600, y = 162;
+      c.fillStyle = th.metalDark; D.rr(c, x0, y, x1 - x0, 14, 7); c.fill();
+      st.parts.forEach((p) => { c.fillStyle = col(p.type); D.rr(c, x0 + p.x * (x1 - x0 - 26), y - 24, 26, 24, 4); c.fill(); });
+      D.sensorDot(c, th, x0 + 8, y + 32, !!I['I0.0'], 'infeed');
+      D.sensorDot(c, th, x0 + 0.92 * (x1 - x0 - 26), y + 32, !!I['I0.1'], 'outfeed');
+      D.text(c, 'MACHINE B  (your PLC)', 418, 118, { size: 11, weight: 800, color: th.ink });
+      D.text(c, 'robot took: ' + st.red + ' red, ' + st.blue + ' blue   ·   your count MW10 = ' + (Q['MW10'] | 0) + ', MW12 = ' + (Q['MW12'] | 0), 320, 236, { size: 10, mono: true, color: th.muted });
+      D.lamp(c, th, 470, 268, 7, !!Q['Q0.2'], 'green', 'running'); D.lamp(c, th, 540, 268, 7, !!Q['Q0.1'], 'red', 'comm fault');
+      D.fault(c, th, st.fault);
+    },
+  };
+
   // ───────────────────────── box sorter ─────────────────────────
   const SORT_PATTERN = [1, 0, 0, 1, 1, 0, 1, 0, 0, 1];
   P.sorter = {
@@ -1633,6 +1909,7 @@
   // ───────────────────────── analog tank ─────────────────────────
   P.atank = {
     id: 'atank', name: 'Analog level tank', blurb: 'A level transmitter sends 4–20 mA (read as AIW0 = 6400…32000). A control valve opens 0–100 % from AQW0 = 0…32000. Water is drawn off continuously.',
+    hmi: ['MW10'],
     inputs: [
       { addr: 'I0.0', name: 'AUTO', kind: 'sw' },
       { addr: 'AIW0', name: 'Level transmitter', kind: 'sensor', note: '4–20 mA: 0 % = 6400, 100 % = 32000' },
@@ -1658,8 +1935,11 @@
       st.level = clamp(st.level, 0, 1);
       st.lvlPct = Math.round(st.level * 100);
       st.ht += dt; if (st.ht >= 200) { st.ht = 0; st.hist.push(st.level); if (st.hist.length > 120) st.hist.shift(); }
+      // litres check for the 32-bit maths task: MW10 must equal (AIW0 − 6400) × 5000 / 25600 of the value the PLC read
+      if (st.lastAIW != null && st.t > 100) { const want = Math.trunc((st.lastAIW - 6400) * 5000 / 25600); st.litErrMax = Math.max(st.litErrMax || 0, Math.abs((Q['MW10'] | 0) - want)); }
       const o = devices(this, ctrl);
       o['AIW0'] = Math.round(6400 + st.level * 25600);
+      st.lastAIW = o['AIW0'];
       return o;
     },
     draw(c, st, th, Q, I) {
@@ -2831,7 +3111,7 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
+  LL.PLANT_ORDER = ['panel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'garage', 'parking', 'stardelta', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'alarms', 'feeder', 'handover', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture'];
 
   // Outputs a plant sees: Q bits, AQW words, plus any memory words its HMI displays
   LL.plantOutputs = function (plant, m) {
@@ -2862,7 +3142,7 @@
     const never = opts.never || [];
     let t = 0, I = {};
     const name = (a) => (opts.tags && opts.tags[a] ? opts.tags[a] + ' (' + a + ')' : a);
-    const val = (a) => (/^I/.test(a) || /^AIW/.test(a) ? (I[a] || 0) : m.read(a));
+    const val = (a) => (/^I\d/.test(a) || /^AIW/.test(a) ? (I[a] || 0) : m.read(a));
     const parseConds = (arr) => arr.map((s) => { const [a, v] = s.split('='); return { a: LL.norm(a), v: +v }; });
     const condOk = (cs) => cs.every((x) => val(x.a) === x.v);
     const fmt = (v, a) => (LL.isBitAddr(a) || /^[IQM]\d+\.[0-7]$/.test(a) || /\.(Q|Q1)$/.test(a) ? (v ? 'ON' : 'OFF') : String(v));
@@ -2888,6 +3168,7 @@
           case 'release': case 'off': ctrl[p[1]] = false; run(30); break;
           case 'tap': ctrl[p[1]] = true; run(+(p[2] || 150)); ctrl[p[1]] = false; run(150); break;
           case 'wait': run(+p[1]); break;
+          case 'poke': m.setWord(LL.norm(p[1]), +p[2]); run(10); break;
           case 'action': { const a = plant.actions.find((x) => x.id === p[1]); a.run(st); run(20); break; }
           case 'expect': {
             parseConds(p.slice(1)).forEach((x) => { const v = val(x.a); if (v !== x.v) throw new Error('expected ' + name(x.a) + ' = ' + fmt(x.v, x.a) + ' but it is ' + fmt(v, x.a) + '.'); });
@@ -2959,6 +3240,7 @@
       case 'off': return 'switch ' + n(p[1]) + ' off';
       case 'tap': return 'tap ' + n(p[1]) + (p[2] ? ' for ' + (+p[2] / 1000) + ' s' : '');
       case 'wait': return 'wait ' + (+p[1] / 1000) + ' s';
+      case 'poke': return 'write ' + p[2] + ' into ' + n(p[1]);
       case 'action': return p[1];
       case 'expect': return 'check ' + p.slice(1).map(cond).join(', ');
       case 'waitfor': return 'wait up to ' + (+p[p.length - 1] / 1000) + ' s for ' + p.slice(1, -1).map(cond).join(', ');

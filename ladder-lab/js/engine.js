@@ -10,10 +10,10 @@
 
   // ───────────────────────── element catalogue ─────────────────────────
   const LOGIC = ['WIRE', 'NO', 'NC', 'P', 'N', 'NOT', 'CMP'];
-  const OUTPUT = ['COIL', 'NCOIL', 'SET', 'RST', 'TON', 'TOF', 'TP', 'RTO', 'CTU', 'CTD', 'MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'SHL', 'SHR', 'SHRB', 'CALL', 'PID'];
+  const OUTPUT = ['COIL', 'NCOIL', 'SET', 'RST', 'TON', 'TOF', 'TP', 'RTO', 'CTU', 'CTD', 'MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'SHRB', 'CALL', 'PID'];
   const TIMERS = ['TON', 'TOF', 'TP', 'RTO'];
   const COUNTERS = ['CTU', 'CTD'];
-  const MATH = ['ADD', 'SUB', 'MUL', 'DIV', 'SHL', 'SHR'];
+  const MATH = ['ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR'];
   const isOutput = (t) => OUTPUT.includes(t);
   const isLogic = (t) => LOGIC.includes(t);
 
@@ -28,14 +28,16 @@
     mw: /^MW(\d{1,3})$/,
     aiw: /^AIW(\d{1,2})$/,
     aqw: /^AQW(\d{1,2})$/,
+    md: /^MD(\d{1,3})$/,
+    hc: /^HC(\d)$/,
     int: /^-?\d+$/,
     loc: /^#[A-Za-z_]\w*(?:\.(Q|DN|TT|EN|ET|PT|CV|PV))?$/,
     locBase: /^#[A-Za-z_]\w*$/,
   };
   const norm = (s) => { const t = String(s == null ? '' : s).trim().replace(/\s+/g, ''); if (t[0] === '#') { const i = t.indexOf('.'); return i < 0 ? t : t.slice(0, i) + t.slice(i).toUpperCase(); } return t.toUpperCase(); };
   const isBitAddr = (a) => RE.bit.test(a) || RE.sm.test(a) || RE.tBit.test(a) || RE.cBit.test(a) || RE.loc.test(a);
-  const isWordAddr = (a) => RE.tWord.test(a) || RE.cWord.test(a) || RE.mw.test(a) || RE.aiw.test(a) || RE.aqw.test(a) || RE.int.test(a) || RE.loc.test(a);
-  const isWritableWord = (a) => RE.mw.test(a) || RE.aqw.test(a) || RE.locBase.test(a);
+  const isWordAddr = (a) => RE.tWord.test(a) || RE.cWord.test(a) || RE.mw.test(a) || RE.md.test(a) || RE.hc.test(a) || RE.aiw.test(a) || RE.aqw.test(a) || RE.int.test(a) || RE.loc.test(a);
+  const isWritableWord = (a) => RE.mw.test(a) || RE.md.test(a) || RE.aqw.test(a) || RE.locBase.test(a);
   const isWritableBit = (a) => /^[QM]\d{1,2}\.[0-7]$/.test(a) || RE.locBase.test(a);
   const timerNo = (a) => { const m = /^T(\d{1,2})/.exec(a); return m ? +m[1] : -1; };
   const counterNo = (a) => { const m = /^C(\d{1,2})/.exec(a); return m ? +m[1] : -1; };
@@ -122,7 +124,7 @@
       }
       case 'PID': return mkCell('PID', { a: norm(args[0]), b: norm(args[1]), dst: norm(args[2]), kp: parseFloat(args[3] || '1'), ti: parseFloat(args[4] || '0'), td: parseFloat(args[5] || '0') });
       case 'SHRB': return mkCell('SHRB', { src: norm(args[0]), addr: norm(args[1]), n: parseInt(args[2] || '8', 10) });
-      case 'ADD': case 'SUB': case 'MUL': case 'DIV': case 'SHL': case 'SHR':
+      case 'ADD': case 'SUB': case 'MUL': case 'DIV': case 'MOD': case 'SHL': case 'SHR':
         return mkCell(t, { a: norm(args[0]), b: norm(args[1]), dst: norm(args[2]) });
       default: throw new Error('Unknown element "' + t + '"');
     }
@@ -137,7 +139,7 @@
       case 'TON': case 'TOF': case 'TP': case 'RTO': return c.type + '(' + c.addr + ',' + fmtDuration(c.pt) + ')';
       case 'CTU': case 'CTD': return c.type + '(' + c.addr + ',' + c.pv + ')';
       case 'MOV': return 'MOV(' + c.src + ',' + c.dst + ')';
-      case 'ADD': case 'SUB': case 'MUL': case 'DIV': case 'SHL': case 'SHR': return c.type + '(' + c.a + ',' + c.b + ',' + c.dst + ')';
+      case 'ADD': case 'SUB': case 'MUL': case 'DIV': case 'MOD': case 'SHL': case 'SHR': return c.type + '(' + c.a + ',' + c.b + ',' + c.dst + ')';
       case 'SHRB': return 'SHRB(' + c.src + ',' + c.addr + ',' + c.n + ')';
       case 'CALL': return 'CALL(' + [c.block, c.inst].concat(Object.keys(c.args || {}).map((k) => k + '=' + c.args[k])).join(',') + ')';
       case 'PID': return 'PID(' + [c.a, c.b, c.dst, +c.kp, +c.ti, +c.td].join(',') + ')';
@@ -293,7 +295,7 @@
       this.load(this.prog);
     }
 
-    setInputs(obj) { for (const k in obj) this.inputs[k] = RE.aiw.test(k) ? Math.round(+obj[k] || 0) : obj[k] ? 1 : 0; }
+    setInputs(obj) { for (const k in obj) this.inputs[k] = RE.aiw.test(k) || RE.hc.test(k) ? Math.round(+obj[k] || 0) : obj[k] ? 1 : 0; }
 
     // block context: #Name → mapped actual address, or instance memory "@Inst:Name"
     res(a) { return a && a[0] === '#' && this.ctx ? this.ctx.res(a) : a; }
@@ -371,6 +373,7 @@
         return this.words[a] | 0;
       }
       if (RE.mw.test(a) || RE.aiw.test(a) || RE.aqw.test(a)) return this.words[a] | 0;
+      if (RE.md.test(a) || RE.hc.test(a)) return this.words[a] || 0;
       if ((m = RE.tWord.exec(a))) { const t = this.timers[+m[1]]; return t ? (m[2] === 'ET' ? t.et : t.pt) : 0; }
       if ((m = RE.cWord.exec(a))) { const c = this.counters[+m[1]]; return c ? (m[2] === 'CV' ? c.cv : c.pv) : 0; }
       return 0;
@@ -380,7 +383,8 @@
       a = this.res(a);
       if (!(a && a[0] === '@') && !isWritableWord(a)) return;
       v = Math.trunc(v);
-      if (v > 32767) v = 32767; if (v < -32768) v = -32768;
+      const big = RE.md.test(a), hi = big ? 2147483647 : 32767, lo = big ? -2147483648 : -32768;   // MD = 32-bit double word (DINT)
+      if (v > hi) v = hi; if (v < lo) v = lo;
       this.words[a] = v;
     }
 
@@ -487,6 +491,7 @@
         case 'SUB': if (p) this.setWord(cell.dst, this.word(cell.a) - this.word(cell.b)); break;
         case 'MUL': if (p) this.setWord(cell.dst, this.word(cell.a) * this.word(cell.b)); break;
         case 'DIV': if (p) { const d = this.word(cell.b); this.setWord(cell.dst, d === 0 ? 0 : this.word(cell.a) / d); } break;
+        case 'MOD': if (p) { const d = this.word(cell.b); this.setWord(cell.dst, d === 0 ? 0 : this.word(cell.a) % d); } break;
         case 'SHL': case 'SHR': if (p) { const n = Math.max(0, Math.min(16, this.word(cell.b))); const x = this.word(cell.a) & 0xffff; let v = (cell.type === 'SHL' ? x << n : x >>> n) & 0xffff; if (v > 32767) v -= 65536; this.setWord(cell.dst, v); } break;
         case 'SHRB': if (p) {
           const bits = shiftBits(this.res(cell.addr), Math.abs(cell.n)), d = this.bit(cell.src);
@@ -544,7 +549,7 @@
     }
 
     beginScan() {
-      for (const k in this.inputs) { if (/^I/.test(k)) this.bits[k] = this.inputs[k]; else if (RE.aiw.test(k)) this.words[k] = Math.max(-32768, Math.min(32767, this.inputs[k])); }
+      for (const k in this.inputs) { if (/^I/.test(k)) this.bits[k] = this.inputs[k]; else if (RE.aiw.test(k)) this.words[k] = Math.max(-32768, Math.min(32767, this.inputs[k])); else if (RE.hc.test(k)) this.words[k] = this.inputs[k]; }
       this.bits['SM0.0'] = 1;
       this.bits['SM0.1'] = this.scanCount === 0 ? 1 : 0;
       this.bits['SM0.5'] = (this.time % 1000) < 500 ? 1 : 0;
@@ -627,8 +632,8 @@
         if (c.type === 'CMP') {
           if (!isWordAddr(c.a) || !isWordAddr(c.b)) issues.push({ level: 'error', rung: n, msg: 'Compare needs numbers or words (MW0, T0.ET, C0.CV).' });
         }
-        if (c.type === 'MOV' && (!isWordAddr(c.src) || !isWritableWord(c.dst))) issues.push({ level: 'error', rung: n, msg: 'MOV copies a number or word into an MW or AQW word.' });
-        if (MATH.includes(c.type) && (!isWordAddr(c.a) || !isWordAddr(c.b) || !isWritableWord(c.dst))) issues.push({ level: 'error', rung: n, msg: c.type + ' needs two operands and an MW or AQW destination.' });
+        if (c.type === 'MOV' && (!isWordAddr(c.src) || !isWritableWord(c.dst))) issues.push({ level: 'error', rung: n, msg: 'MOV copies a number or word into an MW, MD or AQW word.' });
+        if (MATH.includes(c.type) && (!isWordAddr(c.a) || !isWordAddr(c.b) || !isWritableWord(c.dst))) issues.push({ level: 'error', rung: n, msg: c.type + ' needs two operands and an MW, MD or AQW destination.' });
         ['addr', 'a', 'b', 'src', 'dst'].forEach((k) => { if (!blk && typeof c[k] === 'string' && c[k][0] === '#') issues.push({ level: 'error', rung: n, msg: c[k] + ' is a block variable: names with # only work inside a block.' }); });
         if (c.type === 'CALL') {
           const b = blocks[c.block];
@@ -691,6 +696,8 @@
     const t = tags && tags[a];
     if (!t && (m = RE.aiw.exec(a))) return '%IW' + m[1];
     if (!t && (m = RE.aqw.exec(a))) return '%QW' + m[1];
+    if (!t && (m = RE.md.exec(a))) return '%MD' + m[1];
+    if (!t && (m = RE.mw.exec(a))) return '%MW' + m[1];
     if (t) return t.replace(/[^A-Za-z0-9_]/g, '_').replace(/^(\d)/, '_$1');
     if ((m = RE.bit.exec(a))) return '%' + m[1] + 'X' + m[2] + '.' + m[3];
     return a;
@@ -815,7 +822,7 @@
             break;
           }
           default: {
-            const op = { ADD: '+', SUB: '-', MUL: '*', DIV: '/' }[cell.type];
+            const op = { ADD: '+', SUB: '-', MUL: '*', DIV: '/', MOD: 'MOD' }[cell.type];
             out.push('IF ' + e + ' THEN ' + n(cell.dst) + ' := ' + n(cell.a) + ' ' + op + ' ' + n(cell.b) + '; END_IF');
           }
         }
@@ -832,13 +839,143 @@
     if (!prog._inBlock) (prog.blocks || []).forEach((b) => {
       const body = toST({ name: b.name, tags, rungs: b.rungs, blocks: prog.blocks, _inBlock: true });
       const st = {}, rank = { BOOL: 0, INT: 1 };
-      b.rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (!c) return; ['addr', 'a', 'b', 'src', 'dst'].forEach((k) => { const v = c[k]; if (typeof v === 'string' && v[0] === '#') { const nm2 = v.slice(1).split('.')[0]; if (b.params.some((pp) => pp.name === nm2)) return; const ty = TIMERS.includes(c.type) && k === 'addr' ? (c.type === 'RTO' ? 'TONR' : c.type) : COUNTERS.includes(c.type) && k === 'addr' ? c.type : /\.(ET|PT|CV|PV)$/.test(v) || ['MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'SHL', 'SHR', 'CMP', 'PID'].includes(c.type) ? 'INT' : 'BOOL'; if (st[nm2] == null || (rank[st[nm2]] != null && (rank[ty] == null || rank[ty] > rank[st[nm2]]))) st[nm2] = ty; } }); })));
+      b.rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (!c) return; ['addr', 'a', 'b', 'src', 'dst'].forEach((k) => { const v = c[k]; if (typeof v === 'string' && v[0] === '#') { const nm2 = v.slice(1).split('.')[0]; if (b.params.some((pp) => pp.name === nm2)) return; const ty = TIMERS.includes(c.type) && k === 'addr' ? (c.type === 'RTO' ? 'TONR' : c.type) : COUNTERS.includes(c.type) && k === 'addr' ? c.type : /\.(ET|PT|CV|PV)$/.test(v) || ['MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'CMP', 'PID'].includes(c.type) ? 'INT' : 'BOOL'; if (st[nm2] == null || (rank[st[nm2]] != null && (rank[ty] == null || rank[ty] > rank[st[nm2]]))) st[nm2] = ty; } }); })));
       const statics = new Set(Object.keys(st).map((k) => k + ' : ' + st[k] + ';'));
       const sec = (kw, dir) => { const ps = b.params.filter((pp) => pp.dir === dir); return ps.length ? [kw].concat(ps.map((pp) => '  ' + pp.name + ' : ' + pp.type + ';' + (pp.comment ? '   (* ' + pp.comment + ' *)' : '')), ['END_VAR']).join('\n') + '\n' : ''; };
       fbs += '\nFUNCTION_BLOCK ' + b.name + (b.comment ? '   (* ' + b.comment + ' *)' : '') + '\n' + sec('VAR_INPUT', 'IN') + sec('VAR_OUTPUT', 'OUT') + sec('VAR_IN_OUT', 'INOUT') + (statics.size ? 'VAR\n' + [...statics].map((x) => '  ' + x).join('\n') + '\nEND_VAR\n' : '') + body + '\nEND_FUNCTION_BLOCK\n';
     });
     if (prog._inBlock) return out.slice(1).join('\n');
     return (decl.length > 2 ? decl.join('\n') + '\n\n' : '') + out.join('\n') + (fbs ? '\n\n(* ═════ Function blocks ═════ *)' + fbs : '');
+  }
+
+  /* Rockwell Studio 5000 / Logix Designer: the same ladder as "neutral text", the rung text that
+   * Logix Designer shows and accepts when you edit a rung as text (double-click the rung number).
+   * Series = written one after the other, a parallel branch = [ A ,B ]. Tag names come from the
+   * symbols; untagged addresses become tags like I0_0 that you create (or alias to the I/O card). */
+  function toRockwell(prog) {
+    const tags = prog.tags || {};
+    const out = [];
+    const timers = new Set(), counters = new Set();
+    const walk = (rs) => rs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && TIMERS.includes(c.type)) timers.add(c.addr); if (c && COUNTERS.includes(c.type)) counters.add(c.addr); })));
+    walk(prog.rungs); (prog.blocks || []).forEach((b) => walk(b.rungs));
+    let ons = 0;
+    const tg = (a) => {
+      if (a == null) return '?';
+      a = String(a);
+      if (RE.int.test(a)) return a;
+      if (a === 'SM0.1') return 'S:FS';
+      if (a === 'SM0.5') return 'Clock_1Hz';
+      const loc = a[0] === '#';
+      const base = loc ? a.slice(1).split('.')[0] : a.split('.')[0];
+      const f = a.indexOf('.') >= 0 && (loc || /^[TC]\d/.test(a)) ? a.slice(a.indexOf('.') + 1) : '';
+      const isT = timers.has(loc ? '#' + base : base) || (!loc && RE.tBit.test(a)) || (!loc && RE.tWord.test(a));
+      const isC = counters.has(loc ? '#' + base : base) || (!loc && RE.cBit.test(a)) || (!loc && RE.cWord.test(a));
+      if (isT || isC) {
+        const mem = { '': 'DN', Q: 'DN', DN: 'DN', TT: 'TT', EN: 'EN', ET: 'ACC', PT: 'PRE', CV: 'ACC', PV: 'PRE' }[f] || f;
+        return base + '.' + mem;
+      }
+      if (loc) return base;
+      const t = tags[a];
+      if (t) return t.replace(/[^A-Za-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').replace(/^(\d)/, '_$1');
+      return a.replace(/\./g, '_');
+    };
+    const tmr = (a) => (a[0] === '#' ? a.slice(1) : a);
+    const CMPI = { '==': 'EQU', '<>': 'NEQ', '>': 'GRT', '>=': 'GEQ', '<': 'LES', '<=': 'LEQ' };
+    const prR = (x) => {
+      if (!x) return '';
+      switch (x.t) {
+        case 'true': return '';
+        case 'v': return x.s;
+        case 'not': return x.x.t === 'v' && /^XIC\(/.test(x.x.s) ? x.x.s.replace(/^XIC/, 'XIO') : 'NOT[' + prR(x.x) + ']';
+        case 'and': return x.items.map(prR).join('');
+        case 'or': return '[' + x.items.map(prR).join(',') + ']';
+      }
+      return '';
+    };
+    const outIns = (cell, notes) => {
+      const t = cell.type;
+      switch (t) {
+        case 'COIL': return 'OTE(' + tg(cell.addr) + ')';
+        case 'NCOIL': notes.push('Logix has no negated coil: invert the conditions (XIC ↔ XIO) in front of an OTE.'); return 'OTE(' + tg(cell.addr) + ')';
+        case 'SET': return 'OTL(' + tg(cell.addr) + ')';
+        case 'RST': return timers.has(cell.addr) || counters.has(cell.addr) || RE.tBit.test(cell.addr) || RE.cBit.test(cell.addr) ? 'RES(' + tmr(cell.addr) + ')' : isWritableWord(cell.addr) ? 'CLR(' + tg(cell.addr) + ')' : 'OTU(' + tg(cell.addr) + ')';
+        case 'TON': case 'TOF': case 'RTO': return t + '(' + tmr(cell.addr) + ',' + cell.pt + ',0)';
+        case 'TP': notes.push('Logix ladder has no pulse timer (TP): use a one-shot (ONS) that latches a bit, and a TON that unlatches it.'); return 'TON(' + tmr(cell.addr) + ',' + cell.pt + ',0)';
+        case 'CTU': case 'CTD': return t + '(' + tmr(cell.addr) + ',' + cell.pv + ',0)';
+        case 'MOV': return 'MOV(' + tg(cell.src) + ',' + tg(cell.dst) + ')';
+        case 'ADD': case 'SUB': case 'MUL': case 'DIV': case 'MOD': return t + '(' + tg(cell.a) + ',' + tg(cell.b) + ',' + tg(cell.dst) + ')';
+        case 'SHL': case 'SHR': {
+          const n = parseInt(cell.b, 10);
+          if (RE.int.test(String(cell.b))) return (t === 'SHL' ? 'MUL' : 'DIV') + '(' + tg(cell.a) + ',' + Math.pow(2, n) + ',' + tg(cell.dst) + ')';
+          notes.push('Logix has no word shift in ladder: use CPT with a multiplication / division by a power of 2.'); return 'CPT(' + tg(cell.dst) + ',' + tg(cell.a) + (t === 'SHL' ? '*' : '/') + '(2**' + tg(cell.b) + '))';
+        }
+        case 'SHRB': notes.push('Bit shift: BSL / BSR work on a DINT array. Create an array for the register and a CONTROL tag for it; .LEN = ' + Math.abs(cell.n) + '.'); return (cell.n < 0 ? 'BSR(' : 'BSL(') + 'SR_' + tg(cell.addr) + '[0],SR_' + tg(cell.addr) + '_Ctl,' + tg(cell.src) + ',' + Math.abs(cell.n) + ')';
+        case 'CALL': {
+          const b = (prog.blocks || []).find((x) => x.name === cell.block);
+          const args = b ? b.params.map((pp) => tg((cell.args || {})[pp.name] || '?')) : [];
+          return cell.block + '(' + [cell.inst].concat(args).join(',') + ')';
+        }
+        case 'PID': notes.push('PID: put SP = ' + tg(cell.b) + ', KP = ' + cell.kp + ', KI and KD in the PID tag (' + 'PID_' + tg(cell.dst) + '); many plants use PIDE in a function block diagram instead.'); return 'PID(PID_' + tg(cell.dst) + ',' + tg(cell.a) + ',0,' + tg(cell.dst) + ',0,0,0)';
+      }
+      return '';
+    };
+    const rungs = (rs, title) => {
+      rs.forEach((rung, i) => {
+        const R = rung.rows, C = rung.cols;
+        let cur = new Array(R).fill(T);
+        for (let c = 0; c < C - 1; c++) {
+          const next = [];
+          for (let r = 0; r < R; r++) {
+            const cell = rung.cells[r][c];
+            let e = null;
+            if (cell) switch (cell.type) {
+              case 'WIRE': e = cur[r]; break;
+              case 'NO': e = cell.addr === 'SM0.0' ? cur[r] : AND(cur[r], V('XIC(' + tg(cell.addr) + ')')); break;
+              case 'NC': e = AND(cur[r], V('XIO(' + tg(cell.addr) + ')')); break;
+              case 'P': e = AND(cur[r], V('XIC(' + tg(cell.addr) + ')ONS(Ons_' + (++ons) + ')')); break;
+              case 'N': e = AND(cur[r], V('XIO(' + tg(cell.addr) + ')ONS(Ons_' + (++ons) + ')')); break;
+              case 'NOT': e = cur[r] ? { t: 'not', x: cur[r] } : T; break;
+              case 'CMP': e = AND(cur[r], V(CMPI[cell.op] + '(' + tg(cell.a) + ',' + tg(cell.b) + ')')); break;
+            }
+            next.push(e);
+          }
+          let r = 0;
+          while (r < R) {
+            let s = r;
+            while (r < R - 1 && rung.links[r][c + 1]) r++;
+            if (r > s) { const g = OR(next.slice(s, r + 1)); for (let k = s; k <= r; k++) next[k] = g; }
+            r++;
+          }
+          cur = next;
+        }
+        const notes = [];
+        const groups = [];
+        for (let r = 0; r < R; r++) {
+          const cell = rung.cells[r][C - 1];
+          if (!cell || !cur[r]) continue;
+          const cond = prR(cur[r]), ins = outIns(cell, notes);
+          const g = groups.find((x) => x.cond === cond);
+          if (g) g.ins.push(ins); else groups.push({ cond, ins: [ins] });
+        }
+        out.push('');
+        out.push('// ' + title + ' rung ' + i + (rung.comment ? ': ' + rung.comment : ''));
+        [...new Set(notes)].forEach((n) => out.push('//   note: ' + n));
+        groups.forEach((g) => out.push(g.cond + (g.ins.length > 1 ? '[' + g.ins.join(',') + ']' : g.ins[0] || 'NOP()') + ';'));
+        if (!groups.length) out.push('NOP();');
+      });
+    };
+    out.push('// ' + (prog.name || 'Program') + ': Studio 5000 / Logix Designer rung text (neutral text)');
+    out.push('// Paste one rung at a time: double-click the rung number in Logix Designer and paste the text.');
+    out.push('// Timers / counters: create TIMER / COUNTER tags with these names. Times are in ms (PRE).');
+    rungs(prog.rungs, 'MainRoutine');
+    (prog.blocks || []).forEach((b) => {
+      out.push('');
+      out.push('// ═════ Add-On Instruction ' + b.name + (b.comment ? ': ' + b.comment : '') + ' ═════');
+      b.params.forEach((pp) => out.push('//   ' + (pp.dir === 'IN' ? 'Input ' : pp.dir === 'OUT' ? 'Output' : 'InOut ') + ' ' + pp.name + ' : ' + (pp.type === 'INT' ? 'INT' : 'BOOL') + (pp.comment ? '   (' + pp.comment + ')' : '')));
+      out.push('//   Other names inside are local tags of the AOI (each instance tag has its own copy).');
+      rungs(b.rungs, b.name + ' Logic');
+    });
+    return out.join('\n');
   }
 
   // collect addresses used in a program
@@ -857,6 +994,6 @@
     isOutput, isLogic, isBitAddr, isWordAddr, isWritableBit, isWritableWord, norm,
     parseDuration, fmtDuration, shiftBits, mkCell, cloneCell, emptyRung,
     parseRung, rungToLines, parseProgram, programToText, cloneProgram, parseToken, cellToken,
-    Machine, lint, toST, stName, usedAddrs,
+    Machine, lint, toST, toRockwell, stName, usedAddrs,
   });
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -621,7 +621,7 @@
     [['NO', '-| |-'], ['NC', '-|/|-'], ['P', 'P edge'], ['N', 'N edge'], ['CMP', 'Compare'], ['WIRE', 'Wire'], ['NOT', 'NOT']],
     [['COIL', '( )'], ['SET', '(S)'], ['RST', '(R)'], ['NCOIL', '(/)']],
     [['TON', 'TON'], ['TOF', 'TOF'], ['TP', 'TP'], ['RTO', 'RTO'], ['CTU', 'CTU'], ['CTD', 'CTD']],
-    [['MOV', 'MOV'], ['ADD', 'ADD'], ['SUB', 'SUB'], ['MUL', 'MUL'], ['DIV', 'DIV']],
+    [['MOV', 'MOV'], ['ADD', 'ADD'], ['SUB', 'SUB'], ['MUL', 'MUL'], ['DIV', 'DIV'], ['MOD', 'MOD']],
     [['SHRB', 'SHRB'], ['SHL', 'SHL'], ['SHR', 'SHR']],
     [['CALL', 'CALL block'], ['PID', 'PID']],
   ];
@@ -706,6 +706,7 @@
             <button class="btn small ld-only" data-a="undo" title="Undo">${I.undo}</button>
             <button class="btn small ld-only" data-a="redo" title="Redo">${I.redo}</button>
             <button class="btn small ld-only" data-a="st" title="Show this ladder as Structured Text">${I.code} as ST</button>
+            <button class="btn small ld-only" data-a="rk" title="Show this ladder as Studio 5000 rung text">${I.code} as Studio 5000</button>
             <button class="btn small" data-a="clear" title="Empty the editor">${I.trash}<span class="hide-s">Clear</span></button>
             <button class="btn small" data-a="file" title="New, examples, import/export">${I.file} File</button>
             <span class="scanstate"></span>
@@ -1036,6 +1037,7 @@
         case 'zoom': this.ladder.opts.zoom = this.ladder.opts.zoom === 'fit' ? 1 : 'fit'; this.ladder.fit(); toast(this.ladder.opts.zoom === 'fit' ? 'Zoom: fit width' : 'Zoom: 100 %'); break;
         case 'undo': if (this.hi > 0) { this.hi--; this.restore(this.hist[this.hi]); } break;
         case 'redo': if (this.hi < this.hist.length - 1) { this.hi++; this.restore(this.hist[this.hi]); } break;
+        case 'rk': modal('Studio 5000 rung text', `<p class="muted" style="margin:0 0 10px">The same ladder in Rockwell's rung text (XIC = NO contact, XIO = NC contact, OTE = coil, OTL / OTU = set / reset, [ , ] = a parallel branch). Logix Designer shows it when you edit a rung as text, and you can paste a rung into it. See the lesson "From Ladder Lab to the real software".</p><pre>${esc(LL.toRockwell(Object.assign({}, this.prog, { tags: this.tags() })))}</pre>`, [{ label: 'Close' }]); break;
         case 'st': modal('Structured Text', `<p class="muted" style="margin:0 0 10px">The same logic written as IEC 61131-3 Structured Text, as in CODESYS. Reading both side by side is a great way to learn.</p><pre>${esc(LL.toST(Object.assign({}, this.prog, { tags: this.tags() })))}</pre>`, [{ label: 'Close' }]); break;
         case 'file': this.fileMenu(); break;
         case 'clear': this.clearEditor(); break;
@@ -1394,7 +1396,7 @@
       this.drawPlant();
       const Q = this.m.outputs();
       this.lampEls.forEach((l) => l.classList.toggle('on', !!Q[l.dataset.a]));
-      this.ioCells.forEach((c) => { const a = c.dataset.io; const F = this.forces || {}; const v = a in F ? F[a] : a[0] === 'I' || /^AIW/.test(a) ? (this.I[a] || 0) : /^AQW/.test(a) ? this.m.word(a) : this.m.bit(a); if (c._v !== v) { c.textContent = v; c.className = v === 1 ? 'v1' : ''; c._v = v; } });
+      this.ioCells.forEach((c) => { const a = c.dataset.io; const F = this.forces || {}; const v = a in F ? F[a] : a[0] === 'I' || /^(AIW|HC)/.test(a) ? (this.I[a] || 0) : /^AQW/.test(a) ? this.m.word(a) : this.m.bit(a); if (c._v !== v) { c.textContent = v; c.className = v === 1 ? 'v1' : ''; c._v = v; } });
       this.renderVals();
       const fh = $('.fault-host', this.el);
       const f = this.pst.fault ? 'Machine fault: ' + this.pst.fault : this.m.error ? 'PLC in STOP · ' + this.m.error : '';
