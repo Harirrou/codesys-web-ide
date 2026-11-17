@@ -908,11 +908,25 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
 <h3>The press cycle</h3>
 <p>Fast approach → slow-down point → press until the pressure switch → <b>dwell</b> (hold the force) → <b>decompression</b> (valve centred 0.2–0.5 s) → up → everything off and the pump unloaded. Pump STOP or a fault: the valve centres and the ram holds where it is. Never Y1 and Y2 together.</p>
 <p>A press is a dangerous machine: the closing stroke needs a <b>two-hand control</b> (both buttons within 0.5 s, held during the stroke) or a light curtain, built with safety hardware. Accumulators keep pressure after the pump stops: they must be discharged before maintenance.</p>
+<h3>Accumulators</h3>
+<p>An <b>accumulator</b> is a steel bottle with a gas bladder that stores oil under pressure. A small pump charges it between two pressures (for example <b>140 → 160 bar</b>) and then runs unloaded; the accumulator supplies short, big flows (clamps, brakes, emergency movements). Because it keeps its pressure when the pump stops, a <b>dump valve</b> empties it at STOP or on a fault: never open a hydraulic pipe before the pressure gauge reads 0.</p>
+<h3>Questions you will hear in an interview</h3>
+<div class="tbl"><table>
+<tr><th>Question</th><th>A good short answer</th></tr>
+<tr><td>What is the difference between pneumatics and hydraulics for the PLC?</td><td>Hydraulics has its own power unit the PLC runs (unloaded start, oil level, temperature, filter); 4/3 closed-centre valves hold the load; valves must not stay on at the end stop; pressing ends on pressure; decompression before reversing.</td></tr>
+<tr><td>Why is the pump started unloaded?</td><td>The motor would start against full pressure and trip, or need a much bigger motor. Load it after 1–3 s (or after star-delta changeover).</td></tr>
+<tr><td>How do you make sure Y1 and Y2 are never on together?</td><td>Interlock in the program (NC of the other direction in each rung, or one step = one output) and, on many machines, also in the wiring.</td></tr>
+<tr><td>Why use a pressure switch or transducer on a press?</td><td>The press must stop on force, not on position: the part height varies. A transducer also lets you set the force from the HMI and see a worn pump.</td></tr>
+<tr><td>Why hysteresis on accumulator charging or the oil cooler?</td><td>With one set-point the valve or fan switches on and off every scan or second (chatter): it wears out.</td></tr>
+<tr><td>The oil gets hot. What do you check in the program?</td><td>Pump loaded while nothing moves, a valve left on at an end stop, the cooler control; then the relief valve setting and the cooler itself.</td></tr>
+<tr><td>What must happen when the pump stops in the middle of a stroke?</td><td>All valves centre, the load holds, the sequence stops; the restart goes to a safe position first (usually up).</td></tr>
+<tr><td>How is a hydraulic press made safe?</td><td>Two-hand control (type III) or a light curtain with safety hardware, safety valves monitored by the safety PLC, the accumulator dumped at stop, and lock-out before maintenance.</td></tr>
+</table></div>
 <div class="callout where"><b>Where:</b> presses, injection moulding machines, press brakes, steel mills, mobile machines (excavators, cranes), lifting tables, test benches. Everything that needs a lot of force or must hold a load.</div>`,
       sims: {},
       takeaways: ["A hydraulic machine has its own power unit, and the PLC runs and monitors it.", "Start the pump unloaded; unload it whenever nothing moves.", "4/3 closed-centre valve: both solenoids off = stop and hold. Never both on.", "Pressing ends on pressure, then dwell, then decompress before going back."],
       mistakes: ["Programming it like pneumatics: valve left on at the end stop, so the oil heats.", "Starting the pump loaded: the motor trips.", "Switching straight from pressing to up: pressure shock.", "Fast speed into the part.", "Running the pump on a low oil level."],
-      challenges: ['hyd-1', 'hyd-2', 'bug-hyd', 'hyd-3'],
+      challenges: ['hyd-b1', 'hyd-b2', 'hyd-1', 'hyd-2', 'bug-hyd', 'hyd-3', 'hyd-acc', 'hyd-4'],
     },
     {
       id: 'safety', level: 5, title: 'Safety, E-stops, alarms & first scan', min: 10,
@@ -2278,6 +2292,8 @@ END_REPEAT</pre>
     ["4/3 valve (closed centre)", "A directional valve with 4 ports and 3 positions; spring-centred, both solenoids off = all ports closed, so the cylinder stops and holds."],
     ["Decompression", "Letting the oil pressure in a cylinder fall for a moment (valve centred) before switching it to the other direction, to avoid a pressure shock."],
     ["Two-hand control", "Both buttons pressed within 0.5 s and held during the dangerous stroke (ISO 13851), so the operator's hands are away from the tool."],
+    ["Accumulator (hydraulic)", "A pressure vessel with a gas bladder that stores oil under pressure, charged by the pump between two set-points; it must be emptied (dump valve) before work on the system."],
+    ["Dump valve", "A valve that opens to the tank when de-energised and empties an accumulator at stop or on a fault, so the system has no stored pressure."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -2502,5 +2518,9 @@ END_REPEAT</pre>
     { l: 5, q: "The ram has pressed at 200 bar. Why wait 0.3 s with the valve centred before going up?", a: ["decompression: otherwise a pressure shock (bang) in pipes and valves", "to cool the oil", "to count the part", "there is no reason"], c: 0, why: "Let the pressure fall, then switch to up." },
     { l: 4, q: "A pneumatic cylinder valve stays on at the end stop. A hydraulic one should…", a: ["switch off (or the pump is unloaded): otherwise the oil goes over the relief valve and heats", "also stay on, it is the same", "pulse on and off", "switch both solenoids on"], c: 0, why: "Hydraulics is not pneumatics." },
     { l: 6, q: "Two-hand control: one button is taped down, the other is pressed 2 s later. The press…", a: ["does not start: both must come within 0.5 s", "starts", "starts slowly", "starts after 0.5 s"], c: 0, why: "Synchronous actuation stops tie-down tricks." },
+    { l: 5, q: "An accumulator is charged with ONE set-point: charge below 150 bar, stop at 150 bar. What happens?", a: ["the unloading valve switches on and off all the time (chatter)", "it works perfectly", "the pump never runs", "the accumulator explodes"], c: 0, why: "Use two set-points: charge at 140, stop at 160." },
+    { l: 5, q: "Why does a hydraulic unit have a dump valve on the accumulator?", a: ["to empty the stored pressure at stop, before anyone opens a pipe", "to cool the oil", "to fill the tank", "to start the pump unloaded"], c: 0, why: "Stored energy stays in the accumulator after the pump stops." },
+    { l: 2, q: "Jog buttons on a 4/3 valve: DOWN and UP pressed together. The program should…", a: ["switch both solenoids off", "switch both on", "switch on the one pressed first", "stop the pump"], c: 0, why: "Never Y1 and Y2 together." },
+    { l: 6, q: "A press reaches its pressure switch only after 9 s instead of 2 s. A pressing watchdog of 6 s would…", a: ["stop the cycle, raise an alarm and go back up: pump worn, leak or part missing", "do nothing", "press harder", "restart the pump"], c: 0, why: "A watchdog finds slow or missing events." },
   ];
 })(typeof window !== 'undefined' ? window : globalThis);
