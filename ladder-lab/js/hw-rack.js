@@ -72,7 +72,6 @@
   let uidN = 0;
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-  const brk = (s) => esc(s).replace(/([:._])/g, '$1<wbr>'); // let long tag addresses wrap nicely
   const tagH = (s) => esc(s).replace(/_/g, '_<wbr>'); // tags: a break after "_" only as a last resort (the layout gives them room)
   const abrk = (s) => esc(s).replace(/:/g, ':<wbr>'); // addresses: break only after a colon
   // keep device ids like -X2:7 or -B3 on one line
@@ -204,9 +203,8 @@
 .hwr-pbar{position:relative;display:flex;height:24px;border-radius:7px;overflow:hidden;background:var(--surface-3);border:1px solid var(--line)}
 .hwr-pbar span{height:100%;background:var(--c);border-right:2px solid var(--surface);flex:none}
 .hwr-pbar.over{border:2px solid var(--danger)}
-.hwr-pbar.over span{background:var(--danger);opacity:.8}
 .hwr-pbar span.hwr-demo{background:repeating-linear-gradient(135deg,var(--c) 0 5px,transparent 5px 9px)}
-.hwr-pbar.over span.hwr-demo{background:repeating-linear-gradient(135deg,var(--danger) 0 5px,var(--danger-soft) 5px 9px);opacity:1}
+.hwr-pover{position:absolute;top:0;bottom:0;right:0;background:repeating-linear-gradient(135deg,var(--danger) 0 6px,color-mix(in srgb,var(--danger) 30%,transparent) 6px 10px)}
 .hwr-pmark{position:absolute;top:-1px;bottom:-1px;width:3px;margin-left:-1px;background:var(--ink)}
 .hwr-plim{position:relative;height:16px;margin-top:2px;font:600 .72rem/16px var(--f-mono);color:var(--ink-2)}
 .hwr-plim span{position:absolute;transform:translateX(-50%);white-space:nowrap}
@@ -250,9 +248,9 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
 .hwr-ph > b{font-size:.95rem}
 .hwr-ctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .hwr-ctl .btn[aria-pressed="true"]{background:var(--accent-bg);border-color:var(--accent-bg);color:var(--accent-ink)}
-.hw-rack .hwr-hops{list-style:none;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px 12px}
-.hwr-hops > li{position:relative;margin:0;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 3px;border:1.5px solid var(--line);border-radius:10px;background:var(--surface);text-align:center;transition:background .2s,border-color .2s,box-shadow .2s;min-width:0;scroll-margin:72px 0 120px}
-.hwr-hops > li + li::before{content:"";position:absolute;left:-13px;top:24px;width:12px;height:3px;border-radius:2px;background:var(--line)}
+.hw-rack .hwr-hops{list-style:none;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px 10px}
+.hwr-hops > li{position:relative;margin:0;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 2px;border:1.5px solid var(--line);border-radius:10px;background:var(--surface);text-align:center;transition:background .2s,border-color .2s,box-shadow .2s;min-width:0;scroll-margin:72px 0 120px}
+.hwr-hops > li + li::before{content:"";position:absolute;left:-11.5px;top:24px;width:10px;height:3px;border-radius:2px;background:var(--line)}
 .hwr-mid .hwr-hops{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 18px}
 .hwr-mid .hwr-hops > li + li::before{left:-19px;width:18px}
 .hwr-mid .hwr-hops > li:nth-child(3n+1)::before{display:none}
@@ -268,7 +266,7 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
 .hwr-hops > li.flow .hwr-ic path{stroke-dasharray:4 3;animation:hwr-dash .5s linear infinite}
 @keyframes hwr-dash{to{stroke-dashoffset:-14}}
 .hwr-hk{font-size:.64rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);line-height:1.2}
-.hwr-hv{font:600 .74rem/1.3 var(--f-mono);overflow-wrap:break-word;color:var(--ink);min-width:0;max-width:100%}
+.hwr-hv{font:600 .72rem/1.3 var(--f-mono);overflow-wrap:break-word;color:var(--ink);min-width:0;max-width:100%}
 .hwr-mid .hwr-hv,.hwr-narrow .hwr-hv{font-size:.8rem}
 .hwr-hv small{display:block;font:500 .72rem/1.3 var(--f-body);color:var(--ink-2)}
 .hwr-hs{display:none}
@@ -460,7 +458,7 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
       let stopWhy = '';
       if (cpu && (confAny || rulesAny)) {
         const rs = Object.keys(rules).map(Number).sort((x, y) => x - y)[0];
-        stopWhy = confAny ? (ovS != null ? 'an address overlap' : 'a word on an odd byte') : lab(rs) + ' is in the wrong place';
+        stopWhy = confAny ? (ovS != null ? 'an address overlap' : 'a word on an odd byte') : 'a module in the wrong slot: ' + lab(rs);
       }
       const rw = b === 'rockwell';
       // mission checks
@@ -573,14 +571,14 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
 <div class="hwr-sec"><div class="hwr-h"><b>Catalog</b><span>Click: the module goes into the first free slot.</span></div>
 <div class="hwr-cat">${ORDER.map((t) => `<button type="button" class="hwr-catb" data-act="add" data-t="${t}" data-f="add-${t}" style="--c:${MT[t].chart || MT[t].bg}" aria-label="Add ${MT[t].label}"><b>${MT[t].label}</b><small>${MT[t].sub}</small><span class="hwr-plus" aria-hidden="true">+</span></button>`).join('')}</div></div>
 <div class="hwr-sec"><div class="hwr-h"><b>Rack</b><span>Slots 0–9. Click a module to see its addresses.</span></div>
-<div class="hwr-rackwrap"><div class="hwr-rack"></div></div><div class="hwr-scroll">The rack is wide: swipe it sideways to see all 10 slots.</div>
+<div class="hwr-rackwrap"><div class="hwr-rack"></div></div><div class="hwr-scroll">The rack is wide: swipe it sideways to see all 10 slots.</div><div class="hwr-rnote"></div>
 <div class="hwr-detail"></div></div>
 <div class="hwr-sec hwr-power"></div>
 <div class="hwr-sec hwr-io"></div>
 <div class="hwr-sec hwr-check"></div>
-<div class="hwr-cap" role="status" aria-live="polite"><span class="hwr-k">What happened</span><p></p></div>`;
+<div class="hwr-cap"><div class="hwr-caph"><span class="hwr-k">What happened</span><button type="button" class="hwr-more" data-act="more" data-f="more" aria-expanded="false">more ▾</button></div><p role="status" aria-live="polite"></p></div>`;
     const $ = (s) => root.querySelector(s);
-    const rackEl = $('.hwr-rack'), detEl = $('.hwr-detail'), powEl = $('.hwr-power'), ioEl = $('.hwr-io'), chkEl = $('.hwr-check'), capEl = $('.hwr-cap');
+    const rackEl = $('.hwr-rack'), detEl = $('.hwr-detail'), powEl = $('.hwr-power'), ioEl = $('.hwr-io'), chkEl = $('.hwr-check'), capEl = $('.hwr-cap'), moreEl = $('.hwr-more'), rnoteEl = $('.hwr-rnote');
 
     // ───── rack ─────
     function modHTML(s, m, C) {
@@ -610,6 +608,18 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
       }
       rackEl.innerHTML = h;
       rackEl.classList.toggle('hwr-nopow', !C.supply);
+      rnoteEl.innerHTML = st.brand === 'rockwell' ? `<p class="hwr-note">${esc(RW_NOTE)}</p>` : '';
+    }
+    // phones: the rack scrolls inside its box, so bring the selected (new, moved) module into view
+    function revealSlot() {
+      if (sel == null) return;
+      const wrap = rackEl.parentNode, el = rackEl.querySelector('[data-slot="' + sel + '"]');
+      if (!el || wrap.scrollWidth <= wrap.clientWidth + 1) return;
+      const wr = wrap.getBoundingClientRect(), r = el.getBoundingClientRect(), pad = 18;
+      let dx = 0;
+      if (r.left < wr.left + pad) dx = r.left - wr.left - pad;
+      else if (r.right > wr.right - pad) dx = r.right - wr.right + pad;
+      if (Math.abs(dx) > 1) wrap.scrollBy({ left: dx, behavior: reduced() ? 'auto' : 'smooth' });
     }
 
     // ───── detail panel of the selected module ─────
@@ -620,8 +630,9 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
       const T = MT[m.t], b = st.brand, s = sel;
       let h = `<div class="hwr-dtop"><span class="hwr-dname"><i class="hwr-sw" style="--c:${T.chart || T.bg}"></i><b>${T.label}</b> in slot ${s}</span>
 <span class="hwr-dbtns"><button type="button" class="btn small" data-act="left" data-f="mv-l"${s === 0 ? ' disabled' : ''}>◀ move left</button><button type="button" class="btn small" data-act="right" data-f="mv-r"${s === NS - 1 ? ' disabled' : ''}>move right ▶</button><button type="button" class="btn small hwr-del" data-act="remove" data-f="mv-x">remove</button></span></div>
-<p class="hwr-ddesc">${T.desc} Power from the backplane: ${T.supply ? '+' + T.supply + ' W (gives)' : T.pw.toFixed(1) + ' W'}.</p>`;
-      (C.rules[s] || []).forEach((t) => (h += `<p class="hwr-note bad">${t} Most systems: power supply, then CPU, then I/O.</p>`));
+<p class="hwr-ddesc">${esc(descOf(m.t))} Power from the backplane: ${T.supply ? '+' + T.supply + ' W (gives)' : T.pw.toFixed(1) + ' W'}.</p>`;
+      (C.rules[s] || []).forEach((t) => (h += `<p class="hwr-note bad">${t} Most systems: power supply, then CPU, then I/O.${C.stopped && C.supply ? ' Until this is fixed the CPU stays in STOP.' : ''}</p>`));
+      if (b === 'rockwell' && (m.t === 'PS' || m.t === 'CPU')) h += `<p class="hwr-note">${esc(RW_NOTE)}</p>`;
       if (T.bytes) {
         h += `<div class="hwr-row"><span class="hwr-k">Addresses in ${BNAME[b]}</span><span class="hwr-mono">${abrk(rangeTxt(s))}</span></div>`;
         if (b === 'rockwell') {
@@ -631,7 +642,7 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
           h += `<div class="hwr-start"><label>Start byte <input type="number" inputmode="numeric" min="0" max="999" step="${T.word && b === 'codesys' ? 2 : 1}" value="${m.s}" data-start data-f="start"></label><button type="button" class="btn small" data-act="setstart" data-f="setstart">Set</button><button type="button" class="btn small" data-act="autostart" data-f="autostart" title="Take the next free byte">Auto</button><span class="hwr-tiny" style="font-size:.78rem">uses ${bytesTxt(m.s, m.s + T.bytes - 1)}</span></div>`;
           (C.conf[s] || []).forEach((c) => {
             if (c.odd) h += `<p class="hwr-note bad">Start byte ${m.s} is odd. In CODESYS a word module must start on an even byte (%${T.area}W n = bytes 2n and 2n+1). Use ${m.s - 1} or ${m.s + 1}.</p>`;
-            else h += `<p class="hwr-note bad">Overlap: ${bytesTxt(c.lo, c.hi)} of the ${c.area === 'I' ? 'input' : 'output'} area ${c.lo === c.hi ? 'is' : 'are'} also used by ${MT[st.mods[c.other].t].label} in slot ${c.other}. One address would mean two different wires. Change the start byte.</p>`;
+            else h += `<p class="hwr-note bad">Overlap: ${bytesTxt(c.lo, c.hi)} of the ${c.area === 'I' ? 'input' : 'output'} area ${c.lo === c.hi ? 'is' : 'are'} also used by ${MT[st.mods[c.other].t].label} in slot ${c.other}. One address would mean two different wires. Change the start byte.${b === 'siemens' ? ' TIA Portal refuses to compile an address overlap, so you could not even download it.' : ''}</p>`;
           });
           if (T.word && b === 'codesys') h += `<p class="hwr-note">CODESYS counts words: %${T.area}W${m.s % 2 ? 'n' : m.s / 2} = bytes ${m.s % 2 ? '2n and 2n+1' : m.s + ' and ' + (m.s + 1)}. In Siemens, ${T.area}W${m.s} means "the word that starts at byte ${m.s}". Same bytes, different number!</p>`;
           else if (T.word) h += `<p class="hwr-note">${T.area}W${m.s} = bytes ${m.s} and ${m.s + 1}. Each channel is one word (2 bytes), so the next channel is ${T.area}W${m.s + 2}.</p>`;
@@ -640,8 +651,8 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
       if (T.ch && C.chan[s]) {
         h += '<div class="hwr-chmap">';
         for (let c = 0; c < T.ch; c++) {
-          const k = C.chan[s][c], a = T.bytes ? chAddr(s, c) : 'port ' + (c + 1);
-          h += k ? `<span><em>ch ${c}</em><b>${abrk(a || '—')}</b><i>${esc(sigOf(k).id + ' ' + sigOf(k).d)}</i></span>` : `<span class="hwr-spare"><em>ch ${c}</em><b>${abrk(a || '—')}</b><i>spare</i></span>`;
+          const k = C.chan[s][c], a = T.bytes ? chAddr(s, c) : 'RS-485', lbl = T.bytes ? 'ch ' + c : 'port ' + (c + 1);
+          h += k ? `<span><em>${lbl}</em><b>${abrk(a || '—')}</b><i>${esc(sigOf(k).id + ' ' + sigOf(k).d)}</i></span>` : `<span class="hwr-spare"><em>${lbl}</em><b>${abrk(a || '—')}</b><i>spare</i></span>`;
         }
         h += '</div>';
       }
@@ -649,25 +660,39 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
     }
 
     // ───── power budget ─────
+    // "What if the machine grows?": extra AQ 2 cards (display only, never saved) so the learner can SEE an over-budget rack
+    function demoOf(C) {
+      if (!whatIf) return null;
+      const sup = C.supply || 25, n = Math.max(12, Math.floor((sup - C.use) / MT.AQ.pw) + 1);
+      return { n, sup, use: Math.round((C.use + n * MT.AQ.pw) * 10) / 10 };
+    }
     function renderPower(C) {
-      const over = C.use > C.supply, scale = Math.max(C.supply, C.use, 1);
-      let h = `<div class="hwr-h"><b>Power budget</b><span>Each power supply gives 25 W to the backplane.</span></div>
-<div class="hwr-pwt"><span>Used: <b>${C.use.toFixed(1)} W</b> of <b>${C.supply} W</b></span><span class="${over ? 'hwr-no' : 'hwr-ok'}">${!C.supply && !C.use ? '' : !C.supply ? 'no power supply' : over ? 'over budget' : (C.supply - C.use).toFixed(1) + ' W left'}</span></div>
-<div class="hwr-pbar${over ? ' over' : ''}" role="img" aria-label="${C.use.toFixed(1)} watt used of ${C.supply} watt">`;
+      const D = demoOf(C), sup = D ? D.sup : C.supply, use = D ? D.use : C.use;
+      const over = sup > 0 && use > sup, scale = Math.max(sup, use, 1);
+      let h = `<div class="hwr-h"><b>Power budget${D ? '<span class="hwr-demochip">what if</span>' : ''}</b><span>Each power supply gives 25 W to the backplane.</span></div>
+<div class="hwr-pwt"><span>${D ? 'Bigger machine needs' : 'Used'}: <b>${use.toFixed(1)} W</b> of <b>${sup} W</b></span><span class="${over || (!sup && use) ? 'hwr-no' : 'hwr-ok'}">${!sup && !use ? '' : !sup ? 'no power supply' : over ? 'over budget by ' + (use - sup).toFixed(1) + ' W' : (sup - use).toFixed(1) + ' W left'}</span></div>
+<div class="hwr-pbar${over ? ' over' : ''}" role="img" aria-label="${use.toFixed(1)} watt needed, ${sup} watt available">`;
       C.parts.forEach((p) => (h += `<span style="width:${(p.w / scale) * 100}%;--c:${MT[p.t].chart || MT[p.t].bg}" title="${MT[p.t].label} (slot ${p.s}): ${p.w.toFixed(1)} W"></span>`));
-      if (over && C.supply) h += `<i class="hwr-pmark" style="left:${(C.supply / scale) * 100}%"></i>`;
-      h += '</div><div class="hwr-plg">' + ['CPU', 'DI', 'DQ', 'AI', 'AQ', 'CM'].map((t) => `<span><i class="hwr-sw" style="--c:${MT[t].chart || MT[t].bg}"></i>${MT[t].label.replace(' RS-485', '')} ${MT[t].pw.toFixed(1)} W</span>`).join('') + '</div>';
-      if (!C.supply && C.use) h += '<p class="hwr-note bad">No power supply: the backplane has 0 W. The CPU and the cards are dead (LEDs off). Add a PS 25 W in slot 0.</p>';
+      if (D) h += `<span class="hwr-demo" style="width:${((D.n * MT.AQ.pw) / scale) * 100}%;--c:${MT.AQ.bg}" title="what if: ${D.n} more AQ 2 cards = ${(D.n * MT.AQ.pw).toFixed(1)} W"></span>`;
+      if (over) h += `<i class="hwr-pover" style="left:${(sup / scale) * 100}%" title="no power for these modules"></i><i class="hwr-pmark" style="left:${(sup / scale) * 100}%"></i>`;
+      h += '</div>';
+      if (over) h += `<div class="hwr-plim" aria-hidden="true"><span style="left:${Math.min(92, Math.max(8, (sup / scale) * 100))}%">▲ ${sup} W limit</span></div>`;
+      h += '<div class="hwr-plg">' + ['CPU', 'DI', 'DQ', 'AI', 'AQ', 'CM'].map((t) => `<span><i class="hwr-sw" style="--c:${MT[t].chart || MT[t].bg}"></i>${MT[t].label.replace(' RS-485', '')} ${MT[t].pw.toFixed(1)} W</span>`).join('') + '</div>';
+      h += '<p class="hwr-simp">Simplified: a real S7-1500 CPU also feeds a few watts into the backplane, and a second PS powers only the cards to its right.</p>';
+      if (D) h += `<p class="hwr-note bad">What if: your rack + ${D.n} more AQ 2 cards = ${use.toFixed(1)} W, but ${C.supply > 25 ? 'your power supplies give' : 'one PS gives'} only ${sup} W. The cards on the right get no power. Add a second PS (it feeds the cards to its right) or a bigger one.</p>`;
+      else if (!C.supply && C.use) h += '<p class="hwr-note bad">No power supply: the backplane has 0 W. The CPU and the cards are dead (LEDs off). Add a PS 25 W in slot 0.</p>';
       else if (over) h += `<p class="hwr-note bad">Over budget: the modules need ${C.use.toFixed(1)} W, but the power supply gives only ${C.supply} W. Add a second power supply or a bigger one.</p>`;
+      h += `<div class="hwr-pfoot"><p>With 10 slots you stay under 25 W. Real racks can hold 30+ modules, and then the budget matters.</p><button type="button" class="btn small" data-act="whatif" data-f="whatif" aria-pressed="${!!D}">${D ? '◀ back to my rack' : 'What if the machine grows?'}</button></div>`;
       powEl.innerHTML = h;
     }
 
     // ───── I/O list + signal path ─────
     function renderIO(C) {
+      if (anim && grp(anim.key) !== tab) stopAnim(); // the animated path is no longer visible: stop narrating it
       const G = GBY[tab], b = st.brand;
       let h = `<div class="hwr-h"><b>I/O list of the machine</b><span>Signals fill the cards in list order, card after card in slot order.</span></div><div class="hwr-tabs" role="tablist" aria-label="Signal groups">`;
-      GR.forEach((g) => (h += `<button type="button" role="tab" class="hwr-tab" data-act="tab" data-g="${g.g}" data-f="tab-${g.g}" aria-selected="${g.g === tab}">${g.tab} ${g.list.length}${C.missing[g.g] ? '<i class="hwr-tbad" title="signals without a channel"></i>' : ''}</button>`));
-      h += '</div>';
+      GR.forEach((g) => (h += `<button type="button" role="tab" id="${uid}-tab-${g.g}" aria-controls="${uid}-panel" class="hwr-tab" data-act="tab" data-g="${g.g}" data-f="tab-${g.g}" aria-selected="${g.g === tab}" tabindex="${g.g === tab ? 0 : -1}">${g.tab} ${g.list.length}${C.missing[g.g] ? '<i class="hwr-tbad" title="signals without a channel"></i><span class="hwr-sr"> (signals without a channel)</span>' : ''}</button>`));
+      h += `</div><div role="tabpanel" id="${uid}-panel" aria-labelledby="${uid}-tab-${tab}">`;
       const n = G.list.length, ch = C.cnt[G.t], cards = C.cards[G.t];
       if (G.g === 'ser') {
         h += `<p class="hwr-gsum"><span>1 device on RS-485.</span>${cards ? '<span class="hwr-ok">✓ serial module in the rack</span>' : '<span class="hwr-no">✗ no serial module</span>'}</p>`;
@@ -675,25 +700,25 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
         const ok = ch >= G.need;
         h += `<p class="hwr-gsum"><span>${n} ${G.name} · ${ch} channels on ${cards} card${cards === 1 ? '' : 's'}</span><span class="${ok ? 'hwr-ok' : 'hwr-no'}">${ch >= n ? (ok ? '✓ ' : '✗ ') + (ch - n) + ' spare' + (n ? ' (' + Math.round(((ch - n) / n) * 100) + ' %)' : '') + (ok ? '' : ': need ' + G.need) : '✗ ' + (n - ch) + ' without a channel'}</span></p>`;
       }
-      if ((G.g === 'ai' || G.g === 'aq') && b === 'codesys') h += `<p class="hwr-note" style="margin:0 0 8px">CODESYS counts words: %${G.g === 'ai' ? 'I' : 'Q'}W2 = bytes 4 and 5. In Siemens the same word is ${G.g === 'ai' ? 'I' : 'Q'}W4 ("the word that starts at byte 4").</p>`;
-      h += `<div class="tbl"><table><thead><tr><th>Signal</th><th class="hwr-ctag">Tag</th><th class="hwr-ccard">Slot.ch</th><th>Address · ${BNAME[b]}</th><th class="hwr-tc">Test</th></tr></thead><tbody>`;
+      if ((G.g === 'ai' || G.g === 'aq') && b === 'codesys') {
+        // the example uses the first card of this type, so it matches the rows below
+        const ar = G.g === 'ai' ? 'I' : 'Q', fs = st.mods.findIndex((m) => m && m.t === G.t), s0 = fs >= 0 && st.mods[fs].s % 2 === 0 ? st.mods[fs].s : 4;
+        h += `<p class="hwr-note" style="margin:0 0 8px">CODESYS counts words: %${ar}W${s0 / 2} = bytes ${s0} and ${s0 + 1}. In Siemens the same word is ${ar}W${s0} ("the word that starts at byte ${s0}").${fs >= 0 && st.mods[fs].s % 2 ? ` The ${G.t} card in slot ${fs} starts on odd byte ${st.mods[fs].s}: it has no valid word address.` : ''}</p>`;
+      }
+      h += `<div class="tbl"><table><thead><tr><th>Signal</th><th class="hwr-ctag">Tag</th><th class="hwr-ccard">Slot.ch</th><th>Address<span class="hwr-wide"> · ${BNAME[b]}</span></th><th class="hwr-tc">Test</th></tr></thead><tbody>`;
       G.list.forEach((S, i) => {
         const k = G.g + ':' + i, a = C.asg[k];
         let addr = '—';
-        if (a) addr = G.g === 'ser' ? (b === 'siemens' ? 'no I/O address: Modbus block' : b === 'rockwell' ? 'no I/O address: module AOI' : 'no I/O address: Modbus device') : chAddr(a.slot, a.ch) || 'odd start byte!';
-        const v = vals[k];
-        let vtag = '';
-        if (G.g === 'di' || G.g === 'dq') { const pv = stageVal(k, G.g === 'di' ? 5 : 0); vtag = `<span class="hwr-v${pv ? ' on' : ''}" title="value in the program">${pv ? 1 : 0}</span>`; }
-        else if (G.g === 'ai') vtag = `<span class="hwr-v${v < 3.6 ? ' bad' : ''}">${f1(v)} mA</span>`;
-        else if (G.g === 'aq') vtag = `<span class="hwr-v">${Math.round(v)} %</span>`;
-        const cardTxt = a ? a.slot + '.' + a.ch : '—';
-        h += `<tr class="${a ? '' : 'hwr-none'}${open === k ? ' hwr-open' : ''}"><td><span class="hwr-id">${esc(S.id)}</span>${esc(S.d)}<div class="hwr-sub">${esc(S.tag)}${a ? ' · slot ' + a.slot + ' ch ' + a.ch : ''}</div></td>
+        if (a) addr = G.g === 'ser' ? (b === 'siemens' ? 'no I/O address: Modbus_Master writes a DB' : b === 'rockwell' ? 'no I/O address: module AOI' : '%IW… in the Modbus slave I/O mapping') : chAddr(a.slot, a.ch) || 'odd start byte!';
+        const bd = badge(k, C), vtag = bd ? `<span class="hwr-v${bd.c}" title="${esc(bd.ti)}">${bd.t}</span>` : '';
+        const cardTxt = a ? (G.g === 'ser' ? a.slot + '&nbsp;·&nbsp;port&nbsp;1' : a.slot + '.' + a.ch) : '—';
+        h += `<tr class="${a ? '' : 'hwr-none'}${open === k ? ' hwr-open' : ''}"><td><span class="hwr-id">${esc(S.id)}</span>${esc(S.d)}<div class="hwr-sub">${esc(S.tag)}${a ? (G.g === 'ser' ? ' · slot ' + a.slot + ' · port 1' : ' · slot ' + a.slot + ' ch ' + a.ch) : ''}</div></td>
 <td class="hwr-ctag hwr-mono" style="font-size:.82rem;white-space:nowrap">${esc(S.tag)}</td><td class="hwr-ccard hwr-mono">${cardTxt}</td>
 <td>${a ? `<span class="hwr-addr">${abrk(addr)}</span>` : '<span class="hwr-addr">—</span><span class="hwr-nc">no channel</span>'}</td>
 <td class="hwr-tc"><button type="button" class="btn small" data-act="test" data-k="${k}" data-f="t-${k}"${a ? '' : ' disabled'} aria-label="Test ${esc(S.id)} ${esc(S.d)}">▶ test</button>${vtag}</td></tr>`;
         if (open === k && a) h += `<tr class="hwr-pathrow"><td colspan="5"><div class="hwr-path" data-k="${k}"></div></td></tr>`;
       });
-      h += '</tbody></table></div>';
+      h += '</tbody></table></div></div>';
       ioEl.innerHTML = h;
       buildPath(C);
     }
@@ -701,88 +726,116 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
     // the path model of one signal: 6 hops with label, icon, value, state and one sentence each
     function model(k, C) {
       const g = grp(k), S = sigOf(k), a = C.asg[k], b = st.brand, A = chAddr(a.slot, a.ch), m = st.mods[a.slot], tm = termOf(k);
-      const dead = !C.supply ? 'power' : !C.cpu ? 'cpu' : null;
-      const deadTxt = dead === 'power' ? 'no power' : 'no CPU';
+      const dead = deadOf(C), deadTxt = DEADTXT[dead] || '';
+      const PI = b === 'rockwell' ? (g === 'di' || g === 'ai' ? 'Input tag' : 'Output tag') : 'Process image';
       const hops = [];
       const H = (key, ic, val, state, txt) => hops.push({ key, ic, val, state, txt });
-      const prog = (tag, coil) => (b === 'siemens' ? '"' + tag + '"' : b === 'rockwell' ? (coil ? 'OTE ' : 'XIC ') + tag : tag);
+      // the program element: the tag and the address behind it, as TIA Portal, Studio 5000 and CODESYS show it
+      const progV = (coil, note) => {
+        const t = tagH(S.tag), n = note ? ' · ' + note : '';
+        if (b === 'siemens') return `"${t}"<small>%${esc(A)}${n}</small>`;
+        if (b === 'rockwell') return `${coil ? 'OTE' : 'XIC'} ${t}<small>alias of ${abrk(A)}${n}</small>`;
+        return `${t}<small>AT ${esc(A)}${n}</small>`;
+      };
       if (g === 'di') {
-        const v = vals[k], on = !!v, sv = (i) => stageVal(k, i), stop = dead === 'power' ? 3 : dead === 'cpu' ? 4 : 6;
+        const v = vals[k], on = !!v, sv = (i) => stageVal(k, i), stop = dead === 'power' ? 3 : dead ? 4 : 6;
         const st0 = (i) => (i >= stop ? 'bad' : sv(i) ? 'lit' : '');
         H('Field device', S.kind, `${esc(S.id)}<small>${devState(S, sv(0))}</small>`, st0(0), devSentence(S, on));
         H('Wire', 'wire', sv(1) ? '24 V' : '0 V', st0(1) + (sv(1) ? ' flow' : ''), on ? '24 V travels along the wire to the control cabinet.' : 'The wire falls to 0 V.');
         H('Terminal', 'term', `${tm}<small>${sv(2) ? '24 V' : '0 V'}</small>`, st0(2), `The wire is screwed to terminal ${tm}. A short wire goes on to the card.`);
-        H('Input card', 'card', stop <= 3 ? `ch ${a.ch}<small>slot ${a.slot} · ${deadTxt}</small>` : `ch ${a.ch}<small>slot ${a.slot} · LED ${sv(3) ? 'on' : 'off'}</small>`, st0(3),
+        H('Input card', 'card', `ch ${a.ch}<small>slot ${a.slot} · ${stop <= 3 ? deadTxt : 'LED ' + (sv(3) ? 'on' : 'off')}</small>`, st0(3),
           stop <= 3 ? 'There is no power supply: the card is dead and cannot see the signal.' : `The input card in slot ${a.slot} sees ${on ? '24 V' : '0 V'} on channel ${a.ch}: LED ${on ? 'on, the card makes a 1' : 'off, the card makes a 0'}.`);
-        H(b === 'rockwell' ? 'Input tag' : 'Process image', 'pi', stop <= 4 ? `${abrk(A)}<small>${deadTxt}</small>` : `${abrk(A)}<small>= ${fv(sv(4))}</small>`, st0(4),
-          stop <= 4 ? (dead === 'cpu' ? 'There is no CPU: nobody reads the card.' : 'No power, so no CPU runs and nobody reads the card.')
+        H(PI, 'pi', `${abrk(A)}<small>${stop <= 4 ? deadTxt : '= ' + fv(sv(4))}</small>`, st0(4),
+          stop <= 4 ? (dead === 'stop' ? STOPTXT : dead === 'cpu' ? 'There is no CPU: nobody reads the card.' : 'No power, so no CPU runs and nobody reads the card.')
             : b === 'siemens' ? `At the start of the next scan the CPU copies all inputs into the process image: ${A} = ${fv(on)}.`
               : b === 'rockwell' ? `Every RPI (for example 10 ms) the card sends its data to the controller: ${A} = ${fv(on)}. Logix has no process image: tags update in the background.`
                 : `At the start of the next task cycle CODESYS copies the inputs: ${A} = ${fv(on)}.`);
-        H('Program', 'no', stop <= 5 ? `${brk(prog(S.tag))}<small>${deadTxt}</small>` : `${brk(prog(S.tag))}<small>contact ${sv(5) ? 'closed' : 'open'}</small>`, st0(5),
-          stop <= 5 ? 'No program runs, so nothing reacts.'
-            : b === 'siemens' ? `The program reads ${A} ("${S.tag}"): the NO contact ${on ? 'closes and passes power (green)' : 'opens'}.`
+        H('Program', 'no', progV(false, stop <= 5 ? deadTxt : b === 'rockwell' ? (sv(5) ? 'true' : 'false') : sv(5) ? 'closed' : 'open'), st0(5),
+          stop <= 5 ? (dead === 'stop' ? 'The program does not run in STOP, so nothing reacts.' : 'No program runs, so nothing reacts.')
+            : b === 'siemens' ? `The program reads ${A} ("${S.tag}", shown as %${A} in TIA Portal): the NO contact ${on ? 'closes and passes power (green)' : 'opens'}.`
               : b === 'rockwell' ? `XIC ${S.tag} (an alias of ${A}) is ${on ? 'true: the rung passes power (green)' : 'false'}.`
                 : `The NO contact ${S.tag} (AT ${A}) ${on ? 'closes and passes power (green)' : 'opens'}.`);
       } else if (g === 'dq') {
         const v = vals[k], on = !!v, sv = (i) => stageVal(k, i);
         const st0 = (i) => (dead ? 'bad' : sv(i) ? 'lit' : '');
-        H('Program', 'coil', dead ? `${brk(prog(S.tag, 1))}<small>${deadTxt}</small>` : `${brk(prog(S.tag, 1))}<small>coil ${sv(0) ? 'on' : 'off'}</small>`, st0(0),
-          dead ? (dead === 'cpu' ? 'There is no CPU, so no program runs: nothing can switch an output.' : 'There is no power supply: the CPU is dead, no program runs.')
+        H('Program', 'coil', progV(true, dead ? deadTxt : b === 'rockwell' ? (sv(0) ? 'true' : 'false') : 'coil ' + (sv(0) ? 'on' : 'off')), st0(0),
+          dead ? (dead === 'stop' ? STOPTXT : dead === 'cpu' ? 'There is no CPU, so no program runs: nothing can switch an output.' : 'There is no power supply: the CPU is dead, no program runs.')
             : b === 'siemens' ? `The program sets the coil "${S.tag}" (${A}) to ${fv(on)}.` : b === 'rockwell' ? `OTE ${S.tag} (an alias of ${A}) becomes ${on ? 'true' : 'false'}.` : `The coil ${S.tag} (AT ${A}) becomes ${fv(on)}.`);
-        H(b === 'rockwell' ? 'Output tag' : 'Process image', 'pi', `${abrk(A)}<small>= ${dead ? '—' : fv(sv(1))}</small>`, st0(1),
-          b === 'rockwell' ? `The output tag ${A} = ${fv(on)}. Logix sends output tags to the card every RPI.` : `The coil only writes the process image: ${A} = ${fv(on)}. The card has not changed yet.`);
+        H(PI, 'pi', `${abrk(A)}<small>= ${dead ? '—' : fv(sv(1))}</small>`, st0(1),
+          dead ? `Nothing is written: ${A} gets no new value.`
+            : b === 'rockwell' ? `The output tag ${A} = ${fv(on)}. Logix sends output tags to the card every RPI.` : `The coil only writes the process image: ${A} = ${fv(on)}. The card has not changed yet.`);
         H('Output card', 'card', `ch ${a.ch}<small>slot ${a.slot} · LED ${!dead && sv(2) ? 'on' : 'off'}</small>`, st0(2),
-          b === 'rockwell' ? `The card in slot ${a.slot} receives the data: channel ${a.ch} LED ${on ? 'on' : 'off'}.` : `At the end of the scan the CPU sends the output image to the card: slot ${a.slot}, channel ${a.ch}, LED ${on ? 'on' : 'off'}.`);
-        H('Terminal', 'term', `${tm}<small>${!dead && sv(3) ? '24 V' : '0 V'}</small>`, st0(3), on ? `The card switches 24 V onto terminal ${tm}.` : `The card switches terminal ${tm} off (0 V).`);
-        H('Wire', 'wire', !dead && sv(4) ? '24 V' : '0 V', st0(4) + (!dead && sv(4) ? ' flow' : ''), on ? '24 V travels along the wire to the field.' : 'The wire falls to 0 V.');
-        H('Field device', S.kind, `${esc(S.id)}<small>${devState(S, !dead && sv(5))}</small>`, st0(5), devSentence(S, on));
+          dead === 'power' ? `The card in slot ${a.slot} has no power: LED off.` : dead ? `The card in slot ${a.slot} gets no new data: its outputs stay off (LED off).`
+            : b === 'rockwell' ? `The card in slot ${a.slot} receives the data: channel ${a.ch} LED ${on ? 'on' : 'off'}.` : `At the end of the scan the CPU sends the output image to the card: slot ${a.slot}, channel ${a.ch}, LED ${on ? 'on' : 'off'}.`);
+        H('Terminal', 'term', `${tm}<small>${!dead && sv(3) ? '24 V' : '0 V'}</small>`, st0(3), dead ? `Terminal ${tm} stays at 0 V.` : on ? `The card switches 24 V onto terminal ${tm}.` : `The card switches terminal ${tm} off (0 V).`);
+        H('Wire', 'wire', !dead && sv(4) ? '24 V' : '0 V', st0(4) + (!dead && sv(4) ? ' flow' : ''), dead ? 'No voltage on the wire: 0 V.' : on ? '24 V travels along the wire to the field.' : 'The wire falls to 0 V.');
+        H('Field device', S.kind, `${esc(S.id)}<small>${devState(S, !dead && sv(5))}</small>`, st0(5), dead ? `${S.id} stays ${devState(S, false)}.` : devSentence(S, on));
       } else if (g === 'ai') {
-        const mA = vals[k], an = anState(mA), eng = S.lo + ((mA - 4) / 16) * (S.hi - S.lo), raw = Math.round(((mA - 4) / 16) * 27648);
+        const mA = vals[k], an = anState(mA), eng = S.lo + ((mA - 4) / 16) * (S.hi - S.lo), raw = Math.round(((mA - 4) / 16) * 27648), noA = !A;
         const engT = an.wb ? 'invalid' : f1(eng) + ' ' + S.u;
-        const rawT = an.wb ? (b === 'siemens' ? '32767 (error)' : raw + ' (invalid)') : String(raw);
-        const deadFrom = dead === 'power' ? 3 : dead === 'cpu' ? 4 : 9;
-        const stt = (i) => (i >= deadFrom ? 'bad' : an.wb && i >= 1 ? 'bad' : an.cls !== 'ok' && i >= 1 ? 'warn' : 'lit');
-        H('Transmitter', 'tx', `${esc(S.id)}<small>${an.wb ? '? → ' : f1(eng) + ' ' + S.u + ' → '}${f1(mA)} mA</small>`, 'lit', `The transmitter ${S.id} measures the ${S.d} and sends a current: 4 mA = ${S.lo} ${S.u}, 20 mA = ${S.hi} ${S.u}.`);
-        H('Wire', 'wire', `${f1(mA)} mA`, stt(1) + (mA > 0.2 ? ' flow' : ''), 'The current flows in a loop through the wire. Long wires and noise do not change a current, so 4–20 mA is robust.');
+        const rawT = an.wb ? (b === 'siemens' ? (an.hi ? raw + ' (overrange)' : '32767 (error)') : raw + ' (invalid)') : String(raw);
+        const deadFrom = dead === 'power' ? 3 : dead ? 4 : 9;
+        const stt = (i) => (i >= deadFrom || (noA && i >= 4) ? 'bad' : an.wb && i >= 1 ? 'bad' : an.cls !== 'ok' && i >= 1 ? 'warn' : 'lit');
+        const fault = 'Ch' + a.ch + 'Fault = 1';
+        H('Transmitter', 'tx', `${esc(S.id)}<small>${an.wb ? '? → ' : f1(eng) + ' ' + S.u + ' → '}${f1(mA)} mA</small>`, an.hi ? 'bad' : 'lit',
+          `The transmitter ${S.id} measures the ${S.d} and sends a current: 4 mA = ${S.lo} ${S.u}, 20 mA = ${S.hi} ${S.u}.${an.hi ? ' Now it sends too much current: it is faulty, or the wires touch (short circuit).' : ''}`);
+        H('Wire', 'wire', `${f1(mA)} mA`, stt(1) + (mA > 0.2 ? ' flow' : ''),
+          an.wb && !an.hi ? 'Almost no current flows: the wire is broken (or the transmitter has no supply).' : 'The current flows in a loop through the wire. Long wires and noise do not change a current, so 4–20 mA is robust.');
         H('Terminal', 'term', tm, stt(2), `The wire is screwed to terminal ${tm}.`);
-        H('Input card', 'card', dead === 'power' ? `ch ${a.ch}<small>slot ${a.slot} · ${deadTxt}</small>` : `ch ${a.ch}<small>slot ${a.slot} · ${b === 'rockwell' ? 'scaled ' + engT : 'raw ' + rawT}</small>`, stt(3),
-          b === 'rockwell' ? `The card in slot ${a.slot} converts AND scales the current: in the module properties you set 4 mA = ${S.lo}, 20 mA = ${S.hi}.` : `The card in slot ${a.slot}, channel ${a.ch}, turns the current into a number: 4 mA = 0, 20 mA = 27648.`);
-        H(b === 'rockwell' ? 'Input tag' : 'Process image', 'pi', `${abrk(A || 'odd byte!')}<small>= ${dead ? deadTxt : b === 'rockwell' ? (an.wb ? 'Ch' + a.ch + 'Fault = 1' : f1(eng)) : rawT}</small>`, stt(4),
-          b === 'siemens' ? `The CPU copies it into the process image: ${A} (one word = 2 bytes: bytes ${m.s + 2 * a.ch} and ${m.s + 2 * a.ch + 1}).`
-            : b === 'rockwell' ? `The controller tag ${A} holds the value as a REAL (a number with decimals).`
-              : `It appears as ${A || '(no valid word)'}. CODESYS counts words: this word is bytes ${m.s + 2 * a.ch} and ${m.s + 2 * a.ch + 1}.`);
-        H('Program', 'fb', `${brk(S.tag)}<small>= ${dead ? deadTxt : engT}</small>`, stt(5),
-          b === 'siemens' ? `The program scales it: NORM_X (0…27648 → 0.0…1.0), then SCALE_X (→ ${S.lo}…${S.hi} ${S.u}).`
-            : b === 'rockwell' ? `The program uses ${S.tag} directly: the module already did the scaling.`
-              : `Your code scales it: ${S.tag} := raw / 27648 × ${S.hi - S.lo}${S.lo ? ' + ' + S.lo : ''}.`);
-        return { hops, an, mA, eng, raw, rawT, engT };
+        H('Input card', 'card', `ch ${a.ch}<small>slot ${a.slot} · ${dead === 'power' ? deadTxt : b === 'rockwell' ? (an.wb ? fault : 'scaled ' + engT) : 'raw ' + rawT}</small>`, stt(3),
+          dead === 'power' ? 'There is no power supply: the card is dead and cannot measure the current.'
+            : b === 'rockwell' ? `The card in slot ${a.slot} converts AND scales the current: in the module properties you set 4 mA = ${S.lo}, 20 mA = ${S.hi}.`
+              : b === 'codesys' ? `The card in slot ${a.slot}, channel ${a.ch}, turns the current into a number. This card turns 4–20 mA into 0–27648 (other cards use 0–32767: always check the card manual).`
+                : `The card in slot ${a.slot}, channel ${a.ch}, turns the current into a number: 4 mA = 0, 20 mA = 27648.`);
+        H(PI, 'pi', noA ? `no address<small>odd start byte ${m.s}</small>` : `${abrk(A)}<small>= ${dead ? deadTxt : b === 'rockwell' ? (an.wb ? fault : f1(eng)) : rawT}</small>`, stt(4),
+          noA && dead !== 'power' && dead !== 'cpu' ? ODDTXT + 'read this channel.' + (dead ? ' This error also puts the CPU in STOP.' : '')
+            : dead ? (dead === 'stop' ? STOPTXT : dead === 'cpu' ? 'There is no CPU: nobody reads the card.' : 'No power, so no CPU runs and nobody reads the card.')
+              : b === 'siemens' ? `The CPU copies it into the process image: ${A} (one word = 2 bytes: bytes ${m.s + 2 * a.ch} and ${m.s + 2 * a.ch + 1}). TIA Portal shows it as %${A}.`
+                : b === 'rockwell' ? `The controller tag ${A} holds the value as a REAL (a number with decimals).`
+                  : `It appears as ${A}. CODESYS counts words: this word is bytes ${m.s + 2 * a.ch} and ${m.s + 2 * a.ch + 1}.`);
+        H('Program', 'fb', `${tagH(S.tag)}<small>= ${dead ? deadTxt : noA ? 'no value' : engT}</small>`, stt(5),
+          dead ? (dead === 'stop' ? 'The program does not run in STOP, so nothing uses the value.' : 'No program runs, so nothing uses the value.')
+            : noA ? 'The program cannot read it. Select the card and press Auto: it gets an even start byte.'
+              : (b === 'siemens' ? `The program scales it: NORM_X (0…27648 → 0.0…1.0), then SCALE_X (→ ${S.lo}…${S.hi} ${S.u}).`
+                : b === 'rockwell' ? `The program uses ${S.tag} directly: the module already did the scaling.`
+                  : `Your code scales it with REAL maths: ${S.tag} := INT_TO_REAL(raw) / 27648.0 * ${S.hi - S.lo}.0${S.lo ? ' + ' + S.lo + '.0' : ''}; (with INT maths, raw / 27648 is always 0).`)
+                + (an.wb ? ' But now the value is not valid: raise an alarm and do not use it.' : ''));
+        return { hops, an, mA, eng, raw, rawT, engT, noA };
       } else if (g === 'aq') {
-        const pct = vals[k], raw = Math.round((pct / 100) * 27648), mA = 4 + pct * 0.16;
-        const stt = () => (dead ? 'bad' : 'lit');
-        H('Program', 'fb', `${brk(S.tag)}<small>= ${Math.round(pct)} %</small>`, stt(),
-          dead ? (dead === 'cpu' ? 'There is no CPU: no program runs, the output stays off.' : 'There is no power supply: no program runs.')
+        const pct = vals[k], raw = Math.round((pct / 100) * 27648), mA = 4 + pct * 0.16, noA = !A, off = !!dead || noA;
+        const stt = (i) => (dead || (noA && i >= 1) ? 'bad' : 'lit');
+        H('Program', 'fb', `${tagH(S.tag)}<small>= ${dead ? deadTxt : Math.round(pct) + ' %'}</small>`, stt(0),
+          dead ? (dead === 'stop' ? STOPTXT : dead === 'cpu' ? 'There is no CPU: no program runs, the output stays off.' : 'There is no power supply: no program runs.')
             : b === 'siemens' ? `The program decides the valve position (${Math.round(pct)} %) and scales it to 0…27648 with NORM_X + SCALE_X.`
-              : b === 'rockwell' ? `The program writes the position in % straight into the output tag: the module does the scaling.`
-                : `Your code scales the position: raw := position / 100 × 27648.`);
-        H(b === 'rockwell' ? 'Output tag' : 'Process image', 'pi', `${abrk(A || 'odd byte!')}<small>= ${dead ? '—' : b === 'rockwell' ? f1(pct) : raw}</small>`, stt(), `The value goes into the output ${b === 'rockwell' ? 'tag' : 'image'}: ${A || '(no valid word)'}.`);
-        H('Output card', 'card', `ch ${a.ch}<small>slot ${a.slot} · ${dead ? '0 mA' : f1(mA) + ' mA'}</small>`, stt(),
-          b === 'rockwell' ? `The card in slot ${a.slot} turns 0.0…100.0 into 4…20 mA.` : `At the end of the scan the card gets the number and makes a current: 0 = 4 mA, 27648 = 20 mA.`);
-        H('Terminal', 'term', tm, stt(), `The current leaves the card on terminal ${tm}.`);
-        H('Wire', 'wire', dead ? '0 mA' : f1(mA) + ' mA', stt() + (dead ? '' : ' flow'), 'It flows through the wire to the valve positioner.');
-        H('Control valve', 'valve', `${esc(S.id)}<small>${dead ? 'closed' : 'open ' + Math.round(pct) + ' %'}</small>`, stt(), `The control valve ${S.id} opens to ${Math.round(pct)} %.`);
-        return { hops, pct, raw, mA };
+              : b === 'rockwell' ? 'The program writes the position in % straight into the output tag: the module does the scaling.'
+                : `Your code scales the position with REAL maths: raw := REAL_TO_INT(${S.tag} / 100.0 * 27648.0);`);
+        H(PI, 'pi', noA ? `no address<small>odd start byte ${m.s}</small>` : `${abrk(A)}<small>= ${dead ? '—' : b === 'rockwell' ? f1(pct) : raw}</small>`, stt(1),
+          noA ? ODDTXT + 'write this channel.' + (dead === 'stop' ? ' This error also puts the CPU in STOP.' : '') : dead ? `Nothing is written: ${A} gets no new value.` : `The value goes into the output ${b === 'rockwell' ? 'tag' : 'image'}: ${A}.`);
+        H('Output card', 'card', `ch ${a.ch}<small>slot ${a.slot} · ${off ? '0 mA' : f1(mA) + ' mA'}</small>`, stt(2),
+          dead === 'power' ? `The card in slot ${a.slot} has no power.` : off ? `The card in slot ${a.slot} gets no value: its output stays off.`
+            : b === 'rockwell' ? `The card in slot ${a.slot} turns 0.0…100.0 into 4…20 mA.` : 'At the end of the scan the card gets the number and makes a current: 0 = 4 mA, 27648 = 20 mA.');
+        H('Terminal', 'term', tm, stt(3), off ? `No current leaves terminal ${tm}.` : `The current leaves the card on terminal ${tm}.`);
+        H('Wire', 'wire', off ? '0 mA' : f1(mA) + ' mA', stt(4) + (off ? '' : ' flow'), off ? 'No current flows in the wire.' : 'It flows through the wire to the valve positioner.');
+        H('Control valve', 'valve', `${esc(S.id)}<small>${off ? 'safe position' : 'open ' + Math.round(pct) + ' %'}</small>`, stt(5),
+          off ? `The control valve ${S.id} gets no signal and goes to its safe position (here: closed).` : `The control valve ${S.id} opens to ${Math.round(pct)} %.`);
+        return { hops, pct, raw, mA, noA };
       } else {
         const hop = anim && anim.key === k ? anim.hop : vals[k] == null ? -1 : 6, kw = vals[k];
         const stt = (i) => (dead ? 'bad' : i <= hop ? 'lit' : '') + (anim && anim.key === k && (i === 2 || i === 4) && i === hop ? ' flow' : '');
-        const data = b === 'siemens' ? '"Meter".Power' : b === 'rockwell' ? 'Meter_Power' : 'Meter.Power';
-        H('Program', 'fb', b === 'siemens' ? 'Modbus_<wbr>Master<small>read 2 registers</small>' : b === 'rockwell' ? 'AOI<small>read 2 registers</small>' : 'Modbus master<small>read 2 registers</small>', stt(0),
-          dead ? 'No CPU runs (no power or no CPU): nobody asks the meter.' : b === 'siemens' ? 'The program calls Modbus_Master: "slave 1, read 2 registers".' : b === 'rockwell' ? 'The program triggers the serial module with its add-on instruction: "slave 1, read 2 registers".' : 'The Modbus master in the device tree sends its next request: "slave 1, read 2 registers".');
+        const data = b === 'siemens' ? '"Meter".Power' : 'Meter_Power';
+        H(b === 'codesys' ? 'Modbus master' : 'Program', 'fb', b === 'siemens' ? 'Modbus_<wbr>Master<small>read 2 registers</small>' : b === 'rockwell' ? 'AOI<small>read 2 registers</small>' : 'device tree<small>read 2 registers</small>', stt(0),
+          dead ? (dead === 'stop' ? 'The CPU is in STOP (red ERROR LED): the hardware configuration has an error, so nobody asks the meter. Fix the red module first.' : `No CPU runs (${deadTxt}): nobody asks the meter.`)
+            : b === 'siemens' ? 'The program calls Modbus_Master: "slave 1, read 2 registers". (Modbus_Comm_Load must run once before, to set up the port.)'
+              : b === 'rockwell' ? 'The program triggers the serial module with its add-on instruction: "slave 1, read 2 registers".'
+                : 'The Modbus master in the device tree sends its next request: "slave 1, read 2 registers". You need no function block for this.');
         H('CM card', 'card', `slot ${a.slot}<small>${hop >= 1 && hop <= 2 ? 'TX' : hop === 4 ? 'RX' : 'port 1'}</small>`, stt(1), `The CM in slot ${a.slot} turns the request into bytes on RS-485 (TX LED blinks).`);
         H('RS-485', 'pair', 'request →', stt(2), 'The bytes travel on the 2-wire RS-485 line to the meter.');
         H('Meter', 'meter', `${esc(S.id)}<small>address 1</small>`, stt(3), 'The energy meter (address 1) hears its address and answers with the register values.');
         H('RS-485', 'pair', '← answer', stt(4), 'The answer comes back. The RX LED blinks and the CRC check says the bytes are good.');
-        H('Data', 'pi', `${brk(data)}<small>= ${hop >= 5 && kw != null ? f1(kw) + ' kW' : '…'}</small>`, stt(5), `The value lands in ${data}. Serial data never goes through the process image.`);
+        H('Data', 'pi', `${tagH(data)}<small>${b === 'codesys' ? 'at %IW100: ' : '= '}${hop >= 5 && kw != null ? f1(kw) + ' kW' : '…'}</small>`, stt(5),
+          b === 'siemens' ? `The value lands in ${data}, a data block. Serial data does not go through the process image.`
+            : b === 'rockwell' ? `The AOI copies the value into the tag ${data}. Serial data does not use Local: I/O tags.`
+              : "The value lands in the Modbus slave's I/O mapping (for example %IW100), mapped to Meter_Power. The bytes are not on this card: the bus cycle updates them, much slower than the scan.");
       }
       return { hops };
     }
@@ -808,10 +861,10 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
     }
     function anState(mA) {
       if (mA < 3.6) return { cls: 'bad', wb: true, t: 'Below 3.6 mA = wire break. The value is not valid: the program must raise an alarm and not use it.' };
-      if (mA < 4) return { cls: 'warn', t: 'Under range (3.6–4 mA): a little below zero. Small drift is normal, but check the sensor.' };
+      if (mA < 4) return { cls: 'warn', t: 'Under range (3.6–4 mA): a little below zero. Small drift is normal, but check the sensor. Below 3.6 mA the card reports a wire break.' };
       if (mA <= 20) return { cls: 'ok', t: 'Normal range: 4–20 mA.' };
-      if (mA <= 21) return { cls: 'warn', t: 'Over range (20–21 mA): above the top of the scale.' };
-      return { cls: 'bad', t: 'Above 21 mA = sensor fault or short circuit.' };
+      if (mA <= 21) return { cls: 'warn', t: 'Over range (20–21 mA): above the top of the scale. Above 21 mA the value counts as a fault.' };
+      return { cls: 'bad', wb: true, hi: true, t: 'Above 21 mA = sensor fault or short circuit. The value is not valid: the program must raise an alarm and not use it.' };
     }
 
     function buildPath(C) {
@@ -834,45 +887,54 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
       const box = ioEl.querySelector('.hwr-path');
       if (!box) return;
       C = C || calc();
-      const k = box.dataset.k, g = grp(k);
+      const k = box.dataset.k, g = grp(k), b = st.brand;
       if (!C.asg[k]) return;
       const M = model(k, C), hop = anim && anim.key === k ? anim.hop : 99;
       let h = '<ol class="hwr-hops">' + M.hops.map((x, i) => `<li class="${x.state}${i === hop ? ' cur' : ''}">${icon(x.ic)}<span class="hwr-hk">${x.key}</span><span class="hwr-hv">${x.val}</span><span class="hwr-hs">${nw(x.txt)}</span></li>`).join('') + '</ol>';
       if (g === 'di' || g === 'dq') h += piStrip(k, C);
-      if (g === 'ai') h += `<div class="hwr-stat ${M.an.cls}">${M.an.t}${M.an.wb ? (st.brand === 'siemens' ? ' The card sends the error value 32767 (16#7FFF).' : st.brand === 'rockwell' ? ' The module sets Ch' + C.asg[k].ch + 'Fault = 1.' : ' The card sets its error (diagnostic) bit.') : ''}</div>`;
+      if (g === 'ai') {
+        const ch = C.asg[k].ch;
+        const ex = !M.an.wb ? '' : b === 'siemens' ? (M.an.hi ? ' The raw value is above 27648 (overrange). Above about 22.8 mA the card sends 32767 (16#7FFF).' : ' The card sends the error value 32767 (16#7FFF).')
+          : b === 'rockwell' ? ` The module sets Ch${ch}Fault = 1.` : ' The card sets its error (diagnostic) bit.';
+        h += `<div class="hwr-stat ${M.an.cls}">${M.an.t}${ex}</div>`;
+      }
       if (g === 'ai' || g === 'aq') {
         const a = C.asg[k], m = st.mods[a.slot], A = chAddr(a.slot, a.ch);
-        if (st.brand !== 'rockwell' && A) h += `<p class="hwr-wd">One analog value = one word = 2 bytes: <b class="hwr-mono">${A}</b> uses bytes ${m.s + 2 * a.ch} and ${m.s + 2 * a.ch + 1}${st.brand === 'codesys' ? ' (Siemens would call it ' + MT[m.t].area + 'W' + (m.s + 2 * a.ch) + ')' : ''}.</p>`;
+        if (b !== 'rockwell' && A) h += `<p class="hwr-wd">One analog value = one word = 2 bytes: <b class="hwr-mono">${A}</b> uses bytes ${m.s + 2 * a.ch} and ${m.s + 2 * a.ch + 1}${b === 'codesys' ? ' (Siemens would call it ' + MT[m.t].area + 'W' + (m.s + 2 * a.ch) + ')' : ''}.</p>`;
+        else if (!A) h += `<p class="hwr-note bad">${ODDTXT}${g === 'ai' ? 'read' : 'write'} this channel. The card starts on byte ${m.s}: select it in the rack and press Auto.</p>`;
       }
       h += '<ol class="hwr-steps">' + M.hops.map((x, i) => `<li class="${i < hop ? 'done' : i === hop ? 'cur' : hop === 99 ? 'done' : ''}">${nw(x.txt)}</li>`).join('') + '</ol>';
       box.querySelector('.hwr-live').innerHTML = h;
       const out = box.querySelector('output');
       if (out) out.textContent = g === 'ai' ? f1(vals[k]) + ' mA' : Math.round(vals[k]) + ' %';
     }
+    // the 2 bytes of the card in the process image: bit numbers on top, the VALUE (0/1) in each cell, green = 1
     function piStrip(k, C) {
-      const a = C.asg[k], m = st.mods[a.slot], T = MT[m.t], b = st.brand, stage = T.area === 'I' ? 4 : 1;
-      const dead = !C.supply || !C.cpu;
-      const lab = b === 'rockwell' ? (T.area === 'I' ? 'Input tag' : 'Output tag') + ' Local:' + a.slot + ':' + (T.area === 'I' ? 'I' : 'O') + '.Data' : 'Process image, ' + (T.area === 'I' ? 'inputs' : 'outputs');
-      let h = `<div class="hwr-pi${dead ? ' dim' : ''}"><span class="hwr-k">${esc(lab)}</span>`;
+      const a = C.asg[k], m = st.mods[a.slot], T = MT[m.t], b = st.brand, stage = T.area === 'I' ? 4 : 1, dead = deadOf(C);
+      const lab = b === 'rockwell' ? `${T.area === 'I' ? 'Input tag' : 'Output tag'} <span class="hwr-tagn">Local:${a.slot}:${T.area === 'I' ? 'I' : 'O'}.Data</span>` : 'Process image, ' + (T.area === 'I' ? 'inputs' : 'outputs');
+      let h = `<div class="hwr-pi${dead ? ' dim' : ''}"><span class="hwr-k">${lab}</span>`;
       for (let by = 0; by < 2; by++) {
         const bl = b === 'rockwell' ? 'bits ' + (by * 8 + 7) + '…' + by * 8 : (b === 'codesys' ? '%' : '') + T.area + 'B' + (m.s + by);
-        h += `<span class="hwr-byte"><b>${bl}</b><span class="hwr-bits">`;
+        let no = '', cells = '';
         for (let bit = 7; bit >= 0; bit--) {
           const c = by * 8 + bit, kk = C.chan[a.slot] && C.chan[a.slot][c], on = !dead && kk ? stageVal(kk, stage) : 0;
-          h += `<i class="${on ? 'on' : ''}${c === a.ch ? ' me' : ''}" title="channel ${c}${kk ? ': ' + esc(sigOf(kk).id) : ' (spare)'}">${b === 'rockwell' ? c : bit}</i>`;
+          no += `<i>${b === 'rockwell' ? c : bit}</i>`;
+          cells += `<i class="${on ? 'on' : ''}${c === a.ch ? ' me' : ''}" title="${esc(chAddr(a.slot, c))} · channel ${c}: ${kk ? esc(sigOf(kk).id) : 'spare'}">${on ? 1 : 0}</i>`;
         }
-        h += '</span></span>';
+        h += `<span class="hwr-byte"><b>${bl}</b><span class="hwr-bitbox"><span class="hwr-bitno" aria-hidden="true">${no}</span><span class="hwr-bits">${cells}</span></span></span>`;
       }
+      h += dead ? `<span class="hwr-pinote">not updated: ${DEADTXT[dead]}</span>` : '<span class="hwr-pleg"><i aria-hidden="true"></i>green = 1 (24 V)</span>';
       return h + '</div>';
     }
 
     // ───── live LEDs and bars in the rack ─────
     function paintLive(C) {
       C = C || calc();
+      const going = C.cpu && C.healthy; // the program runs: outputs can switch
       root.querySelectorAll('[data-led]').forEach((el) => {
         const p = el.dataset.led.split(':'), s = +p[0], c = +p[1], k = C.chan[s] && C.chan[s][c];
         const g = k ? grp(k) : '';
-        const on = k && C.supply && (g === 'di' || C.cpu) ? stageVal(k, g === 'di' ? 3 : 2) : 0;
+        const on = k && C.supply && (g === 'di' || going) ? stageVal(k, g === 'di' ? 3 : 2) : 0;
         el.classList.toggle('on', !!on);
         el.classList.toggle('me', !!k && k === open);
       });
@@ -880,7 +942,7 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
         const p = el.dataset.bar.split(':'), s = +p[0], c = +p[1], k = C.chan[s] && C.chan[s][c];
         let hgt = 0, bad = false;
         if (k && C.supply) {
-          if (grp(k) === 'ai') { hgt = vals[k] / 22; bad = vals[k] < 3.6; } else if (C.cpu) hgt = (4 + vals[k] * 0.16) / 22;
+          if (grp(k) === 'ai') { hgt = vals[k] / 22; bad = aiBad(vals[k]); } else if (going && chAddr(s, c)) hgt = (4 + vals[k] * 0.16) / 22;
         }
         el.style.height = clamp(hgt, 0, 1) * 100 + '%';
         el.classList.toggle('bad', bad);
@@ -888,7 +950,7 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
       });
       root.querySelectorAll('[data-cpu]').forEach((el) => el.classList.toggle('on', !!C.supply && (el.dataset.cpu === 'run' ? C.healthy : !C.healthy)));
       root.querySelectorAll('[data-cm]').forEach((el) => {
-        const busy = anim && anim.poll && C.supply && C.cpu;
+        const busy = anim && anim.poll && C.supply && going;
         el.classList.toggle('on', !!busy && (el.dataset.cm === 'tx' ? anim.hop >= 1 && anim.hop <= 2 : anim.hop === 4));
       });
     }
@@ -910,8 +972,18 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
       cap = { text, kind: kind || 'info' };
       capEl.className = 'hwr-cap ' + cap.kind;
       capEl.querySelector('p').innerHTML = nw(text);
+      fitCap();
       void capEl.offsetWidth; // restart the flash animation
       capEl.classList.add('flash');
+    }
+    // phones: the caption shows 3 lines; "more" opens the rest (the hops already show each step's sentence)
+    function fitCap() {
+      const p = capEl.querySelector('p'), narrow = root.classList.contains('hwr-narrow');
+      capEl.classList.toggle('hwr-capx', capOpen);
+      const lh = parseFloat(getComputedStyle(p).lineHeight) || 21;
+      capEl.classList.toggle('hwr-long', narrow && p.scrollHeight > lh * 3 + 2);
+      moreEl.textContent = capOpen ? 'less ▴' : 'more ▾';
+      moreEl.setAttribute('aria-expanded', String(capOpen));
     }
 
     // ───── render everything (keeps keyboard focus on the same control) ─────
@@ -923,6 +995,7 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
       st.mods.forEach((m, s) => { if (!m && sel === s) sel = null; });
       root.querySelectorAll('[data-act="brand"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.b === st.brand)));
       renderRack(C);
+      if (wantReveal) { wantReveal = false; revealSlot(); }
       renderDetail(C);
       renderPower(C);
       if (!keepIO) renderIO(C);
@@ -937,71 +1010,123 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
     const WIN = ' Mission complete: every check is green!';
 
     // ───── animation of one signal, hop by hop ─────
-    function stopAnim() { clearTimeout(timer); anim = null; }
+    function stopAnim() { clearTimeout(timer); anim = null; pfx = ''; }
+    // a new action while a path runs: show its end state at once (so the new caption is not overwritten)
+    function finishAnim() {
+      if (!anim) return;
+      const k = anim.key;
+      stopAnim();
+      const C = calc();
+      paintPath(C); paintLive(C); refreshRow(k, C);
+    }
+    // keep the hop that is running visible: not under the sticky caption or the phone tab bar
+    function revealHop(el) {
+      const li = el || ioEl.querySelector('.hwr-hops > li.cur');
+      if (!li || !root.isConnected) return;
+      const r = li.getBoundingClientRect(), vh = window.innerHeight || document.documentElement.clientHeight;
+      const phone = !!(window.matchMedia && window.matchMedia('(max-width: 820px)').matches);
+      const tb = phone ? parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tabbar-h')) || 62 : 0;
+      const top = 70, bottom = vh - tb - capEl.offsetHeight - 22;
+      let dy = 0;
+      if (r.bottom > bottom) dy = r.bottom - bottom;
+      if (r.top - dy < top) dy = r.top - top;
+      if (Math.abs(dy) > 2) window.scrollBy({ top: dy, behavior: reduced() ? 'auto' : 'smooth' });
+    }
     function tick() {
       clearTimeout(timer);
       timer = setTimeout(() => {
         if (!root.isConnected || !anim) { anim = null; return; }
         anim.hop++;
-        const C = calc();
+        const C = calc(), p0 = pfx;
+        pfx = '';
         if (anim.hop >= 6) {
           const k = anim.key;
           anim = null;
           paintPath(C); paintLive(C); refreshRow(k, C);
-          say(summary(k, C), 'ok');
+          const sm = summary(k, C);
+          say(p0 + sm.t, sm.kind);
           return;
         }
-        paintPath(C); paintLive(C);
-        const M = model(anim.key, C);
-        say('Step ' + (anim.hop + 1) + ' of 6: ' + M.hops[anim.hop].txt, 'info');
+        paintPath(C); paintLive(C); refreshRow(anim.key, C);
+        revealHop();
+        const x = model(anim.key, C).hops[anim.hop];
+        say(p0 + 'Step ' + (anim.hop + 1) + ' of 6: ' + x.txt, /bad/.test(x.state) ? 'bad' : 'info');
         tick();
       }, slow ? 1300 : 250);
     }
     function refreshRow(k, C) {
+      C = C || calc();
       const btn = ioEl.querySelector('[data-act="test"][data-k="' + k + '"]:not([data-f="again"])');
-      const v = btn && btn.parentNode.querySelector('.hwr-v');
-      if (v && (grp(k) === 'di' || grp(k) === 'dq')) { v.textContent = vals[k] ? '1' : '0'; v.classList.toggle('on', !!vals[k]); }
-      if (v && grp(k) === 'ai') { v.textContent = f1(vals[k]) + ' mA'; v.classList.toggle('bad', vals[k] < 3.6); }
-      if (v && grp(k) === 'aq') v.textContent = Math.round(vals[k]) + ' %';
+      const v = btn && btn.parentNode.querySelector('.hwr-v'), bd = badge(k, C);
+      if (v && bd) { v.textContent = bd.t; v.className = 'hwr-v' + bd.c; v.title = bd.ti; }
     }
+    // the closing caption of a digital or serial path, with its colour (bad = the signal did not arrive)
     function summary(k, C) {
-      const g = grp(k), S = sigOf(k), a = C.asg[k], A = chAddr(a.slot, a.ch), m = st.mods[a.slot], b = st.brand, on = !!vals[k], tm = termOf(k);
-      if (!C.supply) return `The signal stopped at the card: the rack has no power supply. Add a PS 25 W in slot 0.`;
+      const g = grp(k), S = sigOf(k), a = C.asg[k], A = chAddr(a.slot, a.ch), m = st.mods[a.slot], b = st.brand, on = !!vals[k], tm = termOf(k), dead = deadOf(C);
+      const bad = (t) => ({ t, kind: 'bad' });
+      const stopT = `the CPU is in STOP (red ERROR LED) because of ${C.stopWhy || 'a hardware configuration error'}, so the program does not run. Fix the red module first.`;
       if (g === 'di') {
-        if (!C.cpu) return `${S.id} reached the card (LED ${on ? 'on' : 'off'}), but there is no CPU to read it. Add a CPU in slot 1.`;
+        if (dead === 'power') return bad('The signal stopped at the card: the rack has no power supply. Add a PS 25 W in slot 0.');
+        if (dead === 'cpu') return bad(`${S.id} reached the card (LED ${on ? 'on' : 'off'}), but there is no CPU to read it. Add a CPU in slot 1.`);
+        if (dead === 'stop') return bad(`${S.id} reached the card (LED ${on ? 'on' : 'off'}), but ${stopT}`);
         const ph = ({ pb: on ? 'is pressed' : 'is released', nc: on ? 'is not pressed' : 'is pressed', sel: on ? 'is in AUTO' : 'is in MAN', sen: on ? 'switches on' : 'switches off', ol: on ? 'is OK' : 'has tripped', aux: on ? 'is closed' : 'is open' })[S.kind];
         let t = `${S.id} ${ph}, so ${A} = ${fv(on)}. `;
         t += b === 'rockwell' ? `Why ${A}? The card is in slot ${a.slot} and the wire is on channel ${a.ch}: move the card and the address changes.` : `Why ${A}? The card in slot ${a.slot} starts at byte ${m.s}: channel ${a.ch} is byte ${m.s + (a.ch >> 3)}, bit ${a.ch & 7}.`;
         if (S.kind === 'nc') t += ' STOP is wired NC: 1 = not pressed, so a broken wire also stops the machine (fail-safe).';
         if (S.kind === 'ol') t += ' -F1 is wired NC too: a broken wire looks like a trip, which is safe.';
         if (C.conf[a.slot]) t += ' Warning: this address is also used by another module!';
-        return t;
+        return { t, kind: C.conf[a.slot] ? 'warn' : 'ok' };
       }
       if (g === 'dq') {
+        if (dead) return bad(dead === 'power' ? 'Nothing happens: there is no power supply, so no CPU runs and no output can switch.' : dead === 'cpu' ? 'Nothing happens: there is no CPU, so no program runs and no output can switch.' : 'Nothing happens: ' + stopT);
         let t = `${S.tag} = ${fv(on)} → ${A} → slot ${a.slot} ch ${a.ch} → ${tm} → ${S.id} ${devState(S, on)}. `;
         t += b === 'rockwell' ? 'Logix sends output tags to the card every RPI.' : 'Outputs change only when the CPU writes the output image, at the end of the scan.';
         if (C.conf[a.slot]) t += ' Warning: this address is also used by another module!';
-        return t;
+        return { t, kind: C.conf[a.slot] ? 'warn' : 'ok' };
       }
-      if (g === 'ser') return `The meter answered: ${f1(vals[k])} kW. Serial data has no I/O address: it comes through the CM in slot ${a.slot} and a Modbus block, a few times per second, not every scan.`;
-      return '';
+      if (g === 'ser') {
+        if (dead) return bad(dead === 'stop' ? 'Nothing happens: ' + stopT : 'Nothing happens: without ' + (dead === 'power' ? 'power' : 'a CPU') + ' nobody asks the meter.');
+        const head = `The meter answered: ${f1(vals[k])} kW. `;
+        return { kind: 'ok', t: head + (b === 'siemens' ? `Serial data has no I/O address: it comes through the CM in slot ${a.slot}, and Modbus_Master writes it into the data block "Meter", a few times per second, not every scan.`
+          : b === 'rockwell' ? `Serial data has no Local: address: it comes through the CM in slot ${a.slot}, and the AOI copies it into the tag Meter_Power, a few times per second, not every scan.`
+            : `It comes through the CM in slot ${a.slot}. CODESYS maps the Modbus registers to %IW addresses in the I/O Mapping tab of the slave; the bus cycle updates them, slower than the scan.`) };
+      }
+      return { t: '', kind: 'info' };
+    }
+    // caption for an analog path (on open, and while the slider moves)
+    function anCaption(k, C, intro) {
+      const g = grp(k), S = sigOf(k), a = C.asg[k], M = model(k, C), dead = deadOf(C), rw = st.brand === 'rockwell', ai = g === 'ai';
+      const where = `${S.id} is on ${ai ? 'AI' : 'AQ'} card slot ${a.slot}, channel ${a.ch}`;
+      const lead = intro ? where : ai ? `${f1(M.mA)} mA at the card` : `${S.tag} = ${Math.round(M.pct)} %`;
+      // the most precise reason first: no power, no CPU, then this card's own odd start byte, then any other STOP reason
+      if (M.noA && dead !== 'power' && dead !== 'cpu') return { kind: 'bad', t: `${lead}, but the card starts on odd byte ${st.mods[a.slot].s}. ${ODDTXT}${ai ? 'read' : 'write'} this channel. Select the card and press Auto.${dead ? ' Until then the CPU stays in STOP (red ERROR LED).' : ''}` };
+      if (dead) {
+        return { kind: 'bad', t: `${lead}, but ` + (dead === 'power' ? 'the rack has no power supply: the cards are dead and no program runs. Add a PS 25 W in slot 0.'
+          : dead === 'cpu' ? `there is no CPU to ${ai ? 'read' : 'write'} it. Add a CPU in slot 1.`
+            : `the CPU is in STOP (red ERROR LED) because of ${C.stopWhy || 'a hardware configuration error'}: the program does not run. Fix the red module first.`) };
+      }
+      if (ai) {
+        const chain = `${f1(M.mA)} mA → ${rw ? 'the module scales it' : 'raw ' + M.rawT} → ${S.tag} = ${M.engT}.`;
+        return { kind: M.an.cls === 'ok' ? 'info' : M.an.cls, t: (intro ? where + ': ' : '') + chain + (intro && M.an.cls === 'ok' ? ' Move the slider to change the current.' : ' ' + M.an.t) };
+      }
+      const chain = `${S.tag} = ${Math.round(M.pct)} % → ${rw ? chAddr(a.slot, a.ch) + ' = ' + f1(M.pct) : 'raw ' + M.raw} → ${M.mA.toFixed(1)} mA → the valve opens ${Math.round(M.pct)} %.`;
+      return { kind: 'info', t: (intro ? where + ': ' : '') + chain + (intro ? ' Move the slider: it is the value your program writes.' : '') };
     }
     function run(k) {
       const C = calc(), g = grp(k);
       if (!C.asg[k]) return;
       if (anim) { const old = anim.key; stopAnim(); refreshRow(old, C); }
-      const S = sigOf(k), a = C.asg[k];
+      const S = sigOf(k), dead = deadOf(C);
       if (g === 'ai' || g === 'aq') {
         if (open === k) { open = null; renderIO(C); paintLive(C); say(`Closed the path of ${S.id}.`); return; }
         open = k; renderIO(C); paintLive(C);
-        const M = model(k, C);
-        say(g === 'ai' ? `${S.id} is on AI card slot ${a.slot}, channel ${a.ch}: ${f1(M.mA)} mA → ${st.brand === 'rockwell' ? M.engT : 'raw ' + M.rawT} → ${M.engT}. Move the slider to change the current.` : `${S.id} is on AQ card slot ${a.slot}, channel ${a.ch}: ${Math.round(M.pct)} % → ${M.mA.toFixed(1)} mA. Move the slider: it is the value your program writes.`);
+        const r = anCaption(k, C, true);
+        say(r.t, r.kind);
         return;
       }
       open = k;
-      if (g === 'dq' && (!C.supply || !C.cpu)) { renderIO(C); paintLive(C); say(!C.supply ? 'Nothing happens: there is no power supply, so no CPU runs and no output can switch.' : 'Nothing happens: there is no CPU, so no program runs and no output can switch.', 'bad'); return; }
+      if ((g === 'dq' || g === 'ser') && dead) { renderIO(C); paintLive(C); say(summary(k, C).t, 'bad'); return; }
       if (g === 'ser') {
-        if (!C.supply || !C.cpu) { renderIO(C); paintLive(C); say('Nothing happens: without ' + (!C.supply ? 'power' : 'a CPU') + ' nobody asks the meter.', 'bad'); return; }
         vals[k] = 8 + Math.round(Math.random() * 80) / 10;
         anim = { key: k, hop: 0, poll: true };
       } else {
@@ -1010,7 +1135,9 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
         anim = { key: k, hop: 0, prev };
       }
       renderIO(C); paintLive(C);
-      say('Step 1 of 6: ' + model(k, C).hops[0].txt, 'info');
+      const x = model(k, C).hops[0];
+      say(pfx + 'Step 1 of 6: ' + x.txt, /bad/.test(x.state) ? 'bad' : 'info');
+      pfx = '';
       tick();
     }
 
@@ -1025,109 +1152,152 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
       if (t === 'CPU' && st.mods.some((m) => m && m.t === 'CPU')) return say('A rack has only one CPU. One CPU runs one program and owns all the cards in the rack.', 'warn');
       const s = st.mods.indexOf(null);
       if (s < 0) return say('The rack is full: all 10 slots are used. Remove a module first.', 'warn');
+      const was = calc().stopped;
       st.mods[s] = { t, s: T.bytes ? freeStart(t, -1) : null };
-      sel = s;
+      sel = s; whatIf = false; wantReveal = true;
       if (T.g) tab = T.g;
       const r = renderAll();
       let txt;
       if (t === 'PS') txt = s === 0 ? 'Power supply in slot 0. It must be left of the CPU: it feeds the backplane that powers the CPU and all cards.' : st.mods[0] && st.mods[0].t === 'PS' ? `Second power supply in slot ${s}: it adds 25 W for more modules.` : `Power supply in slot ${s}. It belongs in slot 0, left of the CPU: move it there.`;
       else if (t === 'CPU') txt = s === 1 ? 'CPU in slot 1, right of the power supply. The I/O cards go on its right.' : `CPU in slot ${s}. It should be in slot 1: power supply, then CPU, then I/O.`;
-      else if (t === 'CM') txt = `CM RS-485 in slot ${s}: a serial port for the Modbus energy meter. It has no I/O bytes: the program reads the meter with Modbus blocks.`;
+      else if (t === 'CM') txt = `CM RS-485 in slot ${s}: a serial port for the Modbus energy meter. ${cmShort()}`;
       else txt = `${T.label} in slot ${s}: ${addrSentence(s)}`;
-      if (s < 2 && !((s === 0 && t === 'PS') || (s === 1 && t === 'CPU'))) txt += ` Careful: slot ${s} is for the ${s ? 'CPU' : 'power supply'}. Use ◀ ▶ to move modules.`;
-      say(txt + (r.fresh ? WIN : ''), r.fresh ? 'ok' : s < 2 && !((s === 0 && t === 'PS') || (s === 1 && t === 'CPU')) ? 'warn' : 'info');
+      const misplaced = s < 2 && !((s === 0 && t === 'PS') || (s === 1 && t === 'CPU'));
+      if (misplaced) txt += ` Careful: slot ${s} is for the ${s ? 'CPU' : 'power supply'}. Use ◀ ▶ to move modules.`;
+      if (st.brand === 'rockwell' && (t === 'PS' || t === 'CPU')) txt += t === 'PS' ? ' (Real ControlLogix: the PS sits on the side, with no slot number.)' : ' (Real ControlLogix: the controller is usually in slot 0.)';
+      const sn = stopNews(was, r.C);
+      say(txt + sn + (r.fresh ? WIN : ''), r.fresh ? 'ok' : misplaced || sn ? 'warn' : 'info');
     }
     function move(dir) {
       const s = sel, d = s + dir;
       if (s == null || d < 0 || d >= NS) return;
-      const m = st.mods[s], other = st.mods[d], T = MT[m.t], b = st.brand;
-      st.mods[d] = m; st.mods[s] = other; sel = d;
-      const r = renderAll();
+      const m = st.mods[s], other = st.mods[d], T = MT[m.t], b = st.brand, before = addrMap(), was = calc().stopped;
+      st.mods[d] = m; st.mods[s] = other; sel = d; wantReveal = true;
+      const r = renderAll(), after = addrMap(), same = !!other && other.t === m.t;
       let txt = `You moved ${T.label} from slot ${s} to slot ${d}${other ? ' (it swapped places with ' + MT[other.t].label + ')' : ''}.`;
       if (T.bytes) {
-        txt += b === 'rockwell' ? ` In Studio 5000 the slot is the address: Local:${s} became Local:${d}. Alias tags must point to the new slot!` : ` Its addresses stay ${rangeTxt(d)}: in ${BNAME[b]} the start byte belongs to the module, not to the slot.`;
-        if (other && other.t === m.t) txt += ' Two cards of the same type swapped, so the signals moved to the other card (they fill the cards in slot order).';
+        if (b === 'rockwell') txt += same ? ' Two identical cards swapped: the signals still fill the cards in slot order, so every signal keeps its Local: address.' : ` In Studio 5000 the slot is the address: Local:${s} became Local:${d}.`;
+        else txt += same ? ` The card keeps its addresses ${rangeTxt(d)} (in ${BNAME[b]} the start byte belongs to the module), but the signals fill the cards in slot order, so they moved to the other card.`
+          : ` Its addresses stay ${rangeTxt(d)}: in ${BNAME[b]} the start byte belongs to the module, not to the slot.`;
+      }
+      // which signals got a new address? (the program still uses the old one)
+      const ch = Object.keys(before).filter((k) => grp(k) !== 'ser' && after[k] && after[k] !== before[k]);
+      if (ch.length) {
+        const k0 = ch[0], S0 = sigOf(k0), old = before[k0], now = Object.keys(after).find((k) => after[k] === old);
+        txt += ` So ${S0.id} ${S0.d} moved from ${old} to ${after[k0]}${ch.length > 1 ? ' (and ' + (ch.length - 1) + ' more)' : ''}.`;
+        txt += b === 'rockwell' ? ' The alias tags must point to the new slot!' : now ? ` The program's ${old} now reads ${sigOf(now).id}: update the tags!` : ' The program must use the new addresses!';
       }
       const bad = r.C.rules[d];
       if (bad) txt += ' ' + bad[0];
-      say(txt + (r.fresh ? WIN : ''), r.fresh ? 'ok' : bad ? 'warn' : 'info');
+      const sn = stopNews(was, r.C);
+      say(txt + sn + (r.fresh ? WIN : ''), r.fresh ? 'ok' : bad || ch.length || sn ? 'warn' : 'info');
     }
     function remove() {
       if (sel == null || !st.mods[sel]) return;
       const s = sel, m = st.mods[s], T = MT[m.t], before = calc();
-      st.mods[s] = null; sel = null;
+      st.mods[s] = null; sel = null; whatIf = false;
       const r = renderAll();
       let txt = `You removed ${T.label} from slot ${s}.`;
       if (m.t === 'PS' && !r.C.supply) txt += ' No power supply now: the backplane has no power, the CPU and the cards go dark.';
       else if (m.t === 'CPU') txt += ' No CPU now: no program runs and nobody reads or writes the cards.';
       else if (T.g) { const lost = r.C.missing[T.g] - before.missing[T.g]; if (lost > 0) txt += ` ${lost} signal${lost > 1 ? 's have' : ' has'} no channel now (red in the I/O list).`; }
-      say(txt, 'warn');
+      say(txt + stopNews(before.stopped, r.C), 'warn');
     }
     function setStart(val, auto) {
       const s = sel, m = s == null ? null : st.mods[s];
       if (!m || !MT[m.t].bytes || st.brand === 'rockwell') return;
-      const T = MT[m.t], v = auto ? freeStart(m.t, s) : Number(val);
-      if (!auto && (String(val).trim() === '' || !Number.isInteger(v) || v < 0 || v > 999)) return say('Type a whole number from 0 to 999 for the start byte.', 'warn');
-      if (T.word && v % 2 && st.brand === 'codesys') return say(`In CODESYS a word module must start on an even byte: %${T.area}W n = bytes 2n and 2n+1. Byte ${v} is in the middle of a word. Try ${v - 1} or ${v + 1}.`, 'bad');
-      const old = m.s;
+      const T = MT[m.t], typed = String(val).trim();
+      const back = () => { const i = root.querySelector('[data-start]'); if (i) i.value = m.s; }; // a rejected value must not stay in the field
+      if (!auto && (!/^\d+$/.test(typed) || +typed > 999)) { back(); return say(`Type a whole number from 0 to 999 for the start byte. ${T.label} keeps byte ${m.s}.`, 'warn'); }
+      const v = auto ? freeStart(m.t, s) : +typed;
+      if (T.word && v % 2 && st.brand === 'codesys') { back(); return say(`In CODESYS a word module must start on an even byte: %${T.area}W n = bytes 2n and 2n+1. Byte ${v} is in the middle of a word. Try ${v - 1} or ${v + 1}. ${T.label} keeps byte ${m.s}.`, 'bad'); }
+      const old = m.s, was = calc().stopped;
       m.s = v;
-      const r = renderAll(), conf = r.C.conf[s];
-      if (conf && conf.length && !conf[0].odd) {
-        const c = conf[0];
-        return say(`Overlap! ${T.label} in slot ${s} and ${MT[st.mods[c.other].t].label} in slot ${c.other} both use ${bytesTxt(c.lo, c.hi)}. One address would mean two different wires: choose a free start byte, or press Auto.`, 'bad');
-      }
+      const r = renderAll(), c = (r.C.conf[s] || []).find((x) => !x.odd);
+      if (c) return say(`Overlap! ${T.label} in slot ${s} and ${MT[st.mods[c.other].t].label} in slot ${c.other} both use ${bytesTxt(c.lo, c.hi)}. One address would mean two different wires: choose a free start byte, or press Auto.${st.brand === 'siemens' ? ' TIA Portal would refuse to compile this.' : ''}${stopNews(was, r.C)}`, 'bad');
       if (v === old) return say(`${T.label} already starts at byte ${v}: ${rangeTxt(s)}.`);
       let txt = `You moved ${T.label} to start at byte ${v}: its ${T.area === 'I' ? 'inputs' : 'outputs'} are now ${rangeTxt(s)} — the program must use the new addresses!`;
       if (T.word && v % 2) txt += ' Siemens accepts an odd start byte, but CODESYS would not (words must start on an even byte).';
+      if (was && !r.C.stopped) txt += ' The address problem is gone: the CPU can run again (RUN LED on).';
       say(txt + (r.fresh ? WIN : ''), r.fresh ? 'ok' : 'warn');
     }
+    const BRAND_TXT = {
+      siemens: 'Siemens TIA: every I/O module gets a start byte. Bits are I byte.bit (I0.3); words are IW + start byte (IW4). You can change the start byte. TIA Portal shows them with a % sign: %I0.3, %IW4.',
+      rockwell: 'Rockwell Studio 5000: no byte numbers. The slot is the address: Local:2:I.Data.3 = slot 2, channel 3. You give it a good name with an alias tag. ' + RW_NOTE,
+      codesys: 'CODESYS: bits are %IX byte.bit (%IX0.3). Words are counted BY WORD: %IW2 = bytes 4 and 5 (Siemens calls the same word IW4).',
+    };
     function setBrand(bk) {
-      if (!BNAME[bk] || bk === st.brand) return;
+      if (!BNAME[bk]) return;
+      if (bk === st.brand) return say(`You are already in ${BNAME[bk]}. ${BRAND_TXT[bk]}`, 'info');
       st.brand = bk;
       const r = renderAll();
-      const txt = {
-        siemens: 'Siemens TIA: every I/O module gets a start byte. Bits are I byte.bit (I0.3); words are IW + start byte (IW4). You can change the start byte.',
-        rockwell: 'Rockwell Studio 5000: no byte numbers. The slot is the address: Local:2:I.Data.3 = slot 2, channel 3. You give it a good name with an alias tag.',
-        codesys: 'CODESYS: bits are %IX byte.bit (%IX0.3). Words are counted BY WORD: %IW2 = bytes 4 and 5 (Siemens calls the same word IW4).',
-      }[bk];
-      say(txt + (r.fresh ? WIN : ''), r.fresh ? 'ok' : 'info');
+      const cs = Object.keys(r.C.conf).map(Number).sort((x, y) => x - y)[0];
+      const w = cs != null ? ` Warning: ${MT[st.mods[cs].t].label} in slot ${cs} now has an address problem (red). Select it and press Auto.` : '';
+      say(BRAND_TXT[bk] + w + (r.fresh ? WIN : ''), r.fresh ? 'ok' : w ? 'warn' : 'info');
     }
     function reset() {
       stopAnim();
-      try { localStorage.removeItem(STORE); } catch (e) { /* ignore */ }
       st = { brand: st.brand, mods: new Array(NS).fill(null) };
-      sel = null; open = null; tab = 'di'; wasDone = false;
+      sel = null; open = null; tab = 'di'; wasDone = false; whatIf = false;
       initVals();
-      renderAll();
-      try { localStorage.removeItem(STORE); } catch (e) { /* ignore */ }
+      renderAll(); // saves the empty rack and keeps the brand
+      rackEl.parentNode.scrollLeft = 0;
       say('Empty rack. Start with the power supply: click PS 25 W in the catalog.', 'info');
     }
     function slide(k, v) {
       vals[k] = +v;
       const C = calc();
       paintPath(C); paintLive(C); refreshRow(k, C);
-      const M = model(k, C), S = sigOf(k);
-      if (grp(k) === 'ai') say(`${f1(M.mA)} mA → ${st.brand === 'rockwell' ? 'the module scales it' : 'raw ' + M.rawT} → ${S.tag} = ${M.engT}. ${M.an.t}`, M.an.cls === 'ok' ? 'info' : M.an.cls);
-      else say(`${S.tag} = ${Math.round(M.pct)} % → ${st.brand === 'rockwell' ? chAddr(C.asg[k].slot, C.asg[k].ch) + ' = ' + f1(M.pct) : 'raw ' + M.raw} → ${M.mA.toFixed(1)} mA → the valve opens ${Math.round(M.pct)} %.`, 'info');
+      const r = anCaption(k, C, false);
+      say(r.t, r.kind);
+    }
+    function selectTab(g) {
+      tab = g;
+      renderIO(calc());
+      const n = root.querySelector('[data-f="tab-' + tab + '"]');
+      if (n) n.focus({ preventScroll: true });
+      const G = GBY[tab];
+      say(`I/O list: ${G.list.length} ${G.name}. Press ▶ test on a row to follow ${G.g === 'ser' ? 'the Modbus request' : 'the signal'}.`);
+    }
+    // after a re-render, put the control the learner used back where it was on the screen (no page jump)
+    function keepAt(fk, y0) {
+      const n = root.querySelector('[data-f="' + fk + '"]');
+      if (!n) return;
+      const dy = n.getBoundingClientRect().top - y0;
+      if (Math.abs(dy) > 1) window.scrollBy(0, dy);
+      n.focus({ preventScroll: true });
+    }
+    function whatIfCaption(C) {
+      const D = demoOf(C);
+      if (!D) return [`Back to your real rack: ${C.use.toFixed(1)} W of ${C.supply} W.${!C.supply ? ' There is no power supply yet.' : C.use <= C.supply ? ' It fits.' : ''}`, 'info'];
+      const who = C.supply > 25 ? 'your power supplies give' : C.supply ? 'one PS gives' : 'one PS 25 W would give';
+      return [`What if the machine grows? ${C.use.toFixed(1)} W + ${D.n} × ${MT.AQ.pw.toFixed(1)} W = ${D.use.toFixed(1)} W, but ${who} only ${D.sup} W: the cards on the right get no power. Add a second PS (it feeds the cards to its right) or a bigger one.`, 'bad'];
     }
 
     root.addEventListener('click', (e) => {
       const b = e.target.closest('[data-act]');
       if (!b || !root.contains(b) || b.disabled) return;
       const act = b.dataset.act;
+      if (anim && !/^(test|slow|more|close|tab)$/.test(act)) finishAnim();
       if (act === 'brand') setBrand(b.dataset.b);
       else if (act === 'add') add(b.dataset.t);
       else if (act === 'sel') {
         const s = +b.dataset.slot, m = st.mods[s];
         if (sel === s) { sel = null; renderAll(true); return say(`${MT[m.t].label} deselected.`); }
-        sel = s;
+        sel = s; wantReveal = true;
         if (MT[m.t].g) tab = MT[m.t].g;
         const r = renderAll();
-        const T = MT[m.t];
-        let txt = `${T.label} in slot ${s}. ` + (T.bytes ? (st.brand === 'rockwell' ? 'The slot is the address: ' + rangeTxt(s) + '.' : 'Start byte ' + m.s + ': ' + rangeTxt(s) + '.') : T.desc.split('. ')[0] + '.');
-        const pr = (r.C.rules[s] || [])[0];
+        const T = MT[m.t], rw = st.brand === 'rockwell';
+        let txt = `${T.label} in slot ${s}. `;
+        if (T.bytes) txt += rw ? 'The slot is the address: ' + rangeTxt(s) + '.' : 'Start byte ' + m.s + ': ' + rangeTxt(s) + '.';
+        else if (m.t === 'CPU' && rw) txt += 'The controller runs tasks; the I/O tags update in the background at the RPI. Simplified: in a real ControlLogix chassis the controller is usually in slot 0 (path 1,0).';
+        else if (m.t === 'PS' && rw) txt += 'It feeds the backplane. Simplified: in a real ControlLogix chassis the power supply sits on the side and has no slot number.';
+        else txt += descOf(m.t).split('. ')[0] + '.';
+        const cf = r.C.conf[s] || [], pr = (r.C.rules[s] || [])[0];
+        if (cf.some((c) => !c.odd)) { const c = cf.find((x) => !x.odd); txt += ` Its bytes overlap with ${MT[st.mods[c.other].t].label} in slot ${c.other}: change the start byte or press Auto.`; }
+        else if (cf.length) txt += ' Its start byte is odd: CODESYS needs an even byte for words. Press Auto.';
         if (pr) txt += ' ' + pr;
-        say(txt, pr || r.C.conf[s] ? 'warn' : 'info');
+        say(txt, pr || cf.length ? 'warn' : 'info');
       } else if (act === 'empty') {
         const s = +b.dataset.slot, free = st.mods.indexOf(null);
         sel = null; renderAll(true);
@@ -1137,21 +1307,64 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
       else if (act === 'remove') remove();
       else if (act === 'setstart') { const i = root.querySelector('[data-start]'); setStart(i ? i.value : ''); }
       else if (act === 'autostart') setStart(0, true);
-      else if (act === 'tab') { tab = b.dataset.g; renderIO(calc()); const n = root.querySelector('[data-f="tab-' + tab + '"]'); if (n) n.focus({ preventScroll: true }); const G = GBY[tab]; say(`I/O list: ${G.list.length} ${G.name}. Press ▶ test on a row to follow ${G.g === 'ser' ? 'the Modbus request' : 'the signal'}.`); }
-      else if (act === 'test') { const fk = b.getAttribute('data-f'); run(b.dataset.k); const n = root.querySelector('[data-f="' + fk + '"]'); if (n) n.focus({ preventScroll: true }); }
-      else if (act === 'close') { const k = open; stopAnim(); open = null; renderIO(calc()); paintLive(); const n = root.querySelector('[data-f="t-' + k + '"]'); if (n) n.focus({ preventScroll: true }); say('Signal path closed. Press ▶ test on any row to open it again.'); }
-      else if (act === 'slow') { slow = !slow; b.setAttribute('aria-pressed', String(slow)); say(slow ? 'Slow motion on: each hop now takes more than a second, so you can read every step.' : 'Slow motion off: each hop takes 0.25 s, about as fast as a real PLC scan feels.'); }
-      else if (act === 'preset') { const k = open, inp = root.querySelector('[data-slide]'); if (inp) inp.value = b.dataset.v; slide(k, b.dataset.v); }
+      else if (act === 'tab') selectTab(b.dataset.g);
+      else if (act === 'test') {
+        const fk = b.getAttribute('data-f'), y0 = b.getBoundingClientRect().top;
+        run(b.dataset.k);
+        keepAt(fk, y0);
+        // a running path: follow the current hop; an analog path: show its hops (not hidden under the caption)
+        revealHop(anim ? null : open && /^a[iq]:/.test(open) ? ioEl.querySelector(root.classList.contains('hwr-narrow') ? '.hwr-an' : '.hwr-hops') : null);
+      } else if (act === 'close') {
+        const k = open, rb = ioEl.querySelector('[data-f="t-' + k + '"]'), y0 = rb ? rb.getBoundingClientRect().top : 0;
+        stopAnim(); open = null; renderIO(calc()); paintLive();
+        if (rb) keepAt('t-' + k, y0);
+        say('Signal path closed. Press ▶ test on any row to open it again.');
+      } else if (act === 'slow') {
+        slow = !slow;
+        b.setAttribute('aria-pressed', String(slow));
+        if (anim) { pfx = slow ? 'Slow motion on. ' : 'Slow motion off. '; tick(); } // the next step caption says it: no caption that vanishes in 0.25 s
+        else say(slow ? 'Slow motion on: each hop now takes more than a second, so you can read every step.' : 'Slow motion off: 0.25 s per hop, only so your eyes can follow. A real PLC does all 6 hops in a few milliseconds.');
+      } else if (act === 'preset') { const k = open, inp = root.querySelector('[data-slide]'); if (inp) inp.value = b.dataset.v; slide(k, b.dataset.v); }
+      else if (act === 'whatif') {
+        whatIf = !whatIf;
+        const C = calc();
+        renderPower(C);
+        const n = root.querySelector('[data-f="whatif"]');
+        if (n) n.focus({ preventScroll: true });
+        const w = whatIfCaption(C);
+        say(w[0], w[1]);
+      } else if (act === 'more') { capOpen = !capOpen; fitCap(); }
       else if (act === 'reset') reset();
     });
     root.addEventListener('input', (e) => { const t = e.target; if (t.dataset && t.dataset.slide) slide(t.dataset.slide, t.value); });
-    root.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches && e.target.matches('[data-start]')) { e.preventDefault(); setStart(e.target.value); } });
+    root.addEventListener('keydown', (e) => {
+      const t = e.target;
+      if (!t.matches) return;
+      if (e.key === 'Enter' && t.matches('[data-start]')) { e.preventDefault(); setStart(t.value); return; }
+      if (t.matches('[role="tab"]') && /^(ArrowLeft|ArrowRight|Home|End)$/.test(e.key)) {
+        e.preventDefault();
+        const i = GR.findIndex((G) => G.g === tab), n = GR.length;
+        const j = e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : (i + (e.key === 'ArrowRight' ? 1 : n - 1)) % n;
+        selectTab(GR[j].g);
+      }
+    });
 
     ph.replaceWith(root);
-    // narrow layout (phones): decided by the widget's own width, not the window
-    const fit = () => root.classList.toggle('hwr-narrow', root.clientWidth < 600);
+    // layout by the widget's own width (not the window): phone = hops in 1 column, medium = 3 columns, wide = 6 in a row
+    let ro = null, seen = false, lastW = -1;
+    const fit = () => {
+      if (!root.isConnected) { if (seen) { if (ro) ro.disconnect(); else window.removeEventListener('resize', fit); } return; }
+      seen = true;
+      const w = root.clientWidth;
+      if (w === lastW) return;
+      lastW = w;
+      root.classList.toggle('hwr-narrow', w < 600);
+      root.classList.toggle('hwr-mid', w >= 600 && w < 740);
+      fitCap();
+    };
     fit();
-    if (window.ResizeObserver) new ResizeObserver(fit).observe(root); else window.addEventListener('resize', fit);
+    // the callback runs in the next frame, so a layout change never happens inside the observer (no "ResizeObserver loop" error)
+    if (window.ResizeObserver) { ro = new ResizeObserver(() => requestAnimationFrame(fit)); ro.observe(root); } else window.addEventListener('resize', fit);
     const first = renderAll();
     wasDone = first.C.checks.every((c) => c.ok);
     say(restored ? 'Welcome back: your rack is restored. Click a module to see its addresses, or press ▶ test in the I/O list.' : 'Start here: click PS 25 W. The catalog always puts a new module into the first free slot.', 'info');
