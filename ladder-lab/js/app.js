@@ -7,6 +7,8 @@
   const $$ = (s, r) => [...(r || document).querySelectorAll(s)];
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
   const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+  // own key only: a typed URL like #ch-constructor or #path-toString must not find Object's inherited members
+  const own = (o, k) => !!o && k != null && Object.prototype.hasOwnProperty.call(o, k);
 
   // ───────────────────────── storage ─────────────────────────
   const KEY = 'ladderlab.v1';
@@ -74,11 +76,13 @@
 
   // ───────────────────────── toast / modal ─────────────────────────
   let toastT = 0;
-  function toast(msg) {
+  // o.ms: how long it stays (long texts need more time); o.top: on phones show it under the header, not over the machine
+  function toast(msg, o) {
+    o = o || {};
     let t = $('.toast');
     if (!t) { t = h('<div class="toast" role="status"></div>'); document.body.appendChild(t); }
-    t.textContent = msg; t.classList.add('show');
-    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600);
+    t.textContent = msg; t.classList.toggle('top', !!o.top); t.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), o.ms || 2600);
   }
   function modal(title, bodyHtml, actions) {
     const m = h(`<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="card"><div class="mh"><h2>${esc(title)}</h2><button class="iconbtn" data-x aria-label="Close">✕</button></div><div class="mb">${bodyHtml}</div><div class="row ma"></div></div></div>`);
@@ -288,12 +292,34 @@
   const lessonNo = (l) => { const sameLvl = LL.LESSONS.filter((x) => x.level === l.level); return l.level + '.' + String(sameLvl.indexOf(l) + 1).padStart(2, '0'); };
   const countDone = () => ({ l: LL.LESSONS.filter((l) => S.lessons[l.id]).length, c: LL.CHALLENGES.filter((c) => S.ch[c.id]).length });
 
+  // ───────────────────────── topics (js/topics.js) ─────────────────────────
+  // Each topic element carries its colour as --tc; css/app.css mixes the icon stroke and tint from it.
+  const TOPICS = LL.TOPICS || [];
+  const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+  // "8 lessons · 10 tasks · 2 machines": every part stays on one line, so a narrow card wraps only between parts
+  const topicCounts = (T) => [[T.lessons.length, 'lesson'], [T.tasks.length, 'task'], [T.machines.length, 'machine']].filter(([n]) => n).map(([n, w]) => `<span class="nw">${plural(n, w)}</span>`).join(' · ');
+  const topicDone = (T) => { const l = T.lessons.filter((id) => S.lessons[id]).length, c = T.tasks.filter((id) => S.ch[id]).length; return { l, c, n: l + c, of: T.lessons.length + T.tasks.length }; };
+  const topicIc = (T, cls) => `<span class="tp-ic${cls ? ' ' + cls : ''}" aria-hidden="true">${T.icon}</span>`;
+  // on: this chip's topic is the current page ('page'), or the topic a lesson was opened from ('true')
+  const topicChip = (T, on) => `<a class="tp-chip${on ? ' on' : ''}" href="#topic-${T.id}" style="--tc:${T.color}"${on ? ` aria-current="${on === true ? 'page' : on}"` : ''}>${topicIc(T)}<span>${esc(T.title)}</span></a>`;
+  // interactive widgets in a lesson body → small "▶ live example" chips on the topic page
+  const lessonWidgets = (l) => {
+    const b = l.body || '', n = (re) => (b.match(re) || []).length, out = [];
+    const hw = n(/\[\[hw:\w+\]\]/g), comm = n(/\[\[comm:\w+\]\]/g), live = n(/\[\[sim:\w+\]\]/g) + n(/\[\[mem:explorer\]\]/g);
+    if (hw) out.push(hw > 1 ? hw + ' simulators' : 'simulator');
+    if (comm) out.push(comm > 1 ? comm + ' animations' : 'animation');
+    if (live) out.push(live > 1 ? live + ' live examples' : 'live example');
+    return out;
+  };
+  let labView = ''; // one-shot: the Lab opens on this view (phones show one pane at a time)
+
   function pageHome() {
     const d = countDone();
     const next = LL.LESSONS.find((l) => !S.lessons[l.id]) || LL.LESSONS[0];
+    // "Explore by topic" sits in the hero grid: on phones (css) it comes before the live rung, so the topics are on the first screen
     const el = h(`<div class="wrap">
       <section class="hero">
-        <div>
+        <div class="hero-t">
           <span class="plate">PLC · Ladder logic trainer</span>
           <h1>Learn ladder logic by <em>wiring it</em>, not memorising it.</h1>
           <p class="lead">${LL.LESSONS.length} short lessons from your first contact to whole-machine projects, a PLC simulator with ${LL.PLANT_ORDER.length} animated machines, and ${LL.CHALLENGES.length} challenges that test your program like a commissioning engineer would.</p>
@@ -303,6 +329,7 @@
           </div>
         </div>
         <div class="card hero-demo"><div class="demo-cap"><span class="eyebrow">Try it now: tap START, then STOP</span></div><div class="demo"></div></div>
+        ${TOPICS.length ? `<section class="tp-home" id="topics"><div class="sec-head"><div><h2>Explore by topic</h2><p>Pick a subject: every lesson, simulator, task, machine and quiz about it in one place.</p></div></div><div class="tp-grid"></div></section>` : ''}
       </section>
       <div class="sec-head"><div><h2>Your progress</h2><p>${d.l}/${LL.LESSONS.length} lessons · ${d.c}/${LL.CHALLENGES.length} challenges passed</p></div></div>
       <div class="grid levels-strip"></div>
@@ -311,13 +338,24 @@
         <a class="card path" href="#learn"><span class="ic">${I.learn}</span><h3>Lessons</h3><p>What, why and where, each with live examples you can press.</p></a>
         <a class="card path" href="#lab"><span class="ic">${I.lab}</span><h3>Lab</h3><p>Draw rungs and drive a motor, tank, conveyor, elevator, mixer, sorter, filling line or the 3 cylinders from your video.</p></a>
         <a class="card path" href="#path"><span class="ic">${I.arrow}</span><h3>Guided path</h3><p>All tasks in the order to solve them, from your first contact to whole machines.</p></a>
-        <a class="card path" href="#path-interview"><span class="ic">${I.arrow}</span><h3>Interview preparation</h3><p>The classic PLC interview tasks and questions, in the order to prepare them.</p></a>
+        <a class="card path" href="#path-interview"><span class="ic">${I.arrow}</span><h3>Interview path</h3><p>The classic PLC interview tasks, in the order to prepare them.</p></a>
         <a class="card path" href="#challenges"><span class="ic">${I.target}</span><h3>Challenges</h3><p>Real tasks with automatic tests, hints and bug hunts.</p></a>
         <a class="card path" href="#quiz"><span class="ic">${I.quiz}</span><h3>Quiz</h3><p>Concept questions plus endless "predict the output" drills.</p></a>
       </div>
     </div>`);
     main().appendChild(el);
     new MiniSim($('.demo', el), { program: 'RUNG Start/stop with seal-in\nNO(I0.3) | NO(I0.0) | COIL(Q0.0)\n. NO(Q0.0)', inputs: { 'I0.0': { name: 'START', kind: 'pb' }, 'I0.3': { name: 'STOP', kind: 'pbnc' } }, outputs: { 'Q0.0': 'Motor' } }, { label: 'Live rung', noOpen: true });
+    const tg = $('.tp-grid', el);
+    if (tg) TOPICS.forEach((T) => {
+      const d = topicDone(T), pct = d.of ? Math.round((d.n / d.of) * 100) : 0;
+      // .started: phones show the small progress line only on topics you have begun (no 22 empty bars for a newcomer)
+      tg.appendChild(h(`<a class="card tp-card${d.n ? ' started' : ''}" href="#topic-${T.id}" style="--tc:${T.color}">
+        <div class="tp-head">${topicIc(T)}<h3>${esc(T.title)}</h3></div>
+        <p>${esc(T.blurb)}</p>
+        <span class="tp-n">${topicCounts(T)}</span>
+        <div class="tp-foot"><span class="meter" title="${d.n} of ${d.of} lessons and tasks done"><i style="width:${pct}%"></i></span><span class="tp-pct">${d.n}/${d.of}</span><span class="tp-go">Open ${I.arrow}</span></div>
+      </a>`));
+    });
     const strip = $('.levels-strip', el);
     LL.LEVELS.forEach((lv) => {
       const ls = LL.LESSONS.filter((l) => l.level === lv.n), dn = ls.filter((l) => S.lessons[l.id]).length;
@@ -326,7 +364,7 @@
   }
 
   function pageLearn() {
-    const el = h(`<div class="wrap"><span class="plate">Course</span><h1 style="margin:10px 0 6px">Lessons</h1><p class="muted" style="margin:0 0 26px;max-width:62ch">Work through the levels in order. Every lesson explains <b>what</b> an instruction is, <b>why</b> it exists and <b>where</b> it is used, with live examples. Then practise in the linked challenges.</p><div class="levels"></div><div class="sec-head"><div><h2>Reference</h2><p>Terms you'll hear on site, in plain words.</p></div><a class="btn" href="#glossary">${I.book} Open glossary</a></div></div>`);
+    const el = h(`<div class="wrap"><span class="plate">Course</span><h1 style="margin:10px 0 6px">Lessons</h1><p class="muted" style="margin:0 0 26px;max-width:62ch">Work through the levels in order. Every lesson explains <b>what</b> an instruction is, <b>why</b> it exists and <b>where</b> it is used, with live examples. Then practise in the linked challenges.</p>${TOPICS.length ? `<div class="tp-pick"><div class="tp-pick-h"><h2>Or pick a topic</h2><a class="tp-all" href="#topics">All ${TOPICS.length} topics ${I.arrow}</a></div><div class="tp-strip tp-swipe">${TOPICS.map((T) => topicChip(T)).join('')}</div><p class="tp-swipe-hint" aria-hidden="true">Swipe for more topics →</p></div>` : ''}<div class="levels"></div><div class="sec-head"><div><h2>Reference</h2><p>Terms you'll hear on site, in plain words.</p></div><a class="btn" href="#glossary">${I.book} Open glossary</a></div></div>`);
     const lv = $('.levels', el);
     LL.LEVELS.forEach((L) => {
       const b = h(`<section class="level-block"><div class="level-head"><span class="big">${L.n}</span><div><h2>${esc(L.name)}</h2><p>${esc(L.sub)}</p></div></div><div class="lessons"></div></section>`);
@@ -336,25 +374,43 @@
       lv.appendChild(b);
     });
     main().appendChild(el);
+    swipeStrip($('.tp-swipe', el));
+  }
+  // phones: the topic strip scrolls sideways; its right edge fades until you reach the end
+  function swipeStrip(s) {
+    if (!s) return;
+    const upd = () => s.classList.toggle('at-end', s.scrollLeft + s.clientWidth >= s.scrollWidth - 4);
+    s.addEventListener('scroll', upd, { passive: true });
+    upd();
   }
 
-  function pageLesson(id) {
+  // tid: the topic the learner came from (#lesson-<id>~<topic>). Then Back / Next follow that topic's
+  // order and the last lesson leads back to the topic page; otherwise the course order.
+  function pageLesson(id, tid) {
     const i = lessonIdx(id);
     if (i < 0) return pageLearn();
-    const l = LL.LESSONS[i], prev = LL.LESSONS[i - 1], next = LL.LESSONS[i + 1];
+    const l = LL.LESSONS[i];
+    const T = own(LL.TOPIC_BY_ID, tid) && LL.TOPIC_BY_ID[tid].lessons.includes(l.id) ? LL.TOPIC_BY_ID[tid] : null;
+    const seq = T ? T.lessons.map((x) => LL.LESSONS[lessonIdx(x)]).filter(Boolean) : LL.LESSONS;
+    const k = seq.indexOf(l), prev = seq[k - 1], next = seq[k + 1];
+    const lhref = (x) => '#lesson-' + x.id + (T ? '~' + T.id : '');
     const lvl = LL.LEVELS[l.level - 1];
+    const tps = LL.topicsOfLesson ? LL.topicsOfLesson(l.id) : [];
+    const nextNote = T ? `<p class="tp-next">${next ? `Next in <b>${esc(T.title)}</b>: ${esc(next.title)}` : `Last lesson in <b>${esc(T.title)}</b>. The button takes you back to the topic and its tasks.`}</p>` : '';
     let body = l.body.replace(/\[\[sim:(\w+)\]\]/g, (m, k) => `<div class="sim-ph" data-sim="${k}"></div>`).replace(/\[\[mem:explorer\]\]/g, '<div class="mem-ph"></div>').replace(/\[\[brands:table\]\]/g, () => LL.brandTableHTML()).replace(/\[\[comm:(\w+)\]\]/g, (m, k) => `<div class="comm-ph" data-comm="${k}"></div>`).replace(/\[\[hw:(\w+)\]\]/g, (m, k) => `<div class="hw-ph" data-hw="${k}"></div>`);
     const el = h(`<div class="wrap"><div class="lesson">
       <article>
-        <a class="btn small ghost" href="#learn">${I.back} All lessons</a>
-        <div class="eyebrow" style="margin-top:14px">Lesson ${lessonNo(l)} · Level ${l.level}: ${esc(lvl.name)} · ${l.min} min</div>
+        ${T ? `<a class="btn small ghost" href="#topic-${T.id}">${I.back} ${esc(T.title)}</a>` : `<a class="btn small ghost" href="#learn">${I.back} All lessons</a>`}
+        <div class="eyebrow" style="margin-top:14px">${T ? `${esc(T.title)}: step ${k + 1} of ${seq.length} · ` : ''}Lesson ${lessonNo(l)} · Level ${l.level}: ${esc(lvl.name)} · ${l.min} min</div>
         <h1>${esc(l.title)}</h1>
+        ${tps.length ? `<div class="tp-chips tp-lesson"><span class="tp-lbl">Topic${tps.length > 1 ? 's' : ''}</span>${tps.map((X) => topicChip(X, T && X.id === T.id ? 'true' : false)).join('')}</div>` : ''}
         <p class="sum">${esc(l.summary)}</p>
         <div class="prose">${body}</div>
         <div class="lesson-nav">
-          ${prev ? `<a class="btn" href="#lesson-${prev.id}">${I.back} ${esc(prev.title)}</a>` : '<span></span>'}
-          <button class="btn go" data-done>${S.lessons[l.id] ? 'Completed ✓' : 'Mark complete'}${next ? ' & continue' : ''}</button>
+          ${prev ? `<a class="btn" href="${lhref(prev)}">${I.back} ${esc(prev.title)}</a>` : '<span></span>'}
+          <button class="btn go" data-done>${S.lessons[l.id] ? 'Completed ✓' : 'Mark complete'}${next ? ' & continue' : T ? ' & back to the topic' : ''}</button>
         </div>
+        ${nextNote}
       </article>
       <aside><div class="card">
         <h4>Remember</h4><ul>${l.takeaways.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
@@ -374,7 +430,105 @@
       b.onclick = () => { if (spec.lang === 'st') { S.st.lab = spec.program; S.lang.lab = 'st'; } else { S.programs.lab = spec.program; S.lang.lab = 'ld'; } S.plant.lab = spec.plant; saveNow(); location.hash = 'lab'; };
       o.appendChild(b);
     });
-    $('[data-done]', el).onclick = () => { S.lessons[l.id] = 1; save(); if (next) location.hash = 'lesson-' + next.id; else { toast('Course complete. Well done!'); location.hash = 'learn'; } };
+    $('[data-done]', el).onclick = () => {
+      S.lessons[l.id] = 1; save();
+      if (next) location.hash = lhref(next).slice(1);
+      else if (T) { toast('All lessons of ' + T.title + ' done. Now try its tasks.', { ms: 4000 }); location.hash = 'topic-' + T.id; }
+      else { toast('Course complete. Well done!'); location.hash = 'learn'; }
+    };
+  }
+
+  // one topic: its lessons, tasks, Lab machines and quiz questions in one place
+  function pageTopic(id) {
+    if (!own(LL.TOPIC_BY_ID, id)) return pageHome();
+    const T = LL.TOPIC_BY_ID[id];
+    const lessons = T.lessons.map((x) => LL.LESSONS[lessonIdx(x)]).filter(Boolean);
+    const tasks = T.tasks.filter((x) => own(LL.CH_BY_ID, x)).map((x) => LL.CH_BY_ID[x]);
+    const machines = T.machines.filter((x) => own(LL.Plants, x));
+    const quiz = (T.quiz || []).filter((q) => own(BANKS, q.mode));
+    const d = topicDone(T), pct = d.of ? Math.round((d.n / d.of) * 100) : 0;
+    // lessons opened from here carry the topic (#lesson-<id>~<topic>): "Mark complete & continue" then stays in this topic
+    const lhref = (l) => '#lesson-' + l.id + '~' + T.id;
+    // the next step: the first lesson, then the next lesson not done, then the next task not passed
+    const startL = LL.LESSONS[lessonIdx(T.start)];
+    const nextL = startL && !S.lessons[startL.id] ? startL : lessons.find((l) => !S.lessons[l.id]);
+    const nextC = tasks.find((c) => !S.ch[c.id]);
+    const go = nextL ? `<a class="btn primary" href="${lhref(nextL)}">${nextL === startL ? 'Start here' : 'Continue'}: ${esc(nextL.title)} ${I.arrow}</a>`
+      : nextC ? `<a class="btn primary" href="#ch-${nextC.id}">Next task: ${esc(nextC.title)} ${I.arrow}</a>`
+      : '<span class="chip ok">✓ All done in this topic. Well done!</span>';
+    const P = T.path && own(LL.PATH_BY_ID, T.path.id) ? LL.PATH_BY_ID[T.path.id] : null;
+    const pathBtn = P ? `<a class="btn" href="#path-${P.id}">${esc(T.path.label || P.title)} ${I.arrow}</a>` : '';
+    const prog = [lessons.length ? `<b>${d.l}/${lessons.length}</b> lessons` : '', tasks.length ? `<b>${d.c}/${tasks.length}</b> tasks` : ''].filter(Boolean).join(' · ');
+    // the sections, and the jump buttons, in page order; a topic can show its quiz first
+    // (interview: the questions are what people look for there)
+    const SEC = {
+      lessons: ['Lessons', 'Lessons', 'Read them in this order. Some have a simulator or an animation you can try.', lessons.length],
+      tasks: ['Tasks', 'Tasks', `Tasks with a machine and automatic tests. <b>${d.c}/${tasks.length}</b> passed.`, tasks.length],
+      machines: ['Machines', 'Machines in the Lab', 'Free play: open a machine and try your own program.', machines.length],
+      quiz: ['Quiz', 'Quiz', 'Check what you know: up to 10 questions per round.', quiz.length],
+    };
+    const order = (T.quizFirst ? ['quiz', 'lessons', 'tasks', 'machines'] : ['lessons', 'tasks', 'machines', 'quiz']).filter((k) => SEC[k][3]);
+    const sec = (k) => `<section class="tp-sec" id="tp-${k}"><div class="sec-head"><div><h2>${SEC[k][1]}</h2><p>${SEC[k][2]}</p></div></div><div class="tp-${k}"></div></section>`;
+    // no number on the Quiz pill: its buttons count questions, not quiz buttons
+    const jump = (k) => `<button type="button" data-jump="tp-${k}">${SEC[k][0]}${k === 'quiz' ? '' : ` <span>${SEC[k][3]}</span>`}</button>`;
+    const el = h(`<div class="wrap tp-page" style="--tc:${T.color}">
+      <a class="btn small ghost" href="#topics">${I.back} All topics</a>
+      <header class="card tp-hero">
+        ${topicIc(T, 'big')}
+        <div class="tp-hero-t">
+          <span class="eyebrow">Topic · ${topicCounts(T)}</span>
+          <h1>${esc(T.title)}</h1>
+          <p>${esc(T.intro)}</p>
+          <div class="tp-hero-go">${go}${pathBtn}${prog ? `<div class="tp-prog"><span>${prog} done</span><div class="meter"><i style="width:${pct}%"></i></div></div>` : ''}</div>
+        </div>
+      </header>
+      ${order.length > 1 ? `<div class="filters tp-jump" role="group" aria-label="Jump to">${order.map(jump).join('')}</div>` : ''}
+      ${order.map(sec).join('')}
+      <section class="tp-sec tp-others"><div class="sec-head"><div><h2>Other topics</h2><p>Jump to another subject.</p></div></div><div class="tp-strip">${TOPICS.map((X) => topicChip(X, X.id === T.id)).join('')}</div></section>
+    </div>`);
+    // lesson cards: the big number is the step in this topic (1, 2, 3…); the course number is small text
+    lessons.forEach((l, k) => {
+      const w = lessonWidgets(l);
+      $('.tp-lessons', el).appendChild(h(`<a class="card lesson-card" href="${lhref(l)}"><span class="no tp-step" title="Step ${k + 1} in this topic">${k + 1}</span><span class="body"><span class="tp-lno">Lesson ${lessonNo(l)} · ${l.min} min</span><h4>${esc(l.title)}</h4><p>${esc(l.summary)}</p>${w.length ? `<span class="tp-ws">${w.map((x) => `<span class="tp-w">${I.play}${esc(x)}</span>`).join('')}</span>` : ''}</span><span class="check ${S.lessons[l.id] ? 'done' : ''}">${S.lessons[l.id] ? I.check : ''}</span></a>`));
+    });
+    tasks.forEach((c) => {
+      const t = chKind(c), plain = c.brief.replace(/<[^>]+>/g, '');
+      // kind chips (no chip when the title already says it, or starts with its icon)
+      const tags = [t.st ? 'ST' : '', t.bug && !/bug hunt|^🐞/i.test(c.title) ? '🐞 bug hunt' : '', c.kind === 'diagnose' && !/fault finding|^🔧/i.test(c.title) ? '🔧 fault finding' : ''].filter(Boolean).map((x) => `<span class="chip">${x}</span>`).join('');
+      const state = S.ch[c.id] ? '<span class="chip ok">✓ passed</span>' : S.chTried[c.id] ? '<span class="chip">in progress</span>' : '';
+      $('.tp-tasks', el).appendChild(h(`<a class="card ch-card tp-task" href="#ch-${c.id}"><div class="top-line"><span class="eyebrow">Level ${c.level} · ${esc(LL.Plants[c.plant].name)}</span>${state}</div><h4>${esc(c.title)}</h4><p>${esc(plain.length > 140 ? plain.slice(0, 138) + '…' : plain)}</p>${tags ? `<div class="tp-tags">${tags}</div>` : ''}</a>`));
+    });
+    const mbox = $('.tp-machines', el);
+    machines.forEach((pid) => {
+      // count only the tasks on this page: that is where the learner looks for them
+      const M = LL.Plants[pid], n = tasks.filter((c) => c.plant === pid).length;
+      const a = h(`<a class="card tp-mach" href="#lab"><h4>${esc(M.name)}</h4><p>${esc(M.blurb || '')}</p><div class="tp-mfoot"><span class="muted">${n ? 'Used in ' + plural(n, 'task') + ' here' : 'Free play'}</span><span class="btn small">${I.lab} Open in the Lab</span></div></a>`);
+      // same as picking the machine in the Lab's machine list: your program is kept, so say it with the Lab's words
+      a.onclick = () => { S.plant.lab = pid; labView = 'machine'; saveNow(); toast('Machine: ' + M.name + '. Your program is kept: press Clear for an empty editor, or ⓘ How it works for its working program.', { ms: 6500, top: true }); };
+      mbox.appendChild(a);
+    });
+    // phones (css): the first 4 machines, then a "Show all" button
+    if (machines.length > 4) {
+      mbox.classList.add('cut');
+      const more = h(`<button type="button" class="btn small tp-more">Show all ${machines.length} machines</button>`);
+      more.onclick = () => { mbox.classList.remove('cut'); more.remove(); };
+      mbox.after(more);
+    }
+    // quiz buttons: preselect the level / topic in that quiz bank, like its filter buttons do
+    const QNAME = { concept: 'Concept check', iv: 'Interview questions', net: 'Industrial networks' };
+    [...new Set(quiz.map((q) => q.mode))].forEach((mode) => {
+      const B = BANKS[mode], items = quiz.filter((q) => q.mode === mode);
+      const label = (q) => (mode === 'concept' ? 'Level ' + q.sel + (LL.LEVELS[q.sel - 1] ? ': ' + LL.LEVELS[q.sel - 1].name : '') : String(q.sel));
+      const nq = (q) => B.list().filter((x) => String(x[B.by]) === String(q.sel)).length;
+      const g = h(`<div class="card tp-qg${items.length > 3 ? ' wide' : ''}"><div class="tp-qh">${I.quiz}<b>${QNAME[mode]}</b></div><div class="tp-qb">${items.map((q) => `<button type="button" class="btn small" data-qs="${esc(String(q.sel))}">${esc(label(q))} <span class="tp-qn">· ${plural(nq(q), 'question')}</span></button>`).join('')}</div></div>`);
+      $$('[data-qs]', g).forEach((b) => (b.onclick = () => { S.quiz[B.sel] = b.dataset.qs; saveNow(); location.hash = 'quiz-' + mode; }));
+      $('.tp-quiz', el).appendChild(g);
+    });
+    $$('[data-jump]', el).forEach((b) => (b.onclick = () => {
+      const s = document.getElementById(b.dataset.jump);
+      if (s) s.scrollIntoView({ behavior: window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    }));
+    main().appendChild(el);
   }
 
   function pathState(P) {
@@ -383,7 +537,7 @@
     return { done, next: next && LL.CH_BY_ID[next] };
   }
   function pagePath(pid) {
-    const P = LL.PATH_BY_ID[pid] || LL.PATHS[0];
+    const P = own(LL.PATH_BY_ID, pid) ? LL.PATH_BY_ID[pid] : LL.PATHS[0];
     S.path = P.id; save();
     const ps = pathState(P);
     const pct = Math.round((ps.done / P.all.length) * 100);
@@ -798,7 +952,8 @@
       this.setTool('select');
       el.addEventListener('click', (e) => { const b = e.target.closest('[data-a]'); if (b && el.contains(b)) this.action(b.dataset.a, b); });
       $$('.seg button', el).forEach((b) => (b.onclick = () => this.setView(b.dataset.v)));
-      this.setView(ch ? 'task' : 'program');
+      this.setView(ch ? 'task' : labView || 'program');
+      labView = '';
       const ps = $('#plant-sel', el);
       if (ps) { ps.value = this.plantId; ps.onchange = () => { this.plantId = ps.value; S.plant.lab = ps.value; save(); this.newMachine(); toast('Machine: ' + this.plant.name + '. Your program is kept: press Clear for an empty editor, or ⓘ How it works for its working program.'); }; }
       if (ch) this.renderTask();
@@ -1414,7 +1569,7 @@
       toast('Editor emptied. Undo (↶) brings your program back.');
     }
     nextCh() { const P = this.pathOf(); if (P) { const ids = P.all, i = ids.indexOf(this.ch.id); const nx = ids.slice(i + 1).find((id) => !S.ch[id]) || ids[i + 1]; return nx ? LL.CH_BY_ID[nx] : null; } const i = LL.CHALLENGES.indexOf(this.ch); return LL.CHALLENGES[i + 1]; }
-    pathOf() { const pref = LL.PATH_BY_ID[S.path || 'ladder']; if (pref && pref.all.includes(this.ch.id)) return pref; return LL.PATHS.find((P) => P.all.includes(this.ch.id)); }
+    pathOf() { const pref = own(LL.PATH_BY_ID, S.path) ? LL.PATH_BY_ID[S.path] : LL.PATH_BY_ID.ladder; if (pref && pref.all.includes(this.ch.id)) return pref; return LL.PATHS.find((P) => P.all.includes(this.ch.id)); }
 
     askSolution() {
       modal('Load the solution?', '<p>Your current program will be replaced. You can get it back with <b>Undo</b>. Try one more hint first? Struggling a little is how it sticks.</p>', [
@@ -1573,34 +1728,71 @@
     }
   }
 
+  // ───────────────────────── scroll memory ─────────────────────────
+  // Back / Forward return to the place you left (long topic pages, the task lists). Each history entry
+  // gets a key in history.state; the scroll position per key lives here (and in sessionStorage for a
+  // reload). A new page (new entry, no key yet) opens at the top.
+  const SCROLL_KEY = 'ladderlab.scroll';
+  let scrollMem = {};
+  try { scrollMem = JSON.parse(sessionStorage.getItem(SCROLL_KEY) || '{}') || {}; } catch (e) { /* storage unavailable */ }
+  let scrollAt = ''; // key of the page on screen; '' while a page is being drawn (its scroll events are not the learner's)
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  window.addEventListener('scroll', () => { if (scrollAt) scrollMem[scrollAt] = Math.round(window.scrollY); }, { passive: true });
+  window.addEventListener('pagehide', () => {
+    const ks = Object.keys(scrollMem); ks.slice(0, Math.max(0, ks.length - 200)).forEach((k) => delete scrollMem[k]);
+    try { sessionStorage.setItem(SCROLL_KEY, JSON.stringify(scrollMem)); } catch (e) { /* storage unavailable */ }
+  });
+  function entryKey() {
+    let k = history.state && history.state.k;
+    if (!k) {
+      k = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      try { history.replaceState(Object.assign({}, history.state, { k }), ''); } catch (e) { return ''; }
+    }
+    return k;
+  }
+
   // ───────────────────────── router ─────────────────────────
   let current = '';
   function route() {
     const hsh = (location.hash || '#home').slice(1) || 'home';
     if (hsh === current) return;
     current = hsh;
+    scrollAt = '';
     const m = main();
     m.innerHTML = '';
     tickers.clear();
-    let tab = 'home';
+    // typed URLs can name anything: own() keeps #ch-constructor, #topic-toString… away from Object's members
+    const isTopic = hsh.startsWith('topic-') && own(LL.TOPIC_BY_ID, hsh.slice(6));
+    const chId = hsh.startsWith('ch-') && own(LL.CH_BY_ID, hsh.slice(3)) ? hsh.slice(3) : '';
+    let tab = 'home'; // topic pages live on Home ("Explore by topic"): their "All topics" link goes there too
     if (hsh === 'learn' || hsh.startsWith('lesson-') || hsh === 'glossary') tab = 'learn';
     else if (hsh === 'lab') tab = 'lab';
-    else if (hsh === 'challenges' || hsh.startsWith('ch-')) tab = 'challenges';
+    else if (hsh === 'challenges' || chId) tab = 'challenges';
     else if (hsh === 'path' || hsh.startsWith('path-')) tab = 'path';
     else if (hsh === 'quiz' || hsh.startsWith('quiz-')) tab = 'quiz';
     $$('[data-tab]').forEach((a) => a.classList.toggle('on', a.dataset.tab === tab));
     if (hsh === 'learn') pageLearn();
-    else if (hsh.startsWith('lesson-')) pageLesson(hsh.slice(7));
+    else if (hsh.startsWith('lesson-')) { const [lid, tid] = hsh.slice(7).split('~'); pageLesson(lid, tid); }
     else if (hsh === 'lab') new Lab({});
     else if (hsh === 'challenges') pageChallenges();
     else if (hsh === 'path' || hsh.startsWith('path-')) pagePath(hsh.slice(5) || S.path || 'ladder');
-    else if (hsh.startsWith('ch-') && LL.CH_BY_ID[hsh.slice(3)]) new Lab({ challenge: LL.CH_BY_ID[hsh.slice(3)] });
+    else if (chId) new Lab({ challenge: LL.CH_BY_ID[chId] });
     else if (hsh === 'quiz' || hsh.startsWith('quiz-')) pageQuiz(hsh.slice(5));
     else if (hsh === 'glossary') pageGlossary();
+    else if (isTopic) pageTopic(hsh.slice(6));
     else pageHome();
     const d = countDone();
     const xp = $('.xp'); if (xp) xp.textContent = d.l + '/' + LL.LESSONS.length + ' lessons · ' + d.c + '/' + LL.CHALLENGES.length + ' challenges';
-    window.scrollTo(0, 0);
+    // Back / Forward: the remembered place; a new page: the top, or for #topics (Home) "Explore by topic"
+    const key = entryKey(), y = key ? scrollMem[key] : 0;
+    const place = () => {
+      const t = hsh === 'topics' && $('#topics');
+      if (y) window.scrollTo(0, y);
+      else if (t) t.scrollIntoView();
+      else window.scrollTo(0, 0);
+    };
+    place();
+    requestAnimationFrame(() => { if (current !== hsh) return; place(); scrollAt = key; });
   }
 
   function shell() {

@@ -1,6 +1,6 @@
 // node ladder-lab/tests/run.js — verifies engine + every challenge solution
 const path = require('path');
-['engine', 'st', 'plants', 'challenges', 'lessons'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
+['engine', 'st', 'plants', 'challenges', 'lessons', 'topics'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
 const LL = globalThis.LL;
 let fail = 0, pass = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL', m); } };
@@ -74,5 +74,41 @@ console.log('ST sample:\n' + LL.toST(LL.parseProgram(LL.CH_BY_ID['permissive'].s
     ok(!seen.has(q.q), bank + ' duplicate question: ' + q.q); seen.add(q.q);
   });
 });
+// topics (js/topics.js): every id exists, every lesson and every challenge is in at least one topic, every topic has an icon
+{
+  const T = LL.TOPICS || [];
+  ok(T.length === 22, 'there are 22 topics, found ' + T.length);
+  ok(new Set(T.map((t) => t.id)).size === T.length, 'topic ids are unique');
+  const hasL = (id) => LL.LESSONS.some((l) => l.id === id);
+  const qBank = { concept: [LL.QUIZ, 'l'], iv: [LL.QUIZ_IV || [], 't'], net: [LL.QUIZ_NET || [], 't'] };
+  T.forEach((t) => {
+    ok(t.id && t.title && t.blurb && t.intro, 'topic ' + t.id + ' has a title, blurb and intro');
+    ok(/^#[0-9a-f]{6}$/i.test(t.color || ''), 'topic ' + t.id + ' has a colour');
+    ok(/^<svg [^>]*viewBox="0 0 24 24"[\s\S]*<\/svg>$/.test(t.icon || ''), 'topic ' + t.id + ' has an icon');
+    ok(hasL(t.start) && t.lessons.includes(t.start), 'topic ' + t.id + ' start lesson ' + t.start);
+    ok(t.lessons.length + t.tasks.length > 0, 'topic ' + t.id + ' is not empty');
+    t.lessons.forEach((id) => ok(hasL(id), 'topic ' + t.id + ' unknown lesson ' + id));
+    t.tasks.forEach((id) => ok(!!LL.CH_BY_ID[id], 'topic ' + t.id + ' unknown task ' + id));
+    t.machines.forEach((id) => ok(!!LL.Plants[id], 'topic ' + t.id + ' unknown machine ' + id));
+    (t.quiz || []).forEach((q) => { const b = qBank[q.mode]; ok(b && b[0].some((x) => String(x[b[1]]) === String(q.sel)), 'topic ' + t.id + ' quiz ' + q.mode + ' / ' + q.sel + ' has questions'); });
+  });
+  ok(new Set(T.map((t) => t.icon)).size === T.length, 'every topic has its own icon');
+  LL.LESSONS.forEach((l) => ok(T.some((t) => t.lessons.includes(l.id)), 'lesson ' + l.id + ' is in no topic'));
+  LL.CHALLENGES.forEach((c) => ok(T.some((t) => t.tasks.includes(c.id)), 'challenge ' + c.id + ' is in no topic'));
+  // a typed URL (#topic-constructor) must not find Object's inherited members
+  ['constructor', 'toString', '__proto__', 'hasOwnProperty'].forEach((k) => ok(LL.TOPIC_BY_ID[k] === undefined, 'TOPIC_BY_ID has no inherited ' + k));
+  T.forEach((t) => {
+    ok(LL.TOPIC_BY_ID[t.id] === t, 'TOPIC_BY_ID.' + t.id);
+    ['lessons', 'tasks', 'machines'].forEach((f) => ok(new Set(t[f]).size === t[f].length, 'topic ' + t.id + ' lists a ' + f.slice(0, -1) + ' twice'));
+    // the Machines list holds every machine its tasks use (a topic may list none: interview, brands)
+    if (t.machines.length) t.tasks.forEach((id) => { const p = LL.CH_BY_ID[id] && LL.CH_BY_ID[id].plant; ok(!p || t.machines.includes(p), 'topic ' + t.id + ': task ' + id + ' runs on ' + p + ', which is not in its machines'); });
+    if (t.quizFirst) ok((t.quiz || []).length > 0, 'topic ' + t.id + ' shows its quiz first but has none');
+    if (t.path) {
+      const P = LL.PATH_BY_ID[t.path.id];
+      ok(!!P && !!t.path.label, 'topic ' + t.id + ' path ' + (t.path && t.path.id));
+      if (P) P.all.forEach((id) => ok(t.tasks.includes(id), 'topic ' + t.id + ' misses task ' + id + ' of its path ' + P.id));
+    }
+  });
+}
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

@@ -101,6 +101,9 @@ h3 { font-size: 1.3rem; }
 .xp { font-family: var(--f-mono); font-size: .78rem; color: var(--muted); white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 1080px) { .xp { display: none; } }
 
+/* must come before the phone rule below, or it wins and the tab bar covers the end of every page */
+main { padding-block: 24px 48px; }
+
 /* ───── bottom tabs (phones) ───── */
 .tabs { display: none; }
 @media (max-width: 820px) {
@@ -117,10 +120,8 @@ h3 { font-size: 1.3rem; }
   .tabs a svg { width: 22px; height: 22px; }
   .tabs a.on { color: var(--ink); }
   .tabs a.on svg { color: var(--power); }
-  main { padding-bottom: calc(var(--tabbar-h) + 24px); }
+  main { padding-bottom: calc(var(--tabbar-h) + 24px + env(safe-area-inset-bottom, 0px)); }
 }
-
-main { padding-block: 24px 48px; }
 
 /* ───── generic pieces ───── */
 .eyebrow { font-family: var(--f-mono); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
@@ -155,9 +156,15 @@ main { padding-block: 24px 48px; }
 .check svg { width: 13px; height: 13px; }
 .meter { height: 6px; background: var(--surface-3); border-radius: 3px; overflow: hidden; }
 .meter i { display: block; height: 100%; background: var(--power); border-radius: 3px; transition: width .4s; }
-.toast { position: fixed; left: 50%; bottom: calc(var(--tabbar-h) + 30px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(20px); opacity: 0; background: var(--ink); color: var(--surface); padding: 10px 18px; border-radius: 10px; font-weight: 500; z-index: 50; transition: .25s; pointer-events: none; max-width: calc(100% - 32px); text-align: center; }
+.toast { position: fixed; left: 50%; bottom: calc(var(--tabbar-h) + 30px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(20px); opacity: 0; background: var(--ink); color: var(--surface); padding: 10px 18px; border-radius: 10px; font-weight: 500; z-index: 50; transition: .25s; pointer-events: none; width: max-content; max-width: min(560px, calc(100% - 32px)); text-align: center; }
+/* width: max-content, else left: 50% squeezes a long toast into half the screen */
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 @media (min-width: 821px) { .toast { bottom: 30px; } }
+/* toast(msg, { top: true }): on phones and tablets it shows under the header, not over the machine picture */
+@media (max-width: 820px) {
+  .toast.top { bottom: auto; top: calc(66px + env(safe-area-inset-top, 0px)); transform: translateX(-50%) translateY(-12px); }
+  .toast.top.show { transform: translateX(-50%) translateY(0); }
+}
 
 /* ───── home ───── */
 .hero { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 28px; align-items: center; }
@@ -169,6 +176,11 @@ main { padding-block: 24px 48px; }
 .hero-demo .mini { margin: 0; box-shadow: var(--shadow); }
 .hero-demo .demo-cap { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 8px; }
 @media (max-width: 860px) { .hero { grid-template-columns: 1fr; } }
+/* "Explore by topic" is the hero's last row (full width); on phones it moves above the live rung,
+   so a newcomer sees the topics on the first screen without scrolling */
+.hero > .tp-home { grid-column: 1 / -1; }
+.hero > .tp-home > .sec-head:first-child { margin-top: 6px; }
+@media (max-width: 560px) { .hero > .hero-demo { order: 1; } }
 .paths { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
 .path { padding: 18px; text-decoration: none; display: flex; flex-direction: column; gap: 8px; transition: border-color .15s, transform .15s; }
 .path:hover { border-color: var(--ink-2); transform: translateY(-1px); }
@@ -618,3 +630,168 @@ ul.guide { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 6
 .comm-ctl { display: flex; gap: 8px; flex-wrap: wrap; }
 .comm-opts { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: .85rem; margin-top: 8px; }
 .comm-opts input, .comm-opts select { margin-left: 4px; }
+
+/* ───── topics: Home "Explore by topic", #topic-<id> pages, topic chips (js/topics.js) ─────
+   Every topic element carries its colour as --tc (style="--tc:#…"). The icon stroke
+   (--tc-ink) and the soft tint (--tc-bg) are mixed from it: a touch darker on light,
+   lighter (mixed with white) on dark, so the icons stay readable in both themes. */
+/* --tc-text: small coloured text on the tint (WCAG AA 4.5:1 for every topic colour, both themes) */
+:root { --tc-mix: #000; --tc-mix-k: 8%; --tc-text-k: 30%; --tc-tint-k: 12%; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --tc-mix: #fff; --tc-mix-k: 40%; --tc-text-k: 40%; --tc-tint-k: 22%; } }
+:root[data-theme="dark"] { --tc-mix: #fff; --tc-mix-k: 40%; --tc-text-k: 40%; --tc-tint-k: 22%; }
+[style*="--tc:"] {
+  --tc-ink: color-mix(in srgb, var(--tc), var(--tc-mix) var(--tc-mix-k));
+  --tc-text: color-mix(in srgb, var(--tc), var(--tc-mix) var(--tc-text-k));
+  --tc-bg: color-mix(in srgb, var(--tc) var(--tc-tint-k), transparent);
+  --tc-line: color-mix(in srgb, var(--tc) 45%, var(--line));
+}
+.nw { white-space: nowrap; }
+.tp-ic { width: 42px; height: 42px; border-radius: 11px; display: grid; place-items: center; flex: none; color: var(--tc-ink); background: var(--tc-bg); }
+.tp-ic svg { width: 24px; height: 24px; }
+.tp-ic.big { width: 76px; height: 76px; border-radius: 18px; }
+.tp-ic.big svg { width: 44px; height: 44px; }
+
+/* Home: the topic cards (same language as .card.path) */
+.tp-home { scroll-margin-top: 64px; }
+.tp-grid { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .tp-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .tp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tp-card { padding: 16px; text-decoration: none; color: var(--ink); display: flex; flex-direction: column; gap: 10px; min-width: 0; transition: border-color .15s, transform .15s, box-shadow .15s; }
+.tp-card:hover { border-color: var(--tc-line); transform: translateY(-1px); box-shadow: var(--shadow); }
+.tp-head { display: flex; gap: 12px; align-items: center; min-width: 0; }
+.tp-card h3 { font-size: 1.24rem; min-width: 0; }
+.tp-card p { margin: 0; color: var(--ink-2); font-size: .9rem; line-height: 1.45; }
+.tp-n { font-size: .8rem; color: var(--muted); line-height: 1.35; margin-top: -4px; }
+.tp-foot { margin-top: auto; display: flex; align-items: center; gap: 10px; }
+.tp-foot .meter { flex: 1; height: 4px; min-width: 30px; }
+.tp-foot .meter i, .tp-prog .meter i { background: var(--tc-ink); }
+.tp-pct { font: 500 .74rem var(--f-mono); color: var(--muted); }
+.tp-go { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: .85rem; white-space: nowrap; transition: background .15s, border-color .15s; }
+.tp-go svg { width: 15px; height: 15px; color: var(--tc-ink); }
+.tp-card:hover .tp-go { background: var(--tc-bg); border-color: var(--tc-line); }
+/* phones: two compact columns. Icon, title and the one-line blurb (its key words, e.g. "light curtains",
+   "Modbus", "IP addresses", are what a beginner looks for); no counts. A thin progress line only on
+   topics you have started. The blurb is never cut: cards in a row grow to the tallest one. */
+@media (max-width: 560px) {
+  .tp-grid { gap: 8px; }
+  .tp-card { padding: 11px; gap: 6px; }
+  .tp-head { gap: 9px; }
+  .tp-card .tp-ic { width: 32px; height: 32px; border-radius: 9px; }
+  .tp-card .tp-ic svg { width: 19px; height: 19px; }
+  .tp-card h3 { font-size: 1.06rem; line-height: 1.1; }
+  .tp-card p { font-size: .8rem; line-height: 1.32; color: var(--muted); }
+  .tp-n, .tp-go { display: none; }
+  .tp-foot { display: none; gap: 6px; }
+  .tp-card.started .tp-foot { display: flex; }
+  .tp-foot .meter { height: 3px; }
+  .tp-pct { font-size: .68rem; }
+}
+@media (max-width: 340px) { .tp-grid { grid-template-columns: 1fr; } }
+
+/* topic chips: Learn page, "Other topics", lesson page */
+.tp-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tp-strip { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(212px, 1fr)); }
+.tp-chip { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 4px 12px 4px 4px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); text-decoration: none; color: var(--ink); font-weight: 600; font-size: .86rem; line-height: 1.2; min-width: 0; transition: border-color .15s, background .15s; }
+.tp-chip span:last-child { min-width: 0; }
+.tp-chip .tp-ic { width: 29px; height: 29px; border-radius: 50%; }
+.tp-chip .tp-ic svg { width: 17px; height: 17px; }
+.tp-chip:hover { border-color: var(--tc-line); background: var(--surface-2); }
+.tp-chip.on { border-color: var(--tc-ink); box-shadow: inset 0 0 0 1px var(--tc-ink); }
+.tp-pick { margin: 0 0 30px; }
+.tp-pick-h { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 14px; flex-wrap: wrap; margin: 0 0 10px; }
+.tp-pick h2 { font-size: 1.3rem; margin: 0; }
+.tp-all { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; font-size: .9rem; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; min-height: 32px; }
+.tp-all svg { width: 15px; height: 15px; }
+.tp-swipe-hint { display: none; }
+@media (max-width: 640px) {
+  /* Learn page: a compact sideways strip (3 rows) instead of a long list. Its right edge fades and a
+     hint says "swipe", so the cut chips read as "more to the right", not as a broken layout. */
+  .tp-strip { grid-template-columns: none; grid-auto-flow: column; grid-template-rows: repeat(3, auto); grid-auto-columns: max-content; overflow-x: auto; overscroll-behavior-x: contain; padding-bottom: 8px; scrollbar-width: thin; }
+  .tp-strip .tp-chip { white-space: nowrap; }
+  .tp-swipe:not(.at-end) { -webkit-mask-image: linear-gradient(90deg, #000 78%, transparent); mask-image: linear-gradient(90deg, #000 78%, transparent); }
+  .tp-swipe-hint { display: block; margin: 2px 0 0; font-size: .8rem; color: var(--muted); text-align: right; }
+  .tp-swipe.at-end + .tp-swipe-hint { visibility: hidden; }
+  /* "Other topics" at the end of a topic page: all 22 in two columns, nothing hidden */
+  .tp-others .tp-strip { grid-auto-flow: row; grid-template-rows: none; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-columns: auto; overflow: visible; padding-bottom: 0; }
+  .tp-others .tp-strip .tp-chip { white-space: normal; font-size: .82rem; }
+}
+.tp-lesson { margin: 0 0 12px; }
+.tp-lesson .tp-lbl { font-family: var(--f-mono); font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+.tp-lesson .tp-chip { display: inline-flex; min-height: 30px; padding: 2px 10px 2px 2px; font-size: .82rem; gap: 6px; }
+.tp-lesson .tp-chip .tp-ic { width: 25px; height: 25px; }
+.tp-lesson .tp-chip .tp-ic svg { width: 15px; height: 15px; }
+
+/* topic page */
+.tp-hero { margin-top: 12px; padding: 24px; display: flex; gap: 22px; align-items: flex-start; background: linear-gradient(115deg, var(--tc-bg), transparent 58%), var(--surface); }
+.tp-hero-t { min-width: 0; flex: 1; }
+.tp-hero h1 { margin: 6px 0 8px; font-size: clamp(2rem, 4.6vw, 2.9rem); }
+.tp-hero p { margin: 0 0 18px; color: var(--ink-2); font-size: 1.04rem; max-width: 70ch; }
+.tp-hero-go { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; }
+.tp-hero-go .btn { white-space: normal; text-align: left; max-width: 100%; }
+.tp-prog { display: grid; gap: 6px; flex: 1 1 200px; max-width: 340px; font-size: .86rem; color: var(--muted); }
+.tp-prog b { color: var(--ink); font-weight: 600; }
+.tp-jump { margin: 16px 0 0; }
+.tp-sec { scroll-margin-top: 70px; }
+.tp-sec .sec-head { margin-top: 30px; }
+.tp-sec .sec-head p b { color: var(--ink); font-weight: 600; }
+.tp-lessons { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 10px; }
+.tp-ws { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.tp-w { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px 2px 7px; border-radius: 999px; background: var(--tc-bg); color: var(--tc-text); font-size: .74rem; font-weight: 600; line-height: 1.4; }
+/* topic page lesson cards: the step in the topic (1, 2, 3…) and, small, the course number */
+.tp-lessons .tp-step { font: 800 1.35rem/1 var(--f-display); color: var(--tc-text); min-width: 22px; text-align: center; padding-top: 1px; }
+.tp-lno { display: block; font: 500 .7rem var(--f-mono); letter-spacing: .06em; color: var(--muted); margin-bottom: 2px; }
+/* lesson page opened from a topic: what comes next in that topic */
+.tp-next { margin: 8px 0 0; font-size: .9rem; color: var(--muted); text-align: right; }
+@media (max-width: 640px) { .tp-next { text-align: left; } }
+.tp-next b { color: var(--ink); font-weight: 600; }
+.tp-w svg { width: 9px; height: 9px; }
+.tp-tasks { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); gap: 10px; }
+.tp-task { align-content: start; }
+.tp-task .top-line .eyebrow { min-width: 0; }
+.tp-task .top-line .chip { flex: none; }
+.tp-task p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tp-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tp-tags .chip { font-size: .76rem; padding: 2px 9px; }
+.tp-machines { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 10px; }
+.tp-mach { padding: 14px; display: flex; flex-direction: column; gap: 6px; text-decoration: none; color: var(--ink); min-width: 0; }
+.tp-mach:hover { border-color: var(--ink-2); }
+.tp-mach h4 { margin: 0; font-size: 1.02rem; }
+.tp-mach p { margin: 0; font-size: .86rem; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* count and button always on one line: the count wraps inside its own box, so cards side by side look the same */
+.tp-mfoot { margin-top: auto; padding-top: 6px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: nowrap; font-size: .84rem; }
+.tp-mfoot .muted { min-width: 0; line-height: 1.3; }
+.tp-mfoot .btn { flex: none; }
+.tp-more { display: none; margin-top: 10px; }
+.tp-mach:hover .btn { background: var(--surface-2); border-color: var(--ink-2); }
+.tp-mfoot .btn svg { color: var(--tc-ink); }
+.tp-quiz { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 10px; }
+.tp-qg { padding: 14px; display: grid; gap: 10px; align-content: start; }
+.tp-qg.wide { grid-column: 1 / -1; }
+.tp-qh { display: flex; align-items: center; gap: 8px; }
+.tp-qh svg { width: 19px; height: 19px; color: var(--tc-ink); }
+.tp-qb { display: flex; flex-wrap: wrap; gap: 6px; }
+.tp-qb .btn { white-space: normal; text-align: left; max-width: 100%; }
+.tp-qn { font: 500 .74rem var(--f-mono); color: var(--muted); }
+.tp-others .sec-head { margin-top: 40px; }
+/* lesson page sidebar: the "Practise" links had no icon size (the icon grew to fill the card) */
+.ch-link svg { width: 18px; height: 18px; flex: none; }
+@media (max-width: 640px) {
+  /* a short hero, so the first lesson card is on the first screen: the icon sits next to the title,
+     no eyebrow (its counts are on the jump buttons right below) */
+  .tp-hero { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0 12px; padding: 16px; }
+  .tp-hero-t { display: contents; }
+  .tp-hero .eyebrow { display: none; }
+  .tp-hero h1 { margin: 0; font-size: 1.85rem; }
+  .tp-hero p, .tp-hero-go { grid-column: 1 / -1; }
+  .tp-hero p { font-size: .95rem; line-height: 1.45; margin: 10px 0 12px; }
+  .tp-hero-go { gap: 8px; }
+  .tp-ic.big { width: 44px; height: 44px; border-radius: 12px; }
+  .tp-ic.big svg { width: 26px; height: 26px; }
+  .tp-hero-go .btn { width: 100%; justify-content: space-between; }
+  .tp-prog { max-width: none; margin-top: 4px; }
+  .tp-jump { margin-top: 12px; }
+  .tp-task p { display: none; }
+  /* long machine lists: the first 4, then "Show all" */
+  .tp-machines.cut > .tp-mach:nth-child(n+5) { display: none; }
+  .tp-machines.cut + .tp-more { display: inline-flex; }
+}
