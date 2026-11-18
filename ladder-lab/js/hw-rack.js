@@ -712,7 +712,7 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
         if (a) addr = G.g === 'ser' ? (b === 'siemens' ? 'no I/O address: Modbus_Master writes a DB' : b === 'rockwell' ? 'no I/O address: module AOI' : '%IW… in the Modbus slave I/O mapping') : chAddr(a.slot, a.ch) || 'odd start byte!';
         const bd = badge(k, C), vtag = bd ? `<span class="hwr-v${bd.c}" title="${esc(bd.ti)}">${bd.t}</span>` : '';
         const cardTxt = a ? (G.g === 'ser' ? a.slot + '&nbsp;·&nbsp;port&nbsp;1' : a.slot + '.' + a.ch) : '—';
-        h += `<tr class="${a ? '' : 'hwr-none'}${open === k ? ' hwr-open' : ''}"><td><span class="hwr-id">${esc(S.id)}</span>${esc(S.d)}<div class="hwr-sub">${esc(S.tag)}${a ? (G.g === 'ser' ? ' · slot ' + a.slot + ' · port 1' : ' · slot ' + a.slot + ' ch ' + a.ch) : ''}</div></td>
+        h += `<tr class="${a ? '' : 'hwr-none'}${open === k ? ' hwr-open' : ''}"><td><span class="hwr-id">${esc(S.id)}</span>${esc(S.d)}<div class="hwr-sub">${esc(S.tag)}${a ? ' · <span class="hwr-nw">' + (G.g === 'ser' ? 'slot ' + a.slot + ' · port 1' : 'slot ' + a.slot + ' ch ' + a.ch) + '</span>' : ''}</div></td>
 <td class="hwr-ctag hwr-mono" style="font-size:.82rem;white-space:nowrap">${esc(S.tag)}</td><td class="hwr-ccard hwr-mono">${cardTxt}</td>
 <td>${a ? `<span class="hwr-addr">${abrk(addr)}</span>` : '<span class="hwr-addr">—</span><span class="hwr-nc">no channel</span>'}</td>
 <td class="hwr-tc"><button type="button" class="btn small" data-act="test" data-k="${k}" data-f="t-${k}"${a ? '' : ' disabled'} aria-label="Test ${esc(S.id)} ${esc(S.d)}">▶ test</button>${vtag}</td></tr>`;
@@ -798,7 +798,7 @@ tr.hwr-pathrow > td{padding:0!important;background:var(--surface-2)}
             : noA ? 'The program cannot read it. Select the card and press Auto: it gets an even start byte.'
               : (b === 'siemens' ? `The program scales it: NORM_X (0…27648 → 0.0…1.0), then SCALE_X (→ ${S.lo}…${S.hi} ${S.u}).`
                 : b === 'rockwell' ? `The program uses ${S.tag} directly: the module already did the scaling.`
-                  : `Your code scales it with REAL maths: ${S.tag} := INT_TO_REAL(raw) / 27648.0 * ${S.hi - S.lo}.0${S.lo ? ' + ' + S.lo + '.0' : ''}; (with INT maths, raw / 27648 is always 0).`)
+                  : `Your code scales it with REAL maths: ${S.tag} := INT_TO_REAL(raw) / 27648.0 * ${S.hi - S.lo}.0${S.lo ? ' + ' + S.lo + '.0' : ''}; (with INT maths, raw / 27648 gives 0 for every raw below 27648).`)
                 + (an.wb ? ' But now the value is not valid: raise an alarm and do not use it.' : ''));
         return { hops, an, mA, eng, raw, rawT, engT, noA };
       } else if (g === 'aq') {

@@ -1445,18 +1445,187 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
       challenges: ['port-rk'],
     },
     {
-      id: 'project-setup', level: 5, title: 'From a new project to a running PLC: hardware, network, going online', min: 18,
-      summary: 'PLACEHOLDER',
-      body: `
-<h3>1. The rack</h3>
+      id: 'project-setup', level: 5, title: "From a new project to a running PLC: hardware, network, going online", min: 20,
+      summary: "How a real PLC project starts. Choose the cards and read their addresses. Put the PLC, the laptop and the devices on one network. Then compile, download, go online, compare and force safely. Last, meet the real tools and their simulators.",
+      body: `<p>In Ladder Lab the PLC is already there: you write a rung and it runs. On a real job you start with an empty project and a box of hardware. Before the first rung can run, you do three jobs:</p>
+<ol>
+<li><b>Hardware</b>: tell the tool which cards are in the rack. The tool then gives every signal its address.</li>
+<li><b>Network</b>: give the PLC, the laptop and every device an address, so they can find each other.</li>
+<li><b>Going online</b>: compile, download, watch the program run, and change it safely.</li>
+</ol>
+<p>Each job has a simulator below. Click, make mistakes, and read the <b>What happened</b> box: it tells you why. After that you find the real tools with their licences and simulators, and your first real project step by step.</p>
+
+<h3>1. The rack: cards, slots and addresses</h3>
+<p>A modular PLC is a <b>rack</b> of modules side by side. Each place in the rack is a <b>slot</b> with a number. These are the modules you will use. The last column shows how many bytes each card uses in the <b>process image</b>: the memory where the CPU keeps a copy of all inputs and outputs (more below).</p>
+<div class="tbl"><table>
+<tr><th>Module</th><th>What it does</th><th>Space in the process image</th></tr>
+<tr><td><b>PS</b> (power supply)</td><td>Feeds the <b>backplane</b>: the bus behind the modules that carries power and data. The CPU and the cards take their power from it.</td><td>none</td></tr>
+<tr><td><b>CPU</b></td><td>Runs the program, scan after scan.</td><td>none</td></tr>
+<tr><td><b>DI 16</b></td><td>16 digital inputs: buttons, sensors, contacts</td><td>16 bits = 2 bytes</td></tr>
+<tr><td><b>DQ 16</b></td><td>16 digital outputs: valves, lamps, contactors</td><td>16 bits = 2 bytes</td></tr>
+<tr><td><b>AI 4</b></td><td>4 analog inputs, for example 4–20 mA</td><td>4 words (1 per channel) = 8 bytes</td></tr>
+<tr><td><b>AQ 2</b></td><td>2 analog outputs</td><td>2 words = 4 bytes</td></tr>
+<tr><td><b>CM RS-485</b> (communication module)</td><td>Serial port, for example for Modbus RTU</td><td>none on most CPUs (some modules use a few status bytes). The program talks to the devices with communication blocks.</td></tr>
+</table></div>
+<p><b>Hardware configuration.</b> In the tool you build a copy of the real rack: the same modules, with the same order numbers (the part number on the label), firmware versions (the software inside the module) and slots. When the CPU starts, it compares this copy with the real rack. If a card is missing or different, the CPU shows an error and that card does not work. With some settings the CPU does not go to RUN at all.</p>
+<p><b>Where the addresses come from.</b> The program knows nothing about wires. It only knows addresses. The tool gives every card its addresses, and each brand does it in its own way:</p>
+<ul>
+<li><b>Siemens (TIA Portal)</b>: each card gets a start byte. A DI 16 at byte 0 gives I0.0 … I1.7, and the next DI 16 starts at I2.0. A word is 2 bytes: IW2 = bytes 2 and 3. So an AI 4 card that starts at byte 4 gives IW4, IW6, IW8 and IW10. You can change the start byte in the card properties.</li>
+<li><b>Rockwell (Studio 5000)</b>: the slot number is part of the name. On a ControlLogix (1756) card, <code>Local:2:I.Data.0</code> = slot 2, input, bit 0 (newer 5069 cards use <code>Local:2:I.Pt00.Data</code>). If you move the card, every name changes. That is why the program uses <b>alias tags</b> like Start_PB, not the module names.</li>
+<li><b>CODESYS</b>: %IX0.0 = input byte 0, bit 0. Word addresses count words, not bytes: %IW0 = bytes 0 and 1, %IW1 = bytes 2 and 3. Siemens calls the same word IW2. Careful: TwinCAT counts in bytes, so there %IW2 = bytes 2 and 3. The I/O Mapping tab of each card shows its addresses.</li>
+</ul>
+<p>Never guess an address. Read it in the tool and write it in the I/O list.</p>
+<p><b>The process image.</b> At the start of every scan the CPU copies all inputs into memory: the <b>input image</b>. The program reads only this copy, so an input cannot change in the middle of the scan. The program writes into the <b>output image</b>, and at the end of the scan the CPU sends it to the output cards. Siemens works like this and calls the two copies PII and PIQ (process image of the inputs and of the outputs). CODESYS also works like this, with one copy for each task. Rockwell Logix is different: the I/O updates on its own timer, the <b>RPI</b> (requested packet interval, for example every 10 ms). So an input tag can change in the middle of the scan.</p>
+<p><b>Spare channels.</b> Machines change during commissioning: one more sensor, one more lamp. Plan about 10–20 % free channels of each type and, if you can, a free slot. A spare channel costs little today. A new card later costs a machine stop, cabinet work and new drawings. A spare channel also helps when a channel breaks: move the wire and change one address.</p>
+<p><b>Power budget.</b> The power supply gives a fixed power to the backplane, for example 25 W. The CPU and every card take a part of it. Add them up: the total must stay below what the supply gives. If the total is too high, cards can reset or fail at random, often only when the machine is busy. The tool or the manual shows the budget. Sensors and valves usually get their 24 V from a separate supply, not from the backplane.</p>
+<p><b>Follow the signal.</b> A signal passes many points on its way. If one point is wrong, the program never sees it:</p>
+<ul>
+<li><b>Input</b>: sensor → wire → terminal → card channel (the LED lights) → bit in the input image → contact in the program.</li>
+<li><b>Output</b>: coil in the program → bit in the output image → card channel (LED) → terminal → wire → valve or contactor.</li>
+</ul>
+<p>When you look for a fault, check the points in this order. The LED on the card splits the problem in two: the field side or the PLC side.</p>
+<div class="callout tip"><b>Try it:</b> fill the rack for the I/O list of a small assembly station. Add cards until every check is green. Then switch the brand: the same rack gives other addresses. At the end, press <b>▶ test</b> in the I/O list and follow one signal from the sensor to the contact in the program.</div>
 [[hw:rack]]
-<h3>2. The network</h3>
+<div class="callout where"><b>Where:</b> the electrical drawings show the same path: every wire has a terminal, a card and a channel. See <a href="#lesson-drawings">Reading electrical drawings</a> and <a href="#lesson-commissioning">Commissioning: I/O check and the first run</a>.</div>
+
+<h3>2. The network: IP address, subnet mask, device name</h3>
+<p>Today the PLC, the HMI, the remote I/O, the drives and your laptop are often on one Ethernet network. To talk, they must find each other.</p>
+<p><b>IP address.</b> Every device needs its own address, for example 192.168.0.1. If two devices have the <b>same</b> IP address, you get strange faults: the connection drops, or data goes to the wrong device.</p>
+<p><b>Subnet mask.</b> The mask says which part of the address is the network and which part is the device. With 255.255.255.0 (also written /24) the first three numbers are the network. Two devices talk directly only when this network part is the same. Think of a street address: the first three numbers are the street, the last number is the house. Only houses on the same street talk directly. In this table every device uses the mask 255.255.255.0, and the PLC is 192.168.0.1:</p>
+<div class="tbl"><table>
+<tr><th>Device</th><th>IP address</th><th>Reaches the PLC?</th></tr>
+<tr><td>HMI</td><td>192.168.0.2</td><td>yes: same network 192.168.0</td></tr>
+<tr><td>Laptop</td><td>192.168.0.200</td><td>yes</td></tr>
+<tr><td>Laptop</td><td>192.168.1.200</td><td><b>no</b>: 192.168.1 is another subnet</td></tr>
+<tr><td>Drive</td><td>192.168.0.1</td><td><b>no</b>: same IP as the PLC (duplicate)</td></tr>
+</table></div>
+<p>In a /24 network, do not give .0 or .255 to a device: .0 is the address of the network itself and .255 is the <b>broadcast</b> address (a message to it goes to all devices). The <b>gateway</b> is only needed to reach another subnet through a router. Your laptop needs a fixed IP address in the machine's subnet on its Ethernet port. <b>Ping</b> is the first test: the laptop sends a small test message to an IP address, and the device answers if the path works.</p>
+<p><b>PROFINET: devices are found by name.</b> In the project, every IO device has a <b>device name</b>, for example io-station-1. When the PLC starts, it asks on the network: "Who is io-station-1?" Then it gives that device the IP address from the project. A new device from the box has no name, so nothing happens. A device with another name, for example from another machine, is not found either. You must <b>assign the device name</b> once, online, from the tool: you find the device by its <b>MAC address</b> (a fixed hardware address printed on the device) or you make its LED flash. Do the same when you replace a broken device. Some PLCs do this automatically if the project shows which port is cabled to which device (the <b>topology</b>), but only if the new device has no name (new, or reset to factory settings). Device names use small letters, digits, "-" and ".".</p>
+<p><b>EtherNet/IP: devices are found by IP address.</b> Here the IP address is the identity. You set the IP on the device itself: with a BOOTP/DHCP tool (a PC program that sends an IP address to a new device), with rotary switches, or on its web page. Then you enter the same IP in the project.</p>
+<p><b>Device description file.</b> The tool knows the devices of its own brand. For a device from another maker you need its description file: <b>GSDML</b> for PROFINET, <b>EDS</b> for EtherNet/IP (EtherCAT uses <b>ESI</b> files). The file tells the tool which modules the device has and how many bytes it sends and receives. Download it from the device maker and install it:</p>
+<ul>
+<li><b>TIA Portal</b>: Options → Manage general station description files (GSD).</li>
+<li><b>Studio 5000</b>: Tools → EDS Hardware Installation Tool.</li>
+<li><b>CODESYS</b>: Tools → Device Repository → Install.</li>
+</ul>
+<p>Use the file version that matches the firmware of the device.</p>
+<div class="callout tip"><b>Try it:</b> this machine does not start: 5 faults block its network. Start with the ping tool. Then fix the faults one by one: the laptop in the wrong subnet, the duplicate IP, two device names (one missing, one wrong) and the missing device file. Then switch to EtherNet/IP: there the IP address is the identity.</div>
 [[hw:net]]
-<h3>3. Going online</h3>
-[[hw:online]]`,
+<div class="callout where"><b>Where:</b> every machine with a network. To see how the data really travels, read <a href="#lesson-networks">Networks: PLCs that talk to each other</a> and <a href="#lesson-protocols">Industrial communication</a>.</div>
+
+<h3>3. Going online: download, upload, compare, force</h3>
+<p><b>Offline and online.</b> Offline means the project on your PC. Online means the tool is connected to the PLC and shows live values: the green power flow you know from Ladder Lab. The project on the PC and the program in the PLC are two copies, and they can be different.</p>
+<div class="tbl"><table>
+<tr><th>Action</th><th>Direction</th><th>What it does</th></tr>
+<tr><td><b>Compile</b></td><td>on the PC</td><td>Checks the program and translates it for the CPU. Fix every error and read the warnings.</td></tr>
+<tr><td><b>Download</b></td><td>PC → PLC</td><td>Sends the project to the PLC. A full download or a hardware change usually stops the PLC: the machine stops. Some controllers have a key switch (RUN, REM, PROG): in RUN the laptop cannot download.</td></tr>
+<tr><td><b>Go online</b></td><td>PC ↔ PLC</td><td>Shows the live values. It changes nothing in the PLC.</td></tr>
+<tr><td><b>Compare</b></td><td>PC ↔ PLC</td><td>Shows where the two copies are different.</td></tr>
+<tr><td><b>Upload</b></td><td>PLC → PC</td><td>Reads the program from the PLC. Use it when you have no project, or to get a change that someone made in the PLC.</td></tr>
+<tr><td><b>Force</b></td><td>in the PLC</td><td>Holds an input or output at a value, whatever the field or the program says.</td></tr>
+<tr><td><b>Online change</b></td><td>PC → PLC, in RUN</td><td>Changes the program while the machine keeps running.</td></tr>
+</table></div>
+<p><b>The download trap.</b> Last night a technician changed a timer preset in the PLC. This morning you download your project from yesterday. His change is gone, and nobody notices. A download can also overwrite <b>values</b>: setpoints, counters and recipes go back to the start values in your project. The rule: <b>go online and compare before every download.</b> If the PLC is different, find out why, and copy the change into your project first.</p>
+<p><b>Upload.</b> An upload does not always give you the full project. Some older PLCs do not store comments and tag names: an upload then shows only addresses. In CODESYS you can upload only if the project source was stored in the PLC (Source download). If it was not, there is nothing to upload. So keep the original project, archive it with the date, and keep one master copy that everybody uses.</p>
+<p><b>Write or force.</b> <b>Write</b> (also called modify) changes a value once: in the next scan the program or the input can change it back. <b>Force</b> holds the value until you remove the force. Most PLCs show a force lamp or a message. A forced output can move the machine: first make sure that nobody is in the danger area, and remove every force before you leave. The names in each tool:</p>
+<ul>
+<li><b>TIA Portal</b>: watch table and force table.</li>
+<li><b>CODESYS</b>: Write values and Force values.</li>
+<li><b>Studio 5000</b>: I/O forces.</li>
+</ul>
+<p><b>Online change.</b> You can change the program while the machine runs. In TIA Portal you download the changed blocks in RUN. In Studio 5000 you make online edits (start, accept, test, assemble). In CODESYS you log in with "online change". Before you accept, think about what the machine is doing at that moment. New timers and bits start at 0. A deleted coil keeps its last state: if a valve was on, it stays on. Hardware changes usually need STOP.</p>
+<div class="callout tip"><b>Try it:</b> compile (fix the typo), download, go online and compare. Then comes the trap: someone changed the PLC at night. Compare first and upload, or you lose the change. Then force an output, make an online change in RUN, and add a card to see why that needs STOP.</div>
+[[hw:online]]
+<div class="callout where"><b>Where:</b> every visit to a running machine. When something is wrong in the field, use the method in <a href="#lesson-troubleshooting">Fault finding on the machine</a>.</div>
+
+<h3>4. The tools: installing, licences and simulators</h3>
+<p>Each brand has its own engineering tool. The big tools need a strong Windows PC with a lot of memory and disk space, and they support only some Windows versions. Licences are often bound to one PC or to a USB dongle. A <b>simulator</b> (or soft PLC) runs your program on the PC, so you can test the logic without hardware. A <b>runtime</b> is the software that makes a device work as a PLC.</p>
+<p>Licences and trials change often. The notes below are a guide only: <b>check the vendor's site for the current conditions</b> before you install.</p>
+<div class="tbl"><table>
+<tr><th>Siemens</th><th>TIA Portal (STEP 7)</th></tr>
+<tr><td>PLCs</td><td>S7-1200 and S7-1500 (and S7-300 / S7-400 in older projects)</td></tr>
+<tr><td>Editions</td><td>STEP 7 Basic: S7-1200 only. STEP 7 Professional: all of them.</td></tr>
+<tr><td>Simulator</td><td><b>S7-PLCSIM</b>: simulates S7-1200 and S7-1500 CPUs on your PC. <b>S7-PLCSIM Advanced</b>: S7-1500 and ET 200SP CPUs (not S7-1200), with a virtual Ethernet network and an interface for other software (virtual commissioning: you test the program with a simulated machine, for example a 3D model).</td></tr>
+<tr><td>Licence</td><td>Paid. S7-PLCSIM normally comes with STEP 7 (Basic: S7-1200; Professional: also S7-1500); check this for your version. PLCSIM Advanced has its own licence.</td></tr>
+<tr><td>To learn</td><td>Siemens offers a time-limited trial of STEP 7 Professional and WinCC on its support site after you register (it has been 21 days). Siemens has also offered a 21-day trial in the cloud, with nothing to install. Many schools have licences through the Siemens education program (SCE).</td></tr>
+</table></div>
+<div class="tbl"><table>
+<tr><th>Rockwell</th><th>Studio 5000 Logix Designer</th></tr>
+<tr><td>PLCs</td><td>ControlLogix and CompactLogix (GuardLogix for safety)</td></tr>
+<tr><td>Editions</td><td>From Mini to Professional. The smaller editions support only some controllers and functions.</td></tr>
+<tr><td>Simulator</td><td><b>FactoryTalk Logix Echo</b>: simulates newer controllers (ControlLogix 5580 and 5590, CompactLogix 5380, and their GuardLogix versions) on your PC. <b>Studio 5000 Logix Emulate</b>: the older simulator for older controllers (5560 / 5570). Newer versions of Logix Designer (37 and later) no longer support Logix Emulate: check the release notes.</td></tr>
+<tr><td>Licence</td><td>Paid. Logix Echo has its own licence.</td></tr>
+<tr><td>To learn</td><td>Rockwell has offered a 30-day trial of Logix Echo. You still need Studio 5000 Logix Designer (version 33 or later; 36 or later for CompactLogix 5380), and it has its own licence. For Logix Designer, ask your school or a distributor about an evaluation licence. Free, but different: <b>Connected Components Workbench</b> (CCW) Standard Edition for the small Micro800 PLCs, with a demo of the Micro800 Simulator. Its ladder is not the same as in Studio 5000.</td></tr>
+</table></div>
+<div class="tbl"><table>
+<tr><th>CODESYS</th><th>CODESYS Development System V3.5</th></tr>
+<tr><td>PLCs</td><td>PLCs of many brands run the CODESYS runtime (WAGO, Festo, ABB, Eaton, Raspberry Pi …). Schneider Machine Expert and Beckhoff TwinCAT are built on it.</td></tr>
+<tr><td>Simulator</td><td>A built-in <b>simulation mode</b> (Online → Simulation): no runtime needed, but the I/O and fieldbuses are not simulated. <b>CODESYS Control Win</b>: a real soft PLC on your Windows PC.</td></tr>
+<tr><td>Licence</td><td>The Development System is free (you need a free account in the CODESYS Store). A runtime needs a licence; on a PLC of another brand it usually comes with the PLC.</td></tr>
+<tr><td>To learn</td><td>Free. Without a licence, Control Win runs in demo mode for 2 hours; then you restart it.</td></tr>
+</table></div>
+<div class="tbl"><table>
+<tr><th>Beckhoff</th><th>TwinCAT 3</th></tr>
+<tr><td>PLCs</td><td>Beckhoff industrial PCs and embedded PCs, with EtherCAT I/O</td></tr>
+<tr><td>Tool</td><td>XAE: the engineering, inside Visual Studio. XAR: the runtime, the PLC itself.</td></tr>
+<tr><td>Simulator</td><td>Your own Windows PC can run the real runtime: the PC becomes the PLC. Check the system requirements first.</td></tr>
+<tr><td>Licence</td><td>The engineering is a free download. The runtime and extra functions need paid licences.</td></tr>
+<tr><td>To learn</td><td>A 7-day trial licence that you can renew again and again. It is for learning and testing, not for a machine in production.</td></tr>
+</table></div>
+<div class="tbl"><table>
+<tr><th>Schneider</th><th>EcoStruxure Machine Expert / Machine Expert Basic</th></tr>
+<tr><td>PLCs</td><td>Machine Expert Basic: Modicon M221. Machine Expert: M241, M251, M262 (built on CODESYS).</td></tr>
+<tr><td>Simulator</td><td>Machine Expert Basic has a built-in simulator. Machine Expert has a simulation mode (from CODESYS).</td></tr>
+<tr><td>Licence</td><td>Machine Expert Basic: free. Machine Expert: paid (Standard or Professional). After the trial you can also register for a free licence for one PC, with limited functions.</td></tr>
+<tr><td>To learn</td><td>Machine Expert starts with a trial licence at the first launch (it has been 42 days). Machine Expert Basic is free with its simulator: a good start for ladder.</td></tr>
+</table></div>
+<div class="tbl"><table>
+<tr><th>Omron</th><th>Sysmac Studio</th></tr>
+<tr><td>PLCs</td><td>NJ and NX controllers. Older CP1 / CJ PLCs use CX-Programmer (in the CX-One package).</td></tr>
+<tr><td>Simulator</td><td>A built-in simulator for NJ / NX. 3D motion simulation is an extra option with its own licence.</td></tr>
+<tr><td>Licence</td><td>Paid.</td></tr>
+<tr><td>To learn</td><td>Omron offers a 30-day free trial.</td></tr>
+</table></div>
+<p><b>Free for a beginner</b> (check the conditions on the vendor's site):</p>
+<ul>
+<li><b>Ladder Lab</b>: logic, scan, timers, addresses and networks, right here.</li>
+<li><b>CODESYS</b> with its simulation mode or Control Win (2-hour demo): a full IEC 61131-3 tool, free.</li>
+<li><b>TwinCAT 3</b>: free engineering and a renewable 7-day trial runtime.</li>
+<li><b>Machine Expert Basic</b> with its simulator: simple ladder for the M221.</li>
+<li><b>Connected Components Workbench</b> Standard Edition: Rockwell's free tool for the small Micro800 PLCs, with a simulator demo (its ladder differs from Studio 5000).</li>
+<li><b>Trials</b> of TIA Portal, Sysmac Studio and Logix Echo run only for a short time: plan what you want to learn before the trial starts.</li>
+</ul>
+<div class="callout tip"><b>Two warnings.</b> Download only from the vendor's site: illegal "free" copies (cracked versions) often carry malware (viruses), and no company wants them on its network. And a simulator tests the logic, not the wiring, the sensors or the real network: the last test is always on the real machine.</div>
+
+<h3>5. Your first real project, step by step</h3>
+<p>The same ten steps work in every tool. Only the menu names change. Each step has one row, and below it the names in TIA Portal, Studio 5000 and CODESYS.</p>
+<div class="tbl"><table>
+<tr><th>TIA Portal</th><th>Studio 5000</th><th>CODESYS</th></tr>
+<tr><td colspan="3"><b>1. New project, choose the CPU</b></td></tr>
+<tr><td>Add new device: CPU order number and firmware</td><td>New project: controller type and revision</td><td>Standard project: choose the device, PLC_PRG in LD</td></tr>
+<tr><td colspan="3"><b>2. Hardware</b></td></tr>
+<tr><td>Device view: drag the cards into the slots</td><td>I/O Configuration → New Module, set the slot</td><td>Add the I/O under the device; I/O Mapping tab</td></tr>
+<tr><td colspan="3"><b>3. Network</b></td></tr>
+<tr><td>CPU properties: IP address; network view: device names</td><td>Ethernet port: IP address; add devices by IP (EDS)</td><td>Add an Ethernet adapter, then a PROFINET IO controller or an EtherNet/IP scanner</td></tr>
+<tr><td colspan="3"><b>4. Tags</b></td></tr>
+<tr><td>PLC tag table: Start_PB = %I0.0</td><td>Alias tag: Start_PB → Local:2:I.Data.0</td><td>Start_PB AT %IX0.0 : BOOL, or map it in I/O Mapping</td></tr>
+<tr><td colspan="3"><b>5. Program</b></td></tr>
+<tr><td>OB1 (Main)</td><td>MainTask → MainProgram → MainRoutine</td><td>PLC_PRG, called by a task</td></tr>
+<tr><td colspan="3"><b>6. Compile</b></td></tr>
+<tr><td>Compile</td><td>Verify Controller</td><td>Build</td></tr>
+<tr><td colspan="3"><b>7. Connect: the laptop IP must be in the same subnet</b></td></tr>
+<tr><td>Accessible devices</td><td>RSLinx / FactoryTalk Linx; Who Active</td><td>Communication Settings → Scan network</td></tr>
+<tr><td colspan="3"><b>8. Download</b></td></tr>
+<tr><td>Download to device</td><td>Download (Program mode), then Run mode</td><td>Login → download, then Start</td></tr>
+<tr><td colspan="3"><b>9. Test online</b></td></tr>
+<tr><td>Monitoring on, watch table, force table</td><td>Online, Monitor Tags, I/O forces</td><td>Online view, watch list, Write / Force values</td></tr>
+<tr><td colspan="3"><b>10. Back up</b></td></tr>
+<tr><td>Archive the project</td><td>Save the .ACD file with the date</td><td>Project archive</td></tr>
+</table></div>
+<div class="callout where"><b>Every time you visit a machine:</b> go online and compare, archive the PLC program with the date, make your change, test it, remove all forces, and archive again. Interviewers love the question "What do you do before you download?" Test yourself in <a href="#quiz-iv">Quiz → Interview questions → Hardware &amp; online</a>.</div>`,
       sims: {},
-      takeaways: ['PLACEHOLDER'],
-      mistakes: ['PLACEHOLDER'],
+      takeaways: ["The slot and the start byte give every signal its address: read it in the tool, never guess it.", "Plan 10–20 % spare channels and check the power budget before you order the cards.", "One subnet, and one unique IP address for each device.", "PROFINET finds devices by name, EtherNet/IP by IP address; a device from another maker needs its GSDML / EDS file.", "Download = PC → PLC, upload = PLC → PC: go online and compare before every download.", "Forces and online changes act on a running machine: make sure nobody is in the danger area, think about the machine state, remove every force."],
+      mistakes: ["Downloading an old project over a change made in the PLC, without comparing first.", "Laptop in another subnet, or two devices with the same IP address.", "Forgetting to assign the PROFINET device name to a new or replaced device.", "Ordering exactly the channels you need today, with no spares, or going over the power budget.", "Leaving forces on, or deleting a rung with a coil in RUN so the output stays on."],
       challenges: [],
     },
     {
@@ -2676,6 +2845,18 @@ END_REPEAT</pre>
     ["Cross-reference", "A note in electrical drawings showing where else a device appears, e.g. /4.3 = page 4, column 3."],
     ["Device tag", "The name of a device in the drawings, e.g. -K1 (relay), -B3 (sensor), -X2:5 (terminal 5 of strip X2)."],
     ["Wire number", "The number printed on the markers at both ends of a wire, matching the drawing."],
+    ["PII / PIQ", "The Siemens names for the process image: the copy of all inputs (PII) and all outputs (PIQ) that the program uses during the scan."],
+    ["Hardware configuration", "The copy of the real rack in the tool (modules, order numbers, firmware, slots and addresses) that the CPU checks against the real hardware when it starts."],
+    ["Device description file (GSDML / EDS)", "A file from the device maker that tells the tool what a device contains and how many bytes it sends: GSDML for PROFINET, EDS for EtherNet/IP, ESI for EtherCAT."],
+    ["PROFINET device name", "The name (for example io-station-1) that a PROFINET controller uses to find an IO device and give it its IP, so every new or replaced device must get it."],
+    ["Subnet mask", "The number that says which part of an IP address is the network: with 255.255.255.0 (/24) two devices talk directly only when the first three numbers are the same."],
+    ["Download", "Sending the project from the PC to the PLC, which often stops the PLC, so go online and compare first."],
+    ["Upload", "Reading the program from the PLC into the PC when the project is missing or someone changed the PLC, but not every PLC stores the full project (in CODESYS only after a Source download)."],
+    ["Go online", "Connecting the tool to the PLC to see live values and power flow, without changing anything in the PLC."],
+    ["Online change (online edit)", "Changing the program while the PLC stays in RUN, where a deleted coil keeps its last value."],
+    ["Write (modify)", "Changing a value once from the tool, so the program or the input can change it back (a force holds it)."],
+    ["Power budget", "The power that the CPU and all cards take from the backplane, which must stay below what the power supply gives."],
+    ["Spare channels", "Free I/O channels (about 10–20 %) planned for later changes and for replacing a broken channel."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -2983,6 +3164,20 @@ END_REPEAT</pre>
     { t: "Electrical drawings", q: "A 3-wire PNP sensor has brown, blue and black wires. Which is the signal?", a: ["Black (brown = +24 V, blue = 0 V)", "Brown", "Blue", "Any of them"], c: 0, why: "Standard colours for DC sensors (IEC 60947-5-2). White is often the second output." },
     { t: "Electrical drawings", q: "Where on a drawing set do you find which wire goes into which cable?", a: ["The cable plan (cable list)", "The PLC program", "The bill of materials only", "The cover page"], c: 0, why: "A drawing set: cover, contents, power pages, control, PLC I/O, terminal plans, cable plans, parts list." },
     { t: "Electrical drawings", q: "The drawing shows contacts in which state?", a: ["De-energised and not operated (machine off, no pressure, buttons not pressed)", "Running", "In fault", "Whatever the drawer chose"], c: 0, why: "That is why an NC contact is drawn closed even though it opens when the machine runs." },
+    { t: "Hardware & online", q: "A DI 16 card sits in slot 2 of a ControlLogix (1756) rack. What is the tag of its first input?", a: ["Local:2:I.Data.0", "Local:0:I.Data.2", "I2.0", "%IX2.0"], c: 0, why: "In Studio 5000 the slot is part of the name: Local, slot 2, I = input, Data, bit 0. If you move the card, the name changes, so the program uses alias tags." },
+    { t: "Hardware & online", q: "In CODESYS, which bytes are in %IW1?", a: ["Bytes 2 and 3", "Bytes 1 and 2", "Only byte 1", "Bytes 0 and 1"], c: 0, why: "CODESYS word addresses count words, not bytes: %IW0 = bytes 0 and 1, %IW1 = bytes 2 and 3. Siemens calls the same word IW2." },
+    { t: "Hardware & online", q: "Siemens and CODESYS copy all inputs into a process image at the start of the scan. What is different on a Rockwell ControlLogix?", a: ["Its I/O updates on its own timer (RPI), so an input can change during the scan", "Nothing: it also copies all inputs at the start of the scan", "It reads the inputs only once, when the power comes on", "It reads an input only when a special block asks for it"], c: 0, why: "Logix I/O is not tied to the scan. If a routine needs one stable picture, copy the inputs to internal tags at its start." },
+    { t: "Hardware & online", q: "Why do you plan about 10–20 % spare channels on the I/O cards?", a: ["Machines change: you can add a sensor or move a broken channel without a new card", "The CPU scans faster when some channels on the card are free", "The power supply needs some free channels to stay cool", "Free channels make the addresses shorter and easier to read"], c: 0, why: "A spare channel costs little today. A new card later costs a machine stop, cabinet work and new drawings." },
+    { t: "Hardware & online", q: "The CPU and cards in a rack need 27 W from the backplane. The power supply gives 25 W. What do you do?", a: ["Use a bigger power supply, or add a second one if the system allows it", "Nothing: 2 W over the limit is not a real problem", "Move the CPU to the last slot, at the end of the rack", "Use thicker wires between the sensors and the input cards"], c: 0, why: "If the total is too high, cards can reset or fail at random, often only when the machine is busy. Some systems (S7-1500) take an extra supply for a new power segment; others need a bigger supply or a second rack. The tool or the manual shows the budget." },
+    { t: "Hardware & online", q: "PLC: 192.168.0.1, mask 255.255.255.0. Your laptop: 192.168.1.50, same mask. Can you go online?", a: ["No: the laptop is in another subnet (192.168.1)", "Yes: all 192.168 addresses are in one network", "Yes, but only with a special crossover cable", "Only when the PLC is in STOP mode"], c: 0, why: "With the mask 255.255.255.0 the first three numbers must be the same, and the last number must be free. Give the laptop an address like 192.168.0.50." },
+    { t: "Hardware & online", q: "A new PROFINET remote I/O is wired. The IP address in the project is right, but the PLC reports the device as missing. What is the most likely missing step?", a: ["Assign the device name from the project to the device", "Install the EDS file of the remote I/O in the tool", "Upload the program from the remote I/O first", "Change the subnet mask to 255.255.0.0"], c: 0, why: "A PROFINET controller finds its IO devices by name, then gives them their IP. A new device from the box has no name." },
+    { t: "Hardware & online", q: "You add a drive from another maker to a Siemens PLC on PROFINET. It is not in the hardware catalog. What do you need?", a: ["Its GSDML file from the drive maker, installed in TIA Portal", "Its EDS file from the drive maker, installed in TIA Portal", "A newer CPU with a bigger hardware catalog", "A PLCSIM licence to simulate the drive"], c: 0, why: "The device description file tells the tool the modules and the data size of the device. EtherNet/IP uses EDS files instead." },
+    { t: "Hardware & online", q: "How does an EtherNet/IP scanner (for example a CompactLogix) find its devices?", a: ["By IP address: the same IP is set in the device and in the project", "By device name: it calls each device by its name, like PROFINET", "By the slot number of the card in the local rack", "By the serial number that is printed on the device label"], c: 0, why: "In EtherNet/IP the IP address is the identity. You set it with a BOOTP/DHCP tool, rotary switches or the web page of the device." },
+    { t: "Hardware & online", q: "What is the difference between writing (modifying) a value and forcing it?", a: ["Write changes it once; force holds it until you remove the force", "No difference: both hold the value until you remove it", "Force works only when the PLC is offline", "Write is allowed only when the PLC is in STOP"], c: 0, why: "A force overrides the field and the program. First make sure nobody is in the danger area, and remove every force when you are done." },
+    { t: "Hardware & online", q: "Last night someone changed a timer preset in the running PLC. You download your project from yesterday. What happens?", a: ["The change is lost: the PLC now has your old value", "The PLC keeps the new preset and takes the rest", "The tool merges both versions without asking you", "The PLC refuses the download and shows an error"], c: 0, why: "A download replaces what is in the PLC. Go online and compare first, and copy the change into your project before you download." },
+    { t: "Hardware & online", q: "With an online change you delete a rung whose coil drove a valve. The valve was ON. What happens?", a: ["It can stay ON: nothing writes that output any more", "It turns OFF at once, because the coil is gone", "The PLC goes to STOP and shows an error", "The valve output starts to flash on and off"], c: 0, why: "Deleting a coil does not reset its bit. Switch the output off first (or reset it in the logic), then delete the rung." },
+    { t: "Hardware & online", q: "You must change a machine, but nobody can find the project. What do you do first?", a: ["Upload the program from the PLC and save a copy with the date", "Write a new program on the PC and download it", "Reset the PLC to factory settings and start again", "Force all outputs off and then look for the project"], c: 0, why: "The upload is your backup and your starting point. Older PLCs may not store comments and tag names, so you may see only addresses. In CODESYS, an upload works only if the source was stored in the PLC." },
+    { t: "Hardware & online", q: "What can a simulator such as PLCSIM, Logix Echo or CODESYS Control Win NOT test?", a: ["The real wiring, sensors and devices of the machine", "The ladder logic of the program", "The timers and counters in the program", "The order of the steps in a sequence"], c: 0, why: "A simulator runs your program on the PC. Test the logic there; test the wiring with an I/O check on the real machine." },
     { t: "Fluid power", q: "Single-acting or double-acting cylinder?", a: ["Single-acting: air pushes one way, a spring returns. Double-acting: air in both directions", "Single-acting is faster", "Double-acting has a spring", "They are the same"], c: 0, why: "Valve: 3/2 for single-acting, 5/2 or 5/3 for double-acting." },
     { t: "Fluid power", q: "Monostable or bistable valve: what happens on power loss?", a: ["Monostable (spring return) goes back to its rest position; bistable (two coils) stays where it is", "Both go to the rest position", "Both stay", "Bistable valves fall to the middle"], c: 0, why: "Which one is safer depends on the machine: a clamp should usually stay closed." },
     { t: "Fluid power", q: "Hydraulic press waits at the top with the pump running. What should the program do?", a: ["Unload the pump (unloading valve off) and centre the valves: no oil over the relief valve, no heat", "Keep full pressure ready", "Switch the pump motor on and off every cycle", "Keep the up valve on"], c: 0, why: "Hydraulics is not pneumatics: a valve left on at the end stop heats the oil." },

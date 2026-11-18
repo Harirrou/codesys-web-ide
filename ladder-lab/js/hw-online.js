@@ -12,42 +12,55 @@
   let uid = 0;
 
   // ───────────── the words of each tool ─────────────
+  // forceLed = the LED that warns about forces. faddr = the address the force table writes.
+  // night = how the night shift really did it in this tool (the story must be possible in the real tool).
+  // trap = what the real tool says when you download over that change (honest: often nothing).
+  const OC_WHY = 'Now you add the OL_OK contact to rung 1, so that an overload also stops the motor.';
   const BR = {
     tia: {
       name: 'TIA Portal', compile: 'Compile', download: 'Download to device', online: 'Go online', offline: 'Go offline',
       compare: 'Compare (offline/online)', cmp: 'Compare', upload: 'Upload from device', force: 'Force table', unforce: 'Stop forcing',
-      start: 'Start CPU', stop: 'Stop CPU', cpu: 'CPU', cpuThe: 'The CPU', runW: 'RUN', stopW: 'STOP',
-      leds: ['RUN', 'STOP', 'ERROR', 'MAINT'], sw: ['run', 'stop'], swL: { run: 'RUN', stop: 'STOP' },
+      start: 'Start CPU', stop: 'Stop CPU', cpu: 'CPU', cpuThe: 'The CPU', runW: 'RUN', stopW: 'STOP', forceLed: 'MAINT', runLed: 'the RUN/STOP LED is green',
+      sw: ['run', 'stop'], swL: { run: 'RUN', stop: 'STOP' },
       main: 'Main', mainSub: 'OB1 · cyclic program', fbSub: 'FB1 · function block', dbSub: 'DB1 · data block (settings)', hw: 'Device configuration',
-      addr: { start: 'I0.0', stop: 'I0.1', ol: 'I0.2', motor: 'Q0.0', lamp: 'Q0.1' }, T: 'TRUE', F: 'FALSE', inst: '"FB_Motor_DB"',
-      startQ: 'Start the CPU now?', startYes: 'Start', startNo: 'Leave in STOP',
+      addr: { start: '%I0.0', stop: '%I0.1', ol: '%I0.2', motor: '%Q0.0', lamp: '%Q0.1' }, faddr: '%Q0.0:P', T: 'TRUE', F: 'FALSE', inst: '"FB_Motor_DB"',
+      startQ: 'Start the CPU now?', startQ2: 'Start the CPU again?', startYes: 'Start', startNo: 'Leave in STOP',
       oc: [['add', 'Add an overload contact to rung 1'], ['dl', 'Download changes in RUN']],
       ocIntro: 'In TIA Portal you change the block in your project, then you download it. If only program blocks changed, the CPU stays in RUN.',
-      words: 'TIA Portal words: <b>Compile</b>, <b>Download to device</b>, <b>Go online</b>, <b>Compare</b>, <b>Upload from device</b>, <b>Force table</b>. The CPU shows RUN/STOP, ERROR and MAINT (yellow when forces are active).',
+      words: 'TIA Portal words: <b>Compile</b>, <b>Download to device</b>, <b>Go online</b>, <b>Compare</b>, <b>Upload from device</b>, <b>Force table</b>.',
+      wordsMore: 'The CPU has one RUN/STOP LED (green = RUN, yellow = STOP), an ERROR LED and a MAINT LED (yellow when forces are active).',
+      night: 'A colleague opened an old copy of the project on another laptop, changed FB_Motor and downloaded it. Only the block changed, so the CPU stayed in RUN.',
+      trap: 'Newer TIA Portal versions may warn that the PLC was loaded from another project. Do not click past it. Older versions, and many other cases, give no warning.',
     },
     rock: {
       name: 'Studio 5000', compile: 'Verify', download: 'Download', online: 'Go Online', offline: 'Go Offline',
       compare: 'Compare', cmp: 'Compare', upload: 'Upload', force: 'I/O Forces', unforce: 'Remove all I/O forces',
-      start: 'Run Mode', stop: 'Program Mode', cpu: 'controller', cpuThe: 'The controller', runW: 'Run mode', stopW: 'Program mode',
-      leds: ['RUN', 'PROG', 'FAULT', 'FORCE'], sw: ['run', 'rem', 'stop'], swL: { run: 'RUN', rem: 'REM', stop: 'PROG' },
+      start: 'Run Mode', stop: 'Program Mode', cpu: 'controller', cpuThe: 'The controller', runW: 'Run mode', stopW: 'Program mode', forceLed: 'FORCE', runLed: 'the green RUN LED is on',
+      sw: ['run', 'rem', 'stop'], swL: { run: 'RUN', rem: 'REM', stop: 'PROG' },
       main: 'MainRoutine', mainSub: 'MainProgram · ladder routine', fbSub: 'Add-On Instruction', dbSub: 'controller tags (settings)', hw: 'I/O configuration',
-      addr: { start: 'Local:2:I.Data.0', stop: 'Local:2:I.Data.1', ol: 'Local:2:I.Data.2', motor: 'Local:3:O.Data.0', lamp: 'Local:3:O.Data.1' }, T: '1', F: '0', inst: 'Motor_1',
-      startQ: 'Change the controller back to Remote Run?', startYes: 'Yes, Remote Run', startNo: 'Stay in Program mode',
+      addr: { start: 'Local:2:I.Data.0', stop: 'Local:2:I.Data.1', ol: 'Local:2:I.Data.2', motor: 'Local:3:O.Data.0', lamp: 'Local:3:O.Data.1' }, faddr: 'Local:3:O.Data.0', T: '1', F: '0', inst: 'Motor_1',
+      startQ: 'Change the controller to Remote Run?', startQ2: 'Change the controller back to Remote Run?', startYes: 'Yes, Remote Run', startNo: 'Stay in Program mode',
       oc: [['start', 'Start pending edits'], ['add', 'Add an overload contact to rung 1'], ['accept', 'Accept pending edits'], ['test', 'Test edits'], ['assemble', 'Assemble edits']],
       ocIntro: 'In Studio 5000 you edit online, rung by rung. The old rung keeps running until you test the new one.',
-      words: 'Studio 5000 words: <b>Verify</b>, <b>Download</b>, <b>Go Online</b>, <b>Compare</b>, <b>Upload</b>, <b>I/O Forces</b> (FORCE LED). Modes: Run, Program and Remote (key on REM). Logic changes in Run are online edits: start, accept, test, assemble.',
+      words: 'Studio 5000 words: <b>Verify</b>, <b>Download</b>, <b>Go Online</b>, <b>Compare</b>, <b>Upload</b>, <b>I/O Forces</b>. Logic changes in Run are online edits: start, accept, test, assemble.',
+      wordsMore: 'The controller front has the LEDs RUN (off in Program mode), FORCE and OK, and a small display that shows the mode. The key switch has RUN, REM (remote) and PROG. The LEDs here are simplified.',
+      night: 'Add-On Instructions cannot be edited online. So the colleague changed FB_Motor offline on their own laptop and downloaded it: the line stopped for 2 minutes.',
+      trap: 'Real Studio 5000 does NOT warn you. Its Download dialog only asks you to confirm. This simulator stops you so that you can see the trap.',
     },
     cds: {
       name: 'CODESYS', compile: 'Build', download: 'Login with download', online: 'Login', offline: 'Logout',
       compare: 'Compare', cmp: 'Compare', upload: 'Source upload', force: 'Force values', unforce: 'Unforce all values',
-      start: 'Start application', stop: 'Stop application', cpu: 'PLC', cpuThe: 'The PLC', runW: 'RUN', stopW: 'STOP',
-      leds: ['RUN', 'STOP', 'ERROR', 'FORCE'], sw: ['run', 'stop'], swL: { run: 'RUN', stop: 'STOP' },
+      start: 'Start application', stop: 'Stop application', cpu: 'PLC', cpuThe: 'The PLC', runW: 'RUN', stopW: 'STOP', forceLed: 'FORCE', runLed: 'the green RUN LED is on',
+      sw: ['run', 'stop'], swL: { run: 'RUN', stop: 'STOP' },
       main: 'PLC_PRG', mainSub: 'program (POU)', fbSub: 'function block (POU)', dbSub: 'global variables (GVL)', hw: 'Device tree',
-      addr: { start: '%IX0.0', stop: '%IX0.1', ol: '%IX0.2', motor: '%QX0.0', lamp: '%QX0.1' }, T: 'TRUE', F: 'FALSE', inst: 'fbMotor',
-      startQ: 'Start the application now?', startYes: 'Start', startNo: 'Leave in STOP',
+      addr: { start: '%IX0.0', stop: '%IX0.1', ol: '%IX0.2', motor: '%QX0.0', lamp: '%QX0.1' }, faddr: '%QX0.0', T: 'TRUE', F: 'FALSE', inst: 'fbMotor',
+      startQ: 'Start the application now?', startQ2: 'Start the application again?', startYes: 'Start', startNo: 'Leave in STOP',
       oc: [['add', 'Add an overload contact to rung 1'], ['oc', 'Online change']],
       ocIntro: 'In CODESYS you change the code while you are logged in, then you do an Online change. The application keeps running.',
-      words: 'CODESYS words: <b>Build</b>, <b>Login</b> (with download, or with online change), <b>Source upload</b>, <b>Force values</b>. The PLC state is RUN or STOP.',
+      words: 'CODESYS words: <b>Build</b>, <b>Login</b> (with download, or with online change), <b>Source upload</b>, <b>Force values</b>.',
+      wordsMore: 'The PLC state is RUN or STOP. CODESYS runs on many brands of PLC, so the LEDs on the front are different on each device: here they are generic.',
+      night: 'A colleague logged in from another laptop, changed FB_Motor with an online change, and stored the project source on the PLC.',
+      trap: 'Real CODESYS only says that the application in the PLC has changed. It does not say which copy is newer.',
     },
   };
   const BKEYS = [['tia', 'TIA Portal'], ['rock', 'Studio 5000'], ['cds', 'CODESYS']];
@@ -67,7 +80,10 @@
 
   // ───────────── CSS (once) ─────────────
   const CSS = `
-.hw-box.hw-online{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:14px;margin:18px 0;color:var(--ink);font-size:.95rem;line-height:1.45;min-width:0;--hwo-w:var(--muted);--hwo-on:var(--power-bright)}
+.hw-box.hw-online{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:14px;margin:18px 0;color:var(--ink);font-size:.95rem;line-height:1.45;min-width:0;--hwo-w:var(--muted);--hwo-on:var(--power-bright);--hwo-g:color-mix(in srgb,var(--power) 70%,var(--ink));--hwo-r:color-mix(in srgb,var(--danger) 80%,var(--ink))}
+.hw-online .hwo-tgt{scroll-margin-top:72px}
+.hw-online .hwo-hl{animation:hwo-hl 1.8s ease-out}
+@keyframes hwo-hl{0%,40%{outline:3px solid var(--accent-bg);outline-offset:3px}100%{outline:3px solid transparent;outline-offset:3px}}
 .hw-online *{box-sizing:border-box}
 .hw-online p,.hw-online li{max-width:none}
 .hw-online .btn{white-space:normal;text-align:center;line-height:1.2}
@@ -92,22 +108,29 @@
 .hw-online .hwo-b.hwo-dis.primary:hover{background:var(--ink)}
 .hw-online .hwo-nx{box-shadow:0 0 0 3px var(--accent-bg);animation:hwo-pulse 1.6s ease-in-out infinite}
 @keyframes hwo-pulse{50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--accent-bg) 40%,transparent)}}
-.hw-online .btn.hwo-danger{border-color:var(--danger);color:var(--danger);background:var(--danger-soft)}
+.hw-online .btn.hwo-danger{border-color:var(--danger);color:var(--hwo-r);background:var(--danger-soft)}
 .hw-online .btn.hwo-danger:hover{background:var(--danger-soft);filter:brightness(1.05)}
 .hwo-dlg{margin-top:10px;border:2px solid var(--info);border-radius:12px;background:var(--surface);padding:12px 14px;box-shadow:0 6px 22px rgba(0,0,0,.14)}
 .hwo-dlg.warn{border-color:var(--accent-bg)}
 .hwo-dlg.bad{border-color:var(--danger)}
 .hwo-dlg h5{margin:0 0 6px;font-family:var(--f-display);font-size:1.15rem;line-height:1.2;display:flex;align-items:center;gap:8px}
-.hwo-dlg h5 i{flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:.9rem;font-family:var(--f-body);font-weight:800;background:var(--info);color:#fff}
+.hwo-dlg h5 i{flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:.9rem;font-family:var(--f-body);font-weight:800;background:var(--info);color:var(--surface)}
 .hwo-dlg.warn h5 i{background:var(--accent-bg);color:var(--accent-ink)}
-.hwo-dlg.bad h5 i{background:var(--danger);color:#fff}
+.hwo-dlg.bad h5 i{background:var(--danger);color:var(--surface)}
 .hwo-dlg p{margin:0 0 6px}
 .hwo-why{font-size:.87rem;color:var(--ink-2);background:var(--surface-2);border-radius:8px;padding:6px 10px}
+.hwo-why b.hwo-rl{color:var(--ink)}
+.hwo-flow{display:flex;align-items:center;justify-content:center;gap:10px;margin:2px 0 4px;font:700 .8rem var(--f-body);color:var(--ink-2)}
+.hwo-flow > span{display:inline-flex;align-items:center;gap:5px}
+.hwo-flow svg{width:20px;height:20px;color:var(--ink-2)}
+.hwo-flow .hwo-arr{font-size:.9rem}
+.hwo-flow.ul .hwo-arr i:nth-child(1){animation-delay:.3s}.hwo-flow.ul .hwo-arr i:nth-child(3){animation-delay:0s}
+.hwo-narrow .hwo-flow .hwo-arr{transform:none}
 .hwo-dbtn{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .hwo-bar{height:14px;border-radius:7px;background:var(--surface-3);overflow:hidden;margin:6px 0;border:1px solid var(--line)}
 .hwo-bar i{display:block;height:100%;width:0;background:var(--info);transition:width .3s}
 .hwo-pl{font:600 .84rem var(--f-mono);color:var(--ink-2)}
-.hwo-duo{display:grid;grid-template-columns:minmax(0,1fr) 62px minmax(0,1fr);align-items:stretch}
+.hwo-duo{display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr);align-items:stretch}
 .hwo-pan{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden;min-width:0;display:flex;flex-direction:column}
 .hwo-ph{display:flex;align-items:center;gap:9px;padding:9px 12px;border-bottom:1px solid var(--line-2);background:var(--surface-2)}
 .hwo-ph svg{width:24px;height:24px;flex:none;color:var(--ink-2)}
@@ -115,9 +138,9 @@
 .hwo-ph b{display:block;font-size:.93rem;line-height:1.2}
 .hwo-ph small{display:block;font-size:.76rem;color:var(--muted)}
 .hwo-pill{margin-left:auto;flex:none;font-size:.74rem;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap}
-.hwo-pill.ok{background:var(--power-soft);color:var(--power)}
+.hwo-pill.ok{background:var(--power-soft);color:var(--hwo-g)}
 .hwo-pill.warn{background:var(--accent-bg);color:var(--accent-ink)}
-.hwo-pill.bad{background:var(--danger-soft);color:var(--danger)}
+.hwo-pill.bad{background:var(--danger-soft);color:var(--hwo-r)}
 .hwo-pill.info{background:var(--surface-3);color:var(--ink-2)}
 .hw-online .hwo-blks{list-style:none;margin:0;padding:8px;display:grid;gap:5px}
 .hw-online .hwo-blks li{display:grid;grid-template-columns:minmax(0,1fr) auto 26px;gap:2px 8px;align-items:center;padding:6px 8px;margin:0;border-radius:8px;background:var(--surface-2);border:1px solid transparent}
@@ -125,12 +148,14 @@
 .hw-online .hwo-blks li.hwo-hwr{margin-top:4px}
 .hwo-bn{min-width:0}
 .hwo-bn b{display:block;font:700 .84rem/1.25 var(--f-mono);overflow-wrap:anywhere}
-.hwo-bn small{display:block;font-size:.73rem;color:var(--muted);line-height:1.25}
+.hwo-bn small{display:block;font-size:.75rem;color:var(--ink-2);line-height:1.25}
 .hwo-bv{font:700 .8rem/1.25 var(--f-mono);text-align:right;white-space:nowrap}
-.hwo-bv small{display:block;font-weight:500;color:var(--muted)}
+.hwo-bv small{display:block;font-weight:500;color:var(--ink-2)}
+.hwo-off{margin:8px 8px 0;padding:5px 9px;border-radius:8px;border:1px dashed var(--line);font-size:.8rem;color:var(--ink-2);line-height:1.35}
+.hw-online .hwo-blks.stale li{border:1px dashed var(--line)}
 .hwo-nt{display:inline-block;margin-left:5px;padding:0 6px;border-radius:999px;background:var(--accent-bg);color:var(--accent-ink);font:700 .66rem/1.5 var(--f-body);vertical-align:1px}
 .hwo-mk{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:.9rem}
-.hwo-mk.eq{background:var(--power-soft);color:var(--power)}
+.hwo-mk.eq{background:var(--power-soft);color:var(--hwo-g)}
 .hwo-mk.ne{background:var(--accent-bg);color:var(--accent-ink)}
 .hwo-mk.fl{animation:hwo-pop .6s ease-out}
 @keyframes hwo-pop{from{transform:scale(1.6)}}
@@ -158,8 +183,8 @@
 .hwo-link{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--muted);text-align:center;min-height:40px}
 .hwo-link::before{content:"";position:absolute;left:3px;right:3px;top:50%;margin-top:-1.5px;border-top:3px dashed var(--line)}
 .hwo-link.on::before{border-top-style:solid;border-top-color:var(--power)}
-.hwo-lb{position:relative;z-index:1;font:700 .64rem/1.2 var(--f-mono);letter-spacing:.04em;text-transform:uppercase;background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:2px 3px}
-.hwo-link.on .hwo-lb{color:var(--power);border-color:var(--power)}
+.hwo-lb{position:relative;z-index:1;font:700 .74rem/1.2 var(--f-body);background:var(--surface);color:var(--ink-2);border:1px solid var(--line);border-radius:5px;padding:2px 4px;white-space:nowrap}
+.hwo-link.on .hwo-lb{color:var(--hwo-g);border-color:var(--power)}
 .hwo-arr{position:relative;z-index:1;display:flex;gap:1px;font-size:.8rem;line-height:1;color:var(--info)}
 .hwo-arr i{font-style:normal;animation:hwo-dot .9s infinite;opacity:.2}
 .hwo-arr i:nth-child(2){animation-delay:.15s}.hwo-arr i:nth-child(3){animation-delay:.3s}
@@ -173,7 +198,7 @@
 .hwo-lg i{display:inline-block;width:18px;height:3px;border-radius:2px;background:var(--hwo-on)}
 .hwo-lg i.c{width:13px;height:14px;border-radius:0;background:var(--power-soft);border-left:2.5px solid var(--power);border-right:2.5px solid var(--power)}
 .hwo-st8{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;font-weight:700;padding:1px 9px;border-radius:999px;background:var(--surface-3);color:var(--ink-2)}
-.hwo-st8.live{background:var(--power-soft);color:var(--power)}
+.hwo-st8.live{background:var(--power-soft);color:var(--hwo-g)}
 .hwo-st8.live::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--power-bright)}
 .hwo-note{margin:8px 0 0;font-size:.84rem;color:var(--ink-2);background:var(--surface-2);border-radius:8px;padding:6px 10px}
 .hwo-rung{padding:8px 0 4px;border-top:1px dashed var(--line-2)}
@@ -188,7 +213,7 @@
 .hwo-net{display:flex;align-items:flex-start;width:100%;min-width:max-content;border-left:3px solid var(--ink-2);border-right:3px solid var(--ink-2)}
 .hwo-net.live{border-left-color:var(--hwo-on)}
 .hwo-el{position:relative;display:flex;flex-direction:column;width:62px;flex:none}
-.hwo-tag{height:18px;font:600 .68rem/18px var(--f-mono);text-align:center;white-space:nowrap;color:var(--ink)}
+.hwo-tag{height:18px;font:600 .7rem/18px var(--f-mono);text-align:center;white-space:nowrap;color:var(--ink)}
 .hwo-sym{display:flex;align-items:center;height:26px}
 .hwo-wl,.hwo-wr{flex:1;height:2px;background:var(--hwo-w)}
 .hwo-sym b{flex:none;height:22px}
@@ -197,7 +222,7 @@
 .hwo-el.pl .hwo-wl,.hwo-el.pr .hwo-wr,.hwo-coil.pl .hwo-wr{background:var(--hwo-on);height:3px}
 .hwo-no.cl .hwo-sym b{background:var(--power-soft);border-color:var(--power)}
 .hwo-coil.pl .hwo-sym b{background:var(--power-soft);border-left-color:var(--power);border-right-color:var(--power)}
-.hwo-el.err .hwo-tag{color:var(--danger);font-weight:800;text-decoration:underline wavy var(--danger);text-underline-offset:3px}
+.hwo-el.err .hwo-tag{color:var(--hwo-r);font-weight:800;text-decoration:underline wavy var(--danger);text-underline-offset:3px}
 .hwo-el.new .hwo-tag{background:var(--accent-bg);color:var(--accent-ink);border-radius:4px;margin:0 2px}
 .hwo-f{position:absolute;top:47px;left:50%;transform:translateX(-50%);padding:0 6px;border-radius:5px;background:var(--accent-bg);color:var(--accent-ink);font:800 .68rem/17px var(--f-body);white-space:nowrap;font-style:normal}
 .hwo-fill{flex:1 1 auto;min-width:14px;height:44px;position:relative}
@@ -216,7 +241,7 @@
 .hwo-fb.pl .hwo-fbr > i{background:var(--hwo-on);height:3px;margin-top:11.5px}
 .hwo-fbx{position:relative;border:2px solid var(--ink-2);border-radius:6px;padding:3px 10px 5px 30px;min-width:150px;background:var(--surface)}
 .hwo-fb.pl .hwo-fbx{border-color:var(--power);background:var(--power-soft)}
-.hwo-fbx em{position:absolute;left:5px;top:4px;font:700 .62rem var(--f-mono);font-style:normal;color:var(--muted)}
+.hwo-fbx em{position:absolute;left:5px;top:4px;font:700 .7rem var(--f-mono);font-style:normal;color:var(--ink-2)}
 .hwo-fbx b{display:block;font:700 .82rem/1.3 var(--f-mono)}
 .hwo-fbx small{display:block;font-size:.72rem;color:var(--ink-2);line-height:1.3}
 .hwo-mach{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}
@@ -231,15 +256,16 @@
 @keyframes hwo-spin{to{transform:rotate(360deg)}}
 .hwo-lamp{width:34px;height:34px;border-radius:50%;flex:none;background:var(--surface-3);border:2px solid var(--line);box-shadow:inset 0 -3px 0 rgba(0,0,0,.12)}
 .hwo-dev.on .hwo-lamp{background:#3ee07f;border-color:#15964a;box-shadow:0 0 14px #3ee07f}
-.hwo-pbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-.hwo-pb{display:inline-flex;align-items:center;gap:9px;min-height:46px;padding:6px 14px 6px 8px;border-radius:12px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font:inherit;font-weight:700;font-size:.9rem;color:var(--ink);text-align:left;touch-action:manipulation}
+.hwo-pbs{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;padding-top:9px;border-top:1px solid var(--line-2)}
+.hwo-pbs > small{flex:1 1 100%;font-size:.8rem;color:var(--ink-2);margin-top:-2px}
+.hwo-pb{display:inline-flex;align-items:center;gap:9px;min-height:46px;padding:6px 14px 6px 8px;border-radius:12px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font:inherit;font-weight:700;font-size:.9rem;color:var(--ink);text-align:left;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .hwo-pb:hover{background:var(--surface-2)}
 .hwo-pb .hwo-knob{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--p-bezel,#2b3742);flex:none}
 .hwo-pb .hwo-knob i{width:21px;height:21px;border-radius:50%;background:#1fa64d;box-shadow:inset 0 -3px 0 rgba(0,0,0,.25);transition:transform .06s}
 .hwo-pb.red .hwo-knob i{background:#d63a3a}
 .hwo-pb.down{background:var(--surface-3)}
 .hwo-pb.down .hwo-knob i{transform:scale(.8);box-shadow:inset 0 2px 0 rgba(0,0,0,.3)}
-.hwo-pb small{display:block;font:500 .72rem var(--f-mono);color:var(--muted)}
+.hwo-pb small{display:block;font:500 .74rem var(--f-mono);color:var(--ink-2)}
 .hwo-pb.hwo-dis{opacity:.45;cursor:not-allowed}
 .hw-online .hwo-live{margin:10px 0 0}
 .hw-online .hwo-live td,.hw-online .hwo-live th{vertical-align:middle;padding:6px 10px}
@@ -257,7 +283,9 @@
 .hw-online .hwo-steps li{display:flex;align-items:center;gap:10px;margin:0;padding:6px 8px;min-height:44px;border-radius:10px;border:1px solid var(--line-2);background:var(--surface-2);font-size:.9rem;color:var(--muted)}
 .hwo-steps li > i{flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:.78rem;background:var(--surface-3);color:var(--ink-2)}
 .hw-online .hwo-steps li.done{color:var(--ink-2)}
-.hwo-steps li.done > i{background:var(--power);color:#fff}
+.hwo-steps li.done > i{background:var(--power);color:var(--surface)}
+.hw-online .hwo-steps li.miss{border-style:dashed;color:var(--ink-2)}
+.hwo-steps li.miss > i{background:var(--accent-bg);color:var(--accent-ink)}
 .hw-online .hwo-steps li.cur{border-color:var(--ink-2);background:var(--surface);color:var(--ink)}
 .hwo-steps li.cur > i{background:var(--ink);color:var(--surface)}
 .hwo-ocf{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;font-size:.86rem}
@@ -265,19 +293,27 @@
 .hw-online .hwo-cl{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px 10px}
 .hw-online .hwo-cl li{margin:0;display:flex;gap:8px;align-items:flex-start;padding:7px 9px;border-radius:8px;background:var(--surface-2);font-size:.88rem;line-height:1.3}
 .hwo-cl li > i{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:.8rem}
-.hwo-cl li.ok > i{background:var(--power-soft);color:var(--power)}
-.hwo-cl li.no > i{background:var(--danger-soft);color:var(--danger)}
+.hwo-cl li.ok > i{background:var(--power-soft);color:var(--hwo-g)}
+.hwo-cl li.no > i{background:var(--danger-soft);color:var(--hwo-r)}
 .hw-online .hwo-cl li.lost{background:var(--danger-soft)}
-.hwo-cl small{display:block;color:var(--muted);font-size:.78rem;margin-top:1px}
-.hw-online .hwo-cl li.lost small{color:var(--danger);font-weight:600}
+.hwo-cl small{display:block;color:var(--ink-2);font-size:.78rem;margin-top:1px}
+.hw-online .hwo-cl li.lost small{color:var(--hwo-r);font-weight:600}
 .hwo-next{margin:10px 0 0;padding:8px 10px;border-radius:8px;border:1px dashed var(--line);font-size:.9rem}
 .hwo-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .hwo-cap{position:sticky;bottom:10px;z-index:6;margin-top:16px;padding:9px 12px;border-radius:12px;border:1px solid var(--line);border-left:5px solid var(--info);background:var(--surface);box-shadow:0 2px 6px rgba(0,0,0,.08),0 10px 24px rgba(0,0,0,.12)}
 .hwo-cap.ok{border-left-color:var(--power)}
 .hwo-cap.warn{border-left-color:var(--accent-bg)}
 .hwo-cap.bad{border-left-color:var(--danger)}
+.hwo-ch{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .hwo-k{display:block;font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:1px}
 .hwo-cap p{margin:0;font-size:.93rem}
+.hwo-cap button{cursor:pointer;font:700 .8rem/1.1 var(--f-body);border-radius:999px;white-space:nowrap;touch-action:manipulation}
+.hwo-show{flex:none;min-height:32px;padding:2px 12px;border:1px solid var(--accent-bg);background:var(--accent-bg);color:var(--accent-ink)}
+.hwo-show[hidden]{display:none}
+.hwo-mb{margin-left:6px;min-height:32px;padding:0 10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink-2)}
+.hwo-mb:hover,.hwo-mb[aria-expanded="true"]{background:var(--surface-3);color:var(--ink)}
+.hwo-cap p.hwo-mt{margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);font-size:.88rem;color:var(--ink-2)}
+.hwo-cap p.hwo-mt[hidden]{display:none}
 .hwo-cap.flash{animation:hwo-flash .7s ease-out}
 @keyframes hwo-flash{from{box-shadow:0 0 0 4px var(--accent-bg)}}
 @media (max-width:820px){.hwo-cap{bottom:calc(var(--tabbar-h) + 8px + env(safe-area-inset-bottom,0px))}}
@@ -293,7 +329,10 @@
 .hwo-narrow .hwo-link.on::before{border-left-style:solid;border-left-color:var(--power)}
 .hwo-narrow .hwo-arr{transform:rotate(90deg)}
 .hwo-narrow .hwo-prog{padding:8px 8px 10px}
-@media (prefers-reduced-motion:reduce){.hw-online .hwo-nx,.hwo-arr i,.hwo-dev.on .hwo-bl,.hwo-led.blink i,.hwo-cap.flash,.hwo-mk.fl{animation:none}.hwo-arr i{opacity:1}}
+.hwo-narrow .hwo-cap{max-height:30vh;overflow-y:auto;overscroll-behavior:contain;padding:6px 10px 8px}
+.hwo-narrow .hwo-cap p{font-size:.9rem;line-height:1.4}
+.hwo-narrow .hwo-pb{flex:1 1 140px}
+@media (prefers-reduced-motion:reduce){.hw-online .hwo-nx,.hwo-arr i,.hwo-dev.on .hwo-bl,.hwo-led.blink i,.hwo-cap.flash,.hwo-mk.fl{animation:none}.hwo-arr i{opacity:1}.hw-online .hwo-hl{animation:none;outline:3px solid var(--accent-bg);outline-offset:3px}}
 `;
   function injectCSS() {
     if (document.getElementById('hw-online-css')) return;
@@ -305,9 +344,10 @@
 
   // ───────────── state ─────────────
   // proj / plc: { ol: overload contact in rung 1, fb: FB_Motor version (2 = night shift), hw: hardware version }
+  // last: what the laptop saw of the PLC the last time it was connected (shown while offline)
   function fresh(brand) {
     return {
-      v: 1, brand, typo: true, seen: false, ck: '', proj: { ol: false, fb: 1, hw: 1 }, plc: null,
+      v: 1, brand, typo: true, seen: false, ck: '', proj: { ol: false, fb: 1, hw: 1 }, plc: null, last: null,
       mode: 'stop', sw: brand === 'rock' ? 'rem' : 'run', forced: false, night: 0, oc: 0, won: false,
       done: { compile: false, run: false, equal: false, night: false, forceSet: false, force: false, oc: false, hw: false },
     };
@@ -320,6 +360,7 @@
       s.typo = b(o.typo); s.seen = b(o.seen); s.ck = typeof o.ck === 'string' ? o.ck : '';
       s.proj = { ol: b(p.ol), fb: p.fb === 2 ? 2 : 1, hw: p.hw === 2 ? 2 : 1 };
       s.plc = o.plc ? { ol: b(o.plc.ol), fb: o.plc.fb === 2 ? 2 : 1, hw: o.plc.hw === 2 ? 2 : 1, src: b(o.plc.src) } : null;
+      s.last = s.plc && o.last ? { ol: b(o.last.ol), fb: o.last.fb === 2 ? 2 : 1, hw: o.last.hw === 2 ? 2 : 1 } : null;
       if (s.plc) s.typo = false;
       s.mode = o.mode === 'run' && s.plc ? 'run' : 'stop';
       if (BR[o.brand].sw.indexOf(o.sw) >= 0) s.sw = o.sw;
@@ -327,7 +368,10 @@
       s.night = [0, 1, 2, 3].indexOf(o.night) >= 0 ? o.night : 0;
       s.oc = Number.isInteger(o.oc) ? Math.max(0, Math.min(5, o.oc)) : 0;
       Object.keys(s.done).forEach((k) => (s.done[k] = b(o.done && o.done[k])));
-      s.won = b(o.won);
+      // a damaged save must not claim PLC work when the PLC is empty
+      if (!s.plc) { ['run', 'equal', 'night', 'forceSet', 'force', 'oc', 'hw'].forEach((k) => (s.done[k] = false)); s.night = 0; s.oc = 0; s.proj = { ol: false, fb: 1, hw: 1 }; }
+      if (s.done.compile && s.typo) s.done.compile = false;
+      s.won = b(o.won) && Object.keys(s.done).every((k) => k === 'forceSet' || s.done[k]);
       return s;
     } catch (e) { return null; }
   }
@@ -342,16 +386,21 @@
     const restored = !!st;
     if (!st) st = fresh('tia');
     let online = false, dlg = null, flashCmp = false, timers = [];
+    let retF = null; // the button that opened a dialog: focus goes back there when the dialog closes
+    let capShow = null; // the area the caption talks about ("Show me" scrolls there)
+    let hold = null, lastPtr = 0, ro = null; // a push button held down with the mouse or a finger; the resize watcher
     const rt = { start: false, stopP: false, motor: false }; // buttons and the motor bit (not saved)
 
     const br = () => BR[st.brand];
     const has = () => !!st.plc;
+    const snap = () => { st.last = st.plc ? { ol: st.plc.ol, fb: st.plc.fb, hw: st.plc.hw } : null; };
+    const dlName = () => (st.brand === 'cds' && online ? 'Download' : br().download); // CODESYS: already logged in → Online → Download
     const P = () => ({ ol: st.proj.ol, fb: st.proj.fb, hw: st.proj.hw, typo: st.typo });
     const pkey = () => JSON.stringify(P());
     const compiled = () => !st.typo && st.ck === pkey();
     const runs = () => has() && st.mode === 'run';
     const swSoft = () => (st.brand === 'rock' ? st.sw === 'rem' : st.sw === 'run'); // may the laptop change the mode?
-    const later = (fn, ms) => { const t = setTimeout(() => { timers = timers.filter((x) => x !== t); if (root.isConnected) fn(); }, ms); timers.push(t); };
+    const later = (fn, ms) => { const t = setTimeout(() => { timers = timers.filter((x) => x !== t); if (root.isConnected) fn(); else cleanup(); }, ms); timers.push(t); };
     function save() { try { localStorage.setItem(STORE, JSON.stringify(st)); } catch (e) { /* storage blocked */ } }
 
     function binfo(k, S) {
@@ -453,6 +502,7 @@
       const B = br();
       if (!has()) return 'The PLC is empty: download a program first.';
       if (!online) return `Online change works only online: click ${B.online} first.`;
+      if (st.brand === 'rock' && st.sw === 'run') return 'The key is on RUN: online edits are blocked. Turn the key to REM (the controller stays in Remote Run).';
       if (st.mode !== 'run') return `The ${B.cpu} is in ${B.stopW}. An online change is a change while the machine runs: start it first.`;
       if (st.oc === 0 && diffs().length) return `Your project and the PLC are not equal. Make them equal first (${B.cmp} shows what is different).`;
       return null;
@@ -467,33 +517,45 @@
     function toolsHTML() {
       const B = br();
       const g1 = btn('compile', B.compile) + (st.typo && st.seen ? btn('fix', 'Fix the typo', null, { cls: 'primary' }) : '');
-      const g2 = btn('download', B.download, whyDownload()) + btn('online', online ? B.offline : B.online, null, { pressed: online }) + btn('compare', B.compare, whyCompare()) + btn('upload', B.upload, whyUpload());
-      const g3 = btn('cpu', st.mode === 'run' && has() ? B.stop : B.start, whyCpu()) + btn('force', st.forced ? B.unforce : `${B.force}: ${B.addr.motor} = ${B.T}`, whyForce());
+      const g2 = btn('download', dlName(), whyDownload()) + btn('online', online ? B.offline : B.online, null, { pressed: online }) + btn('compare', B.compare, whyCompare()) + btn('upload', B.upload, whyUpload());
+      const g3 = btn('cpu', st.mode === 'run' && has() ? B.stop : B.start, whyCpu()) + btn('force', st.forced ? B.unforce : `${B.force}: ${B.faddr} = ${B.T}`, whyForce());
       return `<span class="hwo-gl">Project · laptop</span><div class="hwo-btns">${g1}</div><span class="hwo-gl">Laptop ↔ PLC</span><div class="hwo-btns">${g2}</div><span class="hwo-gl">PLC · online</span><div class="hwo-btns">${g3}</div>`;
     }
     function rowsHTML(isPlc) {
       const B = br();
       if (isPlc && !has()) return `<p class="hwo-empty">Empty: no program and no hardware configuration. The ${B.cpu} stays in ${B.stopW}.</p>`;
-      const S = isPlc ? st.plc : P(), dif = online && has() ? diffs() : null;
-      return '<ul class="hwo-blks">' + KEYS.map((k) => {
+      // offline, the laptop cannot see the PLC: it shows the values from the last connection
+      const stale = isPlc && !online;
+      const S = isPlc ? (stale ? st.last || st.plc : st.plc) : P(), dif = online && has() ? diffs() : null;
+      const off = stale ? `<p class="hwo-off"><b>Offline:</b> last known values. The PLC may have changed since then.</p>` : '';
+      return off + `<ul class="hwo-blks${stale ? ' stale' : ''}">` + KEYS.map((k) => {
         const I = binfo(k, S), ne = !!dif && dif.indexOf(k) >= 0;
         const sub = k === 'main' ? B.mainSub : k === 'fb' ? B.fbSub : k === 'db' ? B.dbSub : S.hw === 2 ? B.cpu + ' + 3 cards (new AI card)' : B.cpu + ' + 2 cards';
         const mk = dif ? `<span class="hwo-mk ${ne ? 'ne' : 'eq'}${flashCmp ? ' fl' : ''}" role="img" aria-label="${ne ? 'different' : 'equal'}">${ne ? '≠' : '✓'}</span>` : '<span aria-hidden="true"></span>';
-        const nw = ne && !isPlc ? `<span class="hwo-nwr">≠ ${newer(k) === 'plc' ? 'The PLC has a newer version.' : 'Your project is newer.'}</span>` : '';
+        // Compare only says "different". The time stamps tell you who changed it last.
+        const nwT = k === 'fb' && newer('fb') === 'plc' ? 'PLC changed 03:40, your file yesterday 17:10.'
+          : newer(k) === 'plc' ? 'the PLC copy was changed after your file.' : 'you changed your file after the last download.';
+        const nw = ne && !isPlc ? `<span class="hwo-nwr">≠ different · ${nwT}</span>` : '';
         return `<li class="${k === 'hw' ? 'hwo-hwr ' : ''}${ne ? 'ne' : ''}"><span class="hwo-bn"><b>${nameOf(k)}</b><small>${sub}</small></span><span class="hwo-bv">v${I.v}${I.night ? '<span class="hwo-nt">night shift</span>' : ''}<small>#${I.s}</small></span>${mk}${nw}</li>`;
       }).join('') + '</ul>';
     }
+    // the LEDs on the front of each brand's CPU (simplified, but with the real names)
+    function ledDefs() {
+      const r = runs(), bl = !!(dlg && dlg.prog && dlg.dir === 'dl' && st.mode === 'stop');
+      if (st.brand === 'tia') return [{ n: 'RUN/STOP', c: r ? 'g' : 'y', on: true, bl }, { n: 'ERROR', c: 'r', on: false }, { n: 'MAINT', c: 'y', on: st.forced }];
+      if (st.brand === 'rock') return [{ n: 'RUN', c: 'g', on: r }, { n: 'FORCE', c: 'y', on: st.forced }, { n: 'OK', c: 'g', on: true }];
+      return [{ n: 'RUN', c: 'g', on: r }, { n: 'STOP', c: 'y', on: !r, bl }, { n: 'ERROR', c: 'r', on: false }, { n: 'FORCE', c: 'y', on: st.forced }];
+    }
+    const COL = { g: 'green', y: 'yellow', r: 'red' };
     function duoHTML() {
       const B = br(), c = st.typo && st.seen ? ['bad', '1 error'] : compiled() ? ['ok', 'compiled ✓'] : ['warn', 'not compiled'];
       const dir = dlg && dlg.dir;
-      const blink = dlg && dlg.prog && dlg.dir === 'dl' && st.mode === 'stop';
-      const L = B.leds, on = [runs(), !runs(), false, st.forced];
-      const leds = L.map((n, i) => `<span class="hwo-led ${['g', 'y', 'r', 'y'][i]}${on[i] ? ' on' : ''}${i === 1 && blink ? ' blink' : ''}" role="img" aria-label="${n} LED ${on[i] ? 'on' : 'off'}"><i></i>${n}</span>`).join('');
+      const leds = ledDefs().map((L) => `<span class="hwo-led ${L.c}${L.on ? ' on' : ''}${L.on && L.bl ? ' blink' : ''}" role="img" aria-label="${L.n} LED: ${L.on ? COL[L.c] + (L.bl ? ', flashing' : '') : 'off'}"><i></i>${L.n}</span>`).join('');
       const sw = B.sw.map((v) => `<button type="button" data-act="sw" data-v="${v}" data-f="sw-${v}" aria-pressed="${st.sw === v}">${B.swL[v]}</button>`).join('');
       const lk = dir === 'dl' ? 'download' : dir === 'ul' ? 'upload' : online ? 'online' : 'offline';
-      return `<section class="hwo-pan" aria-label="Project on your laptop"><div class="hwo-ph">${icon('laptop')}<span><b>Project on your laptop (offline)</b><small>your copy · you edit it here</small></span><span class="hwo-pill ${c[0]}">${c[1]}</span></div>${rowsHTML(false)}</section>
+      return `<section class="hwo-pan hwo-tgt" aria-label="Project on your laptop"><div class="hwo-ph">${icon('laptop')}<span><b>Project on your laptop (offline)</b><small>your copy · you edit it here</small></span><span class="hwo-pill ${c[0]}">${c[1]}</span></div>${rowsHTML(false)}</section>
 <div class="hwo-link${online || dir ? ' on' : ''}${dir ? ' ' + dir : ''}"><span class="hwo-lb">${lk}</span>${dir ? `<span class="hwo-arr" aria-hidden="true">${dir === 'dl' ? '<i>▶</i><i>▶</i><i>▶</i>' : '<i>◀</i><i>◀</i><i>◀</i>'}</span>` : ''}</div>
-<section class="hwo-pan" aria-label="PLC"><div class="hwo-ph">${icon('plc')}<span><b>PLC (online)</b><small>this copy runs the machine</small></span></div>
+<section class="hwo-pan hwo-tgt" aria-label="PLC"><div class="hwo-ph">${icon('plc')}<span><b>PLC (online)</b><small>this copy runs the machine</small></span></div>
 <div class="hwo-cpu"><div class="hwo-cpu1"><span class="hwo-cpun">${B.cpu.toUpperCase()} FRONT</span><span class="hwo-mode${runs() ? ' r' : ''}">${modeL()}</span></div><div class="hwo-leds">${leds}</div><div class="hwo-swb"><span>${st.brand === 'rock' ? 'Key switch' : 'Mode switch'}</span><div class="hwo-sw" role="group" aria-label="${st.brand === 'rock' ? 'Key switch' : 'Mode switch'} on the ${B.cpu}">${sw}</div></div></div>
 ${rowsHTML(true)}</section>`;
     }
@@ -541,24 +603,27 @@ ${rowsHTML(true)}</section>`;
       }
       const typo = !showPlc && st.typo;
       h += rungHTML(2, 'Lamp: shows that the motor runs', stub(L) + ct(typo ? 'Motor_Rnu' : 'Motor_Run', L, L, rt.motor, typo && st.seen ? 'err' : '') + fill(L && rt.motor) + coil('Lamp_Run', L, L && rt.motor), L);
-      const fbTxt = S.fb === 2 ? 'v2 · + overload check (night shift)' : 'v1 · Run := Motor_Run';
+      const fbTxt = S.fb === 2 ? 'v2 · + overload alarm (night shift)' : 'v1 · Run := Motor_Run';
       h += rungHTML(3, 'Call the motor block FB_Motor', stub(L) + `<span class="hwo-fb${L ? ' pl' : ''}"><span class="hwo-tag" style="text-align:left;padding-left:14px">${B.inst}</span><span class="hwo-fbr"><i></i><span class="hwo-fbx"><em>EN</em><b>FB_Motor</b><small>${fbTxt}</small></span></span></span>` + fill(L), L);
       if (typo && st.seen) note = `<p class="hwo-note"><b>Error:</b> rung 2 uses <b>"Motor_Rnu"</b>. No tag has this name: it is a typo of Motor_Run.</p>`;
       else if (!showPlc && has()) note = `<p class="hwo-note">You see your project. The PLC runs the machine anyway. ${B.online} to watch the PLC live.</p>`;
       else if (online && !has()) note = '<p class="hwo-note">You are online, but the PLC is empty. You see your project.</p>';
-      else if (frc) note = `<p class="hwo-note"><b>F</b> = forced. The coil shows what the program wants (${rt.motor ? B.T : B.F}). The real output ${B.addr.motor} is forced to ${B.T}.</p>`;
-      return h + note;
+      else if (frc) note = `<p class="hwo-note"><b>F</b> = forced. The coil shows what the program wants (${rt.motor ? B.T : B.F}). The real output ${B.faddr} is forced to ${B.T}.</p>`;
+      return h + note + pbsHTML();
+    }
+    // the two push buttons sit right under the rungs, so you see the contacts change while you press
+    function pbsHTML() {
+      const B = br(), dis = dlg ? ` aria-disabled="true" data-why="${ANS}"` : '';
+      return `<div class="hwo-pbs"><button type="button" class="hwo-pb${rt.start ? ' down' : ''}${dlg ? ' hwo-dis' : ''}" data-act="press" data-k="start" data-f="p-start"${dis}><span class="hwo-knob"><i></i></span><span>Press START<small>${B.addr.start} · NO button</small></span></button>
+<button type="button" class="hwo-pb red${rt.stopP ? ' down' : ''}${dlg ? ' hwo-dis' : ''}" data-act="press" data-k="stop" data-f="p-stop"${dis}><span class="hwo-knob"><i></i></span><span>Press STOP<small>${B.addr.stop} · NC button</small></span></button><small>Tip: hold a button down to keep it pressed.</small></div>`;
     }
     function machHTML() {
       const B = br(), r = runs(), qm = r && (rt.motor || st.forced), ql = r && rt.motor, frcOn = r && st.forced && !rt.motor;
       const live = online && has();
       const v = (x, f) => (live ? `<span class="hwo-v${f ? ' frc' : x ? ' on' : ''}">${x ? B.T : B.F}${f ? ' · forced' : ''}</span>` : '<span class="hwo-v">—</span>');
       const motor = `<svg viewBox="0 0 42 42" aria-hidden="true"><circle cx="21" cy="21" r="18" fill="none" stroke="currentColor" stroke-width="2.5"/><g class="hwo-bl" fill="currentColor"><ellipse cx="21" cy="12" rx="4" ry="8"/><ellipse cx="21" cy="12" rx="4" ry="8" transform="rotate(120 21 21)"/><ellipse cx="21" cy="12" rx="4" ry="8" transform="rotate(240 21 21)"/></g><circle cx="21" cy="21" r="3.5" fill="var(--surface)" stroke="currentColor" stroke-width="2"/></svg>`;
-      const dis = dlg ? ` aria-disabled="true" data-why="${ANS}"` : '';
       let h = `<div class="hwo-mach"><div class="hwo-dev${qm ? ' on' : ''}${frcOn ? ' frc' : ''}">${motor}<span><b>Motor M1</b><small>${qm ? (frcOn ? 'RUNNING, but only because it is forced!' : 'running') : 'stopped'} · output ${B.addr.motor}</small></span></div>
-<div class="hwo-dev${ql ? ' on' : ''}"><i class="hwo-lamp" aria-hidden="true"></i><span><b>Lamp H1 "motor runs"</b><small>${ql ? 'on' : 'off'} · output ${B.addr.lamp}</small></span></div></div>
-<div class="hwo-pbs"><button type="button" class="hwo-pb${rt.start ? ' down' : ''}${dlg ? ' hwo-dis' : ''}" data-act="press" data-k="start" data-f="p-start"${dis}><span class="hwo-knob"><i></i></span><span>Press START<small>${B.addr.start} · NO button</small></span></button>
-<button type="button" class="hwo-pb red${rt.stopP ? ' down' : ''}${dlg ? ' hwo-dis' : ''}" data-act="press" data-k="stop" data-f="p-stop"${dis}><span class="hwo-knob"><i></i></span><span>Press STOP<small>${B.addr.stop} · NC button</small></span></button></div>`;
+<div class="hwo-dev${ql ? ' on' : ''}"><i class="hwo-lamp" aria-hidden="true"></i><span><b>Lamp H1 "motor runs"</b><small>${ql ? 'on' : 'off'} · output ${B.addr.lamp}</small></span></div></div>`;
       const rows = [
         ['Start_PB', 'START button (NO)', B.addr.start, v(rt.start)],
         ['Stop_PB', 'STOP button (NC): 1 = not pressed', B.addr.stop, v(!rt.stopP)],
@@ -570,19 +635,26 @@ ${rowsHTML(true)}</section>`;
       return h;
     }
     function evHTML() {
-      return `<div class="hwo-evs"><div class="hwo-evc"><div><b>The night shift</b><small>A colleague changes the PLC directly, from another laptop. Nobody tells you.</small></div>${btn('night', 'Night shift changed the PLC', whyNight())}</div>
+      return `<div class="hwo-evs"><div class="hwo-evc"><div><b>The night shift</b><small>A colleague changes the PLC from another laptop. Nobody tells you.</small></div>${btn('night', 'Night shift changed the PLC', whyNight())}</div>
 <div class="hwo-evc"><div><b>A new card</b><small>The machine gets a new analog input card. You add it to the hardware configuration.</small></div>${btn('hw', 'Change the hardware (add a card)', whyHw())}</div></div>`;
     }
     function ocHTML() {
       const B = br(), S = B.oc, n = S.length, w = whyOc();
-      let h = `<p class="hwo-ocp">${B.ocIntro}</p><ol class="hwo-steps">`;
+      const miss = st.oc >= n && !st.done.oc; // the contact reached the PLC, but with the CPU stopped
+      let h = `<p class="hwo-ocp">${B.ocIntro} ${OC_WHY}</p><ol class="hwo-steps">`;
       S.forEach(([k, l], i) => {
+        if (miss) {
+          const ok = k === 'add', last = i === n - 1;
+          h += `<li class="${ok ? 'done' : last ? 'miss' : ''}"><i aria-hidden="true">${ok ? '✓' : last ? '—' : i + 1}</i><span>${l}${ok ? '<span class="hwo-sr"> (done)</span>' : last ? `: not done. It was loaded in ${B.stopW} instead.` : ''}</span></li>`;
+          return;
+        }
         const cls = i < st.oc ? 'done' : i === st.oc ? 'cur' : '';
         h += `<li class="${cls}"><i aria-hidden="true">${i < st.oc ? '✓' : i + 1}</i>${i === st.oc ? btn('oc-' + k, l, w, { act: 'oc', k, cls: 'primary' }) : `<span>${l}${i < st.oc ? '<span class="hwo-sr"> (done)</span>' : ''}</span>`}</li>`;
       });
       h += '</ol>';
       if (ocMid()) h += `<div class="hwo-ocf">${btn('occancel', 'Cancel the online change', null)}</div>`;
-      else if (st.oc >= n) h += `<p class="hwo-ocf">${st.done.oc ? '<span class="chip ok">✓ done in RUN</span> The overload contact is in the PLC. The machine never stopped.' : `<span class="chip">loaded in ${B.stopW}</span> The contact was loaded with the ${B.cpu} stopped: not an online change. Press Reset to practise it.`}</p>`;
+      else if (st.oc >= n && st.done.oc) h += '<p class="hwo-ocf"><span class="chip ok">✓ done in RUN</span> The overload contact is in the PLC. The machine never stopped.</p>';
+      else if (miss) h += `<div class="hwo-ocf"><span class="chip">loaded in ${B.stopW}</span><span>${B.cpuThe} was in ${B.stopW}, so this was not an online change.</span>${btn('ocretry', 'Practise the online change again', null, { cls: 'primary' })}</div>`;
       return h;
     }
     function checks() {
@@ -592,7 +664,7 @@ ${rowsHTML(true)}</section>`;
         { ok: d.run, t: 'Downloaded and in RUN', s: `The first download needs ${B.stopW}.` },
         { ok: d.equal, t: 'Online and all blocks equal', s: `${B.online}, then ${B.cmp}.` },
         { ok: d.night, lost: st.night === 3, t: 'Night-shift change kept', s: st.night === 3 ? 'Overwritten! Press Reset to try again.' : 'Uploaded, not overwritten.' },
-        { ok: d.force, t: 'Force set and removed', s: `Watch the ${B.leds[3]} LED.` },
+        { ok: d.force, t: 'Force set and removed', s: `Watch the ${B.forceLed} LED.` },
         { ok: d.oc, t: 'Online change done in RUN', s: 'Add a contact without stopping.' },
         { ok: d.hw, t: 'Hardware change loaded', s: `A new card needs ${B.stopW}.` },
       ];
@@ -608,7 +680,10 @@ ${rowsHTML(true)}</section>`;
     function dlgHTML() {
       if (dlg.prog) {
         const p = dlg.prog, pct = Math.round(((p.i + 1) / p.lines.length) * 100);
-        return `<div class="hwo-dlg info" role="status"><h5><i aria-hidden="true">${dlg.dir === 'ul' ? '◀' : '▶'}</i>${dlg.title}</h5><div class="hwo-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div><p class="hwo-pl">${p.lines[p.i]} · ${pct} %</p></div>`;
+        // the arrows also live here: on a phone the arrows between the two panels are often off screen
+        const ul = dlg.dir === 'ul', arr = `<span class="hwo-arr" aria-hidden="true">${ul ? '<i>◀</i><i>◀</i><i>◀</i>' : '<i>▶</i><i>▶</i><i>▶</i>'}</span>`;
+        const flow = `<div class="hwo-flow${ul ? ' ul' : ''}" aria-hidden="true"><span>${icon('laptop')}laptop</span>${arr}<span>${icon('plc')}PLC</span></div>`;
+        return `<div class="hwo-dlg info" role="status"><h5><i aria-hidden="true">${ul ? '◀' : '▶'}</i>${dlg.title}</h5>${flow}<div class="hwo-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div><p class="hwo-pl">${p.lines[p.i]} · ${pct} %</p></div>`;
       }
       const sym = dlg.kind === 'bad' ? '!' : dlg.kind === 'warn' ? '!' : '?';
       return `<div class="hwo-dlg ${dlg.kind}" role="dialog" aria-labelledby="${id}-dt"><h5 id="${id}-dt"><i aria-hidden="true">${sym}</i>${dlg.title}</h5><p>${dlg.text}</p>${dlg.why ? `<p class="hwo-why">${dlg.why}</p>` : ''}<div class="hwo-dbtn">${dlg.btns.map((b, i) => `<button type="button" class="btn${b.primary ? ' primary' : ''}${b.danger ? ' hwo-danger' : ''}" data-act="dlg" data-i="${i}" data-f="dlg-${i}">${b.l}</button>`).join('')}</div></div>`;
@@ -626,8 +701,9 @@ ${rowsHTML(true)}</section>`;
         return null;
       };
       if (!d.compile) return st.typo && st.seen ? { t: `Click <b>Fix the typo</b>, then <b>${B.compile}</b> again.`, f: 'fix' } : { t: `Click <b>${B.compile}</b>. It checks your project before anything can go to the PLC.`, f: 'compile' };
+      const keyEdit = () => (st.brand === 'rock' && st.sw === 'run' ? { t: 'Turn the key to <b>REM</b>: with the key on RUN, online edits are blocked.', f: 'sw-rem' } : null);
       if (!d.run) {
-        if (!has()) return keyRun() || { t: `Click <b>${B.download}</b> to send the program to the PLC.`, f: 'download' };
+        if (!has()) return keyRun() || { t: `Click <b>${dlName()}</b> to send the program to the PLC.`, f: 'download' };
         return needRun();
       }
       if (!d.equal) {
@@ -635,29 +711,29 @@ ${rowsHTML(true)}</section>`;
         return { t: `Click <b>${B.cmp}</b>: are both copies the same?`, f: 'compare' };
       }
       if (ocMid()) {
-        const r = needRun();
+        const r = needRun() || keyEdit();
         if (r) return r;
         return { t: `Online change, step ${st.oc + 1} of ${n}: click <b>${B.oc[st.oc][1]}</b>.`, f: 'oc-' + B.oc[st.oc][0] };
       }
       if (!d.night && st.night !== 3) {
         if (st.night === 0) return { t: 'Something happens at night. Click <b>Night shift changed the PLC</b>.', f: 'night' };
         if (!online) return { t: `Click <b>${B.online}</b>. Is the PLC still the same as your project?`, f: 'online' };
-        return { t: `FB_Motor in the PLC is newer than yours. Do <b>not</b> download. Click <b>${B.upload}</b> to take it into your project.`, f: 'upload' };
+        return { t: `FB_Motor in the PLC was changed at 03:40, after your file. Do <b>not</b> download. Click <b>${B.upload}</b> to take it into your project.`, f: 'upload' };
       }
       if (!d.force) {
         if (st.forced) return online ? { t: `Click <b>${B.unforce}</b>. Never leave forces behind.`, f: 'force' } : { t: `Click <b>${B.online}</b>, then <b>${B.unforce}</b>.`, f: 'online' };
-        return needRun() || { t: `Click <b>${B.force}: ${B.addr.motor} = ${B.T}</b> and watch the ${B.leds[3]} LED.`, f: 'force' };
+        return needRun() || { t: `Click <b>${B.force}: ${B.faddr} = ${B.T}</b> and watch the ${B.forceLed} LED.`, f: 'force' };
       }
       if (!d.oc) {
-        if (st.oc >= n) return { t: `The overload contact was loaded with the ${B.cpu} in ${B.stopW}. Press <b>Reset</b> to practise the online change in RUN.`, f: 'reset' };
-        const r = needRun();
+        if (st.oc >= n) return { t: `The overload contact was loaded with the ${B.cpu} in ${B.stopW}. Click <b>Practise the online change again</b>.`, f: 'ocretry' };
+        const r = needRun() || keyEdit();
         if (r) return r;
         if (st.oc === 0 && diffs().length) return { t: `First make the project and the PLC equal: click <b>${B.cmp}</b> to see what is different.`, f: 'compare' };
         return { t: `Online change, step ${st.oc + 1} of ${n}: click <b>${B.oc[st.oc][1]}</b>.`, f: 'oc-' + B.oc[st.oc][0] };
       }
       if (!d.hw) {
         if (st.proj.hw === 1) return { t: 'Click <b>Change the hardware (add a card)</b>.', f: 'hw' };
-        if (st.plc.hw !== 2) return keyRun() || { t: `Click <b>${B.download}</b>. The hardware changed, so this download needs ${B.stopW}.`, f: 'download' };
+        if (!st.plc || st.plc.hw !== 2) return keyRun() || { t: `Click <b>${dlName()}</b>. The hardware changed, so this download needs ${B.stopW}.`, f: 'download' };
         return needRun();
       }
       if (st.night === 3) return { t: "Everything else is done. The night shift's fix was overwritten: press <b>Reset</b> to practise that part again.", f: 'reset' };
@@ -669,21 +745,23 @@ ${rowsHTML(true)}</section>`;
 <div class="hwo-head"><h4 class="hwo-title">Compile, download, go online — and the traps</h4>
 <div class="hwo-seg" role="group" aria-label="Programming tool">${BKEYS.map(([k, n]) => `<button type="button" data-act="brand" data-b="${k}" data-f="b-${k}">${n}</button>`).join('')}</div></div>
 <p class="hwo-intro">Your project lives on your laptop. The PLC has its own copy, and <b>that</b> copy runs the machine. <b>Offline</b>: you work on your copy. <b>Online</b>: the laptop is connected and shows the PLC copy, live. Work through the checklist. The yellow ring shows a good next step.</p>
-<div class="hwo-sec"><div class="hwo-h"><b>Your tools</b><span>Buttons use the words of the tool you chose.</span></div><div class="hwo-tools"></div><div class="hwo-dslot" data-slot="tools"></div></div>
-<div class="hwo-sec"><div class="hwo-h"><b>Laptop and PLC</b><span>v = version · # = checksum (a fingerprint of the block)</span></div><div class="hwo-duo"></div></div>
-<div class="hwo-sec"><div class="hwo-h"><b>The program</b><span>3 rungs</span></div><div class="hwo-prog"></div></div>
-<div class="hwo-sec"><div class="hwo-h"><b>The machine</b><span>The PLC runs it, with or without your laptop.</span></div><div class="hwo-machw"></div></div>
+<div class="hwo-sec hwo-tgt" data-t="tools"><div class="hwo-h"><b>Your tools</b><span>Buttons use the words of the tool you chose.</span></div><div class="hwo-tools"></div><div class="hwo-dslot" data-slot="tools"></div></div>
+<div class="hwo-sec hwo-tgt" data-t="duo"><div class="hwo-h"><b>Laptop and PLC</b><span>v = version · # = checksum (a fingerprint of the block)</span></div><div class="hwo-duo"></div></div>
+<div class="hwo-sec hwo-tgt" data-t="prog"><div class="hwo-h"><b>The program</b><span>3 rungs · press the buttons and watch</span></div><div class="hwo-prog"></div></div>
+<div class="hwo-sec hwo-tgt" data-t="mach"><div class="hwo-h"><b>The machine</b><span>The PLC runs it, with or without your laptop.</span></div><div class="hwo-machw"></div></div>
 <div class="hwo-sec"><div class="hwo-h"><b>Things that happen in a real plant</b></div><div class="hwo-ev"></div></div>
-<div class="hwo-sec"><div class="hwo-h"><b>Online change: change the logic in RUN</b><span class="hwo-ocn"></span></div><div class="hwo-oc"></div><div class="hwo-dslot" data-slot="oc"></div></div>
-<div class="hwo-sec hwo-check"></div>
-<div class="hwo-cap" role="status" aria-live="polite"><span class="hwo-k">What happened</span><p></p></div>`;
+<div class="hwo-sec hwo-tgt" data-t="oc"><div class="hwo-h"><b>Online change: change the logic in RUN</b><span class="hwo-ocn"></span></div><div class="hwo-oc"></div><div class="hwo-dslot" data-slot="oc"></div></div>
+<div class="hwo-sec hwo-tgt" data-t="check"><div class="hwo-check"></div><div class="hwo-dslot" data-slot="check"></div></div>
+<div class="hwo-cap" role="status" aria-live="polite"><div class="hwo-ch"><span class="hwo-k">What happened</span><button type="button" class="hwo-show" data-act="show" hidden></button></div><p class="hwo-ct"></p><p class="hwo-mt" hidden></p></div>`;
     const $ = (s) => root.querySelector(s);
     const toolsEl = $('.hwo-tools'), duoEl = $('.hwo-duo'), progEl = $('.hwo-prog'), machEl = $('.hwo-machw'), evEl = $('.hwo-ev'), ocEl = $('.hwo-oc'), chkEl = $('.hwo-check'), capEl = $('.hwo-cap'), ocN = $('.hwo-ocn');
+    const capT = $('.hwo-ct'), capM = $('.hwo-mt'), showB = $('.hwo-show');
     const slots = root.querySelectorAll('.hwo-dslot');
 
     function render() {
       const a = document.activeElement, fk = a && root.contains(a) ? a.getAttribute('data-f') : null;
       norm(); scan();
+      if (online && has()) snap(); // online, the laptop sees the real PLC
       root.querySelectorAll('[data-act="brand"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.b === st.brand)));
       toolsEl.innerHTML = toolsHTML();
       duoEl.innerHTML = duoHTML();
@@ -702,28 +780,80 @@ ${rowsHTML(true)}</section>`;
     }
 
     // ───── caption ─────
-    const WIN = ' <b>Mission complete!</b> Every check is green.';
-    function say(text, kind) {
-      kind = kind || 'info';
+    // text = 1–2 short sentences. o.more = the longer "why" (behind the More button).
+    // o.show = the area the caption talks about: the "Show me" button scrolls there.
+    const WIN = ' <b>Mission complete!</b>';
+    function say(text, kind, o) {
+      kind = kind || 'info'; o = o || {};
       if (!st.won && checks().every((c) => c.ok)) { st.won = true; text += WIN; kind = 'ok'; save(); }
       capEl.className = 'hwo-cap ' + kind;
-      capEl.querySelector('p').innerHTML = text;
+      capT.innerHTML = text + (o.more ? ' <button type="button" class="hwo-mb" data-act="more" aria-expanded="false">More ▾</button>' : '');
+      capM.innerHTML = o.more || '';
+      capM.hidden = true;
+      capShow = o.show || null;
+      capEl.scrollTop = 0;
+      showArrow();
       void capEl.offsetWidth; // restart the flash animation
       capEl.classList.add('flash');
+    }
+    function toggleMore(b) {
+      const open = capM.hidden;
+      capM.hidden = !open;
+      b.setAttribute('aria-expanded', String(open));
+      b.textContent = open ? 'Less ▴' : 'More ▾';
+    }
+    const TGT = {
+      tools: () => root.querySelector('[data-t="tools"]'), duo: () => duoEl,
+      proj: () => duoEl.querySelectorAll('.hwo-pan')[0], plc: () => duoEl.querySelectorAll('.hwo-pan')[1],
+      prog: () => progEl, mach: () => machEl, oc: () => root.querySelector('[data-t="oc"]'), check: () => root.querySelector('[data-t="check"]'),
+    };
+    const tgtEl = () => (capShow && TGT[capShow] ? TGT[capShow]() : null);
+    // the free space between the page header and the sticky caption
+    function safeBox() {
+      const capH = capEl.getBoundingClientRect().height, capB = parseFloat(getComputedStyle(capEl).bottom) || 10;
+      return { top: 64, bottom: window.innerHeight - capB - capH - 8 };
+    }
+    function showArrow() {
+      const el = tgtEl();
+      if (!el) { showB.hidden = true; return; }
+      const r = el.getBoundingClientRect(), s = safeBox();
+      const a = r.bottom < s.top + 40 ? ' ↑' : r.top > s.bottom - 40 ? ' ↓' : '';
+      showB.textContent = 'Show me' + a;
+      showB.title = a ? 'Scroll to the part that changed' : 'Highlight the part that changed';
+      showB.hidden = false;
+    }
+    function showMe() {
+      const el = tgtEl();
+      if (!el) return;
+      const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const r = el.getBoundingClientRect(), s = safeBox(), avail = s.bottom - s.top;
+      const want = r.height <= avail ? s.top + (avail - r.height) / 2 : s.top; // centre it, or show its top
+      if (Math.abs(r.top - want) > 8) window.scrollTo({ top: window.scrollY + r.top - want, behavior: reduce ? 'auto' : 'smooth' });
+      el.classList.remove('hwo-hl'); void el.offsetWidth; el.classList.add('hwo-hl');
+      later(() => el.classList.remove('hwo-hl'), 1900);
     }
 
     // ───── dialogs (shown inside the widget, next to the button that opened them) ─────
     function focusDlg() {
       const box = root.querySelector('.hwo-dlg');
       if (!box) return;
-      const r = box.getBoundingClientRect();
-      if (r.top < 70 || r.bottom > window.innerHeight - 150) box.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      const r = box.getBoundingClientRect(), s = safeBox();
+      if (r.top < s.top || r.bottom > s.bottom) box.scrollIntoView({ block: 'center', behavior: 'smooth' });
       const b = box.querySelector('.btn.primary') || box.querySelector('.btn');
       if (b) b.focus({ preventScroll: true });
     }
-    function openDlg(o) { dlg = o; render(); if (o.cap) say(o.cap, o.capK || 'info'); focusDlg(); }
-    function closeDlg() { dlg = null; render(); }
-    const cancelBtn = (txt) => ({ l: 'Cancel', fn: () => { closeDlg(); say(txt || 'Cancelled: nothing was loaded. The PLC is unchanged.', 'info'); } });
+    function keepRet() {
+      if (dlg) return;
+      const a = document.activeElement, f = a && root.contains(a) ? a.getAttribute('data-f') : null;
+      if (f && !/^dlg-/.test(f)) retF = f;
+    }
+    function openDlg(o) { keepRet(); dlg = o; render(); if (o.cap) say(o.cap, o.capK || 'info', o.capO); focusDlg(); }
+    function closeDlg() {
+      dlg = null; render();
+      const a = document.activeElement;
+      if (retF && (!a || a === document.body || !root.contains(a))) { const n = root.querySelector('[data-f="' + retF + '"]'); if (n) n.focus({ preventScroll: true }); }
+    }
+    const cancelBtn = (txt) => ({ l: 'Cancel', esc: true, fn: () => { closeDlg(); say(txt || 'Cancelled: nothing was loaded. The PLC is unchanged.', 'info'); } });
     function paintProg() {
       const p = dlg && dlg.prog;
       if (!p) return;
@@ -732,6 +862,7 @@ ${rowsHTML(true)}</section>`;
       if (pl) pl.textContent = p.lines[p.i] + ' · ' + pct + ' %';
     }
     function runProgress(slot, title, lines, dir, done) {
+      keepRet();
       dlg = { slot, title, dir, prog: { lines, i: 0 } };
       render(); focusDlg();
       const tick = () => {
@@ -749,103 +880,130 @@ ${rowsHTML(true)}</section>`;
       const B = br();
       if (st.typo) {
         st.seen = true; render();
-        return say(`${B.compile}: <b>1 error</b>. ${B.main}, rung 2: tag <b>"Motor_Rnu"</b> is not defined. It is a typo of Motor_Run. The compiler checks every name before anything can go to the PLC. Click <b>Fix the typo</b>.`, 'bad');
+        return say(`${B.compile} found <b>1 error</b>: rung 2 uses the tag <b>"Motor_Rnu"</b>, and no tag has this name. The compiler checks every name, so a program with errors never goes to the PLC.`, 'bad',
+          { show: 'prog', more: `It is a typo of Motor_Run (look at rung 2, it is underlined in red). Click <b>Fix the typo</b>, then <b>${B.compile}</b> again.` });
       }
-      if (compiled()) return say(`Already ${B.compile === 'Build' ? 'built' : B.compile === 'Verify' ? 'verified' : 'compiled'}: nothing changed since last time. 0 errors.`, 'info');
+      if (compiled()) return say(`Already ${B.compile === 'Build' ? 'built' : B.compile === 'Verify' ? 'verified' : 'compiled'}: nothing changed since last time, so there are still 0 errors.`, 'info');
       st.ck = pkey(); st.done.compile = true; render();
-      say(`${B.compile}: <b>0 errors</b>. Your ladder is now code the ${B.cpu} can run. Every block has a checksum (#…): a fingerprint that changes with every change. Next: <b>${B.download}</b>.`, 'ok');
+      say(`${B.compile}: <b>0 errors</b>. Your ladder is now code that the ${B.cpu} can run.`, 'ok',
+        { show: 'proj', more: `Every block now has a checksum (#…): a fingerprint that changes with every change. Later, ${B.cmp} uses these fingerprints. Next: <b>${dlName()}</b>.` });
     }
     function fix() {
       st.typo = false; render();
-      say(`Fixed: rung 2 now reads <b>Motor_Run</b>. The project changed, so its checksum changed and it is "not compiled" again. Click <b>${br().compile}</b>.`, 'info');
+      // the Fix button is gone now: keep the keyboard on the next step
+      const c = root.querySelector('[data-f="compile"]');
+      if (c) c.focus({ preventScroll: true });
+      say(`Fixed: rung 2 now reads <b>Motor_Run</b>. The project changed, so you must ${br().compile.toLowerCase()} it again.`, 'info',
+        { show: 'prog', more: `Every change makes a new checksum, so the project is "not compiled" again. Click <b>${br().compile}</b>.` });
     }
 
     // ───── download: compile check → night-shift trap → STOP or RUN → progress → start? ─────
+    function hwRule() {
+      const B = br();
+      return `Logic changes can usually load in ${B.runW}. Hardware configuration changes usually need ${B.stopW}: ` +
+        (st.brand === 'rock' ? 'Studio 5000 can add some modules online, but a new card in the local chassis is usually loaded in Program mode.' : `some systems can add I/O in ${B.runW}, but plan a stop.`);
+    }
     function download(slot) {
       const B = br();
       if (st.typo) {
         st.seen = true; render();
-        return say(`Download is impossible: ${B.compile} found <b>1 error</b> (tag "Motor_Rnu" is not defined, ${B.main} rung 2). The PLC never gets a program with errors. Click <b>Fix the typo</b>.`, 'bad');
+        return say(`Download is impossible: ${B.compile} found <b>1 error</b> ("Motor_Rnu" is not defined in rung 2). The PLC never gets a program with errors.`, 'bad',
+          { show: 'prog', more: 'Click <b>Fix the typo</b> first.' });
       }
       let auto = '';
-      if (!compiled()) { st.ck = pkey(); st.done.compile = true; auto = `First, ${B.download} ran <b>${B.compile}</b> for you: 0 errors. `; }
+      if (!compiled()) { st.ck = pkey(); st.done.compile = true; auto = `First, ${dlName()} ran <b>${B.compile}</b> for you: 0 errors.`; }
       const d = diffs();
-      if (has() && !d.length) { render(); return say(auto + 'Nothing to download: the project and the PLC are already equal.', 'info'); }
+      if (has() && !d.length) { render(); return say('Nothing to download: the project and the PLC are already equal.', 'info', auto ? { more: auto } : null); }
       if (has() && st.plc.fb > st.proj.fb) {
-        return openDlg({ slot, kind: 'bad', capK: 'bad', cap: auto + 'Stop! Before loading, the laptop compared and found a newer FB_Motor in the PLC. Read the warning in the box.', title: 'Warning: the PLC has a newer block',
+        // The real tools are often silent here. The simulator stops you, and says so honestly.
+        return openDlg({ slot, kind: 'bad', capK: 'bad', cap: `Stop! This simulator found a different FB_Motor in the PLC. Real tools often load without asking: always ${B.cmp} first.`,
+          capO: { more: (auto ? auto + ' ' : '') + 'Read the box: it also says what the real tool does.' },
+          title: 'Warning: the PLC has a newer block',
           text: "The PLC has a newer FB_Motor. Downloading will overwrite the night shift's fix.",
-          why: `Your project: FB_Motor v${st.proj.fb}. The PLC: FB_Motor v${st.plc.fb}, changed by the night shift at 03:40. Your laptop does not know this change.`,
-          btns: [{ l: 'Cancel', primary: true, fn: () => { closeDlg(); say(`Good choice. Never download over a change you do not know. First take the PLC version into your project: <b>${B.upload}</b>.`, 'ok'); } },
+          why: `Your file: FB_Motor v${st.proj.fb}, saved yesterday 17:10. The PLC: FB_Motor v${st.plc.fb}, changed by the night shift at 03:40.<br><b class="hwo-rl">Real life:</b> ${B.trap}`,
+          btns: [{ l: 'Cancel', primary: true, esc: true, fn: () => { closeDlg(); say(`Good choice: never download over a change that you do not know. First take the PLC version into your project with <b>${B.upload}</b>.`, 'ok', { show: 'tools' }); } },
             { l: 'Overwrite anyway', danger: true, fn: () => dl2(slot, d, true, '') }] });
       }
       dl2(slot, d, false, auto);
     }
     function dl2(slot, d, over, auto) {
       const B = br(), first = !has(), hwCh = !first && d.indexOf('hw') >= 0, running = st.mode === 'run';
+      const capO = auto ? { more: auto } : null;
       if (!first && !hwCh && st.brand === 'tia') {
-        if (!running) return loadPlc(slot, d, false, over);
-        return openDlg({ slot, kind: 'info', cap: auto + 'Only logic changed. TIA Portal shows the load preview: this time the CPU may stay in RUN.', title: 'Load preview',
+        if (!running) return loadPlc(slot, d, false, over, auto);
+        return openDlg({ slot, kind: 'info', cap: 'Only logic changed, so the CPU may stay in RUN. Read the load preview in the box.', capO, title: 'Load preview',
           text: `Only program blocks changed (${list(d)}). The CPU can stay in RUN: the machine keeps running.`,
           why: 'A logic change can be loaded between two scans: the CPU swaps the blocks and goes on.',
           btns: [{ l: 'Download in RUN', primary: true, fn: () => loadPlc(slot, d, false, over) }, cancelBtn()] });
       }
       if (!first && !hwCh && st.brand === 'cds' && running) {
-        return openDlg({ slot, kind: 'info', cap: auto + 'Only code changed. CODESYS asks how you want to load it.', title: 'The application in the PLC is different',
+        // already logged in: Online → Online change / Download. Not logged in: the Login dialog asks.
+        const oL = online ? 'Online change' : 'Login with online change', dL = online ? 'Download' : 'Login with download';
+        return openDlg({ slot, kind: 'info', cap: 'Only code changed. CODESYS asks how you want to load it.', capO, title: 'The application in the PLC is different',
           text: `Only code changed (${list(d)}). How do you want to load it?`,
-          why: '<b>Online change</b> loads only the change and the application keeps running. <b>Login with download</b> loads everything and needs STOP.',
-          btns: [{ l: 'Login with online change', primary: true, fn: () => loadPlc(slot, d, false, over) }, { l: 'Login with download (STOP)', fn: () => loadPlc(slot, d, true, over) }, cancelBtn()] });
+          why: `<b>${oL}</b> loads only the change, and the application keeps running. <b>${dL}</b> loads everything and needs STOP.`,
+          btns: [{ l: oL, primary: true, fn: () => loadPlc(slot, d, false, over) }, { l: dL + ' (STOP)', fn: () => loadPlc(slot, d, true, over) }, cancelBtn()] });
       }
-      const why = first ? `This is the first download. The PLC gets the hardware configuration and all blocks. It can only build its I/O map in ${B.stopW}.`
-        : hwCh ? `The hardware configuration changed (a new card). The ${B.cpu} must rebuild its I/O map: new addresses, new card settings. It cannot do that while it controls the machine.`
+      const why = first ? `This is the first download. The PLC gets the hardware configuration and all blocks, and it can build its I/O map only in ${B.stopW}.`
+        : hwCh ? (st.brand === 'rock' ? 'The I/O configuration changed (a new card). A download in Studio 5000 always needs Program mode. Studio 5000 can add some modules online, but a new card in the local chassis is usually loaded in Program mode.'
+          : `The hardware configuration changed (a new card). The ${B.cpu} must rebuild its I/O map, and it cannot do that while it controls the machine. Some systems can add I/O in RUN, but plan a stop.`)
           : st.brand === 'rock' ? 'Studio 5000 downloads only in Program mode. To change logic while the machine runs, use online edits (see Online change below).'
-            : 'Login with download replaces the whole application, so the application must stop.';
-      openDlg({ slot, kind: 'warn', capK: 'warn', cap: auto + `${B.download} checked what must be loaded. This time the ${B.cpu} must stop: read why in the box.`, title: `This download needs ${B.stopW}`,
-        text: `${B.cpuThe} must go to ${B.stopW} for this download: the machine will stop.${running ? '' : ` (Right now it is already in ${B.stopW}.)`}`, why,
-        btns: [{ l: 'Stop and download', primary: true, fn: () => loadPlc(slot, d, true, over) }, cancelBtn()] });
+            : `${dlName()} replaces the whole application, so the application must stop.`;
+      openDlg({ slot, kind: 'warn', capK: 'warn', cap: `This download needs ${B.stopW}. Read why in the box.`, capO, title: `This download needs ${B.stopW}`,
+        text: running ? `${B.cpuThe} must go to ${B.stopW} for this download: the machine will stop.` : `${B.cpuThe} must be in ${B.stopW} for this download. It is already in ${B.stopW}, so nothing stops.`, why,
+        btns: [{ l: running ? 'Stop and download' : 'Download', primary: true, fn: () => loadPlc(slot, d, true, over) }, cancelBtn()] });
     }
-    function loadPlc(slot, d, stop, over) {
+    function loadPlc(slot, d, stop, over, auto) {
       const B = br(), first = !has(), prevOl = first ? false : st.plc.ol, hwCh = d.indexOf('hw') >= 0;
+      const wasRun = st.mode === 'run', inRun = wasRun && !stop; // texts follow the real mode, not the button
       const lines = [];
-      if (stop && st.mode === 'run') lines.push(`${B.cpu} → ${B.stopW}: outputs off`);
+      if (stop && wasRun) lines.push(`${B.cpu} → ${B.stopW}: outputs off`);
       ['hw', 'main', 'fb', 'db'].filter((k) => first || d.indexOf(k) >= 0).forEach((k) => lines.push('Loading ' + nameOf(k)));
       lines.push('Checking: done');
       if (stop) setMode('stop');
-      say(stop ? `Downloading: your laptop sends the program to the PLC (see the moving arrows). The ${B.cpu} is in ${B.stopW}, so the machine is stopped and all outputs are off.` : 'Downloading in RUN: only the changed blocks travel to the PLC. The machine keeps running.', 'info');
-      runProgress(slot, stop ? `Downloading (${B.cpu} in ${B.stopW})` : 'Downloading in RUN', lines, 'dl', () => {
+      const capO = auto ? { more: auto } : null;
+      if (inRun) say('Downloading in RUN: only the changed blocks travel to the PLC. The machine keeps running.', 'info', capO);
+      else if (wasRun) say(`Downloading: the ${B.cpu} went to ${B.stopW}, so the machine stopped and all outputs are off.`, 'warn', capO);
+      else if (stop) say(`Downloading: your project travels from the laptop to the PLC. The ${B.cpu} is in ${B.stopW}, so the machine is not running.`, 'info', capO);
+      else say(`Only the changed blocks travel to the PLC. The ${B.cpu} is in ${B.stopW}, so the machine is not running.`, 'info', capO);
+      runProgress(slot, inRun ? 'Downloading in RUN' : `Downloading (${B.cpu} in ${B.stopW})`, lines, 'dl', () => {
         st.plc = { ol: st.proj.ol, fb: st.proj.fb, hw: st.proj.hw, src: false };
+        snap(); // the laptop knows what it just loaded
         if (st.brand !== 'tia') online = true;
         if (over) st.night = 3;
         norm();
-        const lost = over ? "<b>The night shift's fix is gone.</b> FB_Motor in the PLC is the old v1 again. Tomorrow the overload trips again, and nobody knows why. Lesson: always Compare before you Download. (Reset to try this part again.) " : '';
+        const newOl = !prevOl && st.plc.ol;
+        const lost = over ? "<b>The night shift's fix is gone:</b> FB_Motor in the PLC is the old v1 again, without the overload alarm." : '';
+        const lostMore = over ? `Next time the motor overheats there is no alarm, and nobody knows why. Lesson: always <b>${B.cmp}</b> before you download. (Reset to try this part again.)` : '';
         if (st.mode === 'run') {
-          let t;
-          if (!prevOl && st.plc.ol) {
+          let t, more = '';
+          if (newOl) {
             st.done.oc = true;
-            t = st.brand === 'cds' ? 'Online change: CODESYS loaded only the changed code, between two PLC cycles. The application kept running and kept its variable values. '
-              : `Loaded in RUN: only ${B.main} changed, so the CPU swapped the block between two scans. The machine never stopped. That is an online change. `;
-            t += `Logic changes can usually load in RUN. Hardware configuration changes need ${B.stopW}.`;
+            t = st.brand === 'cds' ? 'Online change done: CODESYS loaded only the changed code, between two PLC cycles. The application kept running.'
+              : `Loaded in RUN: the CPU swapped ${B.main} between two scans, and the machine never stopped. That is an online change.`;
+            more = hwRule() + (st.brand === 'cds' ? ' The online change also kept all variable values.' : '');
           } else t = 'Loaded in RUN: the machine kept running.';
           render();
-          return say(lost + t, over ? 'bad' : 'ok');
+          return say(lost ? lost + ' ' + t : t, over ? 'bad' : 'ok', { show: newOl ? 'prog' : 'plc', more: [lostMore, more].filter(Boolean).join(' ') });
         }
         const msg = first ? 'All blocks and the hardware configuration are in the PLC.' : hwCh ? 'The new hardware configuration and the blocks are in the PLC.' : 'The program is in the PLC.';
-        if (lost) say(lost, 'bad');
-        openDlg({ slot, kind: 'info', title: B.startQ, text: `${msg} ${B.cpuThe} is in ${B.stopW}: all outputs are off.`, why: 'Before you start: look at the machine. Is everybody clear?',
-          btns: [{ l: B.startYes, primary: true, fn: () => startAfter(first, hwCh, !!lost) }, { l: B.startNo, fn: () => { closeDlg(); say(`${B.cpuThe} stays in ${B.stopW}. Start it later: <b>${B.start}</b> (online) or the switch on the ${B.cpu}.`, 'info'); } }] });
-        if (!lost) say(`${msg} Now decide: start the ${B.cpu}?`, 'info');
+        openDlg({ slot, kind: 'info', title: wasRun ? B.startQ2 : B.startQ, text: `${msg} ${B.cpuThe} is in ${B.stopW}: all outputs are off.`, why: 'Before you start: look at the machine. Is everybody clear?',
+          btns: [{ l: B.startYes, primary: true, fn: () => startAfter(first, hwCh, !!lost) }, { l: B.startNo, esc: true, fn: () => { closeDlg(); say(`${B.cpuThe} stays in ${B.stopW}. Start it later with <b>${B.start}</b> (online) or with the switch on the ${B.cpu}.`, 'info', { show: 'plc' }); } }] });
+        if (lost) say(lost, 'bad', { show: 'plc', more: lostMore });
+        else if (newOl) say(`${msg} This was a download in ${B.stopW}, not an online change: ${wasRun ? 'the machine stopped' : 'the machine was not running'}.`, 'warn', { show: 'oc', more: 'To practise the real online change, click <b>Practise the online change again</b> in the Online change section.' });
+        else say(`${msg} Now decide: start the ${B.cpu}?`, 'info');
       });
     }
     function startAfter(first, hwCh, lost) {
       const B = br();
       closeDlg();
-      if (!swSoft()) return say(`${B.cpuThe} cannot start: the ${st.brand === 'rock' ? 'key' : 'switch'} on the ${B.cpu} is on ${B.swL[st.sw]}. Turn it to ${st.brand === 'rock' ? 'REM' : 'RUN'}.`, 'warn');
+      if (!swSoft()) return say(`${B.cpuThe} cannot start: the ${st.brand === 'rock' ? 'key' : 'switch'} on the ${B.cpu} is on ${B.swL[st.sw]}. Turn it to ${st.brand === 'rock' ? 'REM' : 'RUN'}.`, 'warn', { show: 'plc' });
       setMode('run'); render();
-      let t = `${B.runW}: the green RUN LED is on. The ${B.cpu} reads the inputs, runs the program and writes the outputs, again and again (the scan). `;
-      if (first) t += `Why did this download need ${B.stopW}? The ${B.cpu} got a new hardware configuration and all blocks: it can only build that while it does not control the machine. `;
-      else if (hwCh) t = `${B.runW} again, with the new card. Rule: logic changes can usually load in ${B.runW}; hardware configuration changes need ${B.stopW}. `;
-      if (lost) t = `${B.runW} again, but without the night shift's fix. Press Reset to practise the right way: Upload. `;
-      t += online ? `You are online: watch the program. Press START below.` : `You are still offline: click <b>${B.online}</b> to watch the program.`;
-      say(t, lost ? 'warn' : 'ok');
+      const watch = online ? 'You are online: press <b>START</b> under the rungs and watch.' : `You are still offline: click <b>${B.online}</b> to watch the program.`;
+      if (lost) return say(`${B.runW} again, but without the night shift's fix.`, 'warn', { show: 'plc', more: 'Press Reset to practise the right way: Upload.' });
+      if (hwCh && !first) return say(`${B.runW} again, with the new card. Logic changes can usually load in ${B.runW}, but hardware changes usually need ${B.stopW}.`, 'ok', { show: 'plc', more: hwRule() });
+      say(`${B.runW}: ${B.runLed}. The ${B.cpu} now reads the inputs, runs the program and writes the outputs, again and again.`, 'ok',
+        { show: 'plc', more: (first ? `Why did this download need ${B.stopW}? The ${B.cpu} got a new hardware configuration and all blocks, and it can build them only while it does not control the machine. ` : '') + watch });
     }
 
     // ───── actions: connection ─────
@@ -853,49 +1011,55 @@ ${rowsHTML(true)}</section>`;
       const B = br();
       if (online) {
         let extra = '';
-        if (ocMid() && st.brand !== 'tia') { cancelOc(); extra = ' Your unfinished online change was cancelled.'; }
+        // Studio 5000 drops unfinished online edits. CODESYS keeps the change in the project for the next Login.
+        if (ocMid() && st.brand === 'rock') { cancelOc(); extra = ' Your unfinished online edits were cancelled.'; }
         online = false; render();
-        return say(`${st.brand === 'cds' ? 'Logged out' : 'Offline'}. The laptop stops watching, but the PLC keeps running the machine on its own: offline does not mean stopped.${extra}${st.forced ? ` <b>Careful:</b> the force is still active in the PLC! The ${B.leds[3]} LED keeps warning everybody.` : ''}`, st.forced ? 'warn' : 'info');
+        const off = st.brand === 'cds' ? 'Logged out' : 'Offline';
+        if (st.forced) return say(`${off}. <b>Careful:</b> the force is still active in the PLC, and the ${B.forceLed} LED keeps warning everybody.${extra}`, 'warn', { show: 'plc', more: 'The PLC keeps running the machine on its own: offline does not mean stopped.' });
+        return say(`${off}. The PLC keeps running the machine on its own: offline does not mean stopped.${extra}`, 'info',
+          { show: 'plc', more: st.brand === 'cds' && ocMid() ? 'Your change to rung 1 stays in the project. At the next Login, you can load it with an online change.' : 'Offline, the PLC panel shows the last values the laptop saw. If somebody changes the PLC now, you see it only when you go online again.' });
       }
       online = true; render();
-      if (!has()) return say(`Online, but the PLC is empty: there is nothing to watch yet. <b>${B.download}</b> first.`, 'info');
+      if (!has()) return say(`Online, but the PLC is empty: there is nothing to watch yet. <b>${dlName()}</b> first.`, 'info', { show: 'plc' });
       const d = diffs();
-      if (!d.length) return say(`Online: the laptop now shows what the PLC really runs. All blocks are equal ✓. ${st.mode === 'run' ? 'Green lines show where power flows right now. Press START below and watch.' : `The ${B.cpu} is in ${B.stopW}: no power flows.`}`, 'ok');
-      say(`Online, but ${d.length} block${d.length > 1 ? 's are' : ' is'} different (orange ≠): the PLC does not run exactly your project. Click <b>${B.cmp}</b> to see what.${st.brand === 'rock' ? ' (Real Studio 5000 asks right away: Upload or Download?)' : st.brand === 'cds' ? ' (Real CODESYS asks right away: login with online change, with download, or without change?)' : ''}`, 'warn');
+      if (!d.length) return say(`Online: the laptop now shows what the PLC really runs, and all blocks are equal ✓. ${st.mode === 'run' ? 'Green lines show where power flows: press <b>START</b> under the rungs.' : `The ${B.cpu} is in ${B.stopW}, so no power flows.`}`, 'ok', { show: st.mode === 'run' ? 'prog' : 'duo' });
+      say(`Online, but ${d.length} block${d.length > 1 ? 's are' : ' is'} different (orange ≠): the PLC does not run exactly your project. Click <b>${B.cmp}</b> to see what.`, 'warn',
+        { show: 'duo', more: st.brand === 'rock' ? 'Real Studio 5000 asks right away: Upload or Download?' : st.brand === 'cds' ? 'Real CODESYS asks right away: login with online change, with download, or without change?' : '' });
     }
     function diffTxt(k) {
       const B = br();
-      if (k === 'fb') return newer('fb') === 'plc' ? `<b>FB_Motor</b>: the PLC has v${st.plc.fb} (night shift), you have v${st.proj.fb}. Do not download: <b>${B.upload}</b> to keep it.` : '<b>FB_Motor</b> is different.';
-      if (k === 'main') return `<b>${B.main}</b>: your project is newer (rung 1 has a new overload contact).`;
+      if (k === 'fb') return newer('fb') === 'plc' ? `<b>FB_Motor</b>: the PLC copy changed at 03:40, your file yesterday 17:10. Do not download: <b>${B.upload}</b> to keep it.` : '<b>FB_Motor</b> is different.';
+      if (k === 'main') return newer('main') === 'plc' ? `<b>${B.main}</b>: the PLC copy has a change that your file does not have.` : `<b>${B.main}</b>: you changed your file (rung 1 has a new overload contact).`;
       if (k === 'hw') return `<b>${B.hw}</b>: your project has a new card. Download it (needs ${B.stopW}).`;
       return '<b>DB_Settings</b> is different.';
     }
     function compare() {
       const B = br();
-      if (!has()) return say(`${B.cmp}: the PLC is empty, so every block exists only in your project. <b>${B.download}</b> first.`, 'warn');
+      if (!has()) return say(`${B.cmp}: the PLC is empty, so every block exists only in your project. <b>${dlName()}</b> first.`, 'warn', { show: 'duo' });
       flashCmp = true;
       const d = diffs();
-      if (!d.length) { st.done.equal = true; render(); return say(`${B.cmp}: all 4 are equal ✓ (same checksums). What runs in the PLC is exactly your project. Only now is it safe to change it and download.`, 'ok'); }
+      if (!d.length) { st.done.equal = true; render(); return say(`${B.cmp}: all 4 are equal ✓ (same checksums). What runs in the PLC is exactly your project, so now it is safe to change it and download.`, 'ok', { show: 'duo' }); }
       render();
-      say(`${B.cmp}: ${d.length} different (orange ≠). ` + d.map(diffTxt).join(' '), 'warn');
+      say(`${B.cmp}: ${d.length} different (orange ≠). ${diffTxt(d[0])}`, 'warn',
+        { show: 'duo', more: d.slice(1).map(diffTxt).join(' ') + (d.indexOf('fb') >= 0 && newer('fb') === 'plc' ? ' Compare only says "different". The time stamps tell you who changed it last.' : '') });
     }
     function upload() {
       const B = br();
-      if (st.brand === 'cds' && !st.plc.src) return say('<b>Source upload</b> is not possible: nobody stored the project source on this PLC. The PLC holds only compiled code, and CODESYS cannot turn it back into a project. (Online → Source download stores the source.)', 'bad');
+      if (st.brand === 'cds' && !st.plc.src) return say('<b>Source upload</b> is not possible: nobody stored the project source on this PLC.', 'bad', { more: 'The PLC holds only compiled code, and CODESYS cannot turn it back into a project. (Online → Source download stores the source on the PLC.)' });
       const d = diffs();
-      if (!d.length) return say(`Nothing to upload: the PLC has exactly the same blocks as your project.`, 'info');
+      if (!d.length) return say('Nothing to upload: the PLC has exactly the same blocks as your project.', 'info');
       const mine = d.filter((k) => newer(k) === 'proj');
       if (mine.length) {
         return openDlg({ slot: 'tools', kind: 'warn', capK: 'warn', cap: 'Careful: your project has changes that are not in the PLC yet.', title: 'Upload replaces your changes',
           text: `Your project has changes that are not in the PLC: ${list(mine)}. Upload will replace them with the PLC version.`,
-          why: 'Upload copies the PLC into your project. Load your own changes first, or accept to lose them.',
-          btns: [{ l: 'Cancel', primary: true, fn: () => { closeDlg(); say('Cancelled: your project is unchanged.', 'info'); } }, { l: 'Upload anyway', danger: true, fn: () => up2(d) }] });
+          why: 'Upload copies the PLC into your project. Load your own changes first, or accept that you lose them.',
+          btns: [{ l: 'Cancel', primary: true, esc: true, fn: () => { closeDlg(); say('Cancelled: your project is unchanged.', 'info'); } }, { l: 'Upload anyway', danger: true, fn: () => up2(d) }] });
       }
       up2(d);
     }
     function up2(d) {
       const B = br();
-      say('Uploading: the blocks travel from the PLC back to your laptop (see the moving arrows). The PLC keeps running.', 'info');
+      say('Uploading: the blocks travel from the PLC back to your laptop. The PLC keeps running.', 'info');
       runProgress('tools', 'Uploading from the PLC', d.map((k) => 'Reading ' + nameOf(k)).concat(['Checking: done']), 'ul', () => {
         const gotNight = st.proj.fb < st.plc.fb;
         st.proj = { ol: st.plc.ol, fb: st.plc.fb, hw: st.plc.hw };
@@ -904,103 +1068,129 @@ ${rowsHTML(true)}</section>`;
         norm();
         if (gotNight && st.night === 1) { st.night = 2; st.done.night = true; }
         render();
-        say(gotNight ? `${B.upload}: FB_Motor v2 from the night shift is now in your project. Project and PLC are equal again ✓. The fix is safe: save the project and tell the team.${st.brand === 'cds' ? ' It worked only because the night shift stored the source on the PLC (Source download).' : ''}` : `${B.upload} done: your project now has the PLC version. Project and PLC are equal ✓.`, 'ok');
+        say(gotNight ? `${B.upload}: FB_Motor v2 from the night shift is now in your project, and both copies are equal ✓. The fix is safe: save the project and tell the team.` : `${B.upload} done: your project now has the PLC version, and both copies are equal ✓.`, 'ok',
+          { show: 'proj', more: gotNight && st.brand === 'cds' ? 'It worked only because the night shift stored the source on the PLC (Source download).' : '' });
       });
     }
 
     // ───── actions: PLC ─────
     function cpuBtn() {
       const B = br();
-      if (st.mode === 'run') { setMode('stop'); render(); return say(`${B.stopW}: the ${B.cpu} stops the scan and switches all outputs off. The machine stops. Your laptop did this through the cable.`, 'warn'); }
+      if (st.mode === 'run') { setMode('stop'); render(); return say(`${B.stopW}: the ${B.cpu} stops the scan and switches all outputs off. The machine stops, and your laptop did this through the cable.`, 'warn', { show: 'plc' }); }
       setMode('run'); render();
-      say(`${B.runW}: the ${B.cpu} reads the inputs, runs the program and writes the outputs, again and again. Press START below and watch the green power flow.`, 'ok');
+      say(`${B.runW}: the ${B.cpu} reads the inputs, runs the program and writes the outputs, again and again. Press <b>START</b> under the rungs and watch the green power flow.`, 'ok', { show: 'prog' });
     }
     function force() {
       const B = br();
       if (st.forced) {
         st.forced = false; if (st.done.forceSet) st.done.force = true; render();
-        return say(`All forces removed. The output follows the program again, and the ${B.leds[3]} LED is off. Always check this LED before you leave a machine.`, 'ok');
+        return say(`All forces removed: the output follows the program again, and the ${B.forceLed} LED is off. Always check this LED before you leave a machine.`, 'ok', { show: 'plc' });
       }
+      const already = rt.motor && runs();
+      const tiaP = st.brand === 'tia' ? ' <b>:P</b> = the real output terminal, not the process image.' : '';
+      const rock2 = st.brand === 'rock' ? ' In Studio 5000 this is two steps: set the force value, then <b>Enable All I/O Forces</b>. The FORCE LED flashes while forces are installed but not enabled, and is solid when they are active.' : '';
       openDlg({ slot: 'tools', kind: 'warn', capK: 'warn', cap: 'The tool asks you to confirm: a force moves a real machine.', title: 'Force a real output?',
-        text: `Forcing sets the output ${B.addr.motor} to ${B.T}, no matter what the program says. The motor will start.`,
-        why: 'Is everybody clear of the machine? Never force safety signals.',
-        btns: [{ l: 'Cancel', primary: true, fn: () => { closeDlg(); say('Cancelled: nothing was forced.', 'info'); } },
-          { l: `Force ${B.addr.motor} = ${B.T}`, danger: true, fn: () => {
+        text: `Forcing sets the output ${B.faddr} to ${B.T}, no matter what the program says.` + (already ? ' The motor already runs: the force keeps it on, even after STOP.' : ' The motor will start.'),
+        why: 'Is everybody clear of the machine? Never force safety signals.' + tiaP + rock2,
+        btns: [{ l: 'Cancel', primary: true, esc: true, fn: () => { closeDlg(); say('Cancelled: nothing was forced.', 'info'); } },
+          { l: st.brand === 'rock' ? 'Install and enable force' : `Force ${B.faddr} = ${B.T}`, danger: true, fn: () => {
             const wasOn = rt.motor;
             st.forced = true; st.done.forceSet = true; closeDlg();
-            say(`Forced: ${B.addr.motor} = ${B.T}. ${wasOn ? 'The motor was already running. Now press <b>STOP</b> below: the program switches the motor off, but the output stays on!' : 'The motor runs, but the program says OFF: the Motor_Run coil is not green, and the lamp is off.'} The yellow ${B.leds[3]} LED warns: forces are active. Forcing can hurt people. Never force safety signals, and always remove forces.`, 'warn');
+            const safe = 'Forcing can hurt people: never force safety signals, and always remove forces.';
+            say(wasOn ? `Forced, and the ${B.forceLed} LED is on. Now press <b>STOP</b>: the motor keeps running! ${safe}`
+              : `Forced: the motor runs and the ${B.forceLed} LED is on, but the program says OFF. ${safe}`, 'warn',
+              { show: 'prog', more: `Look at rung 1: the Motor_Run coil shows what the program wants, and the F marker shows the force. The ${B.forceLed} LED warns everybody that forces are active.` + (st.brand === 'rock' ? ' In Studio 5000: solid FORCE LED = forces enabled; flashing = forces installed but not enabled.' : '') });
           } }] });
     }
     function setSw(v) {
-      const B = br(), K = st.brand === 'rock' ? 'key' : 'switch';
+      const B = br(), K = st.brand === 'rock' ? 'key' : 'switch', K1 = K === 'key' ? 'Key' : 'Switch';
       if (v === st.sw) return say(`The ${K} is already on ${B.swL[v]}.`, 'info');
       st.sw = v;
       let t, k = 'info';
       if (v === 'stop') {
         if (st.mode === 'run') { setMode('stop'); k = 'warn'; t = `Someone turned the ${K} on the ${B.cpu} to ${B.swL.stop}: the ${B.cpu} stops and all outputs go off. The laptop cannot start it again until the ${K} is back on ${st.brand === 'rock' ? 'REM or RUN' : 'RUN'}.`; }
-        else t = `${K === 'key' ? 'Key' : 'Switch'} on ${B.swL.stop}: the ${B.cpu} stays in ${B.stopW}, and the laptop cannot start it.`;
+        else t = `${K1} on ${B.swL.stop}: the ${B.cpu} stays in ${B.stopW}, and the laptop cannot start it.`;
       } else if (v === 'run') {
-        if (!has()) t = `${K === 'key' ? 'Key' : 'Switch'} on RUN, but the PLC is empty: there is no program, so it stays in ${B.stopW}.`;
-        else if (st.mode === 'run') t = st.brand === 'rock' ? 'Key on RUN: the controller keeps running. In this position the laptop cannot change the mode or download.' : 'Switch on RUN: the CPU keeps running.';
-        else { setMode('run'); k = 'ok'; t = `${K === 'key' ? 'Key' : 'Switch'} on RUN: the ${B.cpu} starts. The green RUN LED is on.${st.brand === 'rock' ? ' In key position RUN the laptop cannot change the mode or download.' : ''}`; }
-      } else t = 'Key on REM (remote): the laptop may change the mode and download. The controller keeps its mode.';
-      render(); say(t, k);
+        if (!has()) t = `${K1} on RUN, but the PLC is empty: there is no program, so it stays in ${B.stopW}.`;
+        else if (st.mode === 'run') t = st.brand === 'rock' ? 'Key on RUN: the controller keeps running. In this position the laptop cannot change the mode, download or edit online.' : 'Switch on RUN: the CPU keeps running.';
+        else { setMode('run'); k = 'ok'; t = `${K1} on RUN: the ${B.cpu} starts, and ${B.runLed}.${st.brand === 'rock' ? ' In key position RUN the laptop cannot change the mode, download or edit online.' : ''}`; }
+      } else t = 'Key on REM (remote): the laptop may change the mode, download and edit online. The controller keeps its mode.';
+      render(); say(t, k, { show: 'plc' });
     }
-    function press(which) {
+    // a push button: held = pressed with the mouse or a finger (stays closed until you let go)
+    function press(which, held) {
       const B = br(), key = which === 'start' ? 'start' : 'stopP';
       if (rt[key]) return;
       const was = rt.motor;
       rt[key] = true; render();
-      later(() => { rt[key] = false; render(); }, 900);
-      if (!runs()) return say(`Nothing happens: the ${B.cpu} is ${has() ? 'in ' + B.stopW : 'empty'}, so no program reads the button.`, 'warn');
-      const off = online ? '' : ' (You are offline: the machine reacts, but you cannot see the program. Go online to watch.)';
+      if (held) hold = { key, t0: Date.now() };
+      else later(() => release(key), 1500);
+      if (!runs()) return say(`Nothing happens: the ${B.cpu} is ${has() ? 'in ' + B.stopW : 'empty'}, so no program reads the button.`, 'warn', { show: 'plc' });
+      const off = online ? '' : ' (You are offline: the machine reacts, but you cannot see the program.)';
       if (which === 'start') {
-        if (was) return say(`The motor already runs: START changes nothing. The seal-in contact holds the coil on.${off}`, 'info');
-        return say(`START pressed: the START contact closes, power flows, Motor_Run turns on. When you let go, the seal-in contact (Motor_Run, lower branch) keeps the coil on.${off}`, 'ok');
+        if (was) return say(`The motor already runs: START changes nothing, because the seal-in contact holds the coil on.${off}`, 'info', { show: 'prog' });
+        return say(`START pressed: the START contact closes and Motor_Run turns on. When you let go, the seal-in contact (lower branch) keeps the coil on.${off}`, 'ok',
+          { show: 'prog', more: 'Hold the button down: the START contact stays closed. Let go and watch: the power now flows through the seal-in contact.' });
       }
-      if (st.forced) return say(`STOP pressed: the program switches Motor_Run off. <b>But the motor keeps running</b>, because the output is forced. This is why forcing is dangerous.${off}`, 'bad');
-      say(`STOP pressed: it is an NC button, so the input ${B.addr.stop} goes from ${B.T} to ${B.F}. The contact opens, the coil drops, and the seal-in is lost: the motor stays off after you let go.${off}`, 'info');
+      if (st.forced) return say(`STOP pressed: the program switches Motor_Run off, <b>but the motor keeps running</b>, because the output is forced. This is why forcing is dangerous.${off}`, 'bad', { show: 'mach' });
+      if (!was) return say(`STOP pressed: the motor was already off. The input ${B.addr.stop} goes to ${B.F} only while you press.${off}`, 'info', { show: 'prog' });
+      say(`STOP pressed: the NC button opens, so ${B.addr.stop} goes from ${B.T} to ${B.F} and the coil drops. The seal-in is lost, so the motor stays off after you let go.${off}`, 'info', { show: 'prog' });
+    }
+    function release(key) { if (!rt[key]) return; rt[key] = false; render(); }
+    function pressUp() {
+      if (!hold) return;
+      const h = hold; hold = null; lastPtr = Date.now();
+      const left = 600 - (Date.now() - h.t0); // a quick tap still shows the closed contact for a moment
+      if (left > 0) later(() => release(h.key), left); else release(h.key);
     }
 
     // ───── actions: events ─────
     function nightEv() {
       const B = br();
       st.plc.fb = 2; st.plc.src = true; st.night = 1; render();
-      say(`03:40, night shift: a colleague went online with another laptop and added an overload contact to <b>FB_Motor</b>, directly in the PLC${st.brand === 'cds' ? ' (and stored the source there)' : ''}. The machine runs fine. But your project still has the old FB_Motor v1, and nobody told you.${online ? ' You are online: FB_Motor turned orange ≠.' : ` <b>${B.online}</b> and <b>${B.cmp}</b>.`}`, 'warn');
+      say(`03:40: the night shift changed <b>FB_Motor</b> in the PLC, and nobody told you. ${online ? 'You are online, so FB_Motor turned orange ≠.' : 'You are offline, so your laptop still shows the old values.'}`, 'warn',
+        { show: online ? 'duo' : 'plc', more: `Why? Last night the overload relay tripped, but the PLC did not see it and showed no alarm. So the night shift added an overload alarm inside FB_Motor. How? ${B.night} Your project still has the old FB_Motor v1.` + (online ? '' : ` Click <b>${B.online}</b> and <b>${B.cmp}</b> to find out.`) });
     }
     function hwEv() {
       const B = br();
       st.proj.hw = 2; render();
-      say(`You added a new AI card to the ${B.hw} in your project. The electrician plugs it in during the next stop. Your project is now newer than the PLC. The next download needs ${B.stopW}.`, 'info');
+      say(`You added a new analog input card to the ${B.hw} in your project. Your project is now newer than the PLC, and the next download needs ${B.stopW}.`, 'info', { show: 'proj', more: 'The electrician plugs the card in during the next stop.' });
     }
     function ocStep(k) {
       const B = br();
-      if (k === 'start') { st.oc = 1; render(); return say('Start pending edits: Studio 5000 makes a copy of rung 1 that you can edit (dashed). The controller still runs the old rung.', 'info'); }
+      if (k === 'start') { st.oc = 1; render(); return say('Start pending edits: Studio 5000 makes a copy of rung 1 that you can edit (dashed). The controller still runs the old rung.', 'info', { show: 'prog' }); }
       if (k === 'add') {
         st.proj.ol = true;
         if (st.brand === 'rock') st.oc = 2;
         render();
-        return say(st.brand === 'tia' ? 'You added the overload contact in your project (offline). The PLC still runs the old rung 1 (live). The new rung is dashed: it is not loaded yet. Next: <b>Download changes in RUN</b>.'
-          : st.brand === 'rock' ? 'The new contact is a pending edit: it exists only on your laptop. The controller still runs the old rung. Next: <b>Accept pending edits</b>.'
-            : `You changed ${B.main} while logged in. The PLC still runs the old code (live). Next: <b>Online change</b>.`, 'info');
+        const nx = st.brand === 'tia' ? 'Next: <b>Download changes in RUN</b>.' : st.brand === 'rock' ? 'Next: <b>Accept pending edits</b>.' : 'Next: <b>Online change</b>.';
+        return say(st.brand === 'tia' ? 'You added the OL_OK contact in your project (the dashed rung). The PLC still runs the old rung 1 until you download.'
+          : st.brand === 'rock' ? 'The new OL_OK contact is a pending edit: it exists only on your laptop. The controller still runs the old rung.'
+            : `You changed ${B.main} while logged in (the dashed rung). The PLC still runs the old code until the online change.`, 'info', { show: 'prog', more: OC_WHY + ' ' + nx });
       }
       if (k === 'dl') return download('oc');
       if (k === 'oc') {
         say('Online change: CODESYS builds the project and sends only the changed code. The application keeps running.', 'info');
         return runProgress('oc', 'Online change', ['Build: 0 errors', 'Loading the changed code: ' + B.main, 'Switching between two cycles', 'Done'], 'dl', () => {
-          st.plc.ol = true; st.ck = pkey(); st.done.oc = true; norm(); render();
-          say('Online change: CODESYS loaded only the changed code, between two PLC cycles. The application kept running and kept its variable values. Logic changes can usually load in RUN. Hardware configuration changes need STOP.', 'ok');
+          st.plc.ol = true; snap(); st.ck = pkey(); st.done.oc = true; norm(); render();
+          say('Online change done: CODESYS loaded only the changed code, between two PLC cycles. The application kept running and kept its variable values.', 'ok', { show: 'prog', more: hwRule() });
         });
       }
       if (k === 'accept') {
         say('Accept: Studio 5000 verifies the edit and sends it to the controller. The old rung keeps running.', 'info');
         return runProgress('oc', 'Accept pending edits', ['Verify: 0 errors', 'Sending the edit to the controller', 'Done'], 'dl', () => {
           st.oc = 3; st.ck = pkey(); render();
-          say('Accepted: the edit was checked and sent to the controller. The controller now holds the old AND the new rung 1, but it still runs the old one. Next: <b>Test edits</b>.', 'info');
+          say('Accepted: the controller now holds the old AND the new rung 1, but it still runs the old one.', 'info', { show: 'prog', more: 'Next: <b>Test edits</b>.' });
         });
       }
-      if (k === 'test') { st.plc.ol = true; st.oc = 4; render(); return say('Test edits: the controller now runs the NEW rung 1, with OL_OK. Watch it live. If something is wrong, Untest goes back to the old rung at once. Next: <b>Assemble edits</b>.', 'info'); }
-      if (k === 'assemble') { st.oc = 5; st.done.oc = true; render(); return say('Assembled: the old rung is deleted, the new one is permanent. The machine never stopped: that is an online change. Logic changes can usually load in Run. Hardware configuration changes need Program mode.', 'ok'); }
+      if (k === 'test') { st.plc.ol = true; st.oc = 4; render(); return say('Test edits: the controller now runs the NEW rung 1, with OL_OK. If something is wrong, Untest goes back to the old rung at once.', 'info', { show: 'prog', more: 'Next: <b>Assemble edits</b>. It deletes the old rung.' }); }
+      if (k === 'assemble') { st.oc = 5; st.done.oc = true; render(); return say('Assembled: the new rung is permanent, and the machine never stopped. That is an online change.', 'ok', { show: 'prog', more: hwRule() }); }
+    }
+    // the contact went in with the CPU stopped: undo it, so the learner can try the real online change
+    function ocRetry() {
+      st.proj.ol = false; if (st.plc) st.plc.ol = false; if (st.last) st.last.ol = false;
+      st.oc = 0; st.ck = pkey(); norm(); render();
+      say(`The overload contact was removed from the project and from the PLC again (as if a colleague undid it). ${runs() ? 'Try again, and this time load it in RUN.' : `Start the ${br().cpu} and try again: this time load it in RUN.`}`, 'info', { show: 'oc' });
     }
     function setBrand(k) {
       if (!BR[k] || k === st.brand) return;
@@ -1009,15 +1199,25 @@ ${rowsHTML(true)}</section>`;
       if (k === 'rock' && st.sw === 'run') st.sw = 'rem';
       else if (k !== 'rock' && st.sw === 'rem') st.sw = 'run';
       st.brand = k; st.oc = 0; norm(); render();
-      say(br().words + extra, 'info');
+      say(br().words + extra, 'info', { show: 'tools', more: br().wordsMore });
+    }
+    function askReset() {
+      if (dlg && dlg.prog) return say('Wait a moment: the transfer is still running.', 'warn');
+      const n = checks().filter((c) => c.ok).length;
+      if (n < 3) return reset();
+      openDlg({ slot: 'check', kind: 'warn', capK: 'warn', cap: `Reset deletes your ${n} ticks. Answer in the box.`, title: 'Start again from the beginning?',
+        text: `Reset deletes all your ticks (${n} done). The project, the PLC and the checklist go back to the start.`,
+        btns: [{ l: 'Cancel', primary: true, esc: true, fn: () => { closeDlg(); say('Reset cancelled: your ticks are kept.', 'info'); } }, { l: 'Yes, reset', danger: true, fn: reset }] });
     }
     function reset() {
       timers.forEach(clearTimeout); timers = [];
       try { localStorage.removeItem(STORE); } catch (e) { /* ignore */ }
-      st = fresh(st.brand); online = false; dlg = null;
+      st = fresh(st.brand); online = false; dlg = null; hold = null;
       rt.start = false; rt.stopP = false; rt.motor = false;
       render();
-      say(`Start state: your project has a typo, the PLC is empty and in ${br().stopW}, and you are offline. Click <b>${br().compile}</b>.`, 'info');
+      const a = document.activeElement;
+      if (!a || a === document.body || !root.contains(a)) { const r = root.querySelector('[data-f="reset"]'); if (r) r.focus({ preventScroll: true }); }
+      say(`Start state: your project has a typo, the PLC is empty and in ${br().stopW}, and you are offline. Click <b>${br().compile}</b>.`, 'info', { show: 'tools' });
     }
 
     // ───── events ─────
@@ -1025,8 +1225,11 @@ ${rowsHTML(true)}</section>`;
       const b = e.target.closest('[data-act]');
       if (!b || !root.contains(b)) return;
       const act = b.dataset.act;
+      if (act === 'more') return toggleMore(b);
+      if (act === 'show') return showMe();
       if (act === 'dlg') { const x = dlg && dlg.btns && dlg.btns[+b.dataset.i]; if (x) x.fn(); return; }
-      if (act === 'reset') return reset();
+      if (act === 'reset') return askReset();
+      if (act === 'press' && Date.now() - lastPtr < 800) return; // already handled by pointerdown / pointerup
       if (dlg) { say(dlg.prog ? 'Wait a moment: the transfer is still running.' : ANS, 'warn'); focusDlg(); return; }
       if (b.getAttribute('aria-disabled') === 'true') return say(esc(b.dataset.why || 'Not possible right now.'), 'warn');
       if (act === 'brand') setBrand(b.dataset.b);
@@ -1039,21 +1242,62 @@ ${rowsHTML(true)}</section>`;
       else if (act === 'cpu') cpuBtn();
       else if (act === 'force') force();
       else if (act === 'sw') setSw(b.dataset.v);
-      else if (act === 'press') press(b.dataset.k);
+      else if (act === 'press') press(b.dataset.k, false);
       else if (act === 'night') nightEv();
       else if (act === 'hw') hwEv();
       else if (act === 'oc') ocStep(b.dataset.k);
-      else if (act === 'occancel') { cancelOc(); render(); say('Online change cancelled: the PLC runs the old rung 1, and your project is back to the PLC version.', 'info'); }
+      else if (act === 'ocretry') ocRetry();
+      else if (act === 'occancel') { cancelOc(); render(); say('Online change cancelled: the PLC runs the old rung 1, and your project is back to the PLC version.', 'info', { show: 'prog' }); }
+    });
+    // push buttons: pressed while the mouse button or the finger is down
+    root.addEventListener('pointerdown', (e) => {
+      const b = e.target.closest('[data-act="press"]');
+      if (!b || e.button > 0 || dlg || b.getAttribute('aria-disabled') === 'true') return; // the click explains why not
+      lastPtr = Date.now();
+      press(b.dataset.k, true);
+    });
+    root.addEventListener('contextmenu', (e) => { if (e.target.closest('.hwo-pb')) e.preventDefault(); });
+    // Escape = the dialog's Cancel button
+    root.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !dlg || dlg.prog || !dlg.btns) return;
+      const x = dlg.btns.filter((y) => y.esc)[0];
+      if (x) { e.preventDefault(); x.fn(); }
     });
 
     ph.replaceWith(root);
     // narrow layout (phones): decided by the widget's own width, not by the window
-    const fit = () => root.classList.toggle('hwo-narrow', root.clientWidth < 600);
+    function fit() { if (!root.isConnected) return cleanup(); root.classList.toggle('hwo-narrow', root.clientWidth < 600); }
+    let rafS = 0;
+    function onScroll() {
+      if (!root.isConnected) return cleanup();
+      if (!capShow || rafS) return;
+      rafS = requestAnimationFrame(() => { rafS = 0; if (root.isConnected) showArrow(); });
+    }
+    function onUp() { if (!root.isConnected) return cleanup(); pressUp(); }
+    // the lesson page can be left and opened again: the old widget must let go of the window
+    function cleanup() {
+      if (ro) ro.disconnect();
+      ro = null;
+      window.removeEventListener('resize', fit);
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      timers.forEach(clearTimeout); timers = [];
+    }
     fit();
-    if (window.ResizeObserver) new ResizeObserver(fit).observe(root); else window.addEventListener('resize', fit);
-    if (st.brand !== 'tia' && ocMid()) cancelOc(); // offline after a reload: unfinished online edits are dropped
+    if (window.ResizeObserver) { ro = new ResizeObserver(fit); ro.observe(root); }
+    window.addEventListener('resize', fit);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    if (st.brand === 'rock' && ocMid()) cancelOc(); // Studio 5000: unfinished online edits are dropped when you go offline
     render();
-    say(restored && (has() || st.done.compile) ? `Welcome back: your progress is restored. You are offline now (the laptop disconnects when you leave), but the PLC kept its program and is in ${modeL()}.` : `Start here: your project is on the laptop, and the PLC is empty and in ${br().stopW}. Click <b>${br().compile}</b>.`, 'info');
+    const B0 = br();
+    if (restored && (has() || st.done.compile)) {
+      say(has() ? `Welcome back: your progress is restored. You are offline now, and the PLC kept its program (${modeL()}).${st.forced ? ' <b>Careful:</b> a force is still active.' : ''}`
+        : `Welcome back: your progress is restored. You are offline, and the PLC is still empty and in ${B0.stopW}.`, st.forced ? 'warn' : 'info',
+      { more: 'The laptop disconnects when you leave the page. The PLC does not need the laptop to run.' });
+    } else say(`Start here: your project is on the laptop, and the PLC is empty and in ${B0.stopW}. Click <b>${B0.compile}</b>.`, 'info');
     capEl.classList.remove('flash');
   };
 })();
