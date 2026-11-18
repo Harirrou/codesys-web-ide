@@ -478,41 +478,52 @@
   }
 
   // ───────────────────────── quiz ─────────────────────────
-  function pageQuiz() {
+  function pageQuiz(start) {
     const el = h(`<div class="wrap quiz-wrap"><span class="plate">Drill</span><h1 style="margin:10px 0 6px">Quiz</h1><p class="muted" style="margin:0 0 20px">Short sessions, often. That's how it sticks.</p><div class="grid modes"></div><div class="qarea" style="margin-top:20px"></div></div>`);
     const modes = $('.modes', el);
     const area = $('.qarea', el);
     [['predict', 'Predict the output', 'Random rungs and input states. Will the lamp light? Endless.', 'Best streak ' + (S.quiz.predictBest || 0)],
       ['drill', 'Timer & counter drill', 'TON, TOF, TP, RTO, CTU, CTD scenarios. Endless.', 'Best streak ' + (S.quiz.drillBest || 0)],
-      ['concept', 'Concept check', LL.QUIZ.length + ' questions, 10 per round, pick a level.', 'Best score ' + (S.quiz.best || 0) + '/10']].forEach(([k, t, d, s]) => {
+      ['concept', 'Concept check', LL.QUIZ.length + ' questions, 10 per round, pick a level.', 'Best score ' + (S.quiz.best || 0) + '/10'],
+      ['iv', 'Interview questions', (LL.QUIZ_IV || []).length + ' questions asked in PLC job interviews, by topic, with a model answer.', 'Best score ' + (S.quiz.ivBest || 0) + '/10'],
+      ['net', 'Industrial networks', (LL.QUIZ_NET || []).length + ' questions: PROFINET, EtherNet/IP, Modbus, EtherCAT, PROFIBUS, CANopen, IO-Link, OPC UA, MQTT, safety, troubleshooting.', 'Best score ' + (S.quiz.netBest || 0) + '/10']].forEach(([k, t, d, s]) => {
       const b = h(`<button class="card path" style="text-align:left;cursor:pointer"><span class="ic">${k === 'predict' ? I.lab : k === 'drill' ? I.reset : I.quiz}</span><h3>${t}</h3><p>${d}</p><span class="chip">${s}</span></button>`);
-      b.onclick = () => (k === 'predict' ? predict(area) : k === 'drill' ? drill(area) : concept(area));
+      b.onclick = () => (k === 'predict' ? predict(area) : k === 'drill' ? drill(area) : concept(area, k));
       modes.appendChild(b);
     });
     main().appendChild(el);
-    predict(area);
+    if (start === 'iv' || start === 'net' || start === 'concept') concept(area, start); else predict(area);
   }
 
-  function concept(area) {
-    const lvl = S.quiz.lvl || 'all';
-    const pool = LL.QUIZ.filter((q) => lvl === 'all' || q.l === +lvl);
-    const qs = pool.slice().sort(() => Math.random() - 0.5).slice(0, 10).map((q) => {
+  // question banks: the concept bank is filtered by level, the interview and network banks by topic
+  const BANKS = {
+    concept: { list: () => LL.QUIZ, by: 'l', all: 'All levels', vals: () => [1, 2, 3, 4, 5, 6, 7], name: (v) => 'Level ' + v, sel: 'lvl', best: 'best', tag: (q) => 'Level ' + q.l, more: 'Re-read the lessons behind the ones you missed.' },
+    iv: { list: () => LL.QUIZ_IV || [], by: 't', all: 'All topics', vals: () => [...new Set((LL.QUIZ_IV || []).map((q) => q.t))], name: (v) => v, sel: 'ivT', best: 'ivBest', tag: (q) => 'Interview · ' + q.t, more: 'In an interview, say the answer in your own words and add one example from a machine.' },
+    net: { list: () => LL.QUIZ_NET || [], by: 't', all: 'All topics', vals: () => [...new Set((LL.QUIZ_NET || []).map((q) => q.t))], name: (v) => v, sel: 'netT', best: 'netBest', tag: (q) => 'Networks · ' + q.t, more: 'The lesson "Networks: PLCs that talk to each other" shows how the data reaches your program.' },
+  };
+  function concept(area, mode) {
+    mode = BANKS[mode] ? mode : 'concept';
+    const B = BANKS[mode], all = B.list();
+    const sel = S.quiz[B.sel] || 'all';
+    const match = (q, v) => v === 'all' || String(q[B.by]) === String(v);
+    const pool = all.filter((q) => match(q, sel));
+    const qs = (pool.length ? pool : all).slice().sort(() => Math.random() - 0.5).slice(0, 10).map((q) => {
       // shuffle the answer options so the right one is not always in the same place
       const order = q.a.map((_, i) => i).sort(() => Math.random() - 0.5);
       return Object.assign({}, q, { a: order.map((i) => q.a[i]), c: order.indexOf(q.c) });
     });
-    const lvlBar = () => `<div class="filters" style="margin:0">${['all', 1, 2, 3, 4, 5, 6, 7].map((L) => `<button data-lvl="${L}" class="${String(L) === String(lvl) ? 'on' : ''}">${L === 'all' ? 'All levels' : 'Level ' + L} <span>${LL.QUIZ.filter((q) => L === 'all' || q.l === L).length}</span></button>`).join('')}</div>`;
-    const bindLvl = () => $$('[data-lvl]', area).forEach((b) => (b.onclick = () => { S.quiz.lvl = b.dataset.lvl; save(); concept(area); }));
+    const lvlBar = () => `<div class="filters" style="margin:0">${['all', ...B.vals()].map((L) => `<button data-lvl="${esc(String(L))}" class="${String(L) === String(sel) ? 'on' : ''}">${L === 'all' ? B.all : esc(B.name(L))} <span>${all.filter((q) => match(q, L)).length}</span></button>`).join('')}</div>`;
+    const bindLvl = () => $$('[data-lvl]', area).forEach((b) => (b.onclick = () => { S.quiz[B.sel] = b.dataset.lvl; save(); concept(area, mode); }));
     let i = 0, score = 0;
     const show = () => {
       if (i >= qs.length) {
-        S.quiz.best = Math.max(S.quiz.best || 0, score); save();
-        area.innerHTML = `<div class="card qcard"><span class="eyebrow">Result</span><h2>${score} / ${qs.length}</h2><p class="muted">${score >= 8 ? 'Excellent. You can explain this to someone else now.' : score >= 5 ? 'Good. Re-read the lessons behind the ones you missed.' : 'Keep going. Each lesson\'s "Remember" box is the fastest review.'}</p><div class="row"><button class="btn primary" data-again>Another round</button></div></div>`;
-        $('[data-again]', area).onclick = () => concept(area);
+        S.quiz[B.best] = Math.max(S.quiz[B.best] || 0, score); save();
+        area.innerHTML = `<div class="card qcard"><span class="eyebrow">Result</span><h2>${score} / ${qs.length}</h2><p class="muted">${score >= 8 ? 'Excellent. You can explain this to someone else now.' : (score >= 5 ? 'Good. ' : 'Keep going. ') + B.more}</p><div class="row"><button class="btn primary" data-again>Another round</button></div></div>`;
+        $('[data-again]', area).onclick = () => concept(area, mode);
         return;
       }
       const q = qs[i];
-      area.innerHTML = lvlBar() + `<div class="card qcard" style="margin-top:12px"><div class="row" style="justify-content:space-between"><span class="eyebrow">Question ${i + 1}/${qs.length} · Level ${q.l}</span><span class="scorebar">Score <b>${score}</b></span></div><h2>${esc(q.q)}</h2><div class="opts">${q.a.map((a, k) => `<button class="opt" data-k="${k}"><span class="k">${'ABCD'[k]}</span>${esc(a)}</button>`).join('')}</div><div class="fb"></div></div>`;
+      area.innerHTML = lvlBar() + `<div class="card qcard" style="margin-top:12px"><div class="row" style="justify-content:space-between"><span class="eyebrow">Question ${i + 1}/${qs.length} · ${esc(B.tag(q))}</span><span class="scorebar">Score <b>${score}</b></span></div><h2>${esc(q.q)}</h2><div class="opts">${q.a.map((a, k) => `<button class="opt" data-k="${k}"><span class="k">${'ABCD'[k]}</span>${esc(a)}</button>`).join('')}</div><div class="fb"></div></div>`;
       bindLvl();
       $$('.opt', area).forEach((b) => (b.onclick = () => {
         if (area.dataset.lock) return;
@@ -1563,7 +1574,7 @@
     else if (hsh === 'lab') tab = 'lab';
     else if (hsh === 'challenges' || hsh.startsWith('ch-')) tab = 'challenges';
     else if (hsh === 'path' || hsh.startsWith('path-')) tab = 'path';
-    else if (hsh === 'quiz') tab = 'quiz';
+    else if (hsh === 'quiz' || hsh.startsWith('quiz-')) tab = 'quiz';
     $$('[data-tab]').forEach((a) => a.classList.toggle('on', a.dataset.tab === tab));
     if (hsh === 'learn') pageLearn();
     else if (hsh.startsWith('lesson-')) pageLesson(hsh.slice(7));
@@ -1571,7 +1582,7 @@
     else if (hsh === 'challenges') pageChallenges();
     else if (hsh === 'path' || hsh.startsWith('path-')) pagePath(hsh.slice(5) || S.path || 'ladder');
     else if (hsh.startsWith('ch-') && LL.CH_BY_ID[hsh.slice(3)]) new Lab({ challenge: LL.CH_BY_ID[hsh.slice(3)] });
-    else if (hsh === 'quiz') pageQuiz();
+    else if (hsh === 'quiz' || hsh.startsWith('quiz-')) pageQuiz(hsh.slice(5));
     else if (hsh === 'glossary') pageGlossary();
     else pageHome();
     const d = countDone();

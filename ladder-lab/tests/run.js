@@ -63,5 +63,16 @@ LL.LESSONS.forEach((l) => l.challenges.forEach((c) => ok(!!LL.CH_BY_ID[c], 'less
   progs.forEach(([name, src]) => ok(!LL.lint(LL.parseProgram(src)).some((x) => /not connected on its left/.test(x.msg)), 'unconnected element in ' + name));
 }
 console.log('ST sample:\n' + LL.toST(LL.parseProgram(LL.CH_BY_ID['permissive'].solution)));
+// quiz banks: 4 distinct answers, a valid right answer, an explanation, no duplicate questions
+[['QUIZ', 'l'], ['QUIZ_IV', 't'], ['QUIZ_NET', 't']].forEach(([bank, key]) => {
+  const list = LL[bank] || [];
+  ok(list.length > 0, bank + ' is empty');
+  const seen = new Set();
+  list.forEach((q, i) => {
+    ok(Array.isArray(q.a) && q.a.length >= 2 && new Set(q.a).size === q.a.length && q.c >= 0 && q.c < q.a.length, bank + '[' + i + '] answers');
+    ok(q.q && q.why && q[key] != null, bank + '[' + i + '] fields');
+    ok(!seen.has(q.q), bank + ' duplicate question: ' + q.q); seen.add(q.q);
+  });
+});
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
