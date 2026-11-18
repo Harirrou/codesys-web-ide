@@ -1,6 +1,6 @@
 // node ladder-lab/tests/run.js — verifies engine + every challenge solution
 const path = require('path');
-['engine', 'st', 'plants', 'challenges', 'lessons', 'topics'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
+['engine', 'st', 'plants', 'plants-robot', 'challenges', 'lessons', 'topics'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
 const LL = globalThis.LL;
 let fail = 0, pass = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL', m); } };
