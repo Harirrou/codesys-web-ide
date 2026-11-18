@@ -1445,6 +1445,21 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
       challenges: ['port-rk'],
     },
     {
+      id: 'project-setup', level: 5, title: 'From a new project to a running PLC: hardware, network, going online', min: 18,
+      summary: 'PLACEHOLDER',
+      body: `
+<h3>1. The rack</h3>
+[[hw:rack]]
+<h3>2. The network</h3>
+[[hw:net]]
+<h3>3. Going online</h3>
+[[hw:online]]`,
+      sims: {},
+      takeaways: ['PLACEHOLDER'],
+      mistakes: ['PLACEHOLDER'],
+      challenges: [],
+    },
+    {
       id: 'alarm-handling', level: 6, title: 'Alarms the professional way', min: 13,
       summary: 'An alarm is more than a lamp. Filter it, latch it, make the operator acknowledge it, sound a horn for new ones, and show which alarm came first.',
       body: `

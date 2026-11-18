@@ -343,7 +343,7 @@
     if (i < 0) return pageLearn();
     const l = LL.LESSONS[i], prev = LL.LESSONS[i - 1], next = LL.LESSONS[i + 1];
     const lvl = LL.LEVELS[l.level - 1];
-    let body = l.body.replace(/\[\[sim:(\w+)\]\]/g, (m, k) => `<div class="sim-ph" data-sim="${k}"></div>`).replace(/\[\[mem:explorer\]\]/g, '<div class="mem-ph"></div>').replace(/\[\[brands:table\]\]/g, () => LL.brandTableHTML()).replace(/\[\[comm:(\w+)\]\]/g, (m, k) => `<div class="comm-ph" data-comm="${k}"></div>`);
+    let body = l.body.replace(/\[\[sim:(\w+)\]\]/g, (m, k) => `<div class="sim-ph" data-sim="${k}"></div>`).replace(/\[\[mem:explorer\]\]/g, '<div class="mem-ph"></div>').replace(/\[\[brands:table\]\]/g, () => LL.brandTableHTML()).replace(/\[\[comm:(\w+)\]\]/g, (m, k) => `<div class="comm-ph" data-comm="${k}"></div>`).replace(/\[\[hw:(\w+)\]\]/g, (m, k) => `<div class="hw-ph" data-hw="${k}"></div>`);
     const el = h(`<div class="wrap"><div class="lesson">
       <article>
         <a class="btn small ghost" href="#learn">${I.back} All lessons</a>
@@ -366,6 +366,7 @@
     main().appendChild(el);
     $$('.mem-ph', el).forEach((ph) => memExplorer(ph));
     if (LL.commMount) LL.commMount(el);
+    $$('.hw-ph', el).forEach((ph) => { const f = LL.HW && LL.HW[ph.dataset.hw]; if (f) f(ph); });
     $$('.sim-ph', el).forEach((ph) => { const spec = l.sims[ph.dataset.sim]; if (spec) new MiniSim(ph, Object.assign({ name: l.title }, spec)); });
     $$('[data-open]', el).forEach((o) => {
       const spec = LL.OPEN_PROGRAMS[o.dataset.open];
