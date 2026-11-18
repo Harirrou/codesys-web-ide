@@ -482,6 +482,9 @@ pre.st-code { margin: 0; padding: 12px 14px; font-family: var(--f-mono); font-si
 .filters button span { font-family: var(--f-mono); font-size: .75rem; color: var(--muted); margin-left: 4px; }
 .filters button.on { background: var(--ink); border-color: var(--ink); color: var(--surface); }
 .filters button.on span { color: var(--surface); opacity: .75; }
+.filters button.miss { border-color: var(--accent-bg); }
+.filters button.miss.on { background: var(--accent-bg); border-color: var(--accent-bg); color: var(--accent-ink); }
+.filters button.miss.on span { color: var(--accent-ink); }
 
 .machine-head .how-btn { margin-left: auto; }
 ul.guide { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 64ch; }
@@ -604,3 +607,13 @@ ul.guide { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 6
 .blk-tabs { flex-wrap: wrap; row-gap: 6px; }
 .live-io td:first-child { word-break: break-all; }
 .iotable.live-io td:first-child, .live-io td:first-child { white-space: normal !important; word-break: break-all; }
+
+/* communication animations ("what happens on the wire") */
+.comm-box { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 12px 14px 14px; margin: 16px 0; }
+.comm-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: .95rem; }
+.comm-n { color: var(--muted); font-family: var(--f-mono); font-size: .78rem; }
+.comm-box canvas { width: 100%; height: auto; display: block; margin: 8px 0 4px; background: var(--surface-2); border-radius: 10px; }
+.comm-cap { min-height: 3.2em; margin: 6px 0 8px; font-size: .95rem; line-height: 1.45; }
+.comm-ctl { display: flex; gap: 8px; flex-wrap: wrap; }
+.comm-opts { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: .85rem; margin-top: 8px; }
+.comm-opts input, .comm-opts select { margin-left: 4px; }

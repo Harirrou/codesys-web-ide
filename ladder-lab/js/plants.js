@@ -2165,6 +2165,122 @@
     },
   };
 
+  // ───────────────────────── Modbus RTU line: master module, temperature controller, energy meter ─────────────────────────
+  const crc16 = (bytes) => { let c = 0xffff; bytes.forEach((b) => { c ^= b; for (let k = 0; k < 8; k++) c = c & 1 ? (c >> 1) ^ 0xa001 : c >> 1; }); return [c & 255, c >> 8]; };
+  const hex = (b) => b.map((x) => x.toString(16).toUpperCase().padStart(2, '0')).join(' ');
+  P.modbus = {
+    id: 'modbus', name: 'Modbus RTU line (RS-485)', blurb: 'A Modbus RTU master module in the PLC rack, wired with one RS-485 pair (19200 baud, 8E1) to a temperature controller (slave 1) and an energy meter (slave 2), with 120 Ω termination at both ends. The PLC fills in a request (slave, function, register, count or value) and sets REQ; the module sends the bytes, waits for the answer and reports DONE or ERROR. Every frame is shown in hex, with its CRC.',
+    inputs: [
+      { addr: 'I0.0', name: 'DONE', kind: 'sensor', note: 'module: the answer arrived and is OK (stays 1 until REQ goes 0)' },
+      { addr: 'I0.1', name: 'BUSY', kind: 'sensor', note: 'module: request on the line, waiting for the answer' },
+      { addr: 'I0.2', name: 'ERROR', kind: 'sensor', note: 'module: no or bad answer (stays 1 until REQ goes 0); the reason is in STATUS' },
+      { addr: 'AIW0', name: 'STATUS', kind: 'sensor', note: '0 = OK, 1 = timeout (no answer), 2 = CRC error, 3 = exception: illegal register' },
+      { addr: 'AIW1', name: 'DATA 1', kind: 'sensor', note: 'first register of the answer' },
+      { addr: 'AIW2', name: 'DATA 2', kind: 'sensor', note: 'second register' },
+      { addr: 'AIW3', name: 'DATA 3', kind: 'sensor', note: 'third register' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'REQ (start request)', color: 'blue' },
+      { addr: 'Q0.1', name: 'Comm alarm: temperature controller', color: 'red' },
+      { addr: 'Q0.2', name: 'Comm alarm: energy meter', color: 'red' },
+      { addr: 'AQW0', name: 'Slave address', color: 'blue' },
+      { addr: 'AQW1', name: 'Function code (3 = read, 6 = write)', color: 'blue' },
+      { addr: 'AQW2', name: 'Register address (0 = 40001)', color: 'blue' },
+      { addr: 'AQW3', name: 'Count (read) or value (write)', color: 'blue' },
+    ],
+    actions: [
+      { id: 'unplug1', label: 'Temperature controller unplugged (again = back)', toggle: true, run(st) { st.dead1 = !st.dead1; } },
+      { id: 'unplug2', label: 'Energy meter unplugged (again = back)', toggle: true, run(st) { st.dead2 = !st.dead2; } },
+      { id: 'noise', label: 'Noise on the line: every 3rd answer damaged', toggle: true, run(st) { st.noise = !st.noise; } },
+    ],
+    init() { return { pv: 21.5, sp: 60, out: 0, kw: 45.2, kwh: 2 * 65536 + 1000, kwhMs: 0, ph: 'idle', pt: 0, req: null, prevReq: 0, done: 0, err: 0, status: 0, data: [0, 0, 0], log: [], reads1: 0, reads2: 0, writes: 0, errors: 0, nAns: 0, dead1: false, dead2: false, noise: false, lastSlave: 0, lastFc: 0, lastAddr: 0, lastCount: 0, spW: 0, t: 0, fault: null, last: '' }; },
+    regs(st, slave) {
+      if (slave === 1) return [Math.round(st.pv * 10), Math.round(st.sp * 10), Math.round(st.out), st.pv < st.sp - 0.5 ? 1 : 0];
+      if (slave === 2) return [Math.round(st.kw * 10), st.kwh & 0xffff, st.kwh >>> 16];
+      return null;
+    },
+    step(st, ctrl, Q, dt) {
+      st.t += dt;
+      const s = dt / 1000;
+      // the processes behind the devices
+      st.out = st.pv < st.sp ? Math.min(100, (st.sp - st.pv) * 20) : 0;
+      st.pv += (st.out / 100 * 1.2 - (st.pv - 20) * 0.004) * s;
+      st.kwhMs += dt; while (st.kwhMs >= 1000) { st.kwhMs -= 1000; st.kwh++; }
+      st.kw = 45.2 + 3 * Math.sin(st.t / 4000);
+      // the master module
+      const req = !!Q['Q0.0'], CH = 11 / 19.2;            // one character at 19200 baud, 11 bits = 0.57 ms
+      if (req && !st.prevReq && st.ph === 'idle') {
+        const r = { slave: (+Q['AQW0']) & 255, fc: (+Q['AQW1']) & 255, addr: (+Q['AQW2']) & 0xffff, val: (+Q['AQW3']) & 0xffff };
+        st.req = r; st.lastSlave = r.slave; st.lastFc = r.fc; st.lastAddr = r.addr; st.lastCount = r.val;
+        const pdu = [r.slave, r.fc, r.addr >> 8, r.addr & 255, r.val >> 8, r.val & 255];
+        st.log.unshift({ dir: 'req', b: pdu.concat(crc16(pdu)), t: st.t }); st.log.length = Math.min(st.log.length, 4);
+        st.ph = 'tx'; st.pt = 8 * CH; st.done = 0; st.err = 0;
+      }
+      if (!req && st.prevReq) { st.ph = 'idle'; st.done = 0; st.err = 0; }
+      st.prevReq = req;
+      if (st.ph === 'tx') { st.pt -= dt; if (st.pt <= 0) { const r = st.req, dead = (r.slave === 1 && st.dead1) || (r.slave === 2 && st.dead2) || (r.slave !== 1 && r.slave !== 2); st.ph = dead ? 'wait' : 'turn'; st.pt = dead ? 300 : 12; } }
+      else if (st.ph === 'turn') { st.pt -= dt; if (st.pt <= 0) { st.ph = 'rx'; const r = st.req; const regs = this.regs(st, r.slave); let ans;
+        if (r.fc === 3 && r.val >= 1 && r.val <= 3 && r.addr + r.val <= regs.length) { const d = regs.slice(r.addr, r.addr + r.val); ans = { ok: 1, d, b: [r.slave, 3, 2 * r.val].concat(...d.map((v) => [v >> 8 & 255, v & 255])) }; }
+        else if (r.fc === 6 && r.slave === 1 && r.addr === 1) { ans = { ok: 1, d: [], b: [r.slave, 6, 0, 1, r.val >> 8, r.val & 255], write: r.val }; }
+        else ans = { ok: 0, ex: 2, b: [r.slave, r.fc | 0x80, 2] };
+        st.ans = ans; st.pt = (ans.b.length + 2) * CH; } }
+      else if (st.ph === 'rx') { st.pt -= dt; if (st.pt <= 0) {
+        const a = st.ans, r = st.req; st.nAns++;
+        const damaged = st.noise && st.nAns % 3 === 0;
+        const crc = crc16(a.b); if (damaged) crc[0] ^= 0x5a;
+        st.log.unshift({ dir: 'ans', b: a.b.concat(crc), bad: damaged, t: st.t }); st.log.length = Math.min(st.log.length, 4);
+        if (damaged) { st.err = 1; st.status = 2; st.errors++; }
+        else if (!a.ok) { st.err = 1; st.status = 3; st.errors++; }
+        else { st.done = 1; st.status = 0; st.data = (a.d || []).concat([0, 0, 0]).slice(0, 3); if (a.write != null) { st.sp = a.write / 10; st.writes++; st.spW = a.write; } else if (r.slave === 1) st.reads1++; else st.reads2++; }
+        st.ph = 'held'; } }
+      else if (st.ph === 'wait') { st.pt -= dt; if (st.pt <= 0) { st.err = 1; st.status = 1; st.errors++; st.ph = 'held'; st.log.unshift({ dir: 'none', b: [], t: st.t }); st.log.length = Math.min(st.log.length, 4); } }
+      st.spInt = Math.round(st.sp * 10); st.pvInt = Math.round(st.pv * 10);
+      const o = devices(this, ctrl);
+      o['I0.0'] = st.done; o['I0.1'] = st.ph === 'tx' || st.ph === 'turn' || st.ph === 'rx' || st.ph === 'wait' ? 1 : 0; o['I0.2'] = st.err;
+      o['AIW0'] = st.status; o['AIW1'] = st.done ? st.data[0] : 0; o['AIW2'] = st.done ? st.data[1] : 0; o['AIW3'] = st.done ? st.data[2] : 0;
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const BUS = 200, M = [90, 150], S1 = [330, 255], S2 = [520, 255];
+      // the RS-485 pair and terminators
+      c.strokeStyle = th.ink; c.lineWidth = 2; [BUS - 3, BUS + 3].forEach((y) => { c.beginPath(); c.moveTo(40, y); c.lineTo(600, y); c.stroke(); });
+      [40, 600].forEach((x) => { c.fillStyle = th.amber; c.fillRect(x - 6, BUS - 12, 12, 24); D.text(c, '120 Ω', x, BUS + 24, { size: 9, mono: true, color: th.muted }); });
+      D.text(c, 'RS-485  19200 8E1', 200, BUS + 18, { size: 10, mono: true, color: th.muted });
+      // PLC + module
+      c.fillStyle = th.metalDark; D.rr(c, M[0] - 50, M[1] - 30, 100, 60, 8); c.fill();
+      D.text(c, 'PLC + Modbus', M[0], M[1] - 8, { size: 11, weight: 700, color: '#fff' }); D.text(c, 'master', M[0], M[1] + 10, { size: 10, color: '#cbd5e1' });
+      c.strokeStyle = th.ink; c.beginPath(); c.moveTo(M[0], M[1] + 30); c.lineTo(M[0], BUS); c.stroke();
+      D.lamp(c, th, M[0] - 30, M[1] - 52, 5, !!I['I0.1'], 'amber', ''); D.text(c, 'BUSY', M[0] - 30, M[1] - 66, { size: 8, mono: true, color: th.muted });
+      D.lamp(c, th, M[0], M[1] - 52, 5, !!I['I0.0'], 'green', ''); D.text(c, 'DONE', M[0], M[1] - 66, { size: 8, mono: true, color: th.muted });
+      D.lamp(c, th, M[0] + 30, M[1] - 52, 5, !!I['I0.2'], 'red', ''); D.text(c, 'ERROR', M[0] + 30, M[1] - 66, { size: 8, mono: true, color: th.muted });
+      // slaves
+      const dev = (p, name, l1, l2, dead, alarm) => {
+        c.strokeStyle = th.ink; c.beginPath(); c.moveTo(p[0], BUS); c.lineTo(p[0], dead ? BUS + 18 : p[1] - 26); c.stroke();
+        c.fillStyle = dead ? th.lampOff : th.panel2 || '#fff'; c.strokeStyle = alarm ? th.red : th.line; c.lineWidth = alarm ? 3 : 1.5; D.rr(c, p[0] - 70, p[1] - 26, 140, 52, 8); c.fill(); c.stroke();
+        D.text(c, name, p[0], p[1] - 12, { size: 10, weight: 700, color: th.ink });
+        D.text(c, dead ? 'UNPLUGGED' : l1, p[0], p[1] + 4, { size: 11, mono: true, weight: 700, color: dead ? th.red : th.ink });
+        if (!dead) D.text(c, l2, p[0], p[1] + 18, { size: 9, mono: true, color: th.muted });
+      };
+      dev(S1, 'slave 1: temp. controller', 'PV ' + st.pv.toFixed(1) + ' °C', 'SP ' + st.sp.toFixed(1) + ' °C  out ' + Math.round(st.out) + ' %', st.dead1, Q['Q0.1']);
+      dev(S2, 'slave 2: energy meter', st.kw.toFixed(1) + ' kW', st.kwh + ' kWh', st.dead2, Q['Q0.2']);
+      // the bytes on the line
+      const phase = st.ph;
+      if (phase === 'tx' || phase === 'rx') { const tgt = st.req && st.req.slave === 2 ? S2[0] : S1[0]; const k = 1 - Math.max(0, st.pt) / ((phase === 'tx' ? 8 : ((st.ans && st.ans.b.length) || 5) + 2) * 11 / 19.2); const x = phase === 'tx' ? M[0] + (tgt - M[0]) * k : tgt - (tgt - M[0]) * k; c.fillStyle = phase === 'tx' ? th.blue : th.green; D.rr(c, x - 16, BUS - 10, 32, 20, 5); c.fill(); }
+      if (phase === 'wait') D.text(c, 'waiting for an answer… ' + Math.round(st.pt) + ' ms', 330, BUS - 22, { size: 11, mono: true, weight: 700, color: th.red });
+      // frame log
+      D.text(c, 'last frames (hex)', 160, 16, { size: 10, weight: 700, color: th.muted, align: 'left' });
+      st.log.slice(0, 4).forEach((f, k) => {
+        const y = 34 + k * 19;
+        const tag = f.dir === 'req' ? 'PLC →' : f.dir === 'ans' ? '← ' + (f.bad ? 'BAD CRC' : 'answer') : '← (nothing)';
+        D.text(c, tag, 160, y, { size: 10, mono: true, weight: 700, align: 'left', color: f.dir === 'req' ? th.blue : f.bad || f.dir === 'none' ? th.red : th.green });
+        if (f.b.length) { const n = f.b.length; D.text(c, hex(f.b.slice(0, n - 2)), 238, y, { size: 10, mono: true, align: 'left', color: th.ink }); c.font = '500 10px "IBM Plex Mono", monospace'; const w = c.measureText(hex(f.b.slice(0, n - 2)) + ' ').width; D.text(c, hex(f.b.slice(n - 2)), 238 + w, y, { size: 10, mono: true, align: 'left', color: th.amber }); }
+      });
+      D.text(c, 'address · function · data · CRC', 238, 112, { size: 9, mono: true, align: 'left', color: th.muted });
+      D.text(c, 'STATUS ' + (I['AIW0'] || 0), M[0] + 58, M[1] + 22, { size: 9, mono: true, color: th.muted, align: 'left' });
+      D.fault(c, th, st.fault);
+    },
+  };
+
   // ───────────────────────── production cell (counters, downtime, OEE) ─────────────────────────
   P.prodcell = {
     id: 'prodcell', name: 'Production cell with andon light', blurb: 'An automatic assembly machine that makes one part every 2 s while it is enabled, has material and no fault. At the end of each cycle it gives a "cycle done" pulse with a "part OK" signal from its own check. An andon light (green / amber / red) shows the state to the shift leader.',
@@ -4159,7 +4275,7 @@
     },
   };
 
-  LL.PLANT_ORDER = ['panel', 'oldpanel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'hpress', 'accu', 'propaxis', 'garage', 'parking', 'stardelta', 'softstart', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'gantry', 'servohmi', 'safecell', 'safeplc', 'curtain', 'labeler', 'alarms', 'feeder', 'handover', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture', 'prodcell', 'building'];
+  LL.PLANT_ORDER = ['panel', 'oldpanel', 'motor', 'conveyor', 'tank', 'traffic', 'cylinders', 'pickplace', 'hpress', 'accu', 'propaxis', 'garage', 'parking', 'stardelta', 'softstart', 'bottling', 'mixer', 'elevator', 'lift', 'sorter', 'tracking', 'carwash', 'pumps', 'atank', 'furnace', 'weigher', 'vfdline', 'booster', 'gantry', 'servohmi', 'safecell', 'safeplc', 'curtain', 'labeler', 'alarms', 'feeder', 'handover', 'modbus', 'drill', 'oven', 'washer', 'crane', 'indexer', 'greenhouse', 'gate', 'compressor', 'capline', 'palletizer', 'fixture', 'prodcell', 'building'];
 
   // Outputs a plant sees: Q bits, AQW words, plus any memory words its HMI displays
   LL.plantOutputs = function (plant, m) {

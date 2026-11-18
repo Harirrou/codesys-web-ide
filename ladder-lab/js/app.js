@@ -343,7 +343,7 @@
     if (i < 0) return pageLearn();
     const l = LL.LESSONS[i], prev = LL.LESSONS[i - 1], next = LL.LESSONS[i + 1];
     const lvl = LL.LEVELS[l.level - 1];
-    let body = l.body.replace(/\[\[sim:(\w+)\]\]/g, (m, k) => `<div class="sim-ph" data-sim="${k}"></div>`).replace(/\[\[mem:explorer\]\]/g, '<div class="mem-ph"></div>').replace(/\[\[brands:table\]\]/g, () => LL.brandTableHTML());
+    let body = l.body.replace(/\[\[sim:(\w+)\]\]/g, (m, k) => `<div class="sim-ph" data-sim="${k}"></div>`).replace(/\[\[mem:explorer\]\]/g, '<div class="mem-ph"></div>').replace(/\[\[brands:table\]\]/g, () => LL.brandTableHTML()).replace(/\[\[comm:(\w+)\]\]/g, (m, k) => `<div class="comm-ph" data-comm="${k}"></div>`);
     const el = h(`<div class="wrap"><div class="lesson">
       <article>
         <a class="btn small ghost" href="#learn">${I.back} All lessons</a>
@@ -365,6 +365,7 @@
     </div></div>`);
     main().appendChild(el);
     $$('.mem-ph', el).forEach((ph) => memExplorer(ph));
+    if (LL.commMount) LL.commMount(el);
     $$('.sim-ph', el).forEach((ph) => { const spec = l.sims[ph.dataset.sim]; if (spec) new MiniSim(ph, Object.assign({ name: l.title }, spec)); });
     $$('[data-open]', el).forEach((o) => {
       const spec = LL.OPEN_PROGRAMS[o.dataset.open];
@@ -486,7 +487,7 @@
       ['drill', 'Timer & counter drill', 'TON, TOF, TP, RTO, CTU, CTD scenarios. Endless.', 'Best streak ' + (S.quiz.drillBest || 0)],
       ['concept', 'Concept check', LL.QUIZ.length + ' questions, 10 per round, pick a level.', 'Best score ' + (S.quiz.best || 0) + '/10'],
       ['iv', 'Interview questions', (LL.QUIZ_IV || []).length + ' questions asked in PLC job interviews, by topic, with a model answer.', 'Best score ' + (S.quiz.ivBest || 0) + '/10'],
-      ['net', 'Industrial networks', (LL.QUIZ_NET || []).length + ' questions: PROFINET, EtherNet/IP, Modbus, EtherCAT, PROFIBUS, CANopen, IO-Link, OPC UA, MQTT, safety, troubleshooting.', 'Best score ' + (S.quiz.netBest || 0) + '/10']].forEach(([k, t, d, s]) => {
+      ['net', 'Industrial networks', (LL.QUIZ_NET || []).length + ' questions: how it works, RS-232 / RS-485, Modbus, PROFIBUS, CAN / CANopen / DeviceNet, LIN, AS-i, HART, IO-Link, PROFINET, EtherNet/IP, EtherCAT, OPC UA, MQTT, safety, troubleshooting.', 'Best score ' + (S.quiz.netBest || 0) + '/10']].forEach(([k, t, d, s]) => {
       const b = h(`<button class="card path" style="text-align:left;cursor:pointer"><span class="ic">${k === 'predict' ? I.lab : k === 'drill' ? I.reset : I.quiz}</span><h3>${t}</h3><p>${d}</p><span class="chip">${s}</span></button>`);
       b.onclick = () => (k === 'predict' ? predict(area) : k === 'drill' ? drill(area) : concept(area, k));
       modes.appendChild(b);
@@ -504,15 +505,21 @@
   function concept(area, mode) {
     mode = BANKS[mode] ? mode : 'concept';
     const B = BANKS[mode], all = B.list();
-    const sel = S.quiz[B.sel] || 'all';
-    const match = (q, v) => v === 'all' || String(q[B.by]) === String(v);
+    // "My mistakes": every wrongly answered question is kept (by its text) until it is answered right
+    S.quiz.miss = S.quiz.miss || {};
+    const miss = new Set(S.quiz.miss[mode] || []);
+    const keepMiss = () => { S.quiz.miss[mode] = [...miss]; save(); };
+    let sel = S.quiz[B.sel] || 'all';
+    if (sel === 'miss' && !all.some((q) => miss.has(q.q))) sel = 'all';
+    const match = (q, v) => v === 'all' || (v === 'miss' ? miss.has(q.q) : String(q[B.by]) === String(v));
     const pool = all.filter((q) => match(q, sel));
     const qs = (pool.length ? pool : all).slice().sort(() => Math.random() - 0.5).slice(0, 10).map((q) => {
       // shuffle the answer options so the right one is not always in the same place
       const order = q.a.map((_, i) => i).sort(() => Math.random() - 0.5);
       return Object.assign({}, q, { a: order.map((i) => q.a[i]), c: order.indexOf(q.c) });
     });
-    const lvlBar = () => `<div class="filters" style="margin:0">${['all', ...B.vals()].map((L) => `<button data-lvl="${esc(String(L))}" class="${String(L) === String(sel) ? 'on' : ''}">${L === 'all' ? B.all : esc(B.name(L))} <span>${all.filter((q) => match(q, L)).length}</span></button>`).join('')}</div>`;
+    const nMiss = () => all.filter((q) => miss.has(q.q)).length;
+    const lvlBar = () => `<div class="filters" style="margin:0">${['all', ...B.vals()].map((L) => `<button data-lvl="${esc(String(L))}" class="${String(L) === String(sel) ? 'on' : ''}">${L === 'all' ? B.all : esc(B.name(L))} <span>${all.filter((q) => match(q, L)).length}</span></button>`).join('')}${nMiss() ? `<button data-lvl="miss" class="miss ${sel === 'miss' ? 'on' : ''}" title="Questions you answered wrong. They leave this list when you answer them right.">↻ My mistakes <span>${nMiss()}</span></button>` : ''}</div>`;
     const bindLvl = () => $$('[data-lvl]', area).forEach((b) => (b.onclick = () => { S.quiz[B.sel] = b.dataset.lvl; save(); concept(area, mode); }));
     let i = 0, score = 0;
     const show = () => {
@@ -520,6 +527,7 @@
         S.quiz[B.best] = Math.max(S.quiz[B.best] || 0, score); save();
         area.innerHTML = `<div class="card qcard"><span class="eyebrow">Result</span><h2>${score} / ${qs.length}</h2><p class="muted">${score >= 8 ? 'Excellent. You can explain this to someone else now.' : (score >= 5 ? 'Good. ' : 'Keep going. ') + B.more}</p><div class="row"><button class="btn primary" data-again>Another round</button></div></div>`;
         $('[data-again]', area).onclick = () => concept(area, mode);
+        if (nMiss()) { const mb = h(`<button class="btn" data-missb>↻ Repeat my mistakes (${nMiss()})</button>`); mb.onclick = () => { S.quiz[B.sel] = 'miss'; save(); concept(area, mode); }; $('[data-again]', area).after(mb); }
         return;
       }
       const q = qs[i];
@@ -530,9 +538,13 @@
         area.dataset.lock = 1;
         const k = +b.dataset.k, ok = k === q.c;
         if (ok) score++;
+        const wasMiss = miss.has(q.q);
+        if (ok) miss.delete(q.q); else miss.add(q.q);
+        keepMiss();
         b.classList.add(ok ? 'right' : 'wrong');
         $$('.opt', area)[q.c].classList.add('right');
-        $('.fb', area).innerHTML = `<div class="why"><b>${ok ? 'Correct.' : 'Not quite.'}</b> ${esc(q.why)}</div><div class="row" style="margin-top:12px"><button class="btn primary" data-n>${i + 1 < qs.length ? 'Next' : 'See result'} ${I.arrow}</button></div>`;
+        const note = ok && wasMiss ? ' <span class="chip ok">removed from your mistakes</span>' : !ok ? ' <span class="chip">added to "My mistakes": it will come back</span>' : '';
+        $('.fb', area).innerHTML = `<div class="why"><b>${ok ? 'Correct.' : 'Not quite.'}</b> ${esc(q.why)}${note}</div><div class="row" style="margin-top:12px"><button class="btn primary" data-n>${i + 1 < qs.length ? 'Next' : 'See result'} ${I.arrow}</button></div>`;
         $('[data-n]', area).onclick = () => { delete area.dataset.lock; i++; show(); };
       }));
     };
