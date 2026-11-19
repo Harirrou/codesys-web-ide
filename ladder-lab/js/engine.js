@@ -1510,7 +1510,7 @@
         case 'TRUNC': return 'TRN(' + tg(cell.src) + ',' + tg(cell.dst) + ')';
         case 'NORM_X': case 'SCALE_X': {
           // Logix 5000 has no SCP (that is SLC 500 / MicroLogix): scale with CPT. Limits written with a decimal point make Logix calculate in REAL
-          const rl = (a) => (RE.int.test(String(a)) ? a + '.0' : tg(a));
+          const rl = (a) => { const s = RE.int.test(String(a)) ? a + '.0' : tg(a); return /^-/.test(s) ? '(' + s + ')' : s; };
           const real = [cell.src, cell.a, cell.b].some((a) => isNumLit(String(a)) || isRealAddr(a));
           const v = (real ? '' : '1.0*') + rl(cell.src), lo = rl(cell.a), hi = rl(cell.b);
           notes.push('Logix 5000 has no SCP instruction (SCP is SLC 500 / MicroLogix): scale with CPT and the formula. Write the limits with a decimal point (0.0, 27648.0), or Logix divides in whole numbers.');
