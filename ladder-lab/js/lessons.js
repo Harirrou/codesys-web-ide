@@ -1533,6 +1533,78 @@ Valve B = (AUTO AND step wants B) OR (MANUAL AND Jog B AND A is out)   ← inter
       challenges: ['drive-1', 'drive-line'],
     },
     {
+      id: 'word-logic', level: 5, title: "Words as bits: hex, masks, control words and BCD", min: 14,
+      summary: "A word can hold 16 separate signals. Read and write it in hex, pick single bits, keep or set bits with AND / OR / XOR masks, start a drive with a control word, and convert BCD. With a click-the-bits calculator.",
+      body: `
+<h3>Why look at a word bit by bit?</h3>
+<p>A word is 16 bits. Sometimes it holds a number, like a counter value. But very often it holds <b>16 separate yes / no signals</b> packed together:</p>
+<ul>
+<li>the <b>status word</b> of a drive: ready, running, fault, speed reached…</li>
+<li>the <b>control word</b> you send to a drive: on, enable, acknowledge…</li>
+<li>an <b>alarm word</b> for the HMI: one bit for each alarm</li>
+<li>the outputs of a valve island or the inputs of a remote I/O station</li>
+</ul>
+<p>To work with such words you need three tools: <b>hex numbers</b>, <b>single bits</b> and <b>masks</b>.</p>
+
+<h3>Hex: four bits, one digit</h3>
+<p>Sixteen bits are hard to read: 0000010001111111. So we cut them into groups of four and write one <b>hex digit</b> for each group. The digits are 0–9 and then A–F for 10–15.</p>
+<div class="tbl"><table>
+<tr><th>Bits</th><td>0000</td><td>0100</td><td>0111</td><td>1111</td></tr>
+<tr><th>Hex digit</th><td>0</td><td>4</td><td>7</td><td>F</td></tr>
+</table></div>
+<p>So that word is <code>16#047F</code>. In the Lab you can type <code>16#047F</code> or <code>2#0000_0100_0111_1111</code> anywhere a number is allowed. Studio 5000 writes <code>16#047F</code> too; CODESYS and TwinCAT also accept <code>16#047F</code>; Omron CX-Programmer writes <code>#047F</code>.</p>
+
+<h3>Try it: click the bits</h3>
+[[hw:bits]]
+
+<h3>One bit of a word</h3>
+<p>Write the word address, a dot and the bit number: <code>MW100.2</code> is bit 2 of MW100. Use it like any contact or coil. Bit 0 is the right-most bit.</p>
+<p>A word from a device arrives in an input word. Copy it to a memory word first, then use its bits: <code>MOV(AIW30,MW100)</code>, then <code>NO(MW100.2)</code>.</p>
+<div class="tbl"><table>
+<tr><th>Software</th><th>Bit 2 of a word</th></tr>
+<tr><td>TIA Portal</td><td><code>"Status".%X2</code> (slice access) or <code>%MW100</code> overlaid with <code>%M101.2</code></td></tr>
+<tr><td>Studio 5000</td><td><code>Status.2</code></td></tr>
+<tr><td>CODESYS, TwinCAT, Schneider</td><td><code>Status.2</code></td></tr>
+<tr><td>Omron CX-Programmer</td><td><code>D100.02</code></td></tr>
+</table></div>
+
+<h3>Masks: AND, OR, XOR, NOT</h3>
+<div class="tbl"><table>
+<tr><th>Instruction</th><th>A result bit is 1 when…</th><th>You use it to…</th><th>Example</th></tr>
+<tr><td><code>WAND(a,b,dst)</code></td><td>both bits are 1</td><td><b>keep</b> some bits, remove the rest</td><td>16#12AB AND 16#00FF = 16#00AB</td></tr>
+<tr><td><code>WOR(a,b,dst)</code></td><td>at least one bit is 1</td><td><b>switch bits on</b></td><td>16#047E OR 16#0001 = 16#047F</td></tr>
+<tr><td><code>WXOR(a,b,dst)</code></td><td>the two bits are different</td><td><b>flip</b> bits, or find <b>what changed</b></td><td>old XOR new = the changed bits</td></tr>
+<tr><td><code>WNOT(a,dst)</code></td><td>the bit was 0</td><td>turn a mask around</td><td>NOT 16#00FF = 16#FF00</td></tr>
+</table></div>
+<p>Typical use: "is any alarm on?" Mask the alarm word with the alarms you care about, then compare with zero: <code>WAND(MW50,16#000F,MW52)</code>, <code>CMP(MW52&lt;&gt;0)</code>.</p>
+
+<h3>The classic: a drive on a network</h3>
+<p>A drive on PROFINET, EtherNet/IP or EtherCAT has no start wire. The PLC sends a <b>control word</b> and reads a <b>status word</b>. With the PROFIdrive profile (Siemens SINAMICS and many others):</p>
+<div class="tbl"><table>
+<tr><th>You send</th><th>Meaning</th><th>The drive answers (status bits)</th></tr>
+<tr><td><code>16#047E</code></td><td>Everything is enabled, but the ON bit (bit 0) is 0: "get ready"</td><td>bit 0 = ready to switch on</td></tr>
+<tr><td><code>16#047F</code></td><td>The same with bit 0 = 1: "run"</td><td>bit 2 = running, bit 10 = speed reached</td></tr>
+<tr><td><code>16#04FE</code></td><td>Bit 7 = 1: "acknowledge the fault"</td><td>bit 3 = fault goes to 0</td></tr>
+</table></div>
+<p>The order matters: the drive wants to see the ON bit <b>go from 0 to 1</b>. If you send 16#047F from the first scan, it does not start. This protects people: a drive must not start by itself when the PLC powers up.</p>
+<p>The speed setpoint is a second word: <code>16#4000</code> = 16384 = 100 %. Drives with the CiA 402 profile (Schneider, Beckhoff, Omron servo drives) work the same way with other numbers: 6, then 7, then 15.</p>
+
+<h3>LIM: is the value in range?</h3>
+<p><code>LIM(10,MW0,20)</code> is a contact that passes power while 10 ≤ MW0 ≤ 20. One instruction where you would need two compares. TIA Portal calls it IN_RANGE, Studio 5000 calls it LIM.</p>
+
+<h3>BCD: one decimal digit in every 4 bits</h3>
+<p>Thumbwheel switches, old 7-segment displays and many clocks use <b>BCD</b>: each decimal digit gets its own 4 bits. The number 1234 becomes 0001 0010 0011 0100, which reads as <code>16#1234</code>.</p>
+<p>The trap: if you read that word as a normal number, you get 4660, not 1234. So convert at the edge of your program: <code>BCD_I(src,dst)</code> on the way in, <code>I_BCD(src,dst)</code> on the way out.</p>
+
+<h3>Negative numbers</h3>
+<p>In a signed word, bit 15 is the sign. <code>16#FFFF</code> is −1, <code>16#8000</code> is −32768. That is why a word of status bits can show a strange negative number in a watch table: switch the display to hex.</p>
+<div class="callout where"><b>Where:</b> every drive, servo, robot and valve island on a network. Alarm words for the HMI. Old machines with thumbwheels. In interviews: "How do you check bit 3 of a status word?" and "How do you start a drive over PROFINET?"</div>`,
+      sims: {},
+      takeaways: ["Four bits make one hex digit: 16#047F.", "MW100.2 is bit 2 of the word. Bit 0 is on the right.", "AND keeps bits, OR sets bits, XOR flips bits or shows what changed.", "A drive on a network: 16#047E first, then 16#047F. Acknowledge with bit 7.", "BCD 1234 is 16#1234, not the number 1234: convert with BCD_I and I_BCD."],
+      mistakes: ["Sending 16#047F from the first scan: the drive wants to see the ON bit rise.", "Reading a BCD word as a normal number.", "Using the command bit for the running lamp, and not the status bit of the drive.", "Looking at a status word in decimal and seeing a strange negative number.", "A mask with the wrong bit: count from 0, from the right."],
+      challenges: ["stw-1", "stw-2"],
+    },
+    {
       id: 'pid-practice', level: 5, title: 'PID in practice: the block and how to tune it', min: 12,
       summary: 'Using a real PID instruction: what Kp, Ti and Td do, why P alone leaves an offset, how to tune by hand, and the traps (windup, wrong direction, noisy D).',
       body: `
@@ -2068,6 +2140,53 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
       takeaways: ['INT stops at 32 767; DINT goes to 2.1 billion.', 'Multiply first, divide last, with a DINT in between.', 'MOD gives the remainder.', 'Fixed point (0.1 °C, 0.01 bar) gives decimals with integers.', 'Never compare REALs with =; keep totals in DINT.'],
       mistakes: ['Dividing first and losing the fraction.', 'A 16-bit total that stops (or wraps) at 32 767.', 'Comparing a REAL with = 0.3.', 'On Siemens: using MD20 and MW22 for different things.'],
       challenges: ['dint-scale', 'enc-3'],
+    },
+    {
+      id: 'real-scaling', level: 6, title: "REAL numbers: scale with NORM_X and SCALE_X, then round", min: 10,
+      summary: "Numbers with decimals in the PLC: the REAL memory, scaling a raw analog value in two steps, getting back to a whole number with ROUND or TRUNC, and the four classic traps.",
+      body: `
+<h3>Why REAL?</h3>
+<p>Whole numbers lose everything after the point: 7 / 2 = 3. For scaling, flow, temperature and PID you want 3.5. A <b>REAL</b> is a number with decimals (floating point, 32 bits). In the Lab the REAL memory is <code>MR0</code> … <code>MR99</code>, and you can write REAL numbers like <code>12.5</code>.</p>
+
+<h3>Scaling in two steps: NORM_X, then SCALE_X</h3>
+<p>An analog input gives a raw number, for example 0 … 27648 for 0 … 10 V. You want 0.0 … 100.0 %. Siemens does this in two small steps, and the Lab does the same:</p>
+<ol>
+<li><code>NORM_X(0,AIW0,27648,MR0)</code>: "where is the value between min and max?" The answer is always <b>0.0 … 1.0</b>. Half-way gives 0.5.</li>
+<li><code>SCALE_X(0.0,MR0,100.0,MR1)</code>: stretch 0.0 … 1.0 to the range you want. 0.5 gives 50.0.</li>
+</ol>
+<p>The formula behind both steps:</p>
+<p><code>out = (in − inMin) × (outMax − outMin) / (inMax − inMin) + outMin</code></p>
+<p>For a 4–20 mA sensor the raw minimum is not 0: use <code>NORM_X(5530,AIW0,27648,MR0)</code>. Below 4 mA the result goes negative: a good sign of a broken wire.</p>
+<div class="tbl"><table>
+<tr><th>Software</th><th>How you scale</th></tr>
+<tr><td>TIA Portal</td><td>NORM_X + SCALE_X</td></tr>
+<tr><td>Studio 5000</td><td>CPT with the formula (SCP on Micro800 and SLC)</td></tr>
+<tr><td>CODESYS, TwinCAT</td><td>The formula in ST, or LIN_TRAFO from the Util library</td></tr>
+<tr><td>Schneider, Omron</td><td>The formula in ST, or the scaling block of the analog card</td></tr>
+</table></div>
+
+<h3>Back to a whole number: CONV, ROUND, TRUNC</h3>
+<p>The HMI, a counter preset or an analog output often needs a whole number again. A REAL does not go into a word by itself: you must say <b>how</b>.</p>
+<div class="tbl"><table>
+<tr><th>Instruction</th><th>2.4</th><th>2.5</th><th>3.5</th><th>2.9</th><th>−2.9</th></tr>
+<tr><td><code>ROUND</code> (and <code>CONV</code>)</td><td>2</td><td>2</td><td>4</td><td>3</td><td>−3</td></tr>
+<tr><td><code>TRUNC</code></td><td>2</td><td>2</td><td>3</td><td>2</td><td>−2</td></tr>
+</table></div>
+<p>Look at 2.5 → 2 and 3.5 → 4: Siemens and Rockwell round a half to the <b>even</b> number. TRUNC just cuts the decimals off.</p>
+<p>If you MOV a REAL into a word, the Lab shows a type error, like TIA Portal does. That is a help: silent conversion is a classic bug.</p>
+
+<h3>Four traps with REAL</h3>
+<ul>
+<li><b>Never compare with "equal".</b> 0.1 + 0.2 is 0.30000001. Use ≥ and ≤, or a small window with <code>LIM</code>.</li>
+<li><b>Only about 7 digits.</b> A totalizer in a REAL stops counting small amounts when it gets big: 16 777 216 + 1 is still 16 777 216. Count in a DINT.</li>
+<li><b>Division by zero.</b> NORM_X with min = max divides by zero. In the Lab the PLC stops with an error, like a real CPU can.</li>
+<li><b>REAL is not for counting.</b> Parts, steps and indexes stay whole numbers.</li>
+</ul>
+<div class="callout where"><b>Where:</b> every analog value: level in %, pressure in bar, speed in rpm, PID. The task "Drive on the network 2" uses NORM_X and SCALE_X twice: the speed knob to the drive setpoint, and the actual speed to rpm for the HMI.</div>`,
+      sims: {},
+      takeaways: ["NORM_X gives 0.0 … 1.0. SCALE_X stretches it to your range.", "A REAL goes into a word only with CONV, ROUND or TRUNC.", "ROUND goes to the nearest whole number (a half goes to the even one). TRUNC cuts.", "Never compare REAL values with \"equal\".", "Count in whole numbers, calculate in REAL."],
+      mistakes: ["MOV of a REAL into a word.", "Comparing a REAL with = and waiting for ever.", "A totalizer in a REAL that stops growing.", "NORM_X with min equal to max.", "Forgetting that a 4–20 mA sensor does not start at raw 0."],
+      challenges: ["stw-2"],
     },
     {
       id: 'encoders', level: 6, title: 'Encoders and high-speed counters', min: 13,
@@ -3283,6 +3402,14 @@ END_REPEAT</pre>
     ["User level", "A right on the HMI (operator, technician, engineer) that decides which screens and inputs a person may use."],
     ["ISA-101", "A standard for HMI design: grey screens, colour only for abnormal states, clear hierarchy."],
     ["HMI tag", "A value in the HMI that is linked to a PLC tag, so the screen can read or write it."],
+    ["Control word", "A 16-bit word the PLC sends to a drive or device: each bit is a command, like on, enable or acknowledge."],
+    ["Status word", "A 16-bit word a drive or device sends back: each bit is a state, like ready, running or fault."],
+    ["Mask", "A word used with AND, OR or XOR to pick, set or flip some bits of another word."],
+    ["PROFIdrive", "A standard way for drives on PROFIBUS and PROFINET to use control word, status word and setpoint."],
+    ["NORM_X", "Scaling step 1: where is the value between min and max? The result is 0.0 to 1.0."],
+    ["SCALE_X", "Scaling step 2: stretch a value from 0.0 to 1.0 into a new range."],
+    ["TRUNC", "Cuts the decimals of a REAL off: 2.9 becomes 2."],
+    ["Bit of a word", "One of the 16 bits of a word, used like a normal bit: MW100.2."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -3538,6 +3665,14 @@ END_REPEAT</pre>
     { l: 6, q: "On an HMI, which button type is right for START?", a: ["Momentary: 1 only while pressed", "Set: becomes 1 and then stays 1", "Toggle: flips at each new touch", "Any type: the PLC sorts it out"], c: 0, why: "A bit that stays 1 can restart the machine by itself after a stop or a power cut." },
     { l: 6, q: "The \"pump running\" lamp on the HMI should be linked to which tag?", a: ["The pump output of the PLC", "The START button bit of the HMI", "The STOP button bit", "The alarm bit of the pump"], c: 0, why: "The lamp must show what the pump really does, not what the operator asked for." },
     { l: 6, q: "Why do good HMI screens use a grey background?", a: ["So alarms in colour stand out", "So the screen uses less power", "So the panel is cheaper to make", "So the screen refreshes faster"], c: 0, why: "If everything is colourful, the eye does not find the one red alarm. Colour is kept for abnormal states." },
+    { l: 5, q: "Which bits are 1 in the hex number 16#000A?", a: ["Bits 1 and 3", "Bits 0 and 2", "Bits 2 and 4", "Bits 1 and 2"], c: 0, why: "A is 10 = 8 + 2 = binary 1010. Counting from 0 on the right: bit 1 and bit 3." },
+    { l: 5, q: "MW10 holds 16#12AB. What is the result of WAND(MW10,16#00FF,MW12)?", a: ["16#00AB", "16#1200", "16#12FF", "16#FFAB"], c: 0, why: "AND keeps only the bits where the mask has a 1: here the low byte." },
+    { l: 5, q: "You want to switch bit 7 of a word on and leave the other bits as they are. Which operation?", a: ["OR with 16#0080", "AND with 16#0080", "XOR with 16#FF7F", "AND with 16#FF7F"], c: 0, why: "OR sets the bits that are 1 in the mask and does not touch the others." },
+    { l: 5, q: "A PROFIdrive drive gets 16#047F from the first PLC scan and does not start. Why?", a: ["It must first see the ON bit as 0", "The word is too big for this drive", "Bit 10 must be 0 to start", "It needs 16#FFFF to start"], c: 0, why: "The drive needs 16#047E first, then 16#047F: an edge on bit 0. It must not start by itself at power-up." },
+    { l: 5, q: "A thumbwheel shows 1234 in BCD. What do you read if you take the word as a normal number?", a: ["4660", "1234", "4321", "0"], c: 0, why: "BCD 1234 is the bit pattern 16#1234, and 16#1234 as a number is 4660. Convert with BCD_I." },
+    { l: 6, q: "NORM_X(0,AIW0,27648,MR0) and AIW0 is 13824. What is in MR0?", a: ["0.5", "50.0", "13824.0", "2.0"], c: 0, why: "NORM_X answers where the value is between min and max, as 0.0 … 1.0. Half-way is 0.5." },
+    { l: 6, q: "MR0 is 2.9. What does TRUNC(MR0,MW0) write?", a: ["2", "3", "2.9", "29"], c: 0, why: "TRUNC cuts the decimals off. ROUND would give 3." },
+    { l: 6, q: "Why should you not test a REAL with \"equal\"?", a: ["Tiny rounding errors make it miss", "REAL numbers cannot be compared at all", "The PLC stops with a type error", "Equal is slower than less-than"], c: 0, why: "0.1 + 0.2 is 0.30000001 in floating point. Use limits or a window." },
   ];
   LL.QUIZ_IV = [
     { t: "Basics", q: "Explain the PLC scan cycle.", a: ["Read all inputs into the image, run the program top to bottom, write the outputs", "React to each input the moment it changes, one rung at a time, with no fixed order", "Write the outputs first, then read the inputs, then run the program from the bottom", "Run every rung at the same time, and update an output as soon as its rung is done"], c: 0, why: "Inputs are frozen for the whole scan; outputs change only at the end. That is why the order of rungs matters." },
@@ -3668,6 +3803,11 @@ END_REPEAT</pre>
     { t: "Projects & practice", q: "Why should an E-stop never be only a button on the HMI?", a: ["A screen can freeze or lose its connection", "A screen button is too small to find in a hurry", "HMI buttons are slower than real ones", "The HMI cannot write bits to the PLC"], c: 0, why: "Emergency stop must be a hard-wired device in a safety circuit. The HMI may only show its state." },
     { t: "Projects & practice", q: "The HMI loses its connection while the operator holds a jog button. What must the PLC program do?", a: ["Stop the jog when the HMI heartbeat is lost", "Keep the jog running until the HMI comes back", "Switch the CPU to STOP at once", "Ignore it: the bit resets by itself"], c: 0, why: "The last written value stays in the PLC. A heartbeat or a reset of command bits in the PLC prevents a stuck command." },
     { t: "Projects & practice", q: "An operator can type a setpoint on the HMI. Where do you check its limits?", a: ["On the HMI and again in the PLC", "On the HMI only, that is enough", "In the PLC only, never on the HMI", "Nowhere: the operator knows the range"], c: 0, why: "The HMI gives a friendly message. The PLC check protects the machine when the value comes from somewhere else." },
+    { t: "Drives & motion", q: "How do you start a drive over PROFINET with the standard telegram?", a: ["Send 16#047E, then 16#047F, with a setpoint", "Send 16#FFFF once, then the setpoint", "Set the start input of the drive to 1", "Send only the setpoint: the drive starts alone"], c: 0, why: "The control word must show the ON bit rising, with the enable bits set. 16#4000 is 100 % speed." },
+    { t: "Drives & motion", q: "The drive shows a fault. Which control-word bit acknowledges it?", a: ["Bit 7, with a rising edge", "Bit 0, with a falling edge", "Bit 10, held at one", "Bit 3, with a rising edge"], c: 0, why: "Bit 7 is fault acknowledge. The cause must be gone, and the ON bit must go 0 → 1 again afterwards." },
+    { t: "Programming", q: "How do you check whether any of the low four alarm bits of a word is on?", a: ["AND with 16#000F, compare with 0", "OR with 16#000F, compare with 0", "XOR with 16#FFFF, compare with 0", "Shift the word left by four bits"], c: 0, why: "The mask removes the bits you do not care about. If the rest is not zero, at least one alarm is on." },
+    { t: "Programming", q: "A status word shows −32768 in the watch table. What happened?", a: ["Only bit 15 is on: view it in hex", "The word has overflowed and is lost", "The device sends a negative speed", "The network cable is plugged wrong"], c: 0, why: "In a signed word bit 15 is the sign. 16#8000 reads as −32768. Bit patterns belong in hex or binary." },
+    { t: "Analog & PID", q: "What is the scaling formula from a raw value to engineering units?", a: ["(in − inMin) × outSpan / inSpan + outMin", "(in + inMin) × inSpan / outSpan − outMin", "in × outMax × inMax, then minus outMin", "(in − outMin) / outSpan × inSpan + inMin"], c: 0, why: "First find where the value is in its range, then stretch it to the new range. NORM_X and SCALE_X do these two steps." },
   ];
   LL.QUIZ_NET = [
     { t: "Basics", q: "Fieldbus or industrial Ethernet: what is the main difference?", a: ["Fieldbuses use serial cables (RS-485, CAN); industrial Ethernet uses Ethernet cables and switches", "Fieldbuses use Ethernet cables and switches; industrial Ethernet uses serial RS-485 or CAN cables", "Fieldbuses carry only digital on/off signals; industrial Ethernet carries only analog sensor values", "Fieldbuses need no device file at all; industrial Ethernet needs a GSD or EDS file for each device"], c: 0, why: "Classic fieldbuses: PROFIBUS, CANopen, DeviceNet. Industrial Ethernet: PROFINET, EtherNet/IP, EtherCAT, Modbus TCP. New machines almost always use Ethernet." },

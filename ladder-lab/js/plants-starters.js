@@ -1,7 +1,8 @@
-/* Ladder Lab extra machines: three classic reduced-voltage starters for a 3-phase motor.
+/* Ladder Lab extra machines: three classic reduced-voltage starters for a 3-phase motor, and a drive on a fieldbus.
  * resstart  = stator resistance starter (line contactor + bypass contactor over the resistors)
  * autotrafo = autotransformer starter, closed transition (transformer, star point, run contactor)
  * rotorres  = slip-ring motor with rotor resistance cut out in three steps
+ * busdrive  = conveyor drive controlled by a control word and a status word (simplified PROFIdrive telegram 1)
  * Same pattern as plants.js. One small per-unit motor model: torque from the Kloss formula, current from the slip. */
 (function (G) {
   'use strict';
@@ -222,5 +223,90 @@
     },
   };
 
-  LL.PLANT_ORDER.push('resstart', 'autotrafo', 'rotorres');
+  // ───────────────────────── drive on a fieldbus: control word and status word ─────────────────────────
+  // A simplified PROFIdrive telegram 1: STW1 + speed setpoint to the drive, ZSW1 + actual speed back. 16384 (16#4000) = 100 %.
+  const hex = (v) => '16#' + ((v | 0) & 0xffff).toString(16).toUpperCase().padStart(4, '0');
+  const DSTATE = { 1: 'S1  switch-on inhibited', 2: 'S2  ready to switch on', 3: 'S3  ready to operate', 4: 'S4  operation', 9: 'FAULT  F07801 overcurrent' };
+  P.busdrive = {
+    id: 'busdrive', name: 'Drive on a fieldbus (control word)', blurb: 'A conveyor drive on PROFINET, like a SINAMICS, an Altivar or a drive with CiA 402. No start wire: the PLC sends a 16-bit <b>control word</b> (AQW30) and a speed setpoint (AQW31, 16384 = 100 %), and reads a <b>status word</b> (AIW30) and the actual speed (AIW31). The drive only starts after the right order: first 16#047E (ready), then 16#047F (run). A fault needs an acknowledge edge on bit 7.',
+    inputs: [
+      { addr: 'I0.0', name: 'START', kind: 'pb', color: 'green' },
+      { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
+      { addr: 'I0.2', name: 'RESET', kind: 'pb', color: 'blue' },
+      { addr: 'AIW0', name: 'Speed knob', kind: 'ana', min: 0, max: 27648, value: 13824, unit: 'V', note: '0–10 V = 0–27648 = 0–100 %' },
+      { addr: 'AIW30', name: 'From drive: status word ZSW1', kind: 'sensor', note: 'bit 0 ready to switch on, 1 ready to operate, 2 running, 3 fault, 6 switch-on inhibited, 10 speed reached' },
+      { addr: 'AIW31', name: 'From drive: actual speed', kind: 'sensor', note: '16384 = 100 % = 1500 rpm' },
+    ],
+    outputs: [
+      { addr: 'Q0.0', name: 'Running lamp', color: 'green' },
+      { addr: 'Q0.1', name: 'Fault lamp', color: 'red' },
+      { addr: 'Q0.2', name: 'Ready lamp', color: 'blue' },
+      { addr: 'AQW30', name: 'To drive: control word STW1', color: 'blue' },
+      { addr: 'AQW31', name: 'To drive: speed setpoint', color: 'blue' },
+    ],
+    hmi: ['MW20'],
+    actions: [{ id: 'fault', label: 'Drive fault (overcurrent)', run(st) { st.state = 9; st.cause = true; st.faults++; } }, { id: 'clear', label: 'Fault cause removed (jam cleared)', run(st) { st.cause = false; } }],
+    init() { return { state: 1, n: 0, ramp: 0, run: 0, rpm: 0, stw: 0, zsw: 0, prev7: 0, cause: false, faults: 0, belt: 0, fault: null, last: '' }; },
+    step(st, ctrl, Q, dt) {
+      const h = dt / 1000, stw = (+Q['AQW30'] || 0) & 0xffff, bit = (n) => (stw >> n) & 1, plc = bit(10);
+      const sp = Math.max(-1, Math.min(1, (+Q['AQW31'] || 0) / 16384));
+      st.stw = stw;
+      const off2 = !plc || !bit(1), off3 = !plc || !bit(2), on = plc && bit(0);
+      if (st.state === 9) {
+        if (bit(7) && !st.prev7 && plc) { if (st.cause) st.last = 'Acknowledge refused: the cause of the fault is still there.'; else { st.state = 1; st.last = 'Fault acknowledged. Now send 16#047E, then 16#047F.'; } }
+      } else if (off2 || off3) { if (st.state !== 1) st.last = 'OFF2 / OFF3 bit is 0, or bit 10 (control by PLC) is missing: the drive switched off.'; st.state = 1; }
+      else if (st.state === 1) { if (!on) { st.state = 2; st.last = 'Ready: bits 1 and 2 are set and the ON bit is 0.'; } else st.last = 'ON bit is already 1: the drive wants to see it 0 first (16#047E), then 1.'; }
+      else if (st.state === 2) { if (on) st.state = 3; }
+      else if (st.state === 3) { if (!on) st.state = 2; else if (bit(3)) { st.state = 4; st.last = 'Running.'; } }
+      else if (st.state === 4) { if (!bit(3)) st.state = 3; else if (!on && Math.abs(st.ramp) < 0.005) { st.state = 2; st.last = 'Stopped on the ramp (OFF1).'; } }
+      st.prev7 = bit(7);
+      // speed: ramp generator inside the drive (0 → 100 % in 2 s); coast when not in operation
+      const want = st.state === 4 && on && bit(4) && bit(5) && bit(6) ? sp : 0;
+      if (st.state === 4) { const d = want - st.ramp, mx = h / 2; st.ramp += Math.abs(d) <= mx ? d : Math.sign(d) * mx; st.n = st.ramp; }
+      else { st.ramp = 0; st.n += (0 - st.n) * Math.min(1, h * 1.2); if (Math.abs(st.n) < 0.002) st.n = 0; }
+      st.run = st.state === 4 ? 1 : 0; st.rpm = Math.round(st.n * 1500); st.belt += st.n * h * 60;
+      const reached = st.state === 4 && Math.abs(st.n - sp) < 0.01;
+      st.zsw = 0x0200 | (st.state === 9 ? 0x0008 : 0) | (st.state >= 2 && st.state <= 4 ? 0x0001 : 0) | (st.state === 3 || st.state === 4 ? 0x0002 : 0) | (st.state === 4 ? 0x0004 : 0)
+        | (st.state !== 1 || !off2 ? 0x0010 : 0) | (st.state !== 1 || !off3 ? 0x0020 : 0) | (st.state === 1 ? 0x0040 : 0) | (reached ? 0x0500 : 0);
+      const o = devices(this, ctrl);
+      o['AIW30'] = st.zsw; o['AIW31'] = Math.round(st.n * 16384);
+      return o;
+    },
+    draw(c, st, th, Q, I) {
+      const word = (x, y, v, title, names) => {
+        D.text(c, title, x, y - 12, { size: 11, weight: 700, color: th.ink, align: 'left' });
+        D.text(c, hex(v), x + 272, y - 12, { size: 12, mono: true, weight: 700, color: th.ink, align: 'right' });
+        for (let b = 15; b >= 0; b--) {
+          const px = x + (15 - b) * 17 + (b < 8 ? 6 : 0) + (b < 12 ? 0 : -0) , on = (v >> b) & 1;
+          c.fillStyle = on ? th.on : th.panel2; D.rr(c, px, y, 14, 16, 3); c.fill(); c.strokeStyle = th.line; c.lineWidth = 1; c.stroke();
+          D.text(c, String(b), px + 7, y + 26, { size: 8, mono: true, color: names[b] ? th.ink : th.muted });
+        }
+        const lit = Object.keys(names).filter((b) => (v >> b) & 1).map((b) => b + ' ' + names[b]).join(' · ');
+        D.text(c, lit || 'no named bit is on', x, y + 44, { size: 9.5, color: th.muted, align: 'left' });
+      };
+      word(24, 38, st.stw, 'PLC → drive   control word STW1 (AQW30)', { 0: 'ON', 1: 'no OFF2', 2: 'no OFF3', 3: 'enable', 7: 'ACK', 10: 'by PLC' });
+      word(24, 132, st.zsw, 'drive → PLC   status word ZSW1 (AIW30)', { 0: 'ready on', 1: 'ready op', 2: 'RUNNING', 3: 'FAULT', 6: 'inhibit', 10: 'at speed' });
+      const sp = +Q['AQW31'] || 0;
+      D.text(c, 'setpoint AQW31 = ' + sp + ' (' + Math.round(sp / 163.84) + ' %)    actual AIW31 = ' + Math.round(st.n * 16384), 24, 208, { size: 10, mono: true, color: th.ink, align: 'left' });
+      D.text(c, 'speed knob AIW0 = ' + (+I['AIW0'] || 0), 24, 224, { size: 10, mono: true, color: th.muted, align: 'left' });
+      // the drive
+      c.fillStyle = th.panel2; D.rr(c, 340, 30, 150, 112, 8); c.fill(); c.strokeStyle = st.state === 9 ? th.red : st.state === 4 ? th.on : th.line; c.lineWidth = 2.5; c.stroke();
+      D.text(c, 'DRIVE', 415, 46, { size: 11, weight: 700, color: th.muted });
+      c.fillStyle = st.state === 9 ? th.red : '#0b1f17'; D.rr(c, 352, 56, 126, 44, 5); c.fill();
+      D.text(c, st.state === 9 ? 'F07801' : st.rpm + ' rpm', 415, 72, { size: 15, mono: true, weight: 700, color: st.state === 9 ? '#fff' : '#4ade80' });
+      D.text(c, st.state === 9 ? 'FAULT' : st.state === 4 ? 'RUN' : st.state === 1 ? 'INHIBIT' : 'READY', 415, 90, { size: 10, mono: true, weight: 700, color: st.state === 9 ? '#fff' : '#86efac' });
+      D.text(c, DSTATE[st.state], 415, 118, { size: 10, weight: 600, color: th.ink });
+      D.text(c, st.last, 415, 158, { size: 9.5, color: th.muted });
+      // conveyor
+      const bx = 350, by = 232, bw = 250;
+      c.fillStyle = th.metalDark; D.rr(c, bx, by, bw, 18, 9); c.fill();
+      c.strokeStyle = th.metal; c.lineWidth = 2; c.setLineDash([10, 12]); c.lineDashOffset = -st.belt; c.beginPath(); c.moveTo(bx + 8, by + 9); c.lineTo(bx + bw - 8, by + 9); c.stroke(); c.setLineDash([]);
+      [bx + 9, bx + bw - 9].forEach((x) => { c.fillStyle = th.metal; c.beginPath(); c.arc(x, by + 9, 9, 0, 7); c.fill(); });
+      D.text(c, 'conveyor', bx + bw / 2, by + 34, { size: 10, color: th.muted });
+      D.lamp(c, th, 530, 46, 10, !!Q['Q0.0'], 'green', 'Running', 'Q0.0'); D.lamp(c, th, 580, 46, 10, !!Q['Q0.1'], 'red', 'Fault', 'Q0.1'); D.lamp(c, th, 530, 112, 10, !!Q['Q0.2'], 'blue', 'Ready', 'Q0.2');
+      D.fault(c, th, st.fault);
+    },
+  };
+
+  LL.PLANT_ORDER.push('resstart', 'autotrafo', 'rotorres', 'busdrive');
 })(typeof window !== 'undefined' ? window : globalThis);
