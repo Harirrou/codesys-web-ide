@@ -1511,6 +1511,48 @@ Valve B = (AUTO AND step wants B) OR (MANUAL AND Jog B AND A is out)   ← inter
       challenges: ['cyl-modes', 'fixture-man', 'fixture-c', 'fixture-orders', 'fixture-modes', 'st-fixture-c', 'fixture-changeover'],
     },
     {
+      id: 'packml', level: 6, title: "PackML: the same states for every machine", min: 12,
+      summary: "The standard machine state model: waiting and acting states, the commands between them, the difference between Hold, Suspend, Stop and Abort, and how to program it as a step sequence. With a state map you can drive.",
+      body: `
+<h3>The problem PackML solves</h3>
+<p>Every machine builder invents own words: "ready", "auto", "cycle on", "paused", "fault". On a line with machines from five builders, the operator and the line PLC must learn five languages. <b>PackML</b> (from the packaging industry, standard ISA-TR88) gives every machine the <b>same states with the same names</b>. Today it is used far beyond packaging.</p>
+
+<h3>Try it: run a machine through its states</h3>
+[[hw:packml]]
+
+<h3>Two kinds of state</h3>
+<ul>
+<li><b>Waiting states</b> (square): Stopped, Idle, Execute, Held, Suspended, Complete, Aborted. The machine stays there until a command comes. (Execute is special: it "waits" while it produces.)</li>
+<li><b>Acting states</b> (round, they end in -ing): Resetting, Starting, Holding… The machine does a job, and when the job is done it moves on <b>by itself</b>.</li>
+</ul>
+
+<h3>Hold, Suspend, Stop, Abort: four ways to not produce</h3>
+<div class="tbl"><table>
+<tr><th>Command</th><th>The reason is…</th><th>Example</th><th>How it goes on</th></tr>
+<tr><td><b>Hold</b></td><td>inside this machine</td><td>Out of caps, operator pause</td><td>A person fixes it and presses Unhold</td></tr>
+<tr><td><b>Suspend</b></td><td>outside this machine</td><td>No bottles from upstream, downstream full</td><td>By itself, when the line is free again</td></tr>
+<tr><td><b>Stop</b></td><td>a normal, wanted stop</td><td>End of shift</td><td>Reset, then Start</td></tr>
+<tr><td><b>Abort</b></td><td>a fault or a safety event</td><td>Guard door opened, drive fault</td><td>Fix it, Clear, Reset, Start</td></tr>
+</table></div>
+<p>This split is the most useful part. The line knows: a <b>suspended</b> machine is healthy and only waits. A <b>held</b> machine needs a person. That goes straight into the downtime report: who lost the time?</p>
+
+<h3>How you program it</h3>
+<p>It is the step sequence you already know, with fixed step names:</p>
+<ol>
+<li>One word holds the <b>state number</b>. Many builders use the PackML numbers: 2 Stopped, 4 Idle, 6 Execute, 9 Aborted, 11 Held, 5 Suspended, 17 Complete…</li>
+<li>One block decides the <b>transitions</b>: state + command → next state. Nothing else may write the state.</li>
+<li>For each acting state, a piece of program does the work and sets <b>"state complete"</b> when it is done.</li>
+<li>Your normal machine sequence runs only in <b>Execute</b>.</li>
+<li>The HMI shows the state name and enables only the buttons that are allowed.</li>
+</ol>
+<p>PackML also defines <b>modes</b> (Production, Maintenance, Manual) and a set of standard tags (PackTags) for commands, status and counters, so a line system can read every machine the same way.</p>
+<div class="callout where"><b>Where:</b> packaging, food and drink, pharma, and more and more in general machine building. Siemens, Rockwell, Beckhoff, B&amp;R and others ship ready PackML blocks. In interviews: "What is the difference between Held and Suspended?"</div>`,
+      sims: {},
+      takeaways: ["PackML gives every machine the same state names.", "States that end in -ing do a job and move on by themselves.", "Hold: own problem. Suspend: the line. Stop: wanted. Abort: fault or safety.", "The normal sequence runs only in Execute.", "One block alone changes the state."],
+      mistakes: ["Using Hold when upstream is empty: the downtime is counted against the wrong machine.", "Several places in the program that write the state number.", "Leaving Aborted without a Clear by a person.", "Production code that also runs in Held or Stopped.", "Buttons on the HMI that are not allowed in the current state."],
+      challenges: ["cyl-modes", "capline"],
+    },
+    {
       id: 'blocks', level: 5, title: 'Reusable blocks: write once, use many times (FC / FB)', min: 14,
       summary: 'Real programs are built from blocks: one "motor" block used for twenty motors, each call with its own wiring and its own memory. How blocks, parameters and instances work.',
       body: `
@@ -1594,6 +1636,60 @@ Valve B = (AUTO AND step wants B) OR (MANUAL AND Jog B AND A is out)   ← inter
       takeaways: ['Run + speed reference out; ready, running, fault back.', 'Command only a ready drive and watch the running feedback.', 'Reset faults with a pulse, on request.', 'Clamp the speed reference (minimum speed).', 'Lines: start downstream first, stop upstream first.'],
       mistakes: ['No feedback watchdog: the PLC thinks a conveyor runs while it stands still.', 'Resetting faults automatically again and again.', 'Starting a feeding conveyor before the one it feeds.'],
       challenges: ['drive-1', 'drive-line'],
+    },
+    {
+      id: 'drive-setup', level: 5, title: "Set up a drive: the first ten parameters", min: 12,
+      summary: "Quick commissioning of a variable frequency drive: nameplate data, ramps, limits, command and setpoint source, the faults that wrong values give, and the parameter numbers in SINAMICS, Altivar and PowerFlex. With a drive you can commission.",
+      body: `
+<h3>A new drive does not know your motor</h3>
+<p>A drive comes out of the box with factory values for some standard motor. Before the first start you must tell it what is really connected. Every brand calls this <b>quick commissioning</b> (or a start-up wizard), and every brand asks for the same few things.</p>
+<div class="callout tip"><b>The nameplate is your source.</b> Voltage, current, frequency and speed are printed on the motor. Take a photo before the motor is built into the machine.</div>
+
+<h3>Try it: commission a drive</h3>
+<p>The drive below still has its factory values. Read the nameplate, set the parameters, then run the motor. Wrong values give the same faults a real drive gives.</p>
+[[hw:drive]]
+
+<h3>The ten parameters, and why each one matters</h3>
+<div class="tbl"><table>
+<tr><th>Setting</th><th>Why the drive needs it</th><th>If it is wrong</th></tr>
+<tr><td>Motor rated <b>voltage</b> and <b>frequency</b></td><td>Together they give the voltage for each Hz (400 V / 50 Hz = 8 V per Hz)</td><td>Too low: weak, hot motor. Too high: overcurrent at once</td></tr>
+<tr><td>Motor rated <b>current</b></td><td>It is the overload protection of the motor</td><td>Too low: trips for no reason. Too high: the motor can burn</td></tr>
+<tr><td>Motor rated <b>speed</b></td><td>The drive works out the slip and shows the right rpm</td><td>Wrong speed display, poor control at low speed</td></tr>
+<tr><td><b>Ramp-up</b> time</td><td>How fast the frequency may rise</td><td>Too short: overcurrent fault</td></tr>
+<tr><td><b>Ramp-down</b> time</td><td>How fast the frequency may fall</td><td>Too short with a heavy load: overvoltage fault</td></tr>
+<tr><td><b>Minimum</b> and <b>maximum</b> frequency</td><td>Limits that no setpoint can pass</td><td>A fan that stalls, or a pump that runs too fast</td></tr>
+<tr><td><b>Command source</b></td><td>Who may start: keypad, terminals, network</td><td>"The PLC output is on, but nothing happens"</td></tr>
+<tr><td><b>Setpoint source</b></td><td>Who sets the speed: keypad, analog input, network</td><td>The motor runs, but always at the same speed</td></tr>
+</table></div>
+
+<h3>Why a fast stop gives "overvoltage"</h3>
+<p>When the drive lowers the frequency faster than the load slows down, the load <b>drives the motor</b>. The motor becomes a generator and pushes energy back into the drive. The voltage inside the drive (the DC link) rises until it trips. Three cures: a longer ramp, a <b>braking resistor</b> that burns the energy, or letting the motor coast.</p>
+
+<h3>The same settings in three brands</h3>
+<div class="tbl"><table>
+<tr><th>Setting</th><th>Siemens SINAMICS</th><th>Schneider Altivar</th><th>Rockwell PowerFlex 525</th></tr>
+<tr><td>Rated voltage</td><td>p0304</td><td>UnS</td><td>P031</td></tr>
+<tr><td>Rated current</td><td>p0305</td><td>nCr</td><td>P033</td></tr>
+<tr><td>Rated frequency</td><td>p0310</td><td>FrS</td><td>P032</td></tr>
+<tr><td>Rated speed</td><td>p0311</td><td>nSP</td><td>P036</td></tr>
+<tr><td>Ramp-up / ramp-down</td><td>p1120 / p1121</td><td>ACC / dEC</td><td>P041 / P042</td></tr>
+<tr><td>Minimum / maximum</td><td>p1080 / p1082</td><td>LSP / HSP</td><td>P043 / P044</td></tr>
+<tr><td>Command and setpoint source</td><td>p0015 (I/O macro)</td><td>Cd1 / Fr1</td><td>P046 / P047</td></tr>
+</table></div>
+<p>The numbers differ, the ideas do not. Always check the manual of your exact drive: parameter numbers change between series.</p>
+
+<h3>After quick commissioning</h3>
+<ul>
+<li><b>Motor identification</b> (auto-tuning): the drive measures the motor once. Do it when the drive offers it.</li>
+<li><b>Direction check</b>: a short run at low speed. Wrong way: swap two motor wires, or change the direction parameter.</li>
+<li><b>Save</b> the parameters, and keep a copy with the machine documents.</li>
+<li><b>Safe Torque Off</b> wiring, if the machine uses it, belongs to the safety circuit, not to the PLC program.</li>
+</ul>
+<div class="callout where"><b>Where:</b> every conveyor, pump and fan with a drive. In interviews: "The drive trips on overvoltage when it stops. Why?" and "The PLC gives a run signal but the motor does not start. What do you check?" Wire the control signals yourself in the <a href="#circuit-c-vfd">Circuit Lab drive task</a>, and control one from ladder in <a href="#lesson-drives">Drives in practice</a>.</div>`,
+      sims: {},
+      takeaways: ["Type in the motor nameplate first: voltage, current, frequency, speed.", "Ramp-up too short gives overcurrent. Ramp-down too short gives overvoltage.", "The rated current in the drive is the motor protection.", "Command source and setpoint source decide who controls the drive.", "The ideas are the same in every brand. Only the numbers differ."],
+      mistakes: ["Starting with factory values.", "Rated current left too high: the motor is not protected.", "A short ramp-down on a heavy fan without a braking resistor.", "Command source still on keypad when the PLC should start it.", "Not saving the parameters after commissioning."],
+      challenges: ["drive-1", "drive-line"],
     },
     {
       id: 'word-logic', level: 5, title: "Words as bits: hex, masks, control words and BCD", min: 14,
@@ -3600,6 +3696,16 @@ END_REPEAT</pre>
     ["Diagnostic coverage (DC)", "The share of dangerous faults that a safety system notices by itself."],
     ["Stop category", "How a machine stops: 0 = power off at once, 1 = brake then power off, 2 = stop with power on."],
     ["SIL", "Safety integrity level, 1 to 3: the scale of another safety standard. PL d is about SIL 2."],
+    ["Quick commissioning", "The first set-up of a drive: motor data, ramps, limits and sources."],
+    ["Ramp time", "The time a drive takes to change the frequency from zero to maximum, or back."],
+    ["DC link", "The energy store inside a drive, between its input and its output. Braking too fast overfills it."],
+    ["Braking resistor", "A resistor on a drive that turns braking energy into heat."],
+    ["Command source", "The drive setting that says who may start the motor: keypad, terminals or network."],
+    ["Motor identification", "A measurement the drive does once on the motor, to control it better. Also called auto-tuning."],
+    ["PackML", "A standard state model and tag set for machines: the same state names on every machine."],
+    ["Held (PackML)", "The machine stopped because of a problem inside itself and waits for a person."],
+    ["Suspended (PackML)", "The machine is fine and waits for the line: no product coming in, or no room going out."],
+    ["Aborted (PackML)", "The machine was stopped at once by a fault or a safety event and must be cleared."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -3871,6 +3977,12 @@ END_REPEAT</pre>
     { l: 5, q: "Serious injury, operator there often, no chance to avoid it. Which performance level is required?", a: ["PL e", "PL c", "PL a", "PL b"], c: 0, why: "S2, F2, P2 is the worst path of the graph: the highest level, e." },
     { l: 5, q: "What is the main difference between a Category 1 and a Category 3 safety circuit?", a: ["Category 3 has two channels", "Category 3 uses a normal PLC", "Category 3 needs no E-stop", "Category 3 works without power"], c: 0, why: "With two channels a single fault does not stop the safety function. Category 1 has one well-tried channel." },
     { l: 5, q: "What is a stop category 1?", a: ["A controlled stop, then power off", "Power off at once, the motor coasts", "A controlled stop, power stays on", "A stop by the operator's stop button"], c: 0, why: "Category 0 cuts power at once. Category 1 brakes first. Category 2 keeps the power on at standstill." },
+    { l: 5, q: "What do you set first in a new drive?", a: ["The motor data from the nameplate", "The colours of the keypad display", "The address of the PLC network", "The password for the parameters"], c: 0, why: "Voltage, current, frequency and speed. Everything else in the drive is calculated from them." },
+    { l: 5, q: "A drive trips with 'overvoltage' every time a heavy fan stops. What helps?", a: ["A longer ramp-down time", "A shorter ramp-down time", "A higher maximum frequency", "A lower motor rated current"], c: 0, why: "The fan drives the motor, which feeds energy back. A longer ramp or a braking resistor solves it." },
+    { l: 5, q: "The rated current in the drive is set much higher than on the motor nameplate. What is the risk?", a: ["The motor is not protected and can burn", "The drive trips at every single start", "The motor now turns in the wrong direction", "The motor runs faster than its limit"], c: 0, why: "The drive's motor protection works from this value. Too high means it never trips for this motor." },
+    { l: 6, q: "In PackML, upstream runs out of product. Which state is right for your machine?", a: ["Suspended", "Held by an operator", "Aborted", "Complete"], c: 0, why: "Suspended means: I am fine, the reason is outside. Held means the reason is inside this machine." },
+    { l: 6, q: "What is special about PackML states that end in -ing?", a: ["They finish by themselves", "They need an operator command", "They can only be left by Abort", "They are used only in manual mode"], c: 0, why: "Acting states do a job and then move on when it is complete. Waiting states need a command." },
+    { l: 6, q: "After an Abort, what must happen before the machine can produce again?", a: ["Clear, then Reset, then Start", "Start, then Clear, then Reset", "Unhold, then Start again", "Only Start: Abort resets itself"], c: 0, why: "Aborted → Clear → Stopped → Reset → Idle → Start. A person must confirm that the fault is gone." },
   ];
   LL.QUIZ_IV = [
     { t: "Basics", q: "Explain the PLC scan cycle.", a: ["Read all inputs into the image, run the program top to bottom, write the outputs", "React to each input the moment it changes, one rung at a time, with no fixed order", "Write the outputs first, then read the inputs, then run the program from the bottom", "Run every rung at the same time, and update an output as soon as its rung is done"], c: 0, why: "Inputs are frozen for the whole scan; outputs change only at the end. That is why the order of rungs matters." },
@@ -4019,6 +4131,11 @@ END_REPEAT</pre>
     { t: "Safety", q: "Why do higher performance levels need two channels?", a: ["One fault alone must not stop the safety function", "Two channels switch the load off twice as fast as one", "One channel cannot carry the motor current", "Two channels make the wiring cheaper to test"], c: 0, why: "With two channels and comparison, a welded contact or a broken wire is found, and the other channel still stops the machine." },
     { t: "Safety", q: "What does diagnostic coverage (DC) describe?", a: ["How many dangerous faults the system notices", "How many sensors one safety relay can read at once", "How long a part works before it fails", "How fast the machine stops after a demand"], c: 0, why: "Feedback contacts and channel comparison raise DC. It is one of the four inputs to the reached PL." },
     { t: "Safety", q: "A drive must brake a heavy saw before the power is cut. Which stop category is that?", a: ["Stop category 1", "Stop category 0", "Stop category 2", "Stop category 3"], c: 0, why: "Category 1: controlled stop, then power removed. Category 0 would let the saw coast for a long time." },
+    { t: "Drives & motion", q: "The PLC gives the run signal, but the drive does not start and shows no fault. What do you check first?", a: ["The command source parameter of the drive", "The ramp-up time parameter inside the drive", "The rated speed parameter of the motor", "The colour of the motor cable shield"], c: 0, why: "If the drive still listens to its keypad or the network, a terminal signal does nothing. Then check enable and STO inputs." },
+    { t: "Drives & motion", q: "Why can a too short ramp-down trip a drive?", a: ["The motor becomes a generator and raises the DC link", "The motor needs more current to slow down faster", "The mains voltage rises when the motor slows down", "The overload relay cannot follow the quickly falling speed"], c: 0, why: "The load pushes the motor. The energy comes back into the drive and the DC link voltage rises until it trips." },
+    { t: "Drives & motion", q: "What is a braking resistor on a drive for?", a: ["It burns the energy that comes back when braking", "It limits the current when the motor is starting", "It protects the motor cable from a short circuit", "It keeps the drive warm when the motor is off"], c: 0, why: "With it the drive can brake a heavy load quickly without an overvoltage fault." },
+    { t: "Projects & practice", q: "In PackML, what is the difference between Held and Suspended?", a: ["Held: own problem. Suspended: waiting for the line", "Held: a safety stop. Suspended: a normal stop", "Held: the manual mode. Suspended: the automatic mode", "Held: end of order. Suspended: start of order"], c: 0, why: "It tells the line and the downtime report who caused the stop: this machine, or its neighbours." },
+    { t: "Projects & practice", q: "Why do plants ask for PackML on new machines?", a: ["Every machine reports the same states and tags", "Every machine then uses the very same PLC brand", "Every machine then needs no safety system", "Every machine then runs at the same speed"], c: 0, why: "The operators learn one model, and the line control and the reporting system read all machines the same way." },
   ];
   LL.QUIZ_NET = [
     { t: "Basics", q: "Fieldbus or industrial Ethernet: what is the main difference?", a: ["Fieldbuses use serial cables (RS-485, CAN); industrial Ethernet uses Ethernet cables and switches", "Fieldbuses use Ethernet cables and switches; industrial Ethernet uses serial RS-485 or CAN cables", "Fieldbuses carry only digital on/off signals; industrial Ethernet carries only analog sensor values", "Fieldbuses need no device file at all; industrial Ethernet needs a GSD or EDS file for each device"], c: 0, why: "Classic fieldbuses: PROFIBUS, CANopen, DeviceNet. Industrial Ethernet: PROFINET, EtherNet/IP, EtherCAT, Modbus TCP. New machines almost always use Ethernet." },
