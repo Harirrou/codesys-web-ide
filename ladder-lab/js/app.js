@@ -1406,6 +1406,7 @@
             <button class="btn small ld-only" data-a="redo" title="Redo">${I.redo}</button>
             <button class="btn small ld-only" data-a="brands" title="This ladder in TIA Portal, Studio 5000, Schneider, TwinCAT, Omron and as Structured Text">${I.code} Other brands</button>
             <button class="btn small ld-only" data-a="xref" title="Cross-reference: where is each address written and read?">⌖<span class="hide-s"> Cross-ref</span></button>
+            <button class="btn small ld-only" data-a="fbd" title="FBD: see the same program as a function block diagram (AND / OR boxes), live">▭<span class="hide-s"> FBD</span></button>
             <button class="btn small" data-a="trend" title="Trend: a live chart of the signals you pick">∿<span class="hide-s"> Trend</span></button>
             <button class="btn small" data-a="clear" title="Empty the editor">${I.trash}<span class="hide-s">Clear</span></button>
             <button class="btn small" data-a="file" title="New, examples, import/export">${I.file} File</button>
@@ -1836,6 +1837,7 @@
         case 'st': modal('Structured Text', `<p class="muted" style="margin:0 0 10px">The same logic written as IEC 61131-3 Structured Text, as in CODESYS. Reading both side by side is a great way to learn.</p><pre>${esc(LL.toST(Object.assign({}, this.prog, { tags: this.tags() })))}</pre>`, [{ label: 'Close' }]); break;
         case 'file': this.fileMenu(); break;
         case 'xref': if (LL.LabTools) LL.LabTools.xref(this, modal); break;
+        case 'fbd': if (LL.FBD) { const on = LL.FBD.toggle(this); const pv = $('[data-v="program"]', this.el); if (on && pv && this.view !== 'program' && window.innerWidth <= 1000) pv.click(); } break;
         case 'trend': if (LL.LabTools) { const on = LL.LabTools.toggleTrend(this); const mv = $('[data-v="machine"]', this.el); if (on && mv) mv.click(); } break;
         case 'myprogs': myPrograms(); break;
         case 'clear': this.clearEditor(); break;
@@ -1879,6 +1881,7 @@
       if (this.lang === 'st') return;
       this.renderBlockBar();
       this.ladder.setProgram(this.E, this.tags());
+      if (this._fbd) this._fbd.dirty = true;   // the FBD card follows every edit
       this.ladder.select(this.sel ? { kind: this.sel.kind, i: this.sel.i, r: this.sel.r, c: this.sel.c } : null);
       this.renderInspector();
       this.renderIssues();
@@ -2237,6 +2240,7 @@
       this.drawPlant();
       if (this._trend && LL.LabTools) LL.LabTools.sample(this);
       if (this._replay && LL.LabTools) LL.LabTools.replayDraw(this);
+      if (this._fbd && LL.FBD) LL.FBD.tick(this);
       const Q = this.m.outputs();
       this.lampEls.forEach((l) => l.classList.toggle('on', !!Q[l.dataset.a]));
       this.ioCells.forEach((c) => { const a = c.dataset.io; const F = this.forces || {}; const v = a in F ? F[a] : a[0] === 'I' || /^(AIW|HC)/.test(a) ? (this.I[a] || 0) : /^(AQW|MW|MD)/.test(a) ? this.m.word(a) : /STR/.test(a) ? "'" + this.m.str(a) + "'" : this.m.bit(a); if (c._v !== v) { c.textContent = v; c.className = v === 1 ? 'v1' : ''; c._v = v; } });

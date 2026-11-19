@@ -1,6 +1,6 @@
 // node ladder-lab/tests/run.js — verifies engine + every challenge solution
 const path = require('path');
-['engine', 'st', 'plants', 'plants-robot', 'plants-starters', 'challenges', 'lessons', 'topics', 'quiz-read'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
+['engine', 'st', 'plants', 'plants-robot', 'plants-starters', 'challenges', 'lessons', 'topics', 'quiz-read', 'fbdview'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
 const LL = globalThis.LL;
 let fail = 0, pass = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL', m); } };
@@ -23,6 +23,25 @@ LL.READ_PATTERNS.forEach((_, k) => {
     else if (sc.ask.some((a) => sc.want[a] !== r.got[a])) bad = sc.kind + ': want ' + JSON.stringify(sc.want) + ' got ' + JSON.stringify(r.got) + ' / ' + sc.steps.map((x) => x.say).join(' ');
   }
   ok(!bad, 'read quiz pattern ' + k + ' ' + bad);
+});
+
+// FBD view: the logic tree of every rung must give the same value as the ladder, rung by rung, with live bits
+LL.CHALLENGES.filter((c) => c.lang !== 'st').forEach((ch) => {
+  const prog = LL.parseProgram(ch.solution), m = LL.makeMachine(prog), groups = prog.rungs.map((r) => LL.FBD.trees(r));
+  const ins = LL.Plants[ch.plant].inputs.map((i) => i.addr).filter((a) => /^I\d/.test(a)), I = {};
+  const hasEdge = (x) => !!x && (x.t === 'in' ? x.cell.type === 'P' || x.cell.type === 'N' : x.t === 'not' ? hasEdge(x.x) : x.items ? x.items.some(hasEdge) : false);
+  let bad = '';
+  for (let k = 0; k < 30 && !m.error && !bad; k++) {
+    if (k % 3 === 0) ins.forEach((a) => { if (Math.random() < 0.3) I[a] = I[a] ? 0 : 1; });
+    m.setInputs(I); m.beginScan();
+    for (let ri = 0; ri < prog.rungs.length && !m.error; ri++) {
+      const r = prog.rungs[ri], pre = groups[ri].map((g) => (hasEdge(g.expr) ? null : LL.FBD.value(g.expr, m, ri)));
+      m.evalRung(ri, 10);
+      groups[ri].forEach((g, gi) => { if (pre[gi] == null || m.error) return; const row = r.cells.findIndex((cells) => cells[r.cols - 1] === g.outs[0]); if (pre[gi] !== (m.trace[ri].pin[row][r.cols - 1] ? 1 : 0)) bad = 'rung ' + (ri + 1) + ' ' + LL.FBD.key(g.expr); });
+    }
+    m.endScan(10); m.phase = 0;
+  }
+  ok(!bad, 'FBD tree = ladder in ' + ch.id + ' ' + bad);
 });
 
 // roundtrip parse/serialize
