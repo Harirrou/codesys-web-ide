@@ -30,6 +30,20 @@
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5v19M19 2.5v19"/><path d="M5 6.5h14M5 17.5h14"/><path d="M5 12h5M14 12h5M10 9v6M14 9v6"/></svg>',
     },
     {
+      id: 'electrical', title: 'Electrical basics & wiring', color: '#a21caf',
+      blurb: 'Volts, amps, Ohm\'s law, the multimeter, motors and I/O wiring.',
+      intro: 'What you learn here: the electricity around the PLC. Ohm\'s law, 24 V control circuits, measuring with a multimeter, 3-phase motors and their nameplate, the overload relay, and how inputs and outputs are wired.',
+      start: 'electrical-basics',
+      lessons: ['electrical-basics'],
+      tasks: [],
+      machines: [],
+      quiz: [
+        { mode: 'iv', sel: 'Electrical & wiring', label: 'Interview: Electrical & wiring' },
+        { mode: 'iv', sel: 'Electrical drawings', label: 'Interview: Electrical drawings' },
+      ],
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 2.5 5 13.5h6.5l-1 8 8.5-11h-6.5z"/></svg>',
+    },
+    {
       id: 'memory', title: 'Latches & memory', color: '#0d9488',
       blurb: 'Seal-in, set / reset, edges and interlocks.',
       intro: 'What you learn here: how a program remembers. Seal-in, set and reset, edges (one-shots), interlocks and the traps of the scan.',
@@ -272,6 +286,7 @@
       machines: ['cylinders'],
       quiz: [
         { mode: 'iv', sel: 'Hardware & online', label: 'Interview: Hardware & online' },
+        { mode: 'iv', sel: 'Diagnostics', label: 'Interview: Diagnostics' },
         { mode: 'net', sel: 'Basics', label: 'Networks: Basics' },
       ],
       // a PLC rack (power supply, CPU, I/O cards) with its network cable
@@ -289,7 +304,8 @@
       ],
       machines: ['cylinders', 'motor', 'conveyor', 'tank', 'pickplace', 'lift', 'safecell'],
       quiz: [
-        { mode: 'iv', sel: 'Troubleshooting', label: 'Interview: Troubleshooting' },
+
+        { mode: 'iv', sel: 'Diagnostics', label: 'Interview: Diagnostics' },        { mode: 'iv', sel: 'Troubleshooting', label: 'Interview: Troubleshooting' },
         { mode: 'iv', sel: 'Electrical drawings', label: 'Interview: Electrical drawings' },
       ],
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.2 4A5.5 5.5 0 0 0 10.1 11.4L3.9 17.7a1.75 1.75 0 0 0 2.5 2.5L12.6 13.9A5.5 5.5 0 0 0 20 6.8L16.8 10.1 13.9 7.2z"/></svg>',
@@ -392,12 +408,21 @@
         { mode: 'iv', sel: 'Troubleshooting', label: 'Interview: Troubleshooting' },
         { mode: 'iv', sel: 'Electrical drawings', label: 'Interview: Electrical drawings' },
         { mode: 'iv', sel: 'Hardware & online', label: 'Interview: Hardware & online' },
+        { mode: 'iv', sel: 'Diagnostics', label: 'Interview: Diagnostics' },
+        { mode: 'iv', sel: 'Electrical & wiring', label: 'Interview: Electrical & wiring' },
         { mode: 'iv', sel: 'Fluid power', label: 'Interview: Fluid power' },
         { mode: 'iv', sel: 'Projects & practice', label: 'Interview: Projects & practice' },
       ],
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="19" height="13" rx="2"/><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2"/><path d="M2.5 12.5h19"/><path d="M10.5 12.5v2h3v-2"/></svg>',
     },
   ];
+  // ── added by later content waves (generated) ──
+  const ADD = {"commissioning": {"lessons": ["cpu-diagnostics", "electrical-basics"], "tasks": ["diag-el-ol"], "machines": []}, "setup": {"lessons": ["cpu-diagnostics"], "tasks": [], "machines": []}, "electrical": {"lessons": ["electrical-basics", "field-vs-program", "field-devices", "drawings", "motor-starters"], "tasks": ["el-ol-trip", "diag-el-ol", "stop-nc", "fix-stop", "diag-stop", "star-delta"], "machines": ["motor", "stardelta", "panel"]}, "motors": {"lessons": ["electrical-basics"], "tasks": ["el-ol-trip"], "machines": []}};
+  Object.keys(ADD).forEach((id) => {
+    const t = LL.TOPICS.find((x) => x.id === id); if (!t) return;
+    ['lessons', 'tasks', 'machines'].forEach((k) => { t[k] = t[k] || []; ADD[id][k].forEach((x) => { if (!t[k].includes(x)) t[k].push(x); }); });
+  });
+  // ── end of added content ──
   // no prototype: #topic-constructor or #topic-toString must not find a "topic"
   LL.TOPIC_BY_ID = Object.create(null);
   LL.TOPICS.forEach((t) => { LL.TOPIC_BY_ID[t.id] = t; });

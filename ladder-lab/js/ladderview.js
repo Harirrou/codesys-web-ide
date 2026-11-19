@@ -50,8 +50,46 @@
     MC_SETPOS: ['MC_SetPosition (set home here)', 'On the rising edge: the axis takes this value as its present position and counts as homed, without moving. Use it to "set home here" after jogging to a mark. TIA Portal: MC_Home Mode 0; Rockwell: MRP.'],
     MC_RESET: ['MC_Reset', 'On the rising edge: clear the axis error (after a software-limit error or a drive fault whose cause is gone). Rockwell: MAFR.'],
     PID: ['PID controller', 'Keeps PV at SP by adjusting OUT (0 … 27648 = 0 … 100 %). Kp = % output per unit of error, Ti = integral time (removes the remaining error), Td = derivative time. Off when the rung is false.'],
+    LIM: ['Limit test (in range)', 'LIM(LOW,VALUE,HIGH) passes power while LOW ≤ VALUE ≤ HIGH. One box instead of two compares, e.g. "the tank level is between 20 and 80". Works with words and REAL. TIA: IN_RANGE, Rockwell: LIM, CODESYS: two compares (>= AND <=).'],
+    WAND: ['Word AND (mask)', 'Result = A AND B, bit by bit on all 16 bits. A bit is 1 only where both words have a 1. Use it to keep some bits and clear the others: MW10 AND 16#00FF keeps the low 8 bits. TIA: AND, Rockwell: AND, CODESYS: AND.'],
+    WOR: ['Word OR', 'Result = A OR B, bit by bit. A bit is 1 where at least one word has a 1. Use it to switch some bits on and leave the others alone. TIA / Rockwell / CODESYS: OR.'],
+    WXOR: ['Word XOR', 'Result = A XOR B, bit by bit. A bit is 1 where the two words are different. Use it to find which bits changed (old XOR new). TIA / Rockwell / CODESYS: XOR.'],
+    WNOT: ['Word NOT (invert)', 'Result = NOT A: every one of the 16 bits flips, 0 → 1 and 1 → 0. TIA: INV, Rockwell / CODESYS: NOT.'],
+    I_BCD: ['Number to BCD', 'I_BCD(MW10,QW…): 1234 becomes 16#1234. In BCD every group of 4 bits holds one decimal digit (0 … 9), so a 7-segment display or a thumbwheel switch can use it directly. Range 0 … 9999. TIA: CONV Int → Bcd16, Rockwell: TOD, Omron: BCD.'],
+    BCD_I: ['BCD to number', 'BCD_I(MW10,MW12): 16#1234 becomes 1234. Read a thumbwheel switch or a BCD code from a device. A group of 4 bits above 9 is not BCD: then nothing is written. TIA: CONV Bcd16 → Int, Rockwell: FRD, Omron: BIN.'],
+    CONV: ['Convert type', 'CONV(SOURCE,RESULT) copies a number into a word of another type: INT → REAL (MW10 → MR0) or REAL → INT (rounds to the nearest; 2.5 → 2 and 3.5 → 4, to the even number, as in TIA). TIA: CONV, Rockwell: MOV, CODESYS: INT_TO_REAL / REAL_TO_INT.'],
+    ROUND: ['Round', 'ROUND(MR0,MW10): REAL → whole number, to the nearest. 2.4 → 2, 2.6 → 3, 2.5 → 2 (x.5 goes to the even number, as in TIA). TIA: ROUND, Rockwell: MOV into an INT, CODESYS: REAL_TO_INT.'],
+    TRUNC: ['Truncate', 'TRUNC(MR0,MW10): REAL → whole number by cutting off the decimals. 2.9 → 2, -2.9 → -2. TIA: TRUNC, Rockwell: TRN, CODESYS: TRUNC.'],
+    NORM_X: ['Normalize (0.0 … 1.0)', 'NORM_X(MIN,VALUE,MAX,RESULT): RESULT = (VALUE − MIN) ÷ (MAX − MIN). An analog input AIW0 from 0 … 27648 becomes 0.0 … 1.0 in a REAL (MRn). Then SCALE_X turns it into real units. TIA: NORM_X, Rockwell: SCP, CODESYS: a formula.'],
+    SCALE_X: ['Scale (to units)', 'SCALE_X(MIN,VALUE,MAX,RESULT): RESULT = VALUE × (MAX − MIN) + MIN. VALUE 0.0 … 1.0 (from NORM_X) becomes, for example, 0.0 … 100.0 %, or 0 … 27648 for an analog output. TIA: SCALE_X, Rockwell: SCP.'],
     SHRB: ['Shift register (bit)', 'Each time it runs, the bits from START move one place along (length N) and DATA enters the first bit. Negative N shifts the other way. Use an edge so it shifts once per event (one pocket, one part).'],
   };
+
+  /* Boxes for word logic, BCD and REAL. The header shows the brand's own name for the box. */
+  const NEW_BOX = ['WAND', 'WOR', 'WXOR', 'WNOT', 'I_BCD', 'BCD_I', 'CONV', 'ROUND', 'TRUNC', 'NORM_X', 'SCALE_X'];
+  const IEC_W = { WAND: 'AND', WOR: 'OR', WXOR: 'XOR', WNOT: 'NOT' };
+  const BOX_NAME = {
+    tia: { WAND: 'AND', WOR: 'OR', WXOR: 'XOR', WNOT: 'INV', I_BCD: 'CONV', BCD_I: 'CONV' },
+    rk: { WAND: 'AND', WOR: 'OR', WXOR: 'XOR', WNOT: 'NOT', I_BCD: 'TOD', BCD_I: 'FRD', CONV: 'MOV', ROUND: 'MOV', TRUNC: 'TRN', NORM_X: 'SCP', SCALE_X: 'SCP' },
+    cds: IEC_W, sch: IEC_W, tc: IEC_W, om: IEC_W,
+  };
+  const numT = (a) => (LL.numType ? LL.numType(a) : 'INT');
+  function newBoxSVG(cell, bx0, bx1, by) {
+    const t = cell.type;
+    let s = '';
+    const right = (txt) => { s += `<text class="bx-addr" x="${bx1 - 7}" y="${by + 12.5}">${esc(txt)}</text>`; };
+    const lines = (l1) => { s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 32}">${esc(l1)}</text><text class="bx-l bx-v" x="${bx0 + 7}" y="${by + 48}">→ ${esc(trunc(cell.dst, 6))} = <tspan data-v="dst">0</tspan></text>`; };
+    if (t === 'WNOT') { right('16 bits'); lines('NOT ' + trunc(cell.a, 13)); }
+    else if (IEC_W[t]) { right('16 bits'); lines(trunc(cell.a, 6) + ' ' + IEC_W[t] + ' ' + trunc(cell.b, 7)); }
+    else if (t === 'I_BCD' || t === 'BCD_I') { right(t === 'I_BCD' ? 'INT→BCD' : 'BCD→INT'); lines(trunc(cell.src, 14) + ' →'); }
+    else if (t === 'NORM_X') { right('→ 0.0…1.0'); lines(trunc(cell.src, 6) + ' in ' + trunc(cell.a, 4) + '…' + trunc(cell.b, 5)); }
+    else if (t === 'SCALE_X') { right('0.0…1.0 →'); lines(trunc(cell.src, 6) + ' → ' + trunc(cell.a, 4) + '…' + trunc(cell.b, 5)); }
+    else { right(numT(cell.src) + '→' + numT(cell.dst)); lines(trunc(cell.src, 14) + ' →'); }
+    return s;
+  }
+  // the value shown in a box: REAL with decimals, word logic and BCD as a 16-bit hex pattern
+  const boxVal = (cell, v) => (LL.isRealAddr && LL.isRealAddr(cell.dst || '') ? LL.fmtReal(v) : ['WAND', 'WOR', 'WXOR', 'WNOT', 'I_BCD'].includes(cell.type) ? LL.hex4(v) : v);
+  LL.boxVal = boxVal;
 
   function symbolSVG(cell, x0, x1, cy, tags, isOut, xR) {
     const t = cell.type;
@@ -87,6 +125,13 @@
       s += `<text class="bx-s" x="${cx}" y="${cy - 5}">${esc(trunc(cell.a, 9))}</text><text class="bx-t" x="${cx}" y="${cy + 12}">${esc(cell.op === '==' ? '=' : cell.op)} ${esc(trunc(cell.b, 6))}</text>`;
       return { wi: `<line class="w wi" x1="${x0}" y1="${cy}" x2="${cx - 33}" y2="${cy}"/>`, wo: `<line class="w wo" x1="${cx + 33}" y1="${cy}" x2="${x1}" y2="${cy}"/>`, sym: s };
     }
+    if (t === 'LIM') {   // like a compare box: the value on top, the range below, the brand's name above
+      const cx = (x0 + x1) / 2;
+      s += `<text class="lb-name" x="${cx}" y="${cy - 26}">${LL.brand === 'tia' ? 'IN_RANGE' : 'LIM'}</text>`;
+      s += `<rect class="box cbox" x="${cx - 33}" y="${cy - 20}" width="66" height="40" rx="5"/>`;
+      s += `<text class="bx-s" x="${cx}" y="${cy - 5}">${esc(trunc(cell.src, 9))}</text><text class="bx-s" x="${cx}" y="${cy + 12}">${esc(trunc(cell.a, 5))}…${esc(trunc(cell.b, 5))}</text>`;
+      return { wi: `<line class="w wi" x1="${x0}" y1="${cy}" x2="${cx - 33}" y2="${cy}"/>`, wo: `<line class="w wo" x1="${cx + 33}" y1="${cy}" x2="${x1}" y2="${cy}"/>`, sym: s };
+    }
     if (['COIL', 'NCOIL', 'SET', 'RST'].includes(t)) {
       const cx = (x0 + x1) / 2;
       s += `<circle class="cfill" cx="${cx}" cy="${cy}" r="12"/>`;
@@ -100,7 +145,7 @@
     const bx0 = x0 + 10, bx1 = x1 - 12, bw = bx1 - bx0, by = cy - 28;
     s += `<rect class="box obox" x="${bx0}" y="${by}" width="${bw}" height="56" rx="6"/>`;
     s += `<rect class="bx-head" x="${bx0}" y="${by}" width="${bw}" height="17" rx="6"/><rect class="bx-head" x="${bx0}" y="${by + 9}" width="${bw}" height="8"/>`;
-    const tLabel = LL.MOTION && LL.MOTION.includes(t) ? '' : t === 'CALL' ? ((LL.BRANDS[LL.brand] || LL.BRANDS.ll).call[LL.blockKinds[cell.block] === 'FC' ? 'FC' : 'FB']) : t;
+    const tLabel = LL.MOTION && LL.MOTION.includes(t) ? '' : t === 'CALL' ? ((LL.BRANDS[LL.brand] || LL.BRANDS.ll).call[LL.blockKinds[cell.block] === 'FC' ? 'FC' : 'FB']) : ((BOX_NAME[LL.brand] || {})[t] || t);
     s += `<text class="bx-type" x="${bx0 + 7}" y="${by + 12.5}">${tLabel}</text>`;
     if (LL.TIMERS.includes(t)) {
       s += `<text class="bx-addr" x="${bx1 - 7}" y="${by + 12.5}">${esc(cell.addr)}</text>`;
@@ -139,6 +184,8 @@
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 30}">DATA ${esc(trunc(cell.src, 6))}  N=${cell.n}</text>`;
       const shown = bits.slice(0, 16), sq = Math.min(9, (bw - 14) / Math.max(1, shown.length) - 1.5);
       shown.forEach((b, k) => { s += `<rect class="sr-bit" data-b="${b}" x="${bx0 + 7 + k * (sq + 1.5)}" y="${by + 39}" width="${sq}" height="9" rx="2"/>`; });
+    } else if (NEW_BOX.includes(t)) {
+      s += newBoxSVG(cell, bx0, bx1, by);
     } else {
       const op = { ADD: '+', SUB: '−', MUL: '×', DIV: '÷', MOD: 'mod', SHL: '«', SHR: '»' }[t];
       s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 32}">${esc(trunc(cell.a, 7))} ${op} ${esc(trunc(cell.b, 6))}</text><text class="bx-l bx-v" x="${bx0 + 7}" y="${by + 48}">→ ${esc(cell.dst)} = <tspan data-v="dst">0</tspan></text>`;
@@ -188,6 +235,14 @@
     ['Output bit', 'Q0.0', '%Q0.0', 'Local:2:O.Data.0', '%QX0.0', '%Q0.0', 'bOut AT %Q*', 'variable mapped in the I/O Map', '100.00 (CIO 100)'],
     ['Memory bit', 'M0.0', '%M0.0 (or a DB)', 'BOOL tag', '%MX0.0 or a variable', '%M0', 'a variable', 'a variable', 'W0.00 (H = kept)'],
     ['Word / double word', 'MW10 / MD20', '%MW10 / %MD20', 'INT / DINT tag', '%MW10 / %MD20', '%MW10 / %MD20', 'INT / DINT variable', 'INT / DINT variable', 'D10 / D20 (2 words)'],
+    ['Bit of a word', 'MW10.3 (bit 0 = lowest)', '%MW10.%X3 = %M11.3 (high byte first!)', 'Word.3', 'wWord.3 (%MX20.3)', '%MW10:X3', 'nWord.3', 'Word.3', 'D10.03'],
+    ['Hex / binary number', '16#047F / 2#0000_0101', '16#047F / 2#0000_0101', '16#047F / 2#0000_0101', '16#047F / 2#0000_0101', '16#047F', '16#047F / 2#0000_0101', '16#047F / 2#0000_0101', '#047F (hex)'],
+    ['Word logic (16 bits)', 'WAND / WOR / WXOR / WNOT', 'AND / OR / XOR / INV (Word)', 'AND / OR / XOR / NOT', 'AND / OR / XOR / NOT (WORD)', '[%MW2 := %MW0 AND %MW1]', 'AND / OR / XOR / NOT (WORD)', 'AND / OR / XOR / NOT', 'ANDW / ORW / XORW / COM'],
+    ['In range (limit test)', 'LIM(10,MW0,20)', 'IN_RANGE (OUT_RANGE)', 'LIM', 'two compares: >= AND <=', '[%MW0 >= 10] AND [%MW0 <= 20]', 'two compares: >= AND <=', 'ZoneCmp or two compares', 'ZCP(088) or LD>= AND<='],
+    ['BCD (7-segment, thumbwheel)', 'I_BCD / BCD_I', 'CONV Int ↔ Bcd16 (3 digits + sign)', 'TOD / FRD', 'formula (/ and MOD) or a library', 'ITB / BTI', 'DEC_TO_BCD / BCD_TO_DEC (Tc2_Utilities, 1 byte)', 'BCD conversion functions (…_TO_BCD…)', 'BCD(024) / BIN(023)'],
+    ['REAL (number with decimals)', 'MR0 … MR99, 12.5', 'Real tag (%MD, 4 bytes)', 'REAL tag', 'REAL variable', '%MF0', 'REAL variable (fValue)', 'REAL variable', 'D (2 words), +F / -F / *F / /F'],
+    ['Convert / round / cut', 'CONV / ROUND / TRUNC', 'CONV / ROUND / TRUNC', 'MOV (rounds) / TRN', 'INT_TO_REAL / REAL_TO_INT / TRUNC', 'INT_TO_REAL / REAL_TO_INT / TRUNC', 'INT_TO_REAL / REAL_TO_INT / TRUNC', 'INT_TO_REAL / REAL_TO_INT / Trunc', 'FLT(452) / FIX(450)'],
+    ['Scale an analog value', 'NORM_X + SCALE_X', 'NORM_X + SCALE_X', 'SCP (or CPT)', 'formula (or LIN_TRAFO, Util)', 'formula in an operation block', 'formula (or FB_CTRL_NORMALIZE)', 'formula (or ScaleTrans)', 'SCL(194)'],
     ['Analog input', 'AIW0 (0 … 27648)', '%IW64… (0 … 27648)', 'module channel (scaled in the module)', 'module variable', '%IW0.0 (0 … 1000 by default)', 'INT AT %I* (0 … 32767)', 'mapped variable', 'CIO word of the analog unit'],
     ['First scan', 'SM0.1', 'FirstScan bit or OB100', 'S:FS', 'own bit / first-cycle flag', '%S13', '_TaskInfo[].FirstCycle', 'P_First_RunMode', 'A200.11'],
     ['1 Hz clock', 'SM0.5', 'clock memory bit (e.g. %M0.5)', '(build it with a timer)', 'BLINK (Util)', '%S6', 'BLINK (Tc2_Utilities)', 'Get1sClk', 'P_1s'],
@@ -313,6 +368,7 @@
             case 'NO': case 'P': active = m.bit(cell.addr); break;
             case 'NC': case 'N': active = m.bit(cell.addr) ? 0 : 1; break;
             case 'CMP': active = m.compare(cell.a, cell.op, cell.b) ? 1 : 0; break;
+            case 'LIM': { const x = m.word(cell.src); active = m.word(cell.a) <= x && x <= m.word(cell.b) ? 1 : 0; break; }
             case 'COIL': case 'SET': active = m.bit(cell.addr); break;
             case 'NCOIL': active = m.bit(cell.addr); break;
             case 'RST': active = pin; break;
@@ -341,7 +397,7 @@
           }
           if (st.mcst !== v) { p.mcst.textContent = v; st.mcst = v; }
         }
-        if (p.dst) { const v = LL.isStrAddr && LL.isStrAddr(cell.dst || '') ? (on && m.str ? "'" + trunc(m.str(cell.dst), 10) + "'" : "''") : on ? m.word(cell.dst) : 0; if (st.dst !== v) { p.dst.textContent = v; st.dst = v; } }
+        if (p.dst) { const v = LL.isStrAddr && LL.isStrAddr(cell.dst || '') ? (on && m.str ? "'" + trunc(m.str(cell.dst), 10) + "'" : "''") : boxVal(cell, on ? m.word(cell.dst) : 0); if (st.dst !== v) { p.dst.textContent = v; st.dst = v; } }
         if (p.reg && p.reg.length) { const v = on ? p.reg.map((r) => m.bit(r.dataset.b)).join('') : ''; if (st.reg !== v) { p.reg.forEach((r, k) => r.classList.toggle('on', v[k] === '1')); st.reg = v; } }
       }
       for (const l of this.linkEls) {

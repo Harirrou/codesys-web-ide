@@ -9,8 +9,12 @@
   const LL = (G.LL = G.LL || {});
 
   // ───────────────────────── element catalogue ─────────────────────────
-  const LOGIC = ['WIRE', 'NO', 'NC', 'P', 'N', 'NOT', 'CMP'];
-  const OUTPUT = ['COIL', 'NCOIL', 'SET', 'RST', 'TON', 'TOF', 'TP', 'RTO', 'CTU', 'CTD', 'MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'SHRB', 'CALL', 'PID', 'MC_POWER', 'MC_HOME', 'MC_ABS', 'MC_REL', 'MC_JOG', 'MC_STOP', 'MC_RESET', 'MC_SETPOS', 'SMOV', 'CONCAT', 'ITOS', 'SMID'];
+  const LOGIC = ['WIRE', 'NO', 'NC', 'P', 'N', 'NOT', 'CMP', 'LIM'];
+  const OUTPUT = ['COIL', 'NCOIL', 'SET', 'RST', 'TON', 'TOF', 'TP', 'RTO', 'CTU', 'CTD', 'MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'SHRB', 'CALL', 'PID', 'MC_POWER', 'MC_HOME', 'MC_ABS', 'MC_REL', 'MC_JOG', 'MC_STOP', 'MC_RESET', 'MC_SETPOS', 'SMOV', 'CONCAT', 'ITOS', 'SMID', 'WAND', 'WOR', 'WXOR', 'WNOT', 'I_BCD', 'BCD_I', 'CONV', 'ROUND', 'TRUNC', 'NORM_X', 'SCALE_X'];
+  // word logic (16 bits), BCD conversion and REAL (floating point) instructions
+  const WORDLOGIC = ['WAND', 'WOR', 'WXOR', 'WNOT'];
+  const BCD_OPS = ['I_BCD', 'BCD_I'];
+  const REAL_OPS = ['CONV', 'ROUND', 'TRUNC', 'NORM_X', 'SCALE_X'];
   const STRING_OPS = ['SMOV', 'CONCAT', 'ITOS', 'SMID'];
   const MOTION = ['MC_POWER', 'MC_HOME', 'MC_ABS', 'MC_REL', 'MC_JOG', 'MC_STOP', 'MC_RESET', 'MC_SETPOS'];
   const TIMERS = ['TON', 'TOF', 'TP', 'RTO'];
@@ -40,13 +44,31 @@
     dbf: /^DB(\d{1,3})\.([A-Z_]\w*)(?:\[(-?\d{1,4}|MW\d{1,3}|#\w+)\])?$/,
     strLit: /^'[^']*'$/,
     int: /^-?\d+$/,
-    loc: /^#[A-Za-z_]\w*(?:\.(Q|DN|TT|EN|ET|PT|CV|PV))?$/,
+    // MW10.3 = bit 3 of the word MW10 (bit 0 = least significant), MR0 … MR99 = REAL memory,
+    // 12.5 = REAL literal, 16#047F / 2#0000_0101 / 8#17 = hex / binary / octal integer literals
+    mwBit: /^MW(\d{1,3})\.(1[0-5]|[0-9])$/,
+    mr: /^MR(\d{1,2})$/,
+    real: /^-?\d+\.\d+$/,
+    hexbin: /^(16#[0-9A-F][0-9A-F_]*|2#[01][01_]*|8#[0-7][0-7_]*)$/,
+    loc:/^#[A-Za-z_]\w*(?:\.(Q|DN|TT|EN|ET|PT|CV|PV))?$/,
     locBase: /^#[A-Za-z_]\w*$/,
   };
   const norm = (s) => { const t = String(s == null ? '' : s).trim().replace(/\s+/g, ''); if (t[0] === '#') { const i = t.indexOf('.'); return i < 0 ? t : t.slice(0, i) + t.slice(i).toUpperCase(); } return t.toUpperCase(); };
-  const isBitAddr = (a) => dbType(a) === 'BOOL' || RE.bit.test(a) || RE.sm.test(a) || RE.tBit.test(a) || RE.cBit.test(a) || RE.loc.test(a) || RE.axBit.test(a) || RE.mc.test(a);
-  const isWordAddr = (a) => dbType(a) === 'INT' || dbType(a) === 'DINT' || RE.tWord.test(a) || RE.cWord.test(a) || RE.mw.test(a) || RE.md.test(a) || RE.hc.test(a) || RE.axWord.test(a) || RE.aiw.test(a) || RE.aqw.test(a) || RE.int.test(a) || RE.loc.test(a);
-  const isWritableWord = (a) => dbType(a) === 'INT' || dbType(a) === 'DINT' || RE.mw.test(a) || RE.md.test(a) || RE.aqw.test(a) || RE.locBase.test(a);
+  const isBitAddr = (a) => dbType(a) === 'BOOL' || RE.bit.test(a) || RE.sm.test(a) || RE.tBit.test(a) || RE.cBit.test(a) || RE.loc.test(a) || RE.axBit.test(a) || RE.mc.test(a) || RE.mwBit.test(a);
+  const isWordAddr = (a) => dbType(a) === 'INT' || dbType(a) === 'DINT' || RE.tWord.test(a) || RE.cWord.test(a) || RE.mw.test(a) || RE.md.test(a) || RE.hc.test(a) || RE.axWord.test(a) || RE.aiw.test(a) || RE.aqw.test(a) || RE.int.test(a) || RE.loc.test(a) || RE.hexbin.test(a) || RE.mr.test(a) || RE.real.test(a);
+  const isWritableWord = (a) => dbType(a) === 'INT' || dbType(a) === 'DINT' || RE.mw.test(a) || RE.md.test(a) || RE.aqw.test(a) || RE.locBase.test(a) || RE.mr.test(a);
+  // REAL (floating point): MR0 … MR99 and literals with a decimal point (12.5)
+  const isRealAddr = (a) => RE.mr.test(a || '') || RE.real.test(a || '');
+  const isNumLit = (a) => RE.int.test(a) || RE.hexbin.test(a) || RE.real.test(a);
+  // the IEC type of a number operand: INT, DINT or REAL
+  const numType = (a) => (isRealAddr(a) ? 'REAL' : RE.md.test(a) || RE.hc.test(a) || dbType(a) === 'DINT' ? 'DINT' : 'INT');
+  // 16#047F, 2#0000_0101, 8#17 → value; a 16-bit pattern (16#8000 … 16#FFFF) reads as a negative INT, like the word holds it
+  const litInt = (a) => { const m = /^(16|8|2)#(.+)$/.exec(a); if (!m) return parseInt(a, 10); let v = parseInt(m[2].replace(/_/g, ''), +m[1]); if (v > 32767 && v <= 65535) v -= 65536; return v; };
+  // REAL → integer the way TIA CONV / ROUND and Logix MOV do it: to the nearest, x.5 to the even number
+  const roundEven = (x) => { const f = Math.floor(x), d = x - f; return d > 0.5 ? f + 1 : d < 0.5 ? f : (f % 2 === 0 ? f : f + 1); };
+  // a REAL for people: always a decimal point, at most `dec` decimals (12 → 12.0, 0.51234 → 0.512)
+  const fmtReal = (v, dec) => { v = +v || 0; if (!isFinite(v)) return String(v); let s = v.toFixed(dec == null ? 3 : dec).replace(/0+$/, ''); if (s.endsWith('.')) s += '0'; return s === '-0.0' ? '0.0' : s; };
+  const hex4 = (v) => '16#' + ((v | 0) & 0xffff).toString(16).toUpperCase().padStart(4, '0');
   // data blocks: DB10.LENGTH or DB10.LENGTH[2] / [MW30]; the type comes from the DB declaration in use
   LL._dbs = [];
   const dbField = (a) => {
@@ -59,7 +81,7 @@
   const dbType = (a) => { const d = dbField(a); return d && d.f ? d.f.type : null; };
   const isStrAddr = (a) => RE.str.test(a) || RE.strLit.test(a) || dbType(a) === 'STRING';
   const isWritableStr = (a) => /^(STR\d{1,2}|QSTR\d)$/.test(a) || dbType(a) === 'STRING';
-  const isWritableBit = (a) => dbType(a) === 'BOOL' || /^[QM]\d{1,2}\.[0-7]$/.test(a) || RE.locBase.test(a);
+  const isWritableBit = (a) => dbType(a) === 'BOOL' || /^[QM]\d{1,2}\.[0-7]$/.test(a) || RE.locBase.test(a) || RE.mwBit.test(a);
   const timerNo = (a) => { const m = /^T(\d{1,2})/.exec(a); return m ? +m[1] : -1; };
   const counterNo = (a) => { const m = /^C(\d{1,2})/.exec(a); return m ? +m[1] : -1; };
 
@@ -90,6 +112,11 @@
     if (type === 'CALL') { c.block = c.block || ''; c.inst = c.inst == null ? 'Inst1' : c.inst; c.args = c.args || {}; }
     if (type === 'PID') { c.a = c.a || 'MW10'; c.b = c.b || 'MW20'; c.dst = c.dst || 'AQW0'; c.kp = c.kp == null ? 1 : c.kp; c.ti = c.ti == null ? 10 : c.ti; c.td = c.td == null ? 0 : c.td; }
     if (type === 'SHRB') { c.src = c.src || 'I0.0'; c.addr = c.addr || 'M10.0'; c.n = c.n == null ? 8 : c.n; }
+    if (type === 'LIM') { c.a = c.a == null ? '0' : c.a; c.src = c.src || 'MW0'; c.b = c.b == null ? '100' : c.b; }
+    if (WORDLOGIC.includes(type)) { c.a = c.a || 'MW0'; if (type !== 'WNOT') c.b = c.b == null ? '16#00FF' : c.b; c.dst = c.dst || 'MW2'; }
+    if (BCD_OPS.includes(type) || ['CONV', 'ROUND', 'TRUNC'].includes(type)) { c.src = c.src || (BCD_OPS.includes(type) ? 'MW0' : 'MR0'); c.dst = c.dst || 'MW2'; }
+    if (type === 'NORM_X') { c.a = c.a == null ? '0' : c.a; c.src = c.src || 'AIW0'; c.b = c.b == null ? '27648' : c.b; c.dst = c.dst || 'MR0'; }
+    if (type === 'SCALE_X') { c.a = c.a == null ? '0.0' : c.a; c.src = c.src || 'MR0'; c.b = c.b == null ? '100.0' : c.b; c.dst = c.dst || 'MR1'; }
     return c;
   }
   function cloneCell(c) { const n = Object.assign({}, c); n.id = UID++; return n; }
@@ -157,6 +184,12 @@
       case 'SHRB': return mkCell('SHRB', { src: norm(args[0]), addr: norm(args[1]), n: parseInt(args[2] || '8', 10) });
       case 'ADD': case 'SUB': case 'MUL': case 'DIV': case 'MOD': case 'SHL': case 'SHR':
         return mkCell(t, { a: norm(args[0]), b: norm(args[1]), dst: norm(args[2]) });
+      // LIM(lo,x,hi) · NORM_X(min,value,max,dst) · SCALE_X(min,value,max,dst): lo/min → a, x/value → src, hi/max → b
+      case 'LIM': return mkCell(t, { a: norm(args[0] || '0'), src: norm(args[1] || 'MW0'), b: norm(args[2] || '100') });
+      case 'NORM_X': case 'SCALE_X': return mkCell(t, { a: norm(args[0]), src: norm(args[1]), b: norm(args[2]), dst: norm(args[3]) });
+      case 'WAND': case 'WOR': case 'WXOR': return mkCell(t, { a: norm(args[0]), b: norm(args[1]), dst: norm(args[2]) });
+      case 'WNOT': return mkCell(t, { a: norm(args[0]), dst: norm(args[1]) });
+      case 'I_BCD': case 'BCD_I': case 'CONV': case 'ROUND': case 'TRUNC': return mkCell(t, { src: norm(args[0]), dst: norm(args[1]) });
       default: throw new Error('Unknown element "' + t + '"');
     }
   }
@@ -184,6 +217,11 @@
       case 'MC_SETPOS': return 'MC_SETPOS(' + c.addr + ',' + c.ax + ',' + c.a + ')';
       case 'CALL': return 'CALL(' + [c.block, c.inst].concat(Object.keys(c.args || {}).map((k) => k + '=' + c.args[k])).join(',') + ')';
       case 'PID': return 'PID(' + [c.a, c.b, c.dst, +c.kp, +c.ti, +c.td].join(',') + ')';
+      case 'LIM': return 'LIM(' + c.a + ',' + c.src + ',' + c.b + ')';
+      case 'NORM_X': case 'SCALE_X': return c.type + '(' + c.a + ',' + c.src + ',' + c.b + ',' + c.dst + ')';
+      case 'WAND': case 'WOR': case 'WXOR': return c.type + '(' + c.a + ',' + c.b + ',' + c.dst + ')';
+      case 'WNOT': return 'WNOT(' + c.a + ',' + c.dst + ')';
+      case 'I_BCD': case 'BCD_I': case 'CONV': case 'ROUND': case 'TRUNC': return c.type + '(' + c.src + ',' + c.dst + ')';
       default: return c.type + '(' + (c.addr || '') + ')';
     }
   }
@@ -481,6 +519,7 @@
       }
       let m;
       if (RE.bit.test(a) || RE.sm.test(a)) return this.bits[a] ? 1 : 0;
+      if ((m = RE.mwBit.exec(a))) return ((this.words['MW' + m[1]] | 0) >> +m[2]) & 1;   // bit of a word
       if ((m = RE.axBit.exec(a))) { const x = this.axes[+m[1]]; if (!x) return 0; return m[2] === 'ON' ? x.on : m[2] === 'HOMED' ? x.homed : m[2] === 'ERR' ? x.err : Math.abs(x.v) > 0.001 ? 1 : 0; }
       if ((m = RE.mc.exec(a))) { const t = this.mcs['MC' + m[1]]; if (!t) return 0; return t[(m[2] || 'DONE').toLowerCase()] ? 1 : 0; }
       if ((m = RE.tBit.exec(a))) {
@@ -502,6 +541,9 @@
       a = this.res(a);
       if (RE.dbf.test(a)) { const k = this.dbKey(a); return k ? +this.dbv[k] || 0 : 0; }
       if (RE.int.test(a)) return parseInt(a, 10);
+      if (RE.real.test(a)) return parseFloat(a);
+      if (RE.hexbin.test(a)) return litInt(a);
+      if (RE.mr.test(a)) return +this.words[a] || 0;
       if (a[0] === '@') {
         const [base, f] = a.split('.');
         if (f === 'ET' || f === 'PT') { const t = this.timers[base]; return t ? (f === 'ET' ? t.et : t.pt) : 0; }
@@ -515,11 +557,17 @@
       if ((m = RE.cWord.exec(a))) { const c = this.counters[+m[1]]; return c ? (m[2] === 'CV' ? c.cv : c.pv) : 0; }
       return 0;
     }
-    setBit(a, v) { a = this.res(a); if (RE.dbf.test(a)) { const k = this.dbKey(a); if (k) this.dbv[k] = v ? 1 : 0; return; } if (a && a[0] === '@') this.bits[a] = v ? 1 : 0; else if (isWritableBit(a)) this.bits[a] = v ? 1 : 0; }
+    setBit(a, v) {
+      a = this.res(a); if (RE.dbf.test(a)) { const k = this.dbKey(a); if (k) this.dbv[k] = v ? 1 : 0; return; }
+      const mb = RE.mwBit.exec(a || '');
+      if (mb) { const k = 'MW' + mb[1], bit = 1 << +mb[2]; let w = (this.words[k] | 0) & 0xffff; w = v ? w | bit : w & ~bit; this.words[k] = w > 32767 ? w - 65536 : w; return; }   // writes one bit, the other 15 stay
+      if (a && a[0] === '@') this.bits[a] = v ? 1 : 0; else if (isWritableBit(a)) this.bits[a] = v ? 1 : 0;
+    }
     setWord(a, v) {
       a = this.res(a);
       if (RE.dbf.test(a)) { const k = this.dbKey(a); if (k) { const dint = dbType(a) === 'DINT'; v = Math.trunc(v); const hi = dint ? 2147483647 : 32767; this.dbv[k] = Math.max(-hi - 1, Math.min(hi, v)); } return; }
       if (!(a && a[0] === '@') && !isWritableWord(a)) return;
+      if (RE.mr.test(a)) { v = +v; this.words[a] = isFinite(v) ? Math.max(-3.4e38, Math.min(3.4e38, v)) : 0; return; }   // REAL keeps its decimals
       v = Math.trunc(v);
       const big = RE.md.test(a), hi = big ? 2147483647 : 32767, lo = big ? -2147483648 : -32768;   // MD = 32-bit double word (DINT)
       if (v > hi) v = hi; if (v < lo) v = lo;
@@ -557,9 +605,12 @@
         }
         case 'NOT': return p ? 0 : 1;
         case 'CMP': return p && this.compare(cell.a, cell.op, cell.b) ? 1 : 0;
+        case 'LIM': return p && this.inRange(cell) ? 1 : 0;
       }
       return 0;
     }
+    // LIM(lo,x,hi): lo ≤ x ≤ hi (TIA IN_RANGE, Rockwell LIM with lo ≤ hi)
+    inRange(cell) { const x = this.word(cell.src); return this.word(cell.a) <= x && x <= this.word(cell.b); }
 
     resetAddr(a) {
       a = this.res(a);
@@ -655,7 +706,7 @@
         case 'ADD': if (p) this.setWord(cell.dst, this.word(cell.a) + this.word(cell.b)); break;
         case 'SUB': if (p) this.setWord(cell.dst, this.word(cell.a) - this.word(cell.b)); break;
         case 'MUL': if (p) this.setWord(cell.dst, this.word(cell.a) * this.word(cell.b)); break;
-        case 'DIV': if (p) { const d = this.word(cell.b); if (d === 0) { this.error = this.error || 'Division by zero: DIV(' + cell.a + ',' + cell.b + ',' + cell.dst + ') with ' + cell.b + ' = 0. A real PLC stops or logs a fault here (CODESYS: exception, Studio 5000: math overflow fault, TIA: ENO = FALSE). Check the divisor first.'; break; } this.setWord(cell.dst, this.word(cell.a) / d); } break;
+        case 'DIV': if (p) { const d = this.word(cell.b); if (d === 0) { this.error = this.error || 'Division by zero: DIV(' + cell.a + ',' + cell.b + ',' + cell.dst + ') with ' + cell.b + ' = 0. A real PLC stops or logs a fault here (CODESYS: exception, Studio 5000: math overflow fault, TIA: ENO = FALSE). Check the divisor first.'; break; } const q = this.word(cell.a) / d; this.setWord(cell.dst, isRealAddr(this.res(cell.a)) || isRealAddr(this.res(cell.b)) ? q : Math.trunc(q)); } break;   // INT ÷ INT = INT (7 / 2 = 3), even into a REAL
         case 'MOD': if (p) { const d = this.word(cell.b); this.setWord(cell.dst, d === 0 ? 0 : this.word(cell.a) % d); } break;
         case 'SHL': case 'SHR': if (p) { const n = Math.max(0, Math.min(16, this.word(cell.b))); const x = this.word(cell.a) & 0xffff; let v = (cell.type === 'SHL' ? x << n : x >>> n) & 0xffff; if (v > 32767) v -= 65536; this.setWord(cell.dst, v); } break;
         case 'SHRB': if (p) {
@@ -665,6 +716,20 @@
           else { for (let k = 0; k < bits.length - 1; k++) this.bits[bits[k]] = this.bits[bits[k + 1]] ? 1 : 0; this.bits[bits[bits.length - 1]] = d; }
         } break;
         case 'CALL': if (p) this.callBlock(cell, dt); break;
+        // word logic on the 16 bits of a word
+        case 'WAND': case 'WOR': case 'WXOR': case 'WNOT': if (p) {
+          const x = this.word(cell.a) & 0xffff, y = cell.type === 'WNOT' ? 0 : this.word(cell.b) & 0xffff;
+          let v = (cell.type === 'WAND' ? x & y : cell.type === 'WOR' ? x | y : cell.type === 'WXOR' ? x ^ y : ~x) & 0xffff;
+          this.setWord(cell.dst, v > 32767 ? v - 65536 : v);
+        } break;
+        // BCD: every 4 bits hold one decimal digit, 1234 ↔ 16#1234. Outside 0 … 9999 or a bad digit: no write (TIA: ENO = FALSE)
+        case 'I_BCD': if (p) { const v = Math.trunc(this.word(cell.src)); if (v >= 0 && v <= 9999) { const b = (Math.floor(v / 1000) << 12) | ((Math.floor(v / 100) % 10) << 8) | ((Math.floor(v / 10) % 10) << 4) | (v % 10); this.setWord(cell.dst, b > 32767 ? b - 65536 : b); } } break;
+        case 'BCD_I': if (p) { const w = this.word(cell.src) & 0xffff, d = [12, 8, 4, 0].map((s) => (w >> s) & 15); if (d.every((x) => x <= 9)) this.setWord(cell.dst, d[0] * 1000 + d[1] * 100 + d[2] * 10 + d[3]); } break;
+        // REAL conversions. CONV REAL → integer rounds to the nearest (x.5 to even, like TIA CONV); integer → REAL is exact
+        case 'CONV': case 'ROUND': if (p) { const v = this.word(cell.src); this.setWord(cell.dst, isRealAddr(this.res(cell.dst)) ? (cell.type === 'ROUND' ? roundEven(v) : v) : roundEven(v)); } break;
+        case 'TRUNC': if (p) this.setWord(cell.dst, Math.trunc(this.word(cell.src))); break;
+        case 'NORM_X': if (p) { const lo = this.word(cell.a), hi = this.word(cell.b); if (hi === lo) { this.error = this.error || 'NORM_X(' + cell.a + ',' + cell.src + ',' + cell.b + ',' + cell.dst + '): MIN and MAX are equal, so it would divide by zero.'; break; } this.setWord(cell.dst, (this.word(cell.src) - lo) / (hi - lo)); } break;
+        case 'SCALE_X': if (p) { const lo = this.word(cell.a), hi = this.word(cell.b), v = this.word(cell.src) * (hi - lo) + lo; this.setWord(cell.dst, isRealAddr(this.res(cell.dst)) ? v : roundEven(v)); } break;
         case 'PID': {
           const k = this.ek(cell.id), st = this.pidState[k] || (this.pidState[k] = { i: 0, pe: null, out: 0 });
           if (!p) { st.i = 0; st.pe = null; st.out = 0; this.setWord(cell.dst, 0); break; }
@@ -783,6 +848,46 @@
     (prog.blocks || []).forEach((b) => visit(b.rungs, b.name));
     return all;
   }
+  /* Checks for word bits, word logic, LIM, BCD and REAL. Type rules as in TIA Portal:
+   * a REAL never goes into a whole-number word without CONV, ROUND or TRUNC. */
+  function lintNew(c, n, issues) {
+    const T = c.type;
+    const err = (msg) => issues.push({ level: 'error', rung: n, msg });
+    const warn = (msg) => issues.push({ level: 'warn', rung: n, msg });
+    const R = (a) => isRealAddr(a || ''), num = (a) => isWordAddr(a || '');
+    const litVal = (a) => (RE.real.test(a) ? parseFloat(a) : litInt(a));
+    const MIS = 'type mismatch — use CONV, ROUND or TRUNC';
+    if (['MOV', 'ADD', 'SUB', 'MUL', 'DIV'].includes(T) && c.dst && isWritableWord(c.dst) && !R(c.dst)) {
+      const r = (T === 'MOV' ? [c.src] : [c.a, c.b]).find(R);
+      if (r) err(T + ': ' + MIS + '. ' + r + ' is a REAL (a number with decimals), but ' + c.dst + ' holds whole numbers only, so the decimals would be lost. TIA Portal refuses this too. Example: ROUND(' + r + ',' + c.dst + ').');
+    }
+    if (T === 'DIV' && R(c.dst) && num(c.a) && num(c.b) && !R(c.a) && !R(c.b)) warn('DIV of two whole numbers gives a whole number: 7 / 2 = 3, also into ' + c.dst + '. For 3.5, divide REAL values: CONV(' + c.a + ',MR…) first, or write 2.0.');
+    if (['MOD', 'SHL', 'SHR'].includes(T) && [c.a, c.b, c.dst].some(R)) err(T + ' works on whole numbers (INT) only, not on REAL values (MRn, 1.5).');
+    if (T === 'ITOS' && R(c.a)) err('ITOS turns a whole number into text. ' + c.a + ' is a REAL: ROUND or TRUNC it into a word first.');
+    if (T === 'LIM') {
+      if (![c.a, c.src, c.b].every(num)) err('LIM(low,value,high) needs three numbers or words, e.g. LIM(10,MW0,20): it passes power while 10 ≤ MW0 ≤ 20.');
+      else if (isNumLit(c.a) && isNumLit(c.b) && litVal(c.a) > litVal(c.b)) warn('LIM: the low limit ' + c.a + ' is above the high limit ' + c.b + ', so it is never true here (like TIA IN_RANGE). Careful: Rockwell LIM then tests OUTSIDE the range.');
+    }
+    if (WORDLOGIC.includes(T)) {
+      const ins = T === 'WNOT' ? [c.a] : [c.a, c.b];
+      if (!ins.every(num) || !isWritableWord(c.dst || '')) err(T + ' needs ' + (T === 'WNOT' ? 'a word' : 'two words or numbers (MW10, 16#00FF, 2#0000_0101)') + ' and a word for the result (MW, MD, AQW).');
+      else if (ins.concat(c.dst).some(R)) err(T + ' works on the 16 bits of a whole-number word. A REAL (MRn, 1.5) has no bits you can use like this.');
+    }
+    if (BCD_OPS.includes(T)) {
+      if (!num(c.src) || !isWritableWord(c.dst || '')) err(T + ' needs a word or number and a word for the result, e.g. ' + T + '(MW10,MW12).');
+      else if (R(c.src) || R(c.dst)) err(T + ' works on whole-number words (INT), not on REAL values.');
+      else if (T === 'I_BCD' && isNumLit(c.src) && (litInt(c.src) < 0 || litInt(c.src) > 9999)) err('I_BCD: four BCD digits hold 0 … 9999 only.');
+    }
+    if (REAL_OPS.includes(T)) {
+      const four = T === 'NORM_X' || T === 'SCALE_X';
+      if (![c.a, c.src, c.b].slice(four ? 0 : 1, four ? 3 : 2).every(num) || !isWritableWord(c.dst || '')) { err(T + (four ? '(min,value,max,result)' : '(source,result)') + ' needs numbers or words, and a word for the result (MR, MW, MD, AQW).'); return; }
+      if ((T === 'ROUND' || T === 'TRUNC') && !R(c.src)) warn(T + ': ' + c.src + ' is already a whole number, so there is nothing to ' + (T === 'ROUND' ? 'round' : 'cut off') + '. Use MOV.');
+      if (T === 'CONV' && numType(c.src) === numType(c.dst)) warn('CONV: ' + c.src + ' and ' + c.dst + ' have the same type (' + numType(c.dst) + '), so nothing is converted. Use MOV.');
+      if (T === 'NORM_X' && !R(c.dst)) err('NORM_X: ' + MIS + '. The result is 0.0 … 1.0, so it must go to a REAL (MR0 … MR99), not to ' + c.dst + '.');
+      if (T === 'NORM_X' && isNumLit(c.a) && isNumLit(c.b) && litVal(c.a) === litVal(c.b)) err('NORM_X: MIN and MAX are the same, so it would divide by zero.');
+      if (T === 'SCALE_X' && !R(c.src)) warn('SCALE_X expects a REAL value from 0.0 to 1.0 (for example the result of NORM_X), not the whole number ' + c.src + '.');
+    }
+  }
   function lintRungs(prog, rungs, blk, blocks) {
     const issues = [];
     const coils = {}, timers = {}, ctr = {};
@@ -827,6 +932,7 @@
         }
         if (c.type === 'MOV' && (!isWordAddr(c.src) || !isWritableWord(c.dst))) issues.push({ level: 'error', rung: n, msg: 'MOV copies a number or word into an MW, MD or AQW word.' });
         if (MATH.includes(c.type) && (!isWordAddr(c.a) || !isWordAddr(c.b) || !isWritableWord(c.dst))) issues.push({ level: 'error', rung: n, msg: c.type + ' needs two operands and an MW, MD or AQW destination.' });
+        lintNew(c, n, issues, blk);
         ['addr', 'a', 'b', 'src', 'dst'].forEach((k) => { if (!blk && typeof c[k] === 'string' && c[k][0] === '#') issues.push({ level: 'error', rung: n, msg: c[k] + ' is a block variable: names with # only work inside a block.' }); });
         if (blk && blk.kind === 'FC') {
           const isParam = (a) => typeof a === 'string' && a[0] === '#' && blk.params.some((pp) => pp.name === a.slice(1).split('.')[0]);
@@ -902,7 +1008,8 @@
     if ((m = RE.cBit.exec(a))) return 'C' + m[1] + '.Q';
     if ((m = RE.tWord.exec(a))) return 'T' + m[1] + '.' + m[2];
     if ((m = RE.cWord.exec(a))) return 'C' + m[1] + '.' + m[2];
-    if (RE.int.test(a)) return a;
+    if (RE.int.test(a) || RE.real.test(a) || RE.hexbin.test(a)) return a;
+    if ((m = RE.mwBit.exec(a))) return stName('MW' + m[1], tags) + '.' + m[2];   // bit access on a word: CODESYS / TwinCAT wVar.3
     const t = tags && tags[a];
     if (!t && (m = RE.aiw.exec(a))) return '%IW' + m[1];
     if (!t && (m = RE.aqw.exec(a))) return '%QW' + m[1];
@@ -954,6 +1061,60 @@
     }
     return '?';
   }
+  /* ST for word logic, BCD and REAL instructions, and for MOV / maths with a REAL operand.
+   * dia 'tia' = TIA Portal SCL: it has NORM_X, SCALE_X and ROUND, and SHR has named inputs.
+   * Returns true when it wrote the cell. */
+  function newST(cell, e, out, n, dia) {
+    const T = cell.type, R = isRealAddr;
+    const conv = (s, from, to) => (from === to ? s : from + '_TO_' + to + '(' + s + ')');
+    const asReal = (a) => (R(a) ? n(a) : isNumLit(a) ? litInt(a) + '.0' : conv(n(a), numType(a), 'REAL'));
+    const put = (dst, expr, note) => out.push('IF ' + e + ' THEN ' + n(dst) + ' := ' + expr + ';' + (note ? '   (* ' + note + ' *)' : '') + ' END_IF');
+    if (T === 'MOV' && R(cell.dst) && !R(cell.src)) { put(cell.dst, asReal(cell.src)); return true; }
+    if (['ADD', 'SUB', 'MUL', 'DIV'].includes(T) && (R(cell.a) || R(cell.b) || R(cell.dst))) {
+      const op = { ADD: '+', SUB: '-', MUL: '*', DIV: '/' }[T];
+      if (R(cell.a) || R(cell.b)) put(cell.dst, asReal(cell.a) + ' ' + op + ' ' + asReal(cell.b));
+      else put(cell.dst, conv(n(cell.a) + ' ' + op + ' ' + n(cell.b), numType(cell.a) === 'DINT' || numType(cell.b) === 'DINT' ? 'DINT' : 'INT', 'REAL'), T === 'DIV' ? 'whole-number division first: 7 / 2 = 3' : '');
+      return true;
+    }
+    if (WORDLOGIC.includes(T)) { put(cell.dst, T === 'WNOT' ? 'NOT ' + n(cell.a) : n(cell.a) + ' ' + { WAND: 'AND', WOR: 'OR', WXOR: 'XOR' }[T] + ' ' + n(cell.b), 'bit by bit, on all 16 bits'); return true; }
+    if (T === 'I_BCD') {
+      const s = n(cell.src);
+      put(cell.dst, '(' + s + ' / 1000) * 4096 + (' + s + ' / 100 MOD 10) * 256 + (' + s + ' / 10 MOD 10) * 16 + ' + s + ' MOD 10', 'INT → BCD, 1234 → 16#1234: every digit takes 4 bits (4096 = 16#1000)' + (dia === 'tia' ? '. LAD: CONV Int → Bcd16' : ''));
+      return true;
+    }
+    if (T === 'BCD_I') {
+      const w = 'INT_TO_WORD(' + n(cell.src) + ')';
+      const dig = (sh) => 'WORD_TO_INT(' + (sh ? (dia === 'tia' ? 'SHR(IN := ' + w + ', N := ' + sh + ')' : 'SHR(' + w + ', ' + sh + ')') : w) + ' AND 16#F)';
+      out.push('IF ' + e + ' THEN   (* BCD → INT, 16#1234 → 1234: every 4 bits hold one decimal digit' + (dia === 'tia' ? '. LAD: CONV Bcd16 → Int' : '') + ' *)');
+      out.push('  ' + n(cell.dst) + ' := ' + dig(12) + ' * 1000 + ' + dig(8) + ' * 100');
+      out.push('    + ' + dig(4) + ' * 10 + ' + dig(0) + ';');
+      out.push('END_IF');
+      return true;
+    }
+    if (T === 'CONV') {
+      const f = numType(cell.src), t = numType(cell.dst);
+      put(cell.dst, isNumLit(cell.src) && t === 'REAL' ? asReal(cell.src) : conv(n(cell.src), f, t), f === 'REAL' && t !== 'REAL' ? 'REAL → whole number: rounds to the nearest' : '');
+      return true;
+    }
+    if (T === 'ROUND' || T === 'TRUNC') {
+      const f = numType(cell.src), t = numType(cell.dst), s = n(cell.src);
+      let x;
+      if (f !== 'REAL') x = conv(s, f, t);
+      else if (T === 'ROUND') x = t === 'REAL' ? 'DINT_TO_REAL(REAL_TO_DINT(' + s + '))' : dia === 'tia' ? 'ROUND(' + s + ')' : 'REAL_TO_' + t + '(' + s + ')';
+      else x = t === 'REAL' ? 'DINT_TO_REAL(TRUNC(' + s + '))' : dia !== 'tia' && t === 'INT' ? 'TRUNC_INT(' + s + ')' : 'TRUNC(' + s + ')';
+      put(cell.dst, x, T === 'ROUND' ? 'to the nearest whole number' : 'cut off the decimals: 2.9 → 2, -2.9 → -2');
+      return true;
+    }
+    if (T === 'NORM_X' || T === 'SCALE_X') {
+      const t = numType(cell.dst);
+      if (dia === 'tia') { put(cell.dst, T + '(MIN := ' + n(cell.a) + ', VALUE := ' + n(cell.src) + ', MAX := ' + n(cell.b) + ')'); return true; }
+      const lo = asReal(cell.a), hi = asReal(cell.b), v = asReal(cell.src);
+      const x = T === 'NORM_X' ? '(' + v + ' - ' + lo + ') / (' + hi + ' - ' + lo + ')' : v + ' * (' + hi + ' - ' + lo + ') + ' + lo;
+      put(cell.dst, t === 'REAL' ? x : 'REAL_TO_' + t + '(' + x + ')', T === 'NORM_X' ? 'NORM_X: 0.0 at MIN, 1.0 at MAX' : 'SCALE_X: 0.0 gives MIN, 1.0 gives MAX');
+      return true;
+    }
+    return false;
+  }
   function toST(prog) {
     const tags = prog.tags || {};
     const out = ['(* ' + prog.name + ' — Structured Text equivalent generated from the ladder *)'];
@@ -977,6 +1138,7 @@
             case 'N': used.edges++; e = AND(cur[r], V('F_TRIG(' + nm(cell.addr) + ')')); break;
             case 'NOT': e = cur[r] ? { t: 'not', x: cur[r] } : T; break;
             case 'CMP': e = AND(cur[r], V('(' + stName(cell.a, tags) + ' ' + (cell.op === '==' ? '=' : cell.op) + ' ' + stName(cell.b, tags) + ')')); break;
+            case 'LIM': { const x = stName(cell.src, tags); e = AND(cur[r], V('(' + stName(cell.a, tags) + ' <= ' + x + ' AND ' + x + ' <= ' + stName(cell.b, tags) + ')')); break; }
           }
           next.push(e);
         }
@@ -996,6 +1158,7 @@
         if (!cell) continue;
         const e = pr(cur[r]);
         const n = (a) => stName(a, tags);
+        if (newST(cell, e, out, n, prog._dialect)) continue;   // word logic, BCD, REAL
         switch (cell.type) {
           case 'COIL': out.push(n(cell.addr) + ' := ' + e + ';'); break;
           case 'NCOIL': out.push(n(cell.addr) + ' := NOT (' + e + ');'); break;
@@ -1062,12 +1225,17 @@
     Object.keys(used.inst || {}).forEach((k) => decl.push('  ' + k + ' : ' + used.inst[k] + ';   (* instance = its own memory *)'));
     Object.keys(used.mc || {}).forEach((k) => decl.push('  ' + k + ' : ' + used.mc[k] + ';   (* PLCopen motion block *)'));
     if (used.pid) for (let k = 1; k <= used.pid; k++) decl.push('  PID' + k + ' : PID;   (* the PLC\'s PID function block, e.g. PID_Compact / PIDE *)');
+    if (!prog._inBlock && !prog._dialect) {   // REAL memory MRn becomes a REAL variable (TIA: a Real tag, named exports: declared with the I/O)
+      const mrs = new Set();
+      [prog.rungs].concat((prog.blocks || []).map((b) => b.rungs)).forEach((rs) => rs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c) ['a', 'b', 'src', 'dst'].forEach((k) => { if (RE.mr.test(c[k] || '')) mrs.add(c[k]); }); }))));
+      [...mrs].sort((x, y) => +x.slice(2) - +y.slice(2)).forEach((a) => decl.push('  ' + stName(a, tags) + ' : REAL;   (* ' + a + ': a number with decimals *)'));
+    }
     decl.push('END_VAR');
     let fbs = '';
     if (!prog._inBlock) (prog.blocks || []).forEach((b) => {
-      const body = toST({ name: b.name, tags, rungs: b.rungs, blocks: prog.blocks, _inBlock: true });
+      const body = toST({ name: b.name, tags, rungs: b.rungs, blocks: prog.blocks, _inBlock: true, _dialect: prog._dialect });
       const st = {}, rank = { BOOL: 0, INT: 1 };
-      b.rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (!c) return; ['addr', 'a', 'b', 'src', 'dst'].forEach((k) => { const v = c[k]; if (typeof v === 'string' && v[0] === '#') { const nm2 = v.slice(1).split('.')[0]; if (b.params.some((pp) => pp.name === nm2)) return; const ty = TIMERS.includes(c.type) && k === 'addr' ? (c.type === 'RTO' ? 'TONR' : c.type) : COUNTERS.includes(c.type) && k === 'addr' ? c.type : /\.(ET|PT|CV|PV)$/.test(v) || ['MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'CMP', 'PID'].includes(c.type) ? 'INT' : 'BOOL'; if (st[nm2] == null || (rank[st[nm2]] != null && (rank[ty] == null || rank[ty] > rank[st[nm2]]))) st[nm2] = ty; } }); })));
+      b.rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (!c) return; ['addr', 'a', 'b', 'src', 'dst'].forEach((k) => { const v = c[k]; if (typeof v === 'string' && v[0] === '#') { const nm2 = v.slice(1).split('.')[0]; if (b.params.some((pp) => pp.name === nm2)) return; const ty = TIMERS.includes(c.type) && k === 'addr' ? (c.type === 'RTO' ? 'TONR' : c.type) : COUNTERS.includes(c.type) && k === 'addr' ? c.type : /\.(ET|PT|CV|PV)$/.test(v) || ['MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'CMP', 'PID', 'LIM'].concat(WORDLOGIC, BCD_OPS, REAL_OPS).includes(c.type) ? 'INT' : 'BOOL'; if (st[nm2] == null || (rank[st[nm2]] != null && (rank[ty] == null || rank[ty] > rank[st[nm2]]))) st[nm2] = ty; } }); })));
       const statics = new Set(Object.keys(st).map((k) => k + ' : ' + st[k] + ';'));
       const sec = (kw, dir) => { const ps = b.params.filter((pp) => pp.dir === dir); return ps.length ? [kw].concat(ps.map((pp) => '  ' + pp.name + ' : ' + pp.type + ';' + (pp.comment ? '   (* ' + pp.comment + ' *)' : '')), ['END_VAR']).join('\n') + '\n' : ''; };
       const fcB = b.kind === 'FC';
@@ -1098,7 +1266,8 @@
     const tg = (a) => {
       if (a == null) return '?';
       a = String(a);
-      if (RE.int.test(a)) return a;
+      if (RE.int.test(a) || RE.real.test(a) || RE.hexbin.test(a)) return a;   // Logix reads 12.5, 16#047F and 2#0000_0101 as they are
+      { const mb = RE.mwBit.exec(a); if (mb) return tg('MW' + mb[1]) + '.' + mb[2]; }   // bit of an INT tag: Word.3
       { const d = LL.dbField(a); if (d && d.db && d.f) return d.db.name + '.' + d.f.name + (d.idx != null ? '[' + (RE.int.test(d.idx) ? d.idx : tg(d.idx)) + ']' : ''); }
       if (a === 'SM0.1') return 'S:FS';
       if (a === 'SM0.5') return 'Clock_1Hz';
@@ -1164,6 +1333,14 @@
         case 'MC_STOP': return 'MAS(' + cell.ax + ',' + cell.addr + ',All)';
         case 'MC_RESET': return 'MAFR(' + cell.ax + ',' + cell.addr + ')';
         case 'MC_SETPOS': return 'MRP(' + cell.ax + ',' + cell.addr + ',Absolute,Actual,' + tg(cell.a) + ')';
+        case 'WAND': case 'WOR': case 'WXOR': return { WAND: 'AND', WOR: 'OR', WXOR: 'XOR' }[t] + '(' + tg(cell.a) + ',' + tg(cell.b) + ',' + tg(cell.dst) + ')';
+        case 'WNOT': return 'NOT(' + tg(cell.a) + ',' + tg(cell.dst) + ')';
+        case 'I_BCD': notes.push('TOD = "to BCD": 1234 becomes 16#1234. FRD = "from BCD" does the opposite.'); return 'TOD(' + tg(cell.src) + ',' + tg(cell.dst) + ')';
+        case 'BCD_I': notes.push('FRD = "from BCD": 16#1234 becomes 1234. TOD = "to BCD" does the opposite.'); return 'FRD(' + tg(cell.src) + ',' + tg(cell.dst) + ')';
+        case 'CONV': case 'ROUND': notes.push('Logix converts by itself when MOV copies between INT, DINT and REAL tags. REAL → INT rounds to the nearest (x.5 to the even number).'); return 'MOV(' + tg(cell.src) + ',' + tg(cell.dst) + ')';
+        case 'TRUNC': return 'TRN(' + tg(cell.src) + ',' + tg(cell.dst) + ')';
+        case 'NORM_X': notes.push('SCP = Scale with Parameters: input, input min, input max, scaled min, scaled max, output. Same as CPT(' + tg(cell.dst) + ',(' + tg(cell.src) + '-' + tg(cell.a) + ')/(' + tg(cell.b) + '-' + tg(cell.a) + ')) with REAL tags.'); return 'SCP(' + tg(cell.src) + ',' + tg(cell.a) + ',' + tg(cell.b) + ',0.0,1.0,' + tg(cell.dst) + ')';
+        case 'SCALE_X': notes.push('SCP = Scale with Parameters: input, input min, input max, scaled min, scaled max, output. Same as CPT(' + tg(cell.dst) + ',' + tg(cell.src) + '*(' + tg(cell.b) + '-' + tg(cell.a) + ')+' + tg(cell.a) + ').'); return 'SCP(' + tg(cell.src) + ',0.0,1.0,' + tg(cell.a) + ',' + tg(cell.b) + ',' + tg(cell.dst) + ')';
         case 'PID': notes.push('PID: put SP = ' + tg(cell.b) + ', KP = ' + cell.kp + ', KI and KD in the PID tag (' + 'PID_' + tg(cell.dst) + '); many plants use PIDE in a function block diagram instead.'); return 'PID(PID_' + tg(cell.dst) + ',' + tg(cell.a) + ',0,' + tg(cell.dst) + ',0,0,0)';
       }
       return '';
@@ -1185,6 +1362,7 @@
               case 'N': e = AND(cur[r], V('XIO(' + tg(cell.addr) + ')ONS(Ons_' + (++ons) + ')')); break;
               case 'NOT': e = cur[r] ? { t: 'not', x: cur[r] } : T; break;
               case 'CMP': e = AND(cur[r], V(CMPI[cell.op] + '(' + tg(cell.a) + ',' + tg(cell.b) + ')')); break;
+              case 'LIM': e = AND(cur[r], V('LIM(' + tg(cell.a) + ',' + tg(cell.src) + ',' + tg(cell.b) + ')')); break;
             }
             next.push(e);
           }
@@ -1216,6 +1394,10 @@
     out.push('// ' + (prog.name || 'Program') + ': Studio 5000 / Logix Designer rung text (neutral text)');
     out.push('// Paste one rung at a time: double-click the rung number in Logix Designer and paste the text.');
     out.push('// Timers / counters: create TIMER / COUNTER tags with these names. Times are in ms (PRE).');
+    { const ua = [...usedAddrs(prog)]; (prog.blocks || []).forEach((b) => usedAddrs({ rungs: b.rungs }).forEach((a) => ua.push(a)));
+      const mr = ua.filter((a) => RE.mr.test(a)), mb = ua.filter((a) => RE.mwBit.test(a));
+      if (mr.length) out.push('// REAL tags (numbers with decimals): ' + [...new Set(mr)].map(tg).join(', ') + '. Create them with the data type REAL.');
+      if (mb.length) out.push('// Bit of a word: ' + [...new Set(mb)].map((a) => { const m = RE.mwBit.exec(a); return tg(a) + ' = bit ' + m[2] + ' of the INT tag ' + tg('MW' + m[1]); }).join(', ') + ' (bit 0 = the lowest bit).'); }
     rungs(prog.rungs, 'MainRoutine');
     (prog.blocks || []).forEach((b) => {
       out.push('');
@@ -1232,7 +1414,7 @@
     const s = new Set();
     prog.rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => {
       if (!c) return;
-      ['addr', 'a', 'b', 'src', 'dst'].forEach((k) => { if (c[k] && typeof c[k] === 'string' && !RE.int.test(c[k]) && c[k][0] !== '#' && !RE.strLit.test(c[k])) s.add(c[k]); });
+      ['addr', 'a', 'b', 'src', 'dst'].forEach((k) => { if (c[k] && typeof c[k] === 'string' && !isNumLit(c[k]) && c[k][0] !== '#' && !RE.strLit.test(c[k])) { s.add(c[k]); const mb = RE.mwBit.exec(c[k]); if (mb) s.add('MW' + mb[1]); } });
       if (c.type === 'CALL') Object.values(c.args || {}).forEach((v) => { if (v && !RE.int.test(v) && v[0] !== '#') s.add(v); });
     })));
     return s;
@@ -1244,6 +1426,7 @@
     parseDuration, fmtDuration, shiftBits, mkCell, cloneCell, emptyRung,
     parseRung, rungToLines, parseProgram, programToText, cloneProgram, parseToken, cellToken,
     Machine, lint, toST, toRockwell, stName, usedAddrs,
+    WORDLOGIC, BCD_OPS, REAL_OPS, isRealAddr, isNumLit, numType, litInt, roundEven, fmtReal, hex4,
   });
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -1269,6 +1452,7 @@
       else if (RE.mw.test(a)) { kind = 'M'; type = 'INT'; }
       else if (RE.md.test(a)) { kind = 'M'; type = 'DINT'; }
       else if (RE.hc.test(a)) { kind = 'I'; type = 'DINT'; }
+      else if (RE.mr.test(a)) { kind = 'M'; type = 'REAL'; }
       if (!kind) return;
       const name = tags[a] ? san(tags[a]) : a.replace(/\./g, '_');
       out.push({ a, kind, type, name, iec: LL.stName(a, {}) });
@@ -1278,8 +1462,9 @@
   // ST with direct addresses replaced by variable names
   function namedST(prog) {
     const vars = ioVars(prog);
-    let st = LL.toST(Object.assign({}, prog, { tags: {} }));
-    vars.slice().sort((x, y) => y.iec.length - x.iec.length).forEach((v) => { st = st.split(v.iec).join(v.name); });
+    let st = LL.toST(Object.assign({}, prog, { tags: {}, _dialect: 'named' }));
+    // whole names only: %MW1 must not touch %MW10, MR1 must not touch MR10
+    vars.slice().sort((x, y) => y.iec.length - x.iec.length).forEach((v) => { st = st.replace(new RegExp(v.iec.replace(/[.*+?^${}()|[\]\\%]/g, '\\$&') + '(?!\\w)', 'g'), v.name); });
     return { vars, st };
   }
   const splitDecl = (st) => {
@@ -1327,8 +1512,11 @@
     // only the tags the program uses, with unique names
     const used = new Set(LL.usedAddrs(prog)); (prog.blocks || []).forEach((bk) => LL.usedAddrs({ rungs: bk.rungs }).forEach((a) => used.add(a)));
     const tags = {}, seenN = {};
-    Object.keys(prog.tags || {}).filter((a) => used.has(a)).forEach((a) => { let nm = san(prog.tags[a]) || a.replace(/\./g, '_'); if (seenN[nm]) nm += '_' + a.replace(/\./g, '_'); seenN[nm] = 1; tags[a] = nm; });
-    let st = LL.toST(Object.assign({}, prog, { tags }));
+    Object.keys(prog.tags || {}).filter((a) => used.has(a) && !RE.mwBit.test(a)).forEach((a) => { let nm = san(prog.tags[a]) || a.replace(/\./g, '_'); if (seenN[nm]) nm += '_' + a.replace(/\./g, '_'); seenN[nm] = 1; tags[a] = nm; });
+    // REAL memory MRn has no address of its own in TIA: it becomes a Real tag (here at %MD1000 + 4·n)
+    [...used].filter((a) => RE.mr.test(a) && !tags[a]).forEach((a) => { let nm = a; if (seenN[nm]) nm += '_r'; seenN[nm] = 1; tags[a] = nm; });
+    const tiaAddr = (a) => { const m = RE.mr.exec(a); return m ? 'MD' + (1000 + 4 * +m[1]) + ' (Real)' : a.replace(/^AIW/, 'IW').replace(/^AQW/, 'QW'); };
+    let st = LL.toST(Object.assign({}, prog, { tags, _dialect: 'tia' }));
     const main = st.split('\n\n(* ═════ Function blocks ═════ *)');
     const { decl, body } = splitDecl(main[0]);
     const inst = {};
@@ -1352,8 +1540,15 @@
     return c2; });
     (prog.dbs || []).forEach((d) => { b = codeOnly(b, (code) => code.replace(new RegExp('(^|[^"\\w])' + d.name + '\\.', 'g'), '$1"' + d.name + '".')); });
     b = b.replace(/END_IF(?!;)/g, 'END_IF;');
+    // bit of a word: slice access "Status".%X3 / %MW10.%X3
+    b = codeOnly(b, (code) => code.replace(/("[^"\n]+"|%MW\d+)\.(\d{1,2})(?![\d.])/g, '$1.%X$2'));
     const out = ['// Siemens TIA Portal: SCL (Structured Control Language) for an S7-1200 / S7-1500 block, e.g. OB1 or an FB.',
-      '// Create in the PLC tag table: ' + (Object.keys(tags).length ? Object.keys(tags).map((a) => '"' + tags[a] + '" = %' + a.replace(/^AIW/, 'IW').replace(/^AQW/, 'QW')).join(', ') : 'the addresses used below') + '.'];
+      '// Create in the PLC tag table: ' + (Object.keys(tags).length ? Object.keys(tags).map((a) => '"' + tags[a] + '" = %' + tiaAddr(a)).join(', ') : 'the addresses used below') + '.'];
+    { const bits = [...used].filter((a) => RE.mwBit.test(a)).sort();
+      if (bits.length) out.push('// Bit of a word = slice access: %MW10.%X3 is bit 3 of MW10 (bit 0 = the lowest bit). Careful, Siemens byte order:',
+        '//   MW10 = MB10 (HIGH byte) + MB11 (LOW byte), so bit 3 of MW10 is %M11.3 and bit 8 is %M10.0. Here: ' + bits.map((a) => { const m = RE.mwBit.exec(a), k = +m[2]; return a + ' = %M' + (+m[1] + (k < 8 ? 1 : 0)) + '.' + (k % 8); }).join(', ') + '.',
+        '//   In Ladder Lab M bits and MW words are separate memory; in a Siemens PLC they overlap, so keep other M bits away from these bytes.');
+      if ([...used].some((a) => RE.mr.test(a))) out.push('// REAL: MRn becomes a tag of type Real (4 bytes, a %MD address). TIA does not put a Real into an Int by itself: use CONV, ROUND or TRUNC.'); }
     const td = Object.keys(inst);
     if (td.length) out.push('// Create these instance data blocks (or multi-instances in an FB): ' + td.map((k) => '"' + k + '" : ' + (/^(TON|TOF|TP|TONR)$/.test(inst[k]) ? 'IEC_TIMER' : /^(CTU|CTD)$/.test(inst[k]) ? 'IEC_COUNTER' : inst[k])).join(', ') + '.');
     (prog.dbs || []).forEach((d) => out.push('// Global DB "' + d.name + '" (DB' + d.num + '): ' + d.fields.map((f) => f.name + ' : ' + (f.lo != null ? 'Array[' + f.lo + '..' + f.hi + '] of ' : '') + (f.type === 'STRING' ? 'String' : f.type === 'BOOL' ? 'Bool' : f.type === 'INT' ? 'Int' : 'DInt')).join(', ') + ' (start values in the DB editor).'));
@@ -1394,6 +1589,10 @@
     if ((m = RE.tWord.exec(a))) return 'T' + String(m[1]).padStart(4, '0') + (m[2] === 'ET' ? '' : ' (preset)');
     if ((m = RE.cWord.exec(a))) return 'C' + String(m[1]).padStart(4, '0');
     if ((m = RE.mw.exec(a)) || (m = RE.md.exec(a))) return 'D' + m[1];
+    if ((m = RE.mwBit.exec(a))) return 'D' + m[1] + '.' + m[2].padStart(2, '0');
+    if ((m = RE.mr.exec(a))) return 'D' + (2000 + 2 * +m[1]);   // a REAL takes two words
+    if (RE.hexbin.test(a)) return '#' + ((LL.litInt(a) & 0xffff) >>> 0).toString(16).toUpperCase().padStart(4, '0');
+    if (RE.real.test(a)) return (+a < 0 ? '' : '+') + a;   // floating-point constant
     if ((m = RE.aiw.exec(a))) return 'AIN' + m[1];
     if ((m = RE.aqw.exec(a))) return 'AOUT' + m[1];
     if (RE.int.test(a)) return '#' + a;
@@ -1403,7 +1602,8 @@
     const out = ['// Omron CX-Programmer (CP1 / CJ series): mnemonic list. Type it in the mnemonic view, or read it against',
       '// the ladder. Inputs CIO 0.00 …, outputs CIO 100.00 …, work bits W, data words D, timers TIM (0.1 s units),',
       '// counters CNT (they count DOWN from the set value). @LD = rising edge, %LD = falling edge.', ''];
-    const LOGIC = new Set(['NO', 'NC', 'P', 'N', 'CMP', 'NOT', 'WIRE']);
+    const LOGIC = new Set(['NO', 'NC', 'P', 'N', 'CMP', 'NOT', 'WIRE', 'LIM']);
+    const isR = LL.isRealAddr, fl = (c) => (isR(c.a) || isR(c.b) || isR(c.src) || isR(c.dst) ? 'F' : '');   // F = floating-point version (LD>=F, +F)
     if ((prog.blocks || []).length) out.push('// This program uses blocks: in CX-Programmer they become function blocks (FB) drawn in ladder or ST; the main program is listed here.', '');
     prog.rungs.forEach((rung, ri) => {
       const R = rung.rows, C = rung.cols;
@@ -1418,7 +1618,8 @@
           if (cell && LOGIC.has(cell.type)) {
             if (cell.type === 'WIRE') e = cur[r];
             else if (cell.type === 'NOT') e = cur[r] ? { t: 'not', x: cur[r] } : null;
-            else if (cell.type === 'CMP') e = AND(cur[r], { t: 'v', op: { '==': '=', '<>': '<>', '>': '>', '>=': '>=', '<': '<', '<=': '<=' }[cell.op], a: omAddr(cell.a), b: omAddr(cell.b) });
+            else if (cell.type === 'CMP') e = AND(cur[r], { t: 'v', op: { '==': '=', '<>': '<>', '>': '>', '>=': '>=', '<': '<', '<=': '<=' }[cell.op] + fl(cell), a: omAddr(cell.a), b: omAddr(cell.b) });
+            else if (cell.type === 'LIM') e = AND(AND(cur[r], { t: 'v', op: '>=' + fl(cell), a: omAddr(cell.src), b: omAddr(cell.a) }), { t: 'v', op: '<=' + fl(cell), a: omAddr(cell.src), b: omAddr(cell.b) });   // or ZCP(088)
             else e = AND(cur[r], { t: 'v', pre: cell.type === 'NC' ? 'NOT' : cell.type === 'P' ? '@' : cell.type === 'N' ? '%' : '', s: omAddr(cell.addr) });
           }
           next.push(e);
@@ -1458,15 +1659,28 @@
           case 'TP': lines.push('// TP: make a pulse with DIFU + KEEP + TIM'); lines.push('TIM ' + nT(cell.addr) + ' #' + Math.max(1, Math.round(cell.pt / 100))); break;
           case 'RTO': lines.push('TTIM(087) ' + nT(cell.addr) + ' #' + Math.max(1, Math.round(cell.pt / 100)) + '   // accumulative timer'); break;
           case 'CTU': case 'CTD': lines.push('LD P_Off   // reset input of the counter (use CNR elsewhere)'); lines.push('CNT ' + nT(cell.addr) + ' #' + cell.pv + (T === 'CTU' ? '   // counts DOWN from ' + cell.pv + ': done at 0' : '')); break;
-          case 'MOV': lines.push('MOV(021) ' + omAddr(cell.src) + ' ' + omAddr(cell.dst)); break;
+          case 'MOV': lines.push(isR(cell.dst) ? (isR(cell.src) ? 'MOVL(498) ' : 'FLT(452) ') + omAddr(cell.src) + ' ' + omAddr(cell.dst) + '   // REAL = 2 words' : 'MOV(021) ' + omAddr(cell.src) + ' ' + omAddr(cell.dst)); break;
+          case 'WAND': case 'WOR': case 'WXOR': lines.push({ WAND: 'ANDW(034) ', WOR: 'ORW(035) ', WXOR: 'XORW(036) ' }[T] + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst)); break;
+          case 'WNOT': lines.push('MOV(021) ' + omAddr(cell.a) + ' ' + omAddr(cell.dst)); lines.push('COM(029) ' + omAddr(cell.dst) + '   // invert all 16 bits'); break;
+          case 'I_BCD': lines.push('BCD(024) ' + omAddr(cell.src) + ' ' + omAddr(cell.dst) + '   // binary → BCD'); break;
+          case 'BCD_I': lines.push('BIN(023) ' + omAddr(cell.src) + ' ' + omAddr(cell.dst) + '   // BCD → binary'); break;
+          case 'CONV': case 'ROUND': case 'TRUNC':
+            if (!isR(cell.src)) lines.push('FLT(452) ' + omAddr(cell.src) + ' ' + omAddr(cell.dst) + '   // INT → REAL');
+            else if (isR(cell.dst)) lines.push('MOVL(498) ' + omAddr(cell.src) + ' ' + omAddr(cell.dst));
+            else lines.push('FIX(450) ' + omAddr(cell.src) + ' ' + omAddr(cell.dst) + (T === 'TRUNC' ? '   // REAL → INT, cuts the decimals' : '   // FIX cuts the decimals: to round, first +F(454) 0.5 (positive values)'));
+            break;
+          case 'NORM_X': case 'SCALE_X': lines.push('// ' + T + ': ' + (T === 'NORM_X' ? '(value − min) / (max − min)' : 'value × (max − min) + min') + ' with FLT(452), -F(455), *F(456), /F(457) and +F(454); or a linear scaling with SCL(194):');
+            lines.push('SCL(194) ' + omAddr(cell.src) + ' D100 ' + omAddr(cell.dst) + '   // the 2 points of the line in D100 … D103'); break;
           case 'SMOV': lines.push('MOV$(664) ' + cell.src + ' ' + cell.dst + '   // string move'); break;
           case 'CONCAT': lines.push('+$(656) ' + cell.a + ' ' + cell.b + ' ' + cell.dst + '   // string concatenation'); break;
           case 'ITOS': lines.push('STR4(601) ' + omAddr(cell.a) + ' ' + cell.dst + '   // number to ASCII'); break;
           case 'SMID': lines.push('MID$(652) ' + cell.src + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.a) + ' ' + cell.dst); break;
-          case 'ADD': lines.push('+(400) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst)); break;
-          case 'SUB': lines.push('-(410) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst)); break;
-          case 'MUL': lines.push('*(420) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst)); break;
-          case 'DIV': case 'MOD': lines.push('/(430) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst) + (T === 'MOD' ? '   // the remainder is in the next word (D+1)' : '')); break;
+          case 'ADD': case 'SUB': case 'MUL': case 'DIV': if (fl(cell)) { lines.push({ ADD: '+F(454) ', SUB: '-F(455) ', MUL: '*F(456) ', DIV: '/F(457) ' }[T] + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst) + '   // floating point (REAL)'); break; }
+            if (T === 'ADD') { lines.push('+(400) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst)); break; }
+            if (T === 'SUB') { lines.push('-(410) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst)); break; }
+            if (T === 'MUL') { lines.push('*(420) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst)); break; }
+            // falls through for DIV
+          case 'MOD': lines.push('/(430) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst) + (T === 'MOD' ? '   // the remainder is in the next word (D+1)' : '')); break;
           case 'SHL': case 'SHR': lines.push((T === 'SHL' ? 'ASL(025) ' : 'ASR(026) ') + omAddr(cell.dst) + '   // one bit per execution: repeat ' + cell.b + ' times or use NASL / NASR'); break;
           case 'SHRB': lines.push('SFT(010) ' + omAddr(cell.addr).replace(/\.\d+$/, '') + ' ' + omAddr(cell.addr).replace(/\.\d+$/, '') + '   // data and reset inputs before it'); break;
           case 'CALL': lines.push('// CALL ' + cell.block + ': place the FB instance ' + (cell.inst || '') + ' in the ladder'); break;

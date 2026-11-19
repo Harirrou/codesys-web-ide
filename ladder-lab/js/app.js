@@ -87,12 +87,12 @@
   function modal(title, bodyHtml, actions) {
     const m = h(`<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="card"><div class="mh"><h2>${esc(title)}</h2><button class="iconbtn" data-x aria-label="Close">✕</button></div><div class="mb">${bodyHtml}</div><div class="row ma"></div></div></div>`);
     const close = () => { m.remove(); document.removeEventListener('keydown', onKey); };
-    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    const onKey = (e) => { if (e.key === 'Escape' && $$('.modal').pop() === m) close(); }; // only the top window
     document.addEventListener('keydown', onKey);
     m.addEventListener('click', (e) => { if (e.target === m || e.target.closest('[data-x]')) close(); });
     (actions || []).forEach((a) => {
       const b = h(`<button class="btn ${a.cls || ''}">${esc(a.label)}</button>`);
-      b.onclick = () => { if (a.run(m) !== false) close(); };
+      b.onclick = () => { if (!a.run || a.run(m) !== false) close(); }; // Close / Cancel buttons have no run
       $('.ma', m).appendChild(b);
     });
     document.body.appendChild(m);
@@ -268,22 +268,445 @@
     }
   }
 
-  function openInLab(spec) {
-    if (spec.lang === 'st') {
-      S.st.lab = spec.program; S.lang.lab = 'st'; S.plant.lab = spec.plant || 'panel'; saveNow();
-      if (location.hash === '#lab') { current = ''; route(); } else location.hash = 'lab';
-      return;
-    }
-    S.lang.lab = 'ld';
+  // a lesson example (MiniSim spec) → the Lab; it asks first if that would replace the learner's program
+  function openInLab(spec, msg) {
+    if (spec.lang === 'st') return labReplace({ lang: 'st', text: spec.program, plant: spec.plant || 'panel', name: spec.name, msg });
     const lines = ['NAME ' + (spec.name || 'Lesson example'), 'COLS 7'];
     Object.keys(spec.inputs || {}).forEach((a) => lines.push('TAG ' + a + ' ' + spec.inputs[a].name));
     Object.keys(spec.outputs || {}).forEach((a) => lines.push('TAG ' + a + ' ' + spec.outputs[a]));
     const p = LL.parseProgram(spec.program);
     const body = LL.programToText(p).split('\n').filter((l) => !/^(NAME|COLS) /.test(l));
-    S.programs.lab = lines.concat(body).join('\n');
-    S.plant.lab = spec.plant || 'panel';
-    save();
-    location.hash = 'lab';
+    labReplace({ lang: 'ld', text: lines.concat(body).join('\n'), plant: spec.plant || 'panel', name: spec.name || 'Lesson example', msg });
+  }
+
+  // ═════════════ MY WORK: never lose a Lab program · My programs · backup file ═════════════
+  // The free Lab keeps ONE Ladder program (S.programs.lab) and ONE ST program (S.st.lab). Everything that
+  // puts another program there goes through labReplace(): it asks first when the learner's program would
+  // be lost, and the Lab then shows an Undo bar. My programs (S.saved) keeps up to 50 named copies.
+  Object.assign(I, {
+    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>',
+    folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+    download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
+    upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></svg>',
+  });
+  const SAVED_MAX = 50;
+  const S_DEFAULT = () => ({ lessons: {}, ch: {}, chTried: {}, programs: {}, st: {}, lang: {}, plant: {}, quiz: { best: 0, predict: 0, predictBest: 0 }, theme: '', brand: 'll', saved: [] });
+  if (!Array.isArray(S.saved)) S.saved = [];
+  let labNow = null; // the free Lab on screen
+  let labUndo = null; // one-shot: the program the last replacement threw out; the next free Lab offers Undo
+  const BAD_KEY = (k) => k === '__proto__' || k === 'constructor' || k === 'prototype';
+  const liveLab = () => (labNow && labNow.el && document.body.contains(labNow.el) ? labNow : null);
+  const plantName = (p) => (own(LL.Plants, p) ? LL.Plants[p].name : 'Trainer panel');
+  const langName = (l) => (l === 'st' ? 'Structured Text' : 'Ladder');
+  const labText = (lang) => (lang === 'st' ? S.st.lab : S.programs.lab);
+  const newId = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const fmtDate = (ms) => { try { return new Date(ms).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } };
+  // the same program? (Ladder: compare the clean text, so spaces and order of the text lines do not matter)
+  function normProg(lang, t) {
+    t = String(t == null ? '' : t).replace(/\r\n?/g, '\n');
+    if (lang === 'st') return t.split('\n').map((l) => l.replace(/\s+$/, '')).join('\n').trim();
+    try { return LL.programToText(LL.parseProgram(t)).trim(); } catch (e) { return t.trim(); }
+  }
+  // nothing of the learner's in it: no text, empty rungs, an ST frame without logic, or the Lab's start program
+  function progEmpty(lang, t) {
+    if (t == null || !String(t).trim()) return true;
+    if (lang === 'st') return !String(t).replace(/\(\*[\s\S]*?\*\)/g, ' ').replace(/\/\/[^\n]*/g, ' ').replace(/\bVAR\w*\b[\s\S]*?\bEND_VAR\b/gi, ' ').replace(/\bEND_PROGRAM\b/gi, ' ').replace(/\bPROGRAM\s+\w+/gi, ' ').trim();
+    if (normProg('ld', t) === normProg('ld', LL.OPEN_PROGRAMS.video.program)) return true;
+    try { const p = LL.parseProgram(t); return !(p.blocks || []).length && !(p.dbs || []).length && p.rungs.every((r) => r.cells.every((row) => row.every((c) => !c))); } catch (e) { return false; }
+  }
+  function progName(lang, t) {
+    if (lang === 'st') { const m = /\bPROGRAM\s+(\w+)/i.exec(t || ''); return m ? m[1] : 'ST program'; }
+    try { return LL.parseProgram(t).name || 'Untitled'; } catch (e) { return 'Untitled'; }
+  }
+  function progSize(lang, t) {
+    if (lang === 'st') return plural(String(t || '').split('\n').filter((l) => l.trim()).length, 'line');
+    try { return plural(LL.parseProgram(t).rungs.length, 'rung'); } catch (e) { return ''; }
+  }
+  // the Lab program now (the start program when the learner has none yet)
+  function labCurrent() {
+    const lang = S.lang.lab === 'st' ? 'st' : 'ld';
+    const t = labText(lang);
+    const text = t != null ? String(t) : lang === 'st' ? '' : LL.OPEN_PROGRAMS.video.program;
+    return { lang, text, plant: S.plant.lab || (S.programs.lab ? 'panel' : 'cylinders'), empty: progEmpty(lang, t), name: progName(lang, text) };
+  }
+  // a copy in My programs (null when the list is full)
+  function keepProgram(o, at) {
+    if (S.saved.length >= SAVED_MAX) { toast('My programs is full (' + SAVED_MAX + ' programs). Delete one first.', { ms: 4500 }); return null; }
+    const e = { id: newId(), name: String(o.name || 'Untitled').trim().slice(0, 80) || 'Untitled', lang: o.lang === 'st' ? 'st' : 'ld', text: String(o.text), plant: own(LL.Plants, o.plant) ? o.plant : 'panel', at: Date.now() };
+    S.saved.splice(at == null ? 0 : at, 0, e); saveNow();
+    return e;
+  }
+  // o: { lang, text, plant, name, msg, title, verb }. title/verb: other words (Clear: "Empty your Lab program?")
+  function labReplace(o) {
+    const lang = o.lang === 'st' ? 'st' : 'ld';
+    const old = labText(lang);
+    const before = progEmpty(lang, old) ? null : { lang, text: old, plant: S.plant.lab };
+    const go = (pre) => labPut(lang, o.text, o.plant, before, (pre || '') + (o.msg || ''));
+    if (!before || normProg(lang, old) === normProg(lang, o.text)) return go();
+    const nm = progName(lang, old);
+    const kept = S.saved.some((e) => e.lang === lang && normProg(lang, e.text) === normProg(lang, old));
+    modal(o.title || 'Replace your Lab program?', `<p class="mp-q">The Lab has your ${langName(lang)} program <b>${esc(nm)}</b> (${esc(progSize(lang, old))}).${o.title ? '' : ` <b>${esc(o.name || progName(lang, o.text))}</b> will take its place.`}</p>
+      <p class="muted mp-why">Why ask? The Lab keeps only one ${langName(lang)} program. ${kept ? 'A copy of yours is already in <b>My programs</b>.' : 'Save yours in <b>My programs</b> and you can load it again later.'}</p>`, [
+      ...(kept ? [] : [{ label: 'Save it to My programs first', cls: 'primary', run: () => { const e = keepProgram({ lang, text: old, name: nm, plant: S.plant.lab }); if (!e) return false; setTimeout(() => go('Your program is saved in My programs. ')); } }]),
+      { label: o.verb || 'Replace', cls: kept ? 'primary' : '', run: () => { setTimeout(() => go()); } },
+      { label: 'Cancel' },
+    ]);
+  }
+  // write the program into the Lab: in place when the free Lab is on screen in that language, else via the router
+  function labPut(lang, text, plant, before, msg) {
+    const L = liveLab();
+    const undo = before ? Object.assign({ after: normProg(lang, text) }, before) : null;
+    if (L && L.lang === lang) { L.loadProgram(lang, text, plant); if (undo) L.offerUndo(undo); }
+    else {
+      if (lang === 'st') S.st.lab = text; else S.programs.lab = text;
+      S.lang.lab = lang;
+      if (plant && own(LL.Plants, plant)) S.plant.lab = plant;
+      saveNow();
+      labUndo = undo;
+      if (L) labView = L.view;
+      if (location.hash === '#lab') { current = ''; route(); } else location.hash = 'lab';
+    }
+    if (msg) toast(msg, { ms: 4200 });
+  }
+
+  // ── files ──
+  function download(name, text, type) {
+    const url = URL.createObjectURL(new Blob([text], { type: (type || 'text/plain') + ';charset=utf-8' }));
+    const a = document.createElement('a'); a.href = url; a.download = name; a.hidden = true;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+  function pickFile(accept, cb) {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = accept; inp.hidden = true;
+    inp.onchange = () => {
+      const f = inp.files && inp.files[0]; inp.remove(); if (!f) return;
+      if (f.size > 8 * 1024 * 1024) { toast('This file is too big (more than 8 MB).'); return; }
+      const r = new FileReader();
+      r.onload = () => cb(f, String(r.result || ''));
+      r.onerror = () => toast('Could not read the file.');
+      r.readAsText(f);
+    };
+    document.body.appendChild(inp); inp.click();
+  }
+  const fileSlug = (s) => String(s || 'program').normalize('NFKD').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').slice(0, 60) || 'program';
+  function downloadProgram() {
+    const c = labCurrent();
+    if (!c.text.trim()) { toast('The Lab program is empty. Nothing to download.'); return; }
+    const text = c.lang === 'st' ? c.text : LL.programToText(LL.parseProgram(c.text));
+    download(fileSlug(c.name) + (c.lang === 'st' ? '.st.txt' : '.txt'), text);
+    toast('Downloaded: ' + fileSlug(c.name) + (c.lang === 'st' ? '.st.txt' : '.txt'));
+  }
+  // a .txt file → { lang, text, name } or { error }
+  function readProgramFile(text, fname) {
+    text = String(text).replace(/^﻿/, '').replace(/\r\n?/g, '\n');
+    const base = String(fname || '').replace(/(\.st)?\.txt$/i, '').replace(/[-_]+/g, ' ').trim();
+    if (!text.trim()) return { error: 'The file is empty.' };
+    if (/^\s*RUNG\b/m.test(text) && !/\bEND_PROGRAM\b/i.test(text)) {
+      try { const p = LL.parseProgram(text); if (!/^\s*NAME /m.test(text) && base) p.name = base; return { lang: 'ld', text: LL.programToText(p), name: p.name || base || 'Untitled' }; } catch (e) { return { error: 'This looks like a Ladder program, but line "' + e.message + '" is wrong.' }; }
+    }
+    if (/:=|\bEND_PROGRAM\b|\bEND_IF\b|\bEND_VAR\b/i.test(text)) {
+      const r = LL.compileST(text, 'ST program');
+      return { lang: 'st', text, name: progName('st', text) !== 'ST program' ? progName('st', text) : base || 'ST program', warn: r.ok ? '' : 'It has an error on line ' + r.error.line + ': ' + r.error.msg };
+    }
+    return { error: 'This is not a Ladder Lab program. A Ladder file has RUNG lines; an ST file has := or END_PROGRAM.' };
+  }
+  function openProgramFile() {
+    pickFile('.txt,.st,text/plain', (f, text) => {
+      const r = readProgramFile(text, f.name);
+      if (r.error) { modal('Cannot open this file', `<p>${esc(r.error)}</p><p class="muted">Use a file that <b>Download this program (.txt)</b> made.</p>`, [{ label: 'OK' }]); return; }
+      labReplace({ lang: r.lang, text: r.text, name: r.name, msg: 'Opened "' + r.name + '" in the Lab.' + (r.warn ? ' ' + r.warn : '') });
+    });
+  }
+
+  // ── backup: one .json file with everything ──
+  const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+  function clean(v, d) { // a copy of plain JSON data without __proto__ & co.
+    d = d || 0;
+    if (d > 12) return undefined;
+    if (Array.isArray(v)) return v.map((x) => clean(x, d + 1));
+    if (isObj(v)) { const o = {}; Object.keys(v).forEach((k) => { if (!BAD_KEY(k)) o[k] = clean(v[k], d + 1); }); return o; }
+    return v;
+  }
+  const storeKey = (k) => !!k && k !== KEY && /^(ll-|ladderlab)/.test(k);
+  function exportWork() {
+    saveNow();
+    const store = {};
+    try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (storeKey(k)) store[k] = localStorage.getItem(k); } } catch (e) { /* storage unavailable */ }
+    const name = 'ladder-lab-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    download(name, JSON.stringify({ format: 'ladder-lab-backup', version: 1, exported: new Date().toISOString(), app: S, store }, null, 1), 'application/json');
+    toast('Backup downloaded: ' + name + '. Keep it somewhere safe.', { ms: 4500 });
+  }
+  function checkBackup(d) {
+    if (!isObj(d)) return null;
+    const raw = d.format === 'ladder-lab-backup' ? d.app : isObj(d.lessons) && isObj(d.ch) ? d : null;
+    if (!isObj(raw)) return null;
+    const a = clean(raw);
+    ['lessons', 'ch', 'chTried', 'programs', 'st', 'lang', 'plant', 'quiz'].forEach((k) => { if (a[k] != null && !isObj(a[k])) delete a[k]; });
+    ['programs', 'st'].forEach((k) => { if (a[k]) Object.keys(a[k]).forEach((p) => { if (typeof a[k][p] !== 'string') delete a[k][p]; }); });
+    ['theme', 'brand'].forEach((k) => { if (a[k] != null && typeof a[k] !== 'string') delete a[k]; });
+    a.saved = (Array.isArray(a.saved) ? a.saved : []).filter((e) => isObj(e) && typeof e.text === 'string' && typeof e.name === 'string').slice(0, SAVED_MAX)
+      .map((e) => ({ id: typeof e.id === 'string' ? e.id.slice(0, 40) : newId(), name: e.name.slice(0, 80), lang: e.lang === 'st' ? 'st' : 'ld', text: e.text, plant: own(LL.Plants, e.plant) ? e.plant : 'panel', at: +e.at || Date.now() }));
+    const store = {};
+    if (isObj(d.store)) Object.keys(d.store).forEach((k) => { if (storeKey(k) && typeof d.store[k] === 'string') store[k] = d.store[k]; });
+    return { app: a, store, exported: typeof d.exported === 'string' ? d.exported : '' };
+  }
+  function workSummary(a) {
+    const n = (o) => (isObj(o) ? Object.keys(o).filter((k) => o[k]).length : 0);
+    const progs = isObj(a.programs) ? a.programs : {}, sts = isObj(a.st) ? a.st : {};
+    const taskWork = Object.keys(progs).concat(Object.keys(sts)).filter((k) => k.startsWith('ch:')).length;
+    const labs = [];
+    if (!progEmpty('ld', progs.lab)) labs.push('Ladder "' + progName('ld', progs.lab) + '"');
+    if (!progEmpty('st', sts.lab)) labs.push('ST "' + progName('st', sts.lab) + '"');
+    const q = isObj(a.quiz) ? a.quiz : {};
+    const best = Object.keys(q).filter((k) => /best/i.test(k) && typeof q[k] === 'number' && q[k] > 0).length;
+    return { lessons: Math.min(n(a.lessons), LL.LESSONS.length), tasks: n(a.ch), taskWork, labs, saved: (a.saved || []).length, quiz: best, miss: isObj(q.miss) ? Object.values(q.miss).reduce((s, v) => s + (Array.isArray(v) ? v.length : 0), 0) : 0 };
+  }
+  function importWork() {
+    pickFile('.json,application/json', (f, text) => {
+      let d = null; try { d = JSON.parse(text); } catch (e) { /* not JSON */ }
+      const b = checkBackup(d);
+      if (!b) { modal('Not a backup file', '<p>This file is not a Ladder Lab backup. Choose the <b>.json</b> file that <b>Export my work</b> made.</p>', [{ label: 'OK' }]); return; }
+      const w = workSummary(b.app), here = workSummary(S), nStore = Object.keys(b.store).length;
+      const li = [
+        `<li><b>${w.lessons}</b> of ${LL.LESSONS.length} lessons done</li>`,
+        `<li><b>${w.tasks}</b> task${w.tasks === 1 ? '' : 's'} passed${w.taskWork ? ` · your programs for <b>${w.taskWork}</b> task${w.taskWork === 1 ? '' : 's'}` : ''}</li>`,
+        `<li>Lab: ${w.labs.length ? esc(w.labs.join(' and ')) : '<span class="muted">no Lab program</span>'}</li>`,
+        `<li><b>${w.saved}</b> program${w.saved === 1 ? '' : 's'} in My programs</li>`,
+        `<li>Quiz: ${w.quiz ? `<b>${w.quiz}</b> best score${w.quiz === 1 ? '' : 's'}` : 'no scores yet'}${w.miss ? ` · <b>${w.miss}</b> questions to repeat` : ''}</li>`,
+        nStore ? `<li>Settings of <b>${nStore}</b> simulator${nStore === 1 ? '' : 's'} (rack, network…)</li>` : '',
+      ].join('');
+      const when = b.exported ? fmtDate(Date.parse(b.exported)) : '';
+      modal('Import this backup?', `<p style="margin-top:0">File <b>${esc(f.name)}</b>${when ? ', saved ' + esc(when) : ''}. It has:</p><ul class="bk-sum">${li}</ul>
+        <div class="bk-how"><p><b>Merge</b>: keep your work here and add what is new in the file. Nothing is deleted.</p><p><b>Replace</b>: delete your work here and use only the file.</p></div>
+        <p class="muted" style="margin-bottom:0">Here now: ${here.lessons} lessons, ${here.tasks} tasks, ${here.saved} saved programs.</p>`, [
+        { label: 'Merge with my work', cls: 'primary', run: () => applyImport(b, 'merge') },
+        { label: 'Replace my work', run: () => { setTimeout(() => modal('Replace all your work?', '<p>Your progress and programs in this browser are deleted. Only the file stays. Merge is the safe choice.</p>', [{ label: 'Replace everything', cls: 'primary', run: () => applyImport(b, 'replace') }, { label: 'Cancel' }])); } },
+        { label: 'Cancel' },
+      ]);
+    });
+  }
+  function mergeVal(a, b) {
+    if (a === undefined || a === null) return b;
+    if (typeof a === 'number' && typeof b === 'number') return Math.max(a, b);
+    if (Array.isArray(a) && Array.isArray(b)) { const seen = new Set(a.map((x) => JSON.stringify(x))); return a.concat(b.filter((x) => !seen.has(JSON.stringify(x)))); }
+    if (isObj(a) && isObj(b)) { Object.keys(b).forEach((k) => { if (!BAD_KEY(k)) a[k] = mergeVal(a[k], b[k]); }); return a; }
+    return a; // text settings (theme, brand…): yours stay
+  }
+  function applyImport(b, mode) {
+    let next, lost = 0;
+    if (mode === 'replace') next = Object.assign(S_DEFAULT(), b.app);
+    else {
+      next = clean(S);
+      const extra = [];
+      Object.keys(b.app).forEach((k) => {
+        if (k === 'saved') return;
+        if (k === 'programs' || k === 'st') {
+          const lang = k === 'st' ? 'st' : 'ld';
+          next[k] = isObj(next[k]) ? next[k] : {};
+          Object.keys(b.app[k]).forEach((p) => {
+            const mine = next[k][p], theirs = b.app[k][p];
+            if (mine == null || progEmpty(lang, mine)) next[k][p] = theirs;
+            // two different Lab programs: yours stays in the Lab, the file's goes to My programs
+            else if (p === 'lab' && !progEmpty(lang, theirs) && normProg(lang, mine) !== normProg(lang, theirs)) extra.push({ id: newId(), name: progName(lang, theirs) + ' (from backup)', lang, text: theirs, plant: (isObj(b.app.plant) && own(LL.Plants, b.app.plant.lab) && b.app.plant.lab) || 'panel', at: Date.now() });
+          });
+          return;
+        }
+        next[k] = mergeVal(next[k], b.app[k]);
+      });
+      // the same saved program (same id) is not added twice; a Lab program from the file only if it is not saved yet
+      next.saved = Array.isArray(next.saved) ? next.saved : [];
+      const has = (e) => next.saved.some((x) => x.id === e.id), hasText = (e) => next.saved.some((x) => x.lang === e.lang && normProg(x.lang, x.text) === normProg(e.lang, e.text));
+      const put = (e) => { if (next.saved.length < SAVED_MAX) next.saved.push(e); else lost++; };
+      b.app.saved.forEach((e) => { if (!has(e)) put(e); });
+      extra.forEach((e) => { if (!hasText(e)) put(e); });
+    }
+    if (!Array.isArray(next.saved)) next.saved = [];
+    ['lessons', 'ch', 'chTried', 'programs', 'st', 'lang', 'plant', 'quiz'].forEach((k) => { if (!isObj(next[k])) next[k] = S_DEFAULT()[k]; });
+    S = next;
+    try {
+      if (mode === 'replace') { const ks = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (storeKey(k)) ks.push(k); } ks.forEach((k) => localStorage.removeItem(k)); }
+      Object.keys(b.store).forEach((k) => { if (mode === 'replace' || localStorage.getItem(k) == null) localStorage.setItem(k, b.store[k]); });
+    } catch (e) { /* storage unavailable */ }
+    saveNow();
+    try { sessionStorage.setItem('ladderlab.toast', (mode === 'replace' ? 'Backup imported. Your work now comes from the file.' : 'Backup imported and merged with your work.') + (lost ? ' ' + lost + ' saved programs did not fit (max ' + SAVED_MAX + ').' : '')); } catch (e) { /* storage unavailable */ }
+    location.reload();
+  }
+
+  // ── the My programs window ──
+  function myPrograms() {
+    const m = modal('My programs', '<div class="mp"><div class="mp-now"></div><div class="mp-head"><h3>Saved programs</h3><span class="mp-count"></span></div><ul class="mp-list"></ul>' +
+      `<div class="mp-files"><h3>Program file</h3><p class="muted">A plain text file. Open it in the Lab on another computer, or send it to your teacher.</p><div class="row"><button class="btn small" data-mf="down">${I.download} Download this program (.txt)</button><button class="btn small" data-mf="open">${I.upload} Open a .txt program</button></div>` +
+      `<h3>Backup of all your work</h3><p class="muted">One file with your progress, Lab programs, My programs and quiz scores. Your work lives only in this browser: make a backup now and then.</p><div class="row"><button class="btn small" data-mf="export">${I.download} Export my work</button><button class="btn small" data-mf="import">${I.upload} Import</button></div></div></div>`, [{ label: 'Close' }]);
+    m.classList.add('mp-modal');
+    const closeAll = () => { const x = $('[data-x]', m); if (x) x.click(); else m.remove(); };
+    const draw = () => {
+      const c = labCurrent();
+      $('.mp-now', m).innerHTML = `<div class="mp-cur"><span class="eyebrow">In the Lab now</span><b>${esc(c.name)}</b><span class="mp-meta"><span class="chip mp-lang">${c.lang === 'st' ? 'ST' : 'LD'}</span>${esc(plantName(c.plant))}${c.empty ? ' · <span class="muted">start program</span>' : ''}</span></div>
+        <div class="mp-saveas"><button class="btn small primary" data-mp="saveas"${c.empty ? ' disabled' : ''}>${I.folder} Save current as…</button></div>
+        <form class="mp-form" hidden><label class="mp-lbl" for="mp-name">Name</label><input id="mp-name" maxlength="80" autocomplete="off"><button class="btn small primary" type="submit">Save</button><button class="btn small" type="button" data-mp="nosave">Cancel</button></form>`;
+      $('.mp-count', m).textContent = S.saved.length + ' / ' + SAVED_MAX;
+      $('.mp-list', m).innerHTML = S.saved.length ? S.saved.map((e) => `<li class="mp-item" data-id="${esc(e.id)}">
+          <div class="mp-info"><b class="mp-name">${esc(e.name)}</b><span class="mp-meta"><span class="chip mp-lang">${e.lang === 'st' ? 'ST' : 'LD'}</span>${esc(plantName(e.plant))} · ${esc(fmtDate(e.at))}</span></div>
+          <div class="mp-act"><button class="btn small primary" data-mp="load">Load</button><button class="btn small" data-mp="ren">Rename</button><button class="btn small" data-mp="dup">Duplicate</button><button class="btn small mp-del" data-mp="del" aria-label="Delete ${esc(e.name)}" title="Delete">${I.trash}</button></div>
+        </li>`).join('') : '<li class="mp-empty">No saved programs yet. Press <b>Save current as…</b> to keep a copy of your Lab program. Then you can try something new and load your copy again later.</li>';
+      const form = $('.mp-form', m);
+      form.onsubmit = (ev) => {
+        ev.preventDefault();
+        const cur = labCurrent(), nm = $('#mp-name', m).value.trim() || cur.name;
+        const e = keepProgram({ lang: cur.lang, text: cur.text, plant: cur.plant, name: nm });
+        if (e) { toast('Saved in My programs: "' + e.name + '"'); draw(); }
+      };
+    };
+    m.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-mp],[data-mf]'); if (!b || !m.contains(b)) return;
+      const li = b.closest('.mp-item'), e = li && S.saved.find((x) => x.id === li.dataset.id);
+      const k = b.dataset.mp || b.dataset.mf;
+      if (k === 'saveas') { const f = $('.mp-form', m); f.hidden = false; $('.mp-saveas', m).hidden = true; const i = $('#mp-name', m); i.value = labCurrent().name; i.focus(); i.select(); }
+      else if (k === 'nosave') draw();
+      else if (k === 'load' && e) { closeAll(); labReplace({ lang: e.lang, text: e.text, plant: e.plant, name: e.name, msg: 'Loaded "' + e.name + '" from My programs.' }); }
+      else if (k === 'ren' && e) {
+        const r = modal('Rename program', `<div class="field"><label for="mp-rn">New name</label><input id="mp-rn" maxlength="80" value="${esc(e.name)}" autocomplete="off"></div>`, [
+          { label: 'Cancel' },
+          { label: 'Rename', cls: 'primary', run: () => { const v = $('#mp-rn', r).value.trim(); if (!v) return false; e.name = v.slice(0, 80); saveNow(); draw(); toast('Renamed'); } },
+        ]);
+        const i = $('#mp-rn', r); i.focus(); i.select();
+        i.addEventListener('keydown', (kv) => { if (kv.key === 'Enter') { kv.preventDefault(); $('.ma .primary', r).click(); } });
+      }
+      else if (k === 'dup' && e) { const c = keepProgram({ lang: e.lang, text: e.text, plant: e.plant, name: e.name + ' (copy)' }, S.saved.indexOf(e) + 1); if (c) { draw(); toast('Copy made: "' + c.name + '"'); } }
+      else if (k === 'del' && e) {
+        modal('Delete "' + e.name + '"?', '<p>The program is removed from My programs. This cannot be undone.</p><p class="muted">Not sure? Load it and press <b>Download this program (.txt)</b> first.</p>', [
+          { label: 'Cancel' },
+          { label: 'Delete', cls: 'mp-danger', run: () => { const i = S.saved.indexOf(e); if (i >= 0) S.saved.splice(i, 1); saveNow(); draw(); toast('Deleted "' + e.name + '"'); } },
+        ]);
+      }
+      else if (k === 'down') downloadProgram();
+      else if (k === 'open') { closeAll(); openProgramFile(); }
+      else if (k === 'export') exportWork();
+      else if (k === 'import') { closeAll(); importWork(); }
+    });
+    draw();
+    return m;
+  }
+  // Home: the "Keep your work safe" box
+  function workBox(el) {
+    const box = $('.mp-home', el); if (!box) return;
+    box.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-bk]'); if (!b) return;
+      if (b.dataset.bk === 'export') exportWork();
+      else if (b.dataset.bk === 'import') importWork();
+      else myPrograms();
+    });
+  }
+
+  // ═════════════ SEARCH (#search) ═════════════
+  // Lessons, tasks, machines, glossary terms and topics, as you type. Topics on Home stay the main way in.
+  let SIDX = null;
+  let glossQ = ''; // one-shot: the glossary opens filtered on this term
+  const plainText = (s) => String(s || '').replace(/\[\[[^\]]*\]\]/g, ' ').replace(/<(script|style|svg)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+  function searchIndex() {
+    if (SIDX) return SIDX;
+    const out = [];
+    const add = (o) => { o.n = out.length; o.lt = o.title.toLowerCase(); o.ls = (o.sub || '').toLowerCase(); o.lb = (o.body || '').toLowerCase(); out.push(o); };
+    TOPICS.forEach((T) => add({ type: 'topic', href: '#topic-' + T.id, title: T.title, sub: plainText(T.blurb), body: plainText(T.intro), T, meta: topicCounts(T).replace(/<[^>]+>/g, '') }));
+    LL.LESSONS.forEach((l) => add({ type: 'lesson', href: '#lesson-' + l.id, title: l.title, sub: plainText(l.summary), body: plainText(l.body) + ' ' + (l.takeaways || []).join(' '), meta: 'Lesson ' + lessonNo(l) + ' · ' + l.min + ' min', done: !!S.lessons[l.id] }));
+    LL.CHALLENGES.forEach((c) => add({ type: 'task', href: '#ch-' + c.id, title: c.title, sub: plainText(c.brief), meta: 'Level ' + c.level + (c.lang === 'st' ? ' · ST' : '') + ' · ' + plantName(c.plant), id: c.id }));
+    LL.PLANT_ORDER.forEach((p) => { const M = LL.Plants[p]; if (M) add({ type: 'machine', href: '#lab', title: M.name, sub: plainText(M.blurb), plant: p, meta: 'Machine in the Lab' }); });
+    (LL.GLOSSARY || []).forEach(([t, d]) => add({ type: 'term', href: '#glossary', title: t, sub: d, term: t, meta: 'Glossary' }));
+    SIDX = out;
+    return out;
+  }
+  const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  function hl(text, words) {
+    if (!words.length) return esc(text);
+    const re = new RegExp('(' + words.slice().sort((a, b) => b.length - a.length).map(reEsc).join('|') + ')', 'gi');
+    return String(text).split(re).map((part, i) => (i % 2 ? `<mark>${esc(part)}</mark>` : esc(part))).join('');
+  }
+  function snip(text, words, n) {
+    n = n || 170;
+    if (text.length <= n) return text;
+    const low = text.toLowerCase();
+    let at = -1;
+    words.forEach((w) => { const i = low.indexOf(w); if (i >= 0 && (at < 0 || i < at)) at = i; });
+    if (at < n - 50) return text.slice(0, n).replace(/\s+\S*$/, '') + ' …';
+    let s = text.lastIndexOf(' ', at - 50); s = s < 0 ? 0 : s + 1;
+    return '… ' + text.slice(s, s + n).replace(/\s+\S*$/, '') + (s + n < text.length ? ' …' : '');
+  }
+  const atWord = (s, i) => i === 0 || !/[a-z0-9]/i.test(s[i - 1]);
+  function runSearch(q) {
+    const words = [...new Set(q.toLowerCase().split(/[\s,;]+/).filter(Boolean))];
+    const ph = q.toLowerCase().trim();
+    const hits = [];
+    if (ph.length < 2) return { words, hits };
+    searchIndex().forEach((it) => {
+      let sc = 0;
+      for (const w of words) {
+        const t = it.lt.indexOf(w), s = it.ls.indexOf(w), b = it.lb.indexOf(w);
+        if (t < 0 && s < 0 && b < 0) return; // every word must be somewhere
+        // in the title; more for a whole word ("timer" in "On-delay timer") than for a start ("Timers")
+        if (t >= 0) sc += 10 + (t === 0 ? 3 : 0) + (atWord(it.lt, t) ? 4 : 0) + (atWord(it.lt, t) && !/[a-z0-9]/i.test(it.lt[t + w.length] || '') ? 5 : 0);
+        if (s >= 0) sc += 4 + (atWord(it.ls, s) ? 1 : 0);
+        if (b >= 0) sc += 1;
+      }
+      if (it.lt === ph) sc += 60; else if (it.lt.startsWith(ph)) sc += 25; else if (words.length > 1 && it.lt.includes(ph)) sc += 15;
+      hits.push({ it, sc });
+    });
+    hits.sort((a, b) => b.sc - a.sc || a.it.n - b.it.n);
+    return { words, hits };
+  }
+  const SEARCH_GROUPS = [['topic', 'Topics'], ['lesson', 'Lessons'], ['task', 'Tasks'], ['machine', 'Machines'], ['term', 'Glossary']];
+  const SEARCH_TRY = ['seal-in', 'TON', 'PNP', 'counter', 'Modbus', 'PID', 'star-delta', 'safety', 'interview', 'CASE'];
+  function pageSearch(q0) {
+    const el = h(`<div class="wrap srch"><span class="plate">Search</span><h1>Search</h1>
+      <div class="srch-box">${I.search}<input type="search" id="srch-q" placeholder="Lessons, tasks, machines, terms…" aria-label="Search lessons, tasks, machines, glossary and topics" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"></div>
+      <p class="srch-count" aria-live="polite"></p><div class="srch-res"></div>
+      <p class="srch-foot muted">The best way to explore is still <a href="#topics">by topic</a>: every lesson, task and machine of one subject in one place.</p></div>`);
+    const inp = $('#srch-q', el), res = $('.srch-res', el), cnt = $('.srch-count', el);
+    const open = {}; // groups opened with "Show all"
+    const hitHtml = (it, words) => {
+      const inS = words.filter((w) => it.ls.includes(w)).length, inB = words.filter((w) => it.lb.includes(w)).length;
+      const text = inB > inS ? snip(it.body, words) : snip(it.sub || '', words, it.type === 'term' ? 260 : 170);
+      const ic = it.type === 'topic' ? topicIc(it.T, 'srch-tic') : `<span class="srch-ic" aria-hidden="true">${{ lesson: I.learn, task: I.target, machine: I.lab, term: I.book }[it.type]}</span>`;
+      const done = it.type === 'lesson' ? !!S.lessons[it.href.slice(8)] : it.type === 'task' ? !!S.ch[it.id] : false;
+      return `<a class="srch-hit" href="${it.href}"${it.T ? ` style="--tc:${it.T.color}"` : ''}${it.plant ? ` data-plant="${esc(it.plant)}"` : ''}${it.term ? ` data-term="${esc(it.term)}"` : ''}>${ic}<span class="srch-tx"><span class="srch-t">${hl(it.title, words)}${done ? ' <span class="chip ok">✓</span>' : ''}</span><span class="srch-meta">${esc(it.meta || '')}</span>${text ? `<span class="srch-sn">${hl(text, words)}</span>` : ''}</span></a>`;
+    };
+    const draw = () => {
+      const q = inp.value;
+      const r = runSearch(q);
+      if (q.trim().length < 2) {
+        cnt.textContent = q.trim() ? 'Type one more letter.' : '';
+        res.innerHTML = `<div class="srch-try"><span class="muted">Try:</span>${SEARCH_TRY.map((w) => `<button type="button" class="srch-chip" data-try="${esc(w)}">${esc(w)}</button>`).join('')}</div>`;
+        return;
+      }
+      cnt.innerHTML = r.hits.length ? `<b>${r.hits.length}</b> result${r.hits.length === 1 ? '' : 's'} for “${esc(q.trim())}”` : `No result for “${esc(q.trim())}”. Try a shorter word or another spelling (for example <i>timer</i> instead of <i>timers</i>).`;
+      res.innerHTML = SEARCH_GROUPS.map(([type, name]) => {
+        const g = r.hits.filter((x) => x.it.type === type);
+        if (!g.length) return '';
+        const lim = open[type] ? g.length : type === 'term' ? 4 : 5;
+        return `<section class="srch-grp"><h2>${esc(name)} <span class="muted">${g.length}</span></h2><div class="srch-list">${g.slice(0, lim).map((x) => hitHtml(x.it, r.words)).join('')}</div>${g.length > lim ? `<button type="button" class="btn small srch-more" data-more="${type}">Show all ${g.length} ${esc(name.toLowerCase())}</button>` : ''}</section>`;
+      }).join('');
+    };
+    let qt = 0;
+    const setUrl = () => {
+      const v = inp.value.trim();
+      const hs = v ? 'search-' + encodeURIComponent(v) : 'search';
+      if ('#' + hs === location.hash) return;
+      current = hs;
+      try { history.replaceState(history.state, '', '#' + hs); } catch (e) { /* file:// */ }
+    };
+    inp.addEventListener('input', () => { clearTimeout(qt); qt = setTimeout(() => { Object.keys(open).forEach((k) => delete open[k]); draw(); setUrl(); }, 90); });
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const a = $('.srch-hit', res); if (a) { e.preventDefault(); a.click(); } } });
+    res.addEventListener('click', (e) => {
+      const t = e.target.closest('[data-try]'); if (t) { inp.value = t.dataset.try; draw(); setUrl(); inp.focus(); return; }
+      const mo = e.target.closest('[data-more]'); if (mo) { open[mo.dataset.more] = 1; draw(); return; }
+      const a = e.target.closest('.srch-hit'); if (!a) return;
+      if (a.dataset.plant) { S.plant.lab = a.dataset.plant; labView = 'machine'; saveNow(); toast('Machine: ' + plantName(a.dataset.plant) + '. Your program is kept: press Clear for an empty editor, or ⓘ How it works for its working program.', { ms: 6500, top: true }); }
+      if (a.dataset.term) glossQ = a.dataset.term;
+    });
+    inp.value = q0 || '';
+    main().appendChild(el);
+    draw();
+    requestAnimationFrame(() => { try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); } });
   }
 
   // ───────────────────────── pages ─────────────────────────
@@ -342,8 +765,14 @@
         <a class="card path" href="#challenges"><span class="ic">${I.target}</span><h3>Challenges</h3><p>Real tasks with automatic tests, hints and bug hunts.</p></a>
         <a class="card path" href="#quiz"><span class="ic">${I.quiz}</span><h3>Quiz</h3><p>Concept questions plus endless "predict the output" drills.</p></a>
       </div>
+      <section class="card mp-home" aria-labelledby="mp-home-h">
+        <span class="mp-home-ic" aria-hidden="true">${I.folder}</span>
+        <div class="mp-home-t"><h2 id="mp-home-h">Keep your work safe</h2><p>Your progress and programs are saved only in this browser. If you clear the browser data, they are gone. Export a backup file now and then. Import it on another computer to continue there.</p></div>
+        <div class="row mp-home-b"><button class="btn primary" data-bk="export">${I.download} Export my work</button><button class="btn" data-bk="import">${I.upload} Import</button><button class="btn" data-bk="my">${I.folder} My programs${S.saved.length ? ' (' + S.saved.length + ')' : ''}</button></div>
+      </section>
     </div>`);
     main().appendChild(el);
+    workBox(el);
     new MiniSim($('.demo', el), { program: 'RUNG Start/stop with seal-in\nNO(I0.3) | NO(I0.0) | COIL(Q0.0)\n. NO(Q0.0)', inputs: { 'I0.0': { name: 'START', kind: 'pb' }, 'I0.3': { name: 'STOP', kind: 'pbnc' } }, outputs: { 'Q0.0': 'Motor' } }, { label: 'Live rung', noOpen: true });
     const tg = $('.tp-grid', el);
     if (tg) TOPICS.forEach((T) => {
@@ -364,7 +793,7 @@
   }
 
   function pageLearn() {
-    const el = h(`<div class="wrap"><span class="plate">Course</span><h1 style="margin:10px 0 6px">Lessons</h1><p class="muted" style="margin:0 0 26px;max-width:62ch">Work through the levels in order. Every lesson explains <b>what</b> an instruction is, <b>why</b> it exists and <b>where</b> it is used, with live examples. Then practise in the linked challenges.</p>${TOPICS.length ? `<div class="tp-pick"><div class="tp-pick-h"><h2>Or pick a topic</h2><a class="tp-all" href="#topics">All ${TOPICS.length} topics ${I.arrow}</a></div><div class="tp-strip tp-swipe">${TOPICS.map((T) => topicChip(T)).join('')}</div><p class="tp-swipe-hint" aria-hidden="true">Swipe for more topics →</p></div>` : ''}<div class="levels"></div><div class="sec-head"><div><h2>Reference</h2><p>Terms you'll hear on site, in plain words.</p></div><a class="btn" href="#glossary">${I.book} Open glossary</a></div></div>`);
+    const el = h(`<div class="wrap"><span class="plate">Course</span><h1 style="margin:10px 0 6px">Lessons</h1><p class="muted" style="margin:0 0 26px;max-width:62ch">Work through the levels in order. Every lesson explains <b>what</b> an instruction is, <b>why</b> it exists and <b>where</b> it is used, with live examples. Then practise in the linked challenges.</p><a class="srch-learn" href="#search">${I.search}<span>Search lessons, tasks, machines and terms</span></a>${TOPICS.length ?`<div class="tp-pick"><div class="tp-pick-h"><h2>Or pick a topic</h2><a class="tp-all" href="#topics">All ${TOPICS.length} topics ${I.arrow}</a></div><div class="tp-strip tp-swipe">${TOPICS.map((T) => topicChip(T)).join('')}</div><p class="tp-swipe-hint" aria-hidden="true">Swipe for more topics →</p></div>` : ''}<div class="levels"></div><div class="sec-head"><div><h2>Reference</h2><p>Terms you'll hear on site, in plain words.</p></div><a class="btn" href="#glossary">${I.book} Open glossary</a></div></div>`);
     const lv = $('.levels', el);
     LL.LEVELS.forEach((L) => {
       const b = h(`<section class="level-block"><div class="level-head"><span class="big">${L.n}</span><div><h2>${esc(L.name)}</h2><p>${esc(L.sub)}</p></div></div><div class="lessons"></div></section>`);
@@ -427,7 +856,7 @@
     $$('[data-open]', el).forEach((o) => {
       const spec = LL.OPEN_PROGRAMS[o.dataset.open];
       const b = h(`<button class="btn primary">${I.lab} Open the video circuit${spec.lang === 'st' ? ' (ST)' : ''} in the Lab</button>`);
-      b.onclick = () => { if (spec.lang === 'st') { S.st.lab = spec.program; S.lang.lab = 'st'; } else { S.programs.lab = spec.program; S.lang.lab = 'ld'; } S.plant.lab = spec.plant; saveNow(); location.hash = 'lab'; };
+      b.onclick = () => labReplace({ lang: spec.lang === 'st' ? 'st' : 'ld', text: spec.program, plant: spec.plant, name: progName(spec.lang === 'st' ? 'st' : 'ld', spec.program) });
       o.appendChild(b);
     });
     $('[data-done]', el).onclick = () => {
@@ -629,7 +1058,8 @@
         .map(([t, d]) => `<div class="card gl-item"><h4>${esc(t)}</h4><p>${esc(d)}</p></div>`).join('') || '<p class="muted">No match. Try a shorter word.</p>';
     };
     $('#gl-q', el).addEventListener('input', (e) => draw(e.target.value));
-    draw('');
+    if (glossQ) $('#gl-q', el).value = glossQ; // from a search result
+    draw(glossQ); glossQ = '';
     main().appendChild(el);
   }
 
@@ -798,11 +1228,13 @@
   // ───────────────────────── the Lab ─────────────────────────
   const TOOL_GROUPS = [
     [['select', 'Select'], ['erase', 'Erase'], ['link', 'Branch']],
-    [['NO', '-| |-'], ['NC', '-|/|-'], ['P', 'P edge'], ['N', 'N edge'], ['CMP', 'Compare'], ['WIRE', 'Wire'], ['NOT', 'NOT']],
+    [['NO', '-| |-'], ['NC', '-|/|-'], ['P', 'P edge'], ['N', 'N edge'], ['CMP', 'Compare'], ['LIM', 'In range'], ['WIRE', 'Wire'], ['NOT', 'NOT']],
     [['COIL', '( )'], ['SET', '(S)'], ['RST', '(R)'], ['NCOIL', '(/)']],
     [['TON', 'TON'], ['TOF', 'TOF'], ['TP', 'TP'], ['RTO', 'RTO'], ['CTU', 'CTU'], ['CTD', 'CTD']],
     [['MOV', 'MOV'], ['ADD', 'ADD'], ['SUB', 'SUB'], ['MUL', 'MUL'], ['DIV', 'DIV'], ['MOD', 'MOD']],
     [['SHRB', 'SHRB'], ['SHL', 'SHL'], ['SHR', 'SHR']],
+    [['WAND', 'W AND'], ['WOR', 'W OR'], ['WXOR', 'W XOR'], ['WNOT', 'W NOT'], ['I_BCD', 'INT→BCD'], ['BCD_I', 'BCD→INT']],
+    [['CONV', 'CONV'], ['ROUND', 'ROUND'], ['TRUNC', 'TRUNC'], ['NORM_X', 'NORM_X'], ['SCALE_X', 'SCALE_X']],
     [['SMOV', 'S MOV'], ['CONCAT', 'CONCAT'], ['ITOS', 'INT→STR'], ['SMID', 'MID']],
     [['CALL', 'CALL block'], ['PID', 'PID']],
     [['MC_POWER', 'MC Power'], ['MC_HOME', 'MC Home'], ['MC_ABS', 'Move abs'], ['MC_REL', 'Move rel'], ['MC_JOG', 'MC Jog'], ['MC_STOP', 'MC Stop'], ['MC_RESET', 'MC Reset'], ['MC_SETPOS', 'Set pos']],
@@ -818,6 +1250,7 @@
       case 'P': case 'N': return `<svg viewBox="0 0 30 22" ${s}><path d="M1 11h9M20 11h9M10 4v14M20 4v14"/><text x="15" y="15" font-size="10" font-weight="700" text-anchor="middle" fill="currentColor" stroke="none" font-family="monospace">${k}</text></svg>`;
       case 'CMP': return `<svg viewBox="0 0 30 22" ${s}><rect x="5" y="4" width="20" height="14" rx="2"/><text x="15" y="15" font-size="9" text-anchor="middle" fill="currentColor" stroke="none" font-family="monospace">≥</text></svg>`;
       case 'WIRE': return `<svg viewBox="0 0 30 22" ${s}><path d="M2 11h26"/></svg>`;
+      case 'LIM': return `<svg viewBox="0 0 30 22" ${s}><rect x="4" y="4" width="22" height="14" rx="2"/><path d="M9 14v-6M21 14v-6"/><circle cx="15" cy="11" r="1.8" fill="currentColor"/></svg>`;
       case 'NOT': return `<svg viewBox="0 0 30 22" ${s}><rect x="4" y="5" width="22" height="12" rx="2"/><text x="15" y="14.5" font-size="7" font-weight="700" text-anchor="middle" fill="currentColor" stroke="none" font-family="monospace">NOT</text></svg>`;
       case 'COIL': case 'SET': case 'RST': case 'NCOIL': {
         const l = { SET: 'S', RST: 'R', NCOIL: '/' }[k] || '';
@@ -851,6 +1284,34 @@
       this.build();
       this.newMachine();
       tickers.add(this);
+      if (!this.ch) {
+        labNow = this;
+        // opened by a replacement (lesson example, My programs…): offer Undo; Ladder also gets it on ↶
+        const u = labUndo; labUndo = null;
+        if (u && u.lang === this.lang) { if (u.lang === 'ld') { this.hist = [normProg('ld', u.text), this.hist[0]]; this.hi = 1; } this.offerUndo(u); }
+      }
+    }
+
+    // replace the free Lab's program in place (callers: labPut; the guard has already asked)
+    loadProgram(lang, text, plant) {
+      if (plant && own(LL.Plants, plant) && plant !== this.plantId) { this.plantId = plant; S.plant.lab = plant; const ps = $('#plant-sel', this.el); if (ps) ps.value = plant; }
+      if (lang === 'st') { this.src = text; S.st[this.key] = text; saveNow(); $('#st-src', this.el).value = text; this._gutter(); this.newMachine(); return; }
+      let p; try { p = LL.parseProgram(text); } catch (e) { p = LL.parseProgram('RUNG\n'); }
+      if (!p.rungs.length) p.rungs.push(LL.emptyRung(p.cols));
+      this.prog = p; this.sel = null; this.blk = null; this.newMachine(); this.commit();
+    }
+    // "Your old program was replaced. [Undo]" (it goes away when you hide it or leave the Lab)
+    offerUndo(u) {
+      const old = $('.mp-undo', this.el); if (old) old.remove();
+      const bar = h(`<div class="mp-undo" role="status"><span class="mp-undo-ic" aria-hidden="true">${I.undo}</span><span class="mp-undo-t">Your old program <b>${esc(progName(u.lang, u.text))}</b> was replaced.</span><button type="button" class="btn small" data-u>Undo</button><button type="button" class="iconbtn" data-ux aria-label="Hide this message">✕</button></div>`);
+      $('[data-ux]', bar).onclick = () => bar.remove();
+      $('[data-u]', bar).onclick = () => {
+        bar.remove();
+        // unchanged since the replacement: straight back; changed: the guard asks again (nothing is lost)
+        if (normProg(u.lang, labText(u.lang)) === u.after) labPut(u.lang, u.text, u.plant, null, 'Your old program is back.');
+        else labReplace({ lang: u.lang, text: u.text, plant: u.plant, name: progName(u.lang, u.text), msg: 'Your old program is back.' });
+      };
+      $('.fault-host', this.el).before(bar);
     }
 
     get plant() { return LL.Plants[this.plantId]; }
@@ -890,6 +1351,7 @@
             <button class="btn small ld-only" data-a="brands" title="This ladder in TIA Portal, Studio 5000, Schneider, TwinCAT, Omron and as Structured Text">${I.code} Other brands</button>
             <button class="btn small" data-a="clear" title="Empty the editor">${I.trash}<span class="hide-s">Clear</span></button>
             <button class="btn small" data-a="file" title="New, examples, import/export">${I.file} File</button>
+            ${ch ? '' : `<button class="btn small" data-a="myprogs" title="My programs: save, load, download and back up your programs">${I.folder}<span class="hide-s">My programs</span></button>`}
             <span class="scanstate"></span>
           </div>
           <div class="fault-host"></div>
@@ -1222,6 +1684,14 @@
       }
       if (type === 'PID') { const ai = this.plant.inputs.find((x) => /^AIW/.test(x.addr)), aq = this.plant.outputs.find((x) => /^AQW/.test(x.addr)); return { a: ai ? ai.addr : 'MW10', b: 'MW20', dst: aq ? aq.addr : 'MW30', kp: 1, ti: 10, td: 0 }; }
       if (type === 'SHRB') return { src: (this.plant.inputs.find((x) => x.kind === 'sensor') || this.plant.inputs[0]).addr, addr: 'M10.0', n: 8 };
+      // word logic, BCD, REAL: a free word / REAL for the result, an analog input of this machine for NORM_X
+      if (['LIM', 'NORM_X', 'SCALE_X', 'CONV', 'ROUND', 'TRUNC', 'I_BCD', 'BCD_I'].concat(LL.WORDLOGIC || []).includes(type)) {
+        const free = (pre, from) => { let k = from; while (used.has(pre + k)) k++; return pre + k; };
+        const ai = (this.plant.inputs.find((x) => /^AIW/.test(x.addr)) || {}).addr || 'MW10';
+        return { LIM: ai === 'MW10' ? { a: '10', src: 'MW10', b: '20' } : { a: '5000', src: ai, b: '20000' }, NORM_X: { a: '0', src: ai, b: '27648', dst: free('MR', 0) }, SCALE_X: { a: '0.0', src: 'MR0', b: '100.0', dst: free('MR', 1) },
+          CONV: { src: 'MW10', dst: free('MR', 0) }, ROUND: { src: 'MR0', dst: free('MW', 20) }, TRUNC: { src: 'MR0', dst: free('MW', 20) }, I_BCD: { src: 'MW10', dst: free('MW', 20) }, BCD_I: { src: 'MW10', dst: free('MW', 20) },
+          WAND: { a: 'MW10', b: '16#00FF', dst: free('MW', 20) }, WOR: { a: 'MW10', b: '16#0001', dst: free('MW', 20) }, WXOR: { a: 'MW10', b: 'MW12', dst: free('MW', 20) }, WNOT: { a: 'MW10', dst: free('MW', 20) } }[type];
+      }
       return {};
     }
 
@@ -1307,6 +1777,7 @@
         case 'rk': modal('Studio 5000 rung text', `<p class="muted" style="margin:0 0 10px">The same ladder in Rockwell's rung text (XIC = NO contact, XIO = NC contact, OTE = coil, OTL / OTU = set / reset, [ , ] = a parallel branch). Logix Designer shows it when you edit a rung as text, and you can paste a rung into it. See the lesson "From Ladder Lab to the real software".</p><pre>${esc(LL.toRockwell(Object.assign({}, this.prog, { tags: this.tags() })))}</pre>`, [{ label: 'Close' }]); break;
         case 'st': modal('Structured Text', `<p class="muted" style="margin:0 0 10px">The same logic written as IEC 61131-3 Structured Text, as in CODESYS. Reading both side by side is a great way to learn.</p><pre>${esc(LL.toST(Object.assign({}, this.prog, { tags: this.tags() })))}</pre>`, [{ label: 'Close' }]); break;
         case 'file': this.fileMenu(); break;
+        case 'myprogs': myPrograms(); break;
         case 'clear': this.clearEditor(); break;
         // rung ops
         case 'r-add': { const i = this.sel.i; P.rungs.splice(i + 1, 0, LL.emptyRung(P.cols)); this.sel = { kind: 'rung', i: i + 1 }; this.commit('Rung added'); break; }
@@ -1397,12 +1868,12 @@
       const nameOf = (a) => tags[a] || '';
       const inputs = this.plant.inputs.map((d) => [d.addr, nameOf(d.addr)]);
       const outputs = this.plant.outputs.map((d) => [d.addr, nameOf(d.addr)]);
-      const mem = [...new Set(['M0.0', 'M0.1', 'M0.2', 'M0.3'].concat(used.filter((a) => /^M\d/.test(a))))].sort().map((a) => [a, nameOf(a)]);
+      const mem = [...new Set(['M0.0', 'M0.1', 'M0.2', 'M0.3'].concat(used.filter((a) => /^M\d/.test(a) || /^MW\d+\.\d+$/.test(a))))].sort().map((a) => [a, nameOf(a)]);
       const tim = used.filter((a) => /^T\d+$/.test(a)).map((a) => [a, '']);
       const ctr = used.filter((a) => /^C\d+$/.test(a)).map((a) => [a, '']);
       const bvs = this.blk ? this.blockVars() : [];
       if (bvs.length) { inputs.unshift(...bvs); outputs.unshift(...bvs); mem.unshift(...bvs.filter((x) => !/INT/.test(x[1]))); tim.unshift(...bvs.filter((x) => x[1] === 'static')); ctr.unshift(...bvs.filter((x) => x[1] === 'static')); }
-      const words0 = [...new Set(['MW0'].concat(this.plant.inputs.concat(this.plant.outputs).map((d) => d.addr).filter((a) => /^A[IQ]W/.test(a)), used.filter((a) => /^MW/.test(a)), used.filter((a) => /^C\d+$/.test(a)).map((a) => a + '.CV'), used.filter((a) => /^T\d+$/.test(a)).map((a) => a + '.ET')))].map((a) => [a, '']);
+      const words0 = [...new Set(['MW0'].concat(this.plant.inputs.concat(this.plant.outputs).map((d) => d.addr).filter((a) => /^A[IQ]W/.test(a)), used.filter((a) => /^M[WR]\d+$/.test(a)), used.filter((a) => /^C\d+$/.test(a)).map((a) => a + '.CV'), used.filter((a) => /^T\d+$/.test(a)).map((a) => a + '.ET')))].map((a) => [a, '']);
       const words = bvs.filter((x) => !/BOOL/.test(x[1])).concat(words0);
       let fields = '';
       let chips = '';
@@ -1453,6 +1924,19 @@
         chips = this.quickChips('src', inputs.concat(mem));
       } else if (T === 'SHL' || T === 'SHR') {
         fields += `<div class="field"><label for="f-a">IN (word)</label><input id="f-a" class="mono" data-f="a" value="${esc(cell.a)}"></div><div class="field"><label for="f-b">N (bits to shift)</label><input id="f-b" class="mono" data-f="b" value="${esc(cell.b)}"></div><div class="field"><label for="f-dst">OUT (word)</label><input id="f-dst" class="mono" data-f="dst" value="${esc(cell.dst)}"></div>`;
+      } else if (T === 'LIM' || (LL.WORDLOGIC || []).includes(T) || (LL.BCD_OPS || []).includes(T) || (LL.REAL_OPS || []).includes(T)) {
+        // word logic, LIM, BCD and REAL: one labelled field per operand
+        const fld = (f, label) => `<div class="field"><label for="f-${f}">${label}</label><input id="f-${f}" class="mono" data-f="${f}" value="${esc(cell[f])}" autocomplete="off" spellcheck="false"></div>`;
+        const res = (what) => fld('dst', 'Result ' + what);
+        let note;
+        if (T === 'LIM') { fields += fld('a', 'Low limit') + fld('src', 'Value to test') + fld('b', 'High limit'); note = 'Power passes while LOW ≤ VALUE ≤ HIGH. Use words (MW10, AIW0), REAL (MR0) or numbers (12.5).'; }
+        else if (T === 'WNOT') { fields += fld('a', 'IN (word)') + res('(word)'); note = 'Every bit flips: 16#00FF becomes 16#FF00.'; }
+        else if ((LL.WORDLOGIC || []).includes(T)) { fields += fld('a', 'A (word)') + fld('b', 'B (word or mask)') + res('(word)'); note = 'Write a mask in hex 16#00FF or binary 2#0000_0101. A word has 16 bits: bit 0 on the right … bit 15 on the left.'; }
+        else if (T === 'I_BCD') { fields += fld('src', 'Number 0 … 9999') + res('(BCD word)'); note = '1234 becomes 16#1234: one digit in every 4 bits, for a 7-segment display.'; }
+        else if (T === 'BCD_I') { fields += fld('src', 'BCD word') + res('(word)'); note = '16#1234 becomes 1234, e.g. from a thumbwheel switch. A 4-bit group above 9 is not BCD: then nothing is written.'; }
+        else if (T === 'NORM_X' || T === 'SCALE_X') { fields += fld('a', 'MIN') + fld('src', 'VALUE') + fld('b', 'MAX') + res(T === 'NORM_X' ? '(MRn)' : '(MRn or word)'); note = T === 'NORM_X' ? 'VALUE from MIN … MAX (e.g. AIW0, 0 … 27648) becomes 0.0 … 1.0 in a REAL (MR0 … MR99).' : 'VALUE 0.0 … 1.0 (a REAL, e.g. from NORM_X) becomes MIN … MAX. Into a word (MW, AQW) it is rounded.'; }
+        else { fields += fld('src', 'Source') + res(T === 'CONV' ? '(other type)' : '(word or MRn)'); note = T === 'CONV' ? 'INT → REAL: MW10 into MR0. REAL → INT: MR0 into MW10, rounded to the nearest (2.5 → 2, 3.5 → 4).' : T === 'ROUND' ? 'Source is a REAL (MR0 or 2.5). 2.4 → 2, 2.6 → 3, x.5 → the even number.' : 'Source is a REAL (MR0 or 2.5). The decimals are cut off: 2.9 → 2, -2.9 → -2.'; }
+        chips = `<p class="muted" style="font-size:.82rem;margin:0 0 6px">${note}${T === 'LIM' || (LL.REAL_OPS || []).includes(T) ? ' MR0 … MR99 hold REAL numbers: write them with a point (100.0).' : ''}</p>` + this.quickChips(T === 'LIM' || T === 'NORM_X' ? 'src' : (LL.WORDLOGIC || []).includes(T) ? 'a' : 'src', words);
       } else if (LL.MATH.includes(T)) {
         fields += `<div class="field"><label for="f-a">A</label><input id="f-a" class="mono" data-f="a" value="${esc(cell.a)}"></div><div class="field"><label for="f-b">B</label><input id="f-b" class="mono" data-f="b" value="${esc(cell.b)}"></div><div class="field"><label for="f-dst">Result</label><input id="f-dst" class="mono" data-f="dst" value="${esc(cell.dst)}"></div>`;
       }
@@ -1556,6 +2040,12 @@
     }
     renderTaskBadge() { const p = $('.chal .plate', this.el); if (p && !$('.chal .chip.ok', this.el)) p.insertAdjacentHTML('afterend', '<span class="chip ok">✓ passed</span>'); }
     clearEditor() {
+      // the free Lab: the guard offers "Save it to My programs first", then Undo
+      if (!this.ch) {
+        const st = this.lang === 'st';
+        labReplace({ lang: this.lang, text: st ? this.stTemplate() : 'NAME New program\nRUNG\n', title: st ? 'Empty the ST editor?' : 'Empty your Lab program?', verb: 'Empty it', msg: st ? 'ST editor emptied.' : 'Editor emptied. Undo (↶) brings your program back.' });
+        return;
+      }
       if (this.lang === 'st') {
         modal('Empty the ST editor?', '<p>Your Structured Text is replaced by an empty program with the I/O of this machine. Copy it first (File) if you want to keep it.</p>', [
           { label: 'Cancel' },
@@ -1592,11 +2082,12 @@
       m.addEventListener('click', (e) => {
         const b = e.target.closest('[data-m],[data-ex]'); if (!b) return;
         const k = b.dataset.m;
+        if (!this.ch && (k === 'new' || k === 'video')) { m.remove(); labReplace(k === 'new' ? { lang: 'ld', text: 'NAME New program\nRUNG\n', name: 'a new empty program', msg: 'New program' } : { lang: 'ld', text: LL.OPEN_PROGRAMS.video.program, plant: 'cylinders', msg: 'Video circuit loaded' }); return; }
         if (k === 'new') { this.prog = LL.parseProgram('NAME ' + (this.ch ? this.ch.title : 'New program') + '\nRUNG\n'); this.sel = null; this.m.load(this.prog); this.m.reset(); this.commit('New program'); m.remove(); }
         if (k === 'video') { this.prog = LL.parseProgram(LL.OPEN_PROGRAMS.video.program); if (!this.ch) { this.plantId = 'cylinders'; S.plant.lab = 'cylinders'; const ps = $('#plant-sel', this.el); if (ps) ps.value = 'cylinders'; } this.sel = null; this.newMachine(); this.commit('Video circuit loaded'); m.remove(); }
         if (k === 'copy') { const ta = $('#ptext', m); const t = ta.value; (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('Copied'), () => { ta.focus(); ta.select(); toast('Select-all done: copy with your keyboard'); }); }
         if (k === 'import') { try { const p = LL.parseProgram($('#ptext', m).value); if (!p.rungs.length) p.rungs.push(LL.emptyRung(p.cols)); this.prog = p; this.sel = null; this.m.load(p); this.m.reset(); this.commit('Program imported'); m.remove(); } catch (err) { toast('Could not read it: ' + err.message); } }
-        if (b.dataset.ex != null) { const e2 = ex[+b.dataset.ex]; openInLab(Object.assign({ name: e2.t }, e2.spec)); m.remove(); this.prog = LL.parseProgram(S.programs.lab); this.plantId = 'panel'; const ps = $('#plant-sel', this.el); if (ps) ps.value = 'panel'; this.sel = null; this.newMachine(); this.commit('Example loaded on the trainer panel'); }
+        if (b.dataset.ex != null) { const e2 = ex[+b.dataset.ex]; m.remove(); openInLab(Object.assign({ name: e2.t }, e2.spec, { plant: 'panel' }), 'Example loaded on the trainer panel'); }
       });
     }
 
@@ -1619,14 +2110,11 @@
       modal('How the ' + this.plant.name.toLowerCase() + ' works', `<ul class="guide">${g.how.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>${note}<details style="margin-top:12px"><summary class="panel-title" style="padding-left:0;cursor:pointer">I/O list (${this.plant.inputs.length + this.plant.outputs.length} signals)</summary><div class="tbl"><table>${io}</table></div></details>`, btns);
     }
     loadExample(ch, kind) {
-      if (kind === 'video') { S.programs.lab = LL.OPEN_PROGRAMS.video.program; S.lang.lab = 'ld'; S.plant.lab = 'cylinders'; }
-      else if (kind === 'st') { S.st.lab = ch.solution; S.lang.lab = 'st'; S.plant.lab = ch.plant; }
-      else {
-        const head = (/^NAME /m.test(ch.solution) ? '' : 'NAME ' + ch.title + ' (example)\n') + Object.keys(ch.tags || {}).map((a) => 'TAG ' + a + ' ' + ch.tags[a] + '\n').join('');
-        S.programs.lab = head + ch.solution; S.lang.lab = 'ld'; S.plant.lab = ch.plant;
-      }
-      saveNow(); current = ''; route();
-      toast('Working program loaded: press the buttons and watch it run');
+      const msg = 'Working program loaded: press the buttons and watch it run';
+      if (kind === 'video') return labReplace({ lang: 'ld', text: LL.OPEN_PROGRAMS.video.program, plant: 'cylinders', msg });
+      if (kind === 'st') return labReplace({ lang: 'st', text: ch.solution, plant: ch.plant, name: 'the working ST program', msg });
+      const head = (/^NAME /m.test(ch.solution) ? '' : 'NAME ' + ch.title + ' (example)\n') + Object.keys(ch.tags || {}).map((a) => 'TAG ' + a + ' ' + ch.tags[a] + '\n').join('');
+      labReplace({ lang: 'ld', text: head + ch.solution, plant: ch.plant, msg });
     }
 
     fileMenuST() {
@@ -1643,9 +2131,12 @@
         const b = e.target.closest('[data-m],[data-ex]'); if (!b) return;
         const k = b.dataset.m;
         if (k === 'io') { const decl = LL.stIoDecls(this.plant, this.tags()); setSrc(/\bVAR\b[\s\S]*?\bEND_VAR\b/i.test(this.src) ? this.src.replace(/\bVAR\b[\s\S]*?\bEND_VAR\b/i, decl) : decl + '\n\n' + this.src); m.remove(); toast('I/O declarations inserted'); }
+        if (k === 'new' && !this.ch) { m.remove(); labReplace({ lang: 'st', text: this.stTemplate(), name: 'a new empty program', msg: 'New ST program' }); return; }
         if (k === 'new') { setSrc(this.stTemplate()); m.remove(); }
         if (k === 'copy') { const ta = $('#ptext', m); (navigator.clipboard ? navigator.clipboard.writeText(ta.value) : Promise.reject()).then(() => toast('Copied'), () => { ta.focus(); ta.select(); toast('Select-all done: copy with your keyboard'); }); }
-        if (k === 'import') { setSrc($('#ptext', m).value); m.remove(); }
+        // Apply text is an edit of your own text: no question, but the free Lab offers Undo
+        if (k === 'import') { const was = this.src, t = $('#ptext', m).value; setSrc(t); m.remove(); if (!this.ch && !progEmpty('st', was) && normProg('st', was) !== normProg('st', t)) this.offerUndo({ lang: 'st', text: was, plant: this.plantId, after: normProg('st', t) }); }
+        if (b.dataset.ex != null && !this.ch) { const sp = ex[+b.dataset.ex].spec; m.remove(); labReplace({ lang: 'st', text: sp.program, plant: sp.plant || 'panel', name: ex[+b.dataset.ex].t, msg: 'Example loaded' }); return; }
         if (b.dataset.ex != null) { const sp = ex[+b.dataset.ex].spec; m.remove(); this.plantId = sp.plant || 'panel'; S.plant.lab = this.plantId; const ps = $('#plant-sel', this.el); if (ps) ps.value = this.plantId; this.src = sp.program; S.st[this.key] = sp.program; saveNow(); $('#st-src', this.el).value = sp.program; this._gutter(); this.newMachine(); toast('Example loaded'); }
       });
     }
@@ -1701,16 +2192,22 @@
       }
       const parts = [];
       const used = LL.usedAddrs(this.prog);
+      // words used as 16 bits (word logic, BCD, a bit of the word) also show their hex pattern
+      const pat = new Set();
+      [this.prog.rungs].concat((this.prog.blocks || []).map((b) => b.rungs)).forEach((rs) => rs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && ['WAND', 'WOR', 'WXOR', 'WNOT', 'I_BCD', 'BCD_I'].includes(c.type)) ['a', 'b', 'src', 'dst'].forEach((k) => c[k] && pat.add(c[k])); }))));
+      used.forEach((a) => { const mm = /^MW(\d+)\.\d+$/.exec(a); if (mm) pat.add('MW' + mm[1]); });
       [...used].sort().forEach((a) => {
         if (/^T\d+$/.test(a)) { const t = this.m.timers[+a.slice(1)]; parts.push([a + '.ET', t ? (t.et / 1000).toFixed(2) + ' s' : '0.00 s'], [a + ' done', this.m.bit(a)]); }
         else if (/^C\d+$/.test(a)) parts.push([a + '.CV', this.m.word(a + '.CV')], [a + ' done', this.m.bit(a)]);
-        else if (/^(MW|AQW|MD)\d+$/.test(a)) parts.push([a, this.m.word(a)]);
+        else if (/^(MW|AQW|MD)\d+$/.test(a)) { const v = this.m.word(a); parts.push([a, pat.has(a) ? LL.hex4(v) + ' · ' + v : v]); }
+        else if (/^MW\d+\.\d+$/.test(a)) parts.push([a, this.m.bit(a)]);
+        else if (/^MR\d+$/.test(a)) parts.push([a, LL.fmtReal(this.m.word(a), 4)]);
         else if (/STR\d/.test(a)) parts.push([a, "'" + this.m.str(a) + "'"]);
         else if (/^DB\d/.test(a)) { const e0 = this.m.error; let v = LL.isStrAddr(a) ? "'" + this.m.str(a) + "'" : this.m.read(a); if (!e0) this.m.error = e0; parts.push([a, v]); }
         else if (/^M\d/.test(a)) parts.push([a, this.m.bit(a)]);
       });
       const tags = this.tags();
-      const html = parts.map(([a, v]) => `<tr><td>${esc(a)}</td><td>${esc(tags[a] || '')}<span class="kind">${/^M\d/.test(a) ? 'memory' : ''}</span></td><td class="${v === 1 ? 'v1' : ''}">${esc(v)}</td></tr>`).join('');
+      const html = parts.map(([a, v]) => `<tr><td>${esc(a)}</td><td>${esc(tags[a] || '')}<span class="kind">${/^M\d/.test(a) ? 'memory' : /^MR\d/.test(a) ? 'REAL' : /^MW\d+\.\d+$/.test(a) ? 'bit of ' + a.split('.')[0] : ''}</span></td><td class="${v === 1 ? 'v1' : ''}">${esc(v)}</td></tr>`).join('');
       const tb = $('.valrows', this.el);
       if (tb && tb._h !== html) { tb.innerHTML = html; tb._h = html; }
     }
@@ -1770,6 +2267,7 @@
     else if (hsh === 'challenges' || chId) tab = 'challenges';
     else if (hsh === 'path' || hsh.startsWith('path-')) tab = 'path';
     else if (hsh === 'quiz' || hsh.startsWith('quiz-')) tab = 'quiz';
+    else if (hsh === 'search' || hsh.startsWith('search-')) tab = 'search';
     $$('[data-tab]').forEach((a) => a.classList.toggle('on', a.dataset.tab === tab));
     if (hsh === 'learn') pageLearn();
     else if (hsh.startsWith('lesson-')) { const [lid, tid] = hsh.slice(7).split('~'); pageLesson(lid, tid); }
@@ -1779,6 +2277,7 @@
     else if (chId) new Lab({ challenge: LL.CH_BY_ID[chId] });
     else if (hsh === 'quiz' || hsh.startsWith('quiz-')) pageQuiz(hsh.slice(5));
     else if (hsh === 'glossary') pageGlossary();
+    else if (tab === 'search') { let q = hsh.slice(7); try { q = decodeURIComponent(q); } catch (e) { /* keep it raw */ } pageSearch(q); }
     else if (isTopic) pageTopic(hsh.slice(6));
     else pageHome();
     const d = countDone();
@@ -1801,6 +2300,7 @@
         <a class="brand" href="#home" aria-label="Ladder Lab home">${BRAND_SVG}<span>Ladder <b>Lab</b></span></a>
         <nav class="nav"><a data-tab="learn" href="#learn">Learn</a><a data-tab="lab" href="#lab">Lab</a><a data-tab="path" href="#path">Path</a><a data-tab="challenges" href="#challenges">Challenges</a><a data-tab="quiz" href="#quiz">Quiz</a><a href="#glossary">Glossary</a></nav>
         <span class="spacer"></span><span class="xp"></span>
+        <a class="iconbtn srch-btn" data-tab="search" href="#search" aria-label="Search" title="Search (key /)">${I.search}</a>
         <button class="iconbtn" id="theme-btn" aria-label="Switch light or dark theme"></button>
       </div></header>
       <main id="main"></main>
@@ -1811,6 +2311,16 @@
     const setIcon = () => { tb.innerHTML = isDark() ? I.sun : I.moon; };
     tb.onclick = () => { S.theme = isDark() ? 'light' : 'dark'; save(); applyTheme(); setIcon(); };
     applyTheme(); setIcon();
+    // "/" opens Search (not while typing, not over a window)
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || $('.modal')) return;
+      const t = e.target;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      e.preventDefault();
+      if (!/^#search/.test(location.hash)) location.hash = 'search'; else { const i = $('#srch-q'); if (i) i.focus(); }
+    });
+    // a message that survives the reload after Import
+    try { const msg = sessionStorage.getItem('ladderlab.toast'); if (msg) { sessionStorage.removeItem('ladderlab.toast'); setTimeout(() => toast(msg, { ms: 5500 }), 400); } } catch (e) { /* storage unavailable */ }
   }
 
   shell();
