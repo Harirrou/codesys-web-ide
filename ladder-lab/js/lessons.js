@@ -1182,6 +1182,56 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
       challenges: ["cio-1", "cio-2", "cio-plaus"],
     },
     {
+      id: 'loto-handover', level: 5, title: "Lock-out, and handing a project over", min: 10,
+      summary: "The seven steps of lock-out / tag-out, why an E-stop or a forced output is not isolation, and what belongs in a handover: backups, as-built drawings, lists, passwords, test records, FAT and SAT, and a change log.",
+      body: `
+<h3>Before you touch a machine: lock-out, tag-out</h3>
+<p>Most serious accidents with machines happen during repair, cleaning and fault finding, not during production. The rule that prevents them is <b>lock-out, tag-out (LOTO)</b>: switch the energy off at the source, put <b>your own padlock</b> on it, and keep the key in your pocket.</p>
+<ol>
+<li><b>Tell</b> the operators what you will do.</li>
+<li><b>Stop</b> the machine in the normal way.</li>
+<li><b>Isolate</b> every energy source: main switch, air supply valve, hydraulic pump, steam, water.</li>
+<li><b>Lock and tag</b>: your padlock and your name on every isolator. Three people working means three padlocks.</li>
+<li><b>Release stored energy</b>: vent the air, let hydraulic accumulators down, block or lower anything that can fall, wait until drive capacitors are empty (often 5 minutes).</li>
+<li><b>Prove it is dead</b>: try to start the machine, and measure the voltage with a tester you have just checked.</li>
+<li>Work. Then tools out, guards on, people out, <b>your own</b> padlock off.</li>
+</ol>
+<div class="callout tip"><b>An E-stop is not isolation.</b> Neither is "PLC in STOP", a forced output or a software interlock. They stop a machine. They do not make it safe to put your hands in. Only an isolator with a padlock does.</div>
+<p>As a PLC person you will often be asked to "just hold that valve with a force so I can reach in". The answer is no: isolate, lock, then reach in.</p>
+
+<h3>Work on a live panel</h3>
+<p>Fault finding sometimes needs the power on. Then: only trained people, the right meter and probes, one hand where possible, no jewellery, know what is 24 V and what is 400 V before you open the door, and never bridge a safety contact.</p>
+
+<h3>The end of a project: handover</h3>
+<p>A machine is finished when someone else can run it and repair it without calling you. That needs a handover package:</p>
+<div class="tbl"><table>
+<tr><th>What</th><th>Why</th></tr>
+<tr><td><b>Final program backup</b> of the PLC, the HMI and every drive, with a clear version name and date</td><td>After a CPU failure the machine is back in an hour, not a week</td></tr>
+<tr><td><b>Comments and tag names</b> in the program, in the language the plant asked for</td><td>The next person reads it at 3 a.m. with the line down</td></tr>
+<tr><td><b>As-built drawings</b>: every change made during commissioning drawn in</td><td>A drawing that is wrong is worse than no drawing</td></tr>
+<tr><td><b>I/O list, alarm list, parameter list</b> (timers, limits, drive settings)</td><td>They answer most questions without opening the program</td></tr>
+<tr><td><b>Passwords and licences</b>, handed over in a safe way</td><td>A locked PLC with a lost password is scrap</td></tr>
+<tr><td><b>Test records</b>: I/O check, safety function tests, the customer's sign-off</td><td>Proof that it worked, and a start for the next fault finding</td></tr>
+<tr><td><b>Training</b> for operators and maintenance</td><td>Most "faults" in the first month are questions</td></tr>
+</table></div>
+
+<h3>FAT and SAT</h3>
+<p><b>FAT</b> (factory acceptance test): the customer tests the machine at the builder, before it ships. <b>SAT</b> (site acceptance test): the same again after installation in the plant. Both follow a written test list. Everything that fails goes on a <b>punch list</b> with a name and a date.</p>
+
+<h3>Changes after handover</h3>
+<ul>
+<li>Go online and <b>compare</b> first: is the program in the PLC the same as your file?</li>
+<li>Save a backup <b>before</b> the change, and one after it.</li>
+<li>Write one line in a change log: date, name, what, why.</li>
+<li>Remove every force and every test bridge before you leave.</li>
+</ul>
+<div class="callout where"><b>Where:</b> every plant, every day. In interviews: "What do you do before you put your hand into a machine?" and "What do you hand over at the end of a project?" Related: <a href="#lesson-commissioning">Commissioning</a> and <a href="#lesson-project-setup">going online</a>.</div>`,
+      sims: {},
+      takeaways: ["Isolate, lock with your own padlock, release stored energy, prove it is dead.", "An E-stop, PLC STOP or a force is not isolation.", "A project is finished when others can run and repair it without you.", "Backup of PLC, HMI and drives, with a version name.", "Compare online before a change, back up before and after, write it in the log."],
+      mistakes: ["Reaching in with the machine only stopped by the E-stop.", "Forgetting air pressure, a raised load or the capacitors of a drive.", "Someone else's padlock taken off for them.", "Leaving with a force still active.", "Drawings never updated after commissioning."],
+      challenges: ["cio-1"],
+    },
+    {
       id: 'drawings', level: 4, title: "Reading electrical drawings", min: 12,
       summary: "Find your way in a drawing set: pages and columns, the everyday symbols, device tags (-K1, -X2:5, -B3), wire numbers, cross-references from a coil to its contacts, the PLC input page, and how to find a fault with the drawing.",
       body: `
@@ -1240,6 +1290,55 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
       takeaways: ["A place in the drawings is page.column, e.g. /4.3.", "Letters tell the device: K relay, Q breaker, F protection, M motor, B sensor, S switch, X terminal, A module.", "Under a coil, the cross-reference table shows where all its contacts are.", "Everything is drawn at rest: no power, nothing pressed."],
       mistakes: ["Reading an NC contact as \"open\" because the machine is running.", "Changing wiring without updating the drawing.", "Mixing up the wire number and the terminal number.", "Looking for a fault in the program before checking the field with the drawing."],
       challenges: ['cio-1', 'cio-2'],
+    },
+    {
+      id: 'process-docs', level: 5, title: "Process documents: P&ID, I/O list, loop diagram, cause and effect", min: 12,
+      summary: "The four documents a process plant gives the programmer: how to read instrument tags like LIC-101 on a P&ID, what the I/O list and the loop diagram are for, and how a cause and effect matrix turns into interlock rungs.",
+      body: `
+<h3>Why a programmer must read process documents</h3>
+<p>In a factory that makes liquids, gas, food or chemicals, nobody hands you a ladder program to copy. You get <b>documents</b>, and the program comes out of them. Four documents carry almost everything you need.</p>
+
+<h3>1. The P&amp;ID: what is in the plant</h3>
+<p>A <b>P&amp;ID</b> (piping and instrumentation diagram) shows every pipe, tank, pump, valve and instrument, and how they are connected. Here is a small one: a tank with level control.</p>
+<div class="sfc-wrap"><svg class="sfc" viewBox="0 0 640 300" width="640" style="max-width:100%;height:auto" role="img" aria-label="A small P and I D: tank level control"><g fill="none" stroke="currentColor" stroke-width="1.6" font-family="IBM Plex Sans, sans-serif"><rect x="250" y="70" width="130" height="170" rx="10"/><text x="315" y="262" font-size="12" text-anchor="middle" font-weight="700" fill="currentColor" stroke="none">TK-101</text><path d="M40 110 H120 M160 110 H250" stroke-width="2.4"/><path d="M120 98 L160 122 M120 122 L160 98 M120 98 V122 M160 98 V122"/><path d="M140 110 V84"/><path d="M126 84 a14 12 0 0 1 28 0 z"/><text x="140" y="140" font-size="11" text-anchor="middle" font-weight="700" fill="currentColor" stroke="none">LV-101</text><text x="70" y="100" font-size="10" text-anchor="middle" font-weight="500" fill="currentColor" stroke="none">water in</text><circle cx="315" cy="34" r="19" fill="none"/><text x="315" y="29" font-size="11" text-anchor="middle" font-weight="700" fill="currentColor" stroke="none">LT</text><text x="315" y="47" font-size="10" text-anchor="middle" font-weight="500" fill="currentColor" stroke="none">101</text><path d="M315 53 V70"/><circle cx="190" cy="34" r="19" fill="none"/><path d="M171 34 H209"/><text x="190" y="29" font-size="11" text-anchor="middle" font-weight="700" fill="currentColor" stroke="none">LIC</text><text x="190" y="47" font-size="10" text-anchor="middle" font-weight="500" fill="currentColor" stroke="none">101</text><path d="M296 34 H209" stroke-dasharray="6 4"/><path d="M172 44 L146 74" stroke-dasharray="6 4"/><circle cx="440" cy="100" r="19" fill="none"/><text x="440" y="95" font-size="11" text-anchor="middle" font-weight="700" fill="currentColor" stroke="none">LSHH</text><text x="440" y="113" font-size="10" text-anchor="middle" font-weight="500" fill="currentColor" stroke="none">102</text><path d="M380 100 H421"/><path d="M380 220 H470" stroke-width="2.4"/><circle cx="492" cy="220" r="22"/><path d="M478 203 L514 220 L478 237"/><path d="M514 220 H600" stroke-width="2.4"/><text x="492" y="262" font-size="12" text-anchor="middle" font-weight="700" fill="currentColor" stroke="none">P-101</text><text x="575" y="210" font-size="10" text-anchor="middle" font-weight="500" fill="currentColor" stroke="none">to process</text><path d="M440 119 V160 H492 V198" stroke-dasharray="2 4"/><text x="520" y="156" font-size="10" text-anchor="start" font-weight="500" fill="currentColor" stroke="none">interlock</text><text x="20" y="290" font-size="10" text-anchor="start" font-weight="500" fill="currentColor" stroke="none">thick line = pipe · dashed = electrical signal · dotted = interlock (software)</text></g></svg></div>
+<p>Every instrument is a circle (a "bubble") with a <b>tag</b>. The letters follow a standard (ISA 5.1):</p>
+<div class="tbl"><table>
+<tr><th>First letter: what is measured</th><th>Next letters: what it does</th></tr>
+<tr><td><b>F</b> flow · <b>L</b> level · <b>P</b> pressure · <b>T</b> temperature</td><td><b>T</b> transmitter (sends a 4–20 mA signal) · <b>I</b> indicator · <b>C</b> controller · <b>S</b> switch · <b>A</b> alarm · <b>V</b> valve</td></tr>
+<tr><td colspan="2"><b>H</b> high, <b>L</b> low, <b>HH</b> very high, <b>LL</b> very low. So <b>LSHH</b> is a level switch, very high.</td></tr>
+</table></div>
+<p>Read the picture: <b>LT-101</b> measures the level and sends it to <b>LIC-101</b>, a level controller (a PID in your PLC). The controller moves the valve <b>LV-101</b>. Same number = same loop. <b>LSHH-102</b> is a separate switch for "much too high".</p>
+<p>A line through the bubble means "in the control room / on the HMI". No line means "in the field, on the pipe".</p>
+
+<h3>2. The I/O list: what goes to the PLC</h3>
+<p>One row for each signal: tag, description, type (DI, DO, AI, AO), range and unit, PLC address, alarm limits. It is your tag table before you have written a single rung. Check it against the P&amp;ID: every bubble that has a signal must be in the list.</p>
+
+<h3>3. The loop diagram: how one signal is wired</h3>
+<p>One page for one loop: from the transmitter in the field, through the junction box and the terminal strip, to the exact channel of the I/O card. You need it when "the level shows zero": you follow the loop page terminal by terminal with a meter.</p>
+
+<h3>4. The cause and effect matrix: what must happen when</h3>
+<p>The interlocks as a table. Causes are rows, effects are columns, an X joins them:</p>
+<div class="tbl"><table>
+<tr><th>Cause ↓ &nbsp; Effect →</th><th>Close LV-101</th><th>Stop P-101</th><th>Alarm on HMI</th></tr>
+<tr><td>LSHH-102 tank very high</td><td>X</td><td></td><td>X</td></tr>
+<tr><td>LT-101 below 10 %</td><td></td><td>X</td><td>X</td></tr>
+<tr><td>P-101 overload trip</td><td></td><td>X</td><td>X</td></tr>
+</table></div>
+<p>Each column becomes one rung: <b>"Stop P-101" = level low OR overload trip</b>. If a column has three X, the rung has three contacts. Program it exactly as the matrix says, and test it row by row during commissioning.</p>
+
+<h3>From the documents to the program</h3>
+<ol>
+<li>Every row of the I/O list: a tag, and for analogs the scaling.</li>
+<li>Every control loop on the P&amp;ID (LIC, FIC, TIC…): a PID block in a periodic task.</li>
+<li>Every motor and valve: one standard block with start, stop, feedback and fault.</li>
+<li>Every column of the cause and effect matrix: one interlock rung.</li>
+<li>Every alarm limit: a compare, a delay, an alarm bit.</li>
+</ol>
+<div class="callout where"><b>Where:</b> water treatment, food and drink, chemicals, oil and gas, pharma. In interviews for process plants: "What does FIC-203 mean?" and "How do you program a cause and effect matrix?" For machine drawings see <a href="#lesson-drawings">Reading electrical drawings</a>.</div>`,
+      sims: {},
+      takeaways: ["P&ID tags: the first letter is what is measured (F, L, P, T), the next letters are what it does.", "Same number, same loop: LT-101, LIC-101, LV-101.", "The I/O list is your tag table.", "A loop diagram follows one signal from the field to the card channel.", "Each column of the cause and effect matrix is one interlock rung."],
+      mistakes: ["Starting to program before the I/O list is checked against the P&ID.", "Reading LSHH as a transmitter: it is a switch.", "Programming an interlock from memory, not from the matrix.", "A control loop called in the main program, not in a periodic task.", "Not testing the matrix row by row."],
+      challenges: ["level-control", "pid-1"],
     },
     {
       id: 'production-data', level: 5, title: "Production data: counters, downtime and OEE", min: 12,
@@ -3371,6 +3470,80 @@ END_REPEAT</pre>
       mistakes: ['WHILE i < 4 AND Occ[i] … reads Occ[4], because ST evaluates both sides of AND.', 'Waiting for a sensor in WHILE: watchdog stop.'],
       challenges: ['st-for-bargraph', 'st-while-slot', 'st-average', 'st-elevator'],
     },
+    {
+      id: 'st-advanced', level: 7, title: "ST for big programs: data types, enums and methods", min: 11,
+      summary: "Three tools beyond the basics of Structured Text: your own data types (STRUCT / UDT), named states (ENUM), and function blocks with methods, EXTENDS and INTERFACE, with advice on when they help and when they hurt.",
+      body: `
+<h3>Three tools that make big programs small</h3>
+<p>With the basics of Structured Text you can write any logic. These three tools let you write it <b>once</b> and keep it tidy. The Lab runs IF, CASE, loops, arrays and function blocks, but not the things on this page: read them here, and use them in TIA Portal, CODESYS or TwinCAT.</p>
+
+<h3>1. Your own data types (STRUCT / UDT)</h3>
+<p>A motor is never one bit. It is a start command, a feedback, a fault, a run-hours counter. A <b>structure</b> keeps them together under one name:</p>
+<pre class="code">TYPE ST_Motor :
+STRUCT
+  Start    : BOOL;
+  Running  : BOOL;     (* feedback from the contactor *)
+  Fault    : BOOL;
+  RunHours : REAL;
+END_STRUCT
+END_TYPE
+
+VAR
+  Pump1, Pump2 : ST_Motor;
+  Fans : ARRAY[1..8] OF ST_Motor;
+END_VAR
+
+IF Pump1.Fault THEN Pump2.Start := TRUE; END_IF
+Fans[3].Start := TRUE;</pre>
+<p>Siemens calls it a <b>PLC data type (UDT)</b>, Rockwell a <b>user-defined data type</b>, CODESYS a <b>DUT</b>. Add one field and all eight fans have it.</p>
+
+<h3>2. Names for numbers (ENUM)</h3>
+<p>"Step 30" tells nobody anything. An <b>enumeration</b> gives each number a name, and the compiler checks your spelling:</p>
+<pre class="code">TYPE E_State : (Idle, Filling, Heating, Draining, Fault); END_TYPE
+
+VAR State : E_State; END_VAR
+
+CASE State OF
+  E_State.Idle:    IF StartPB THEN State := E_State.Filling; END_IF
+  E_State.Filling: Valve := TRUE;
+                   IF LevelHigh THEN State := E_State.Heating; END_IF
+END_CASE</pre>
+<p>Online you now read "Heating" in the watch table, not 20.</p>
+
+<h3>3. Blocks with methods (object-oriented ST)</h3>
+<p>CODESYS, TwinCAT and newer Siemens and Schneider systems let a function block have <b>methods</b>: small named actions that belong to the block.</p>
+<pre class="code">FUNCTION_BLOCK FB_Valve
+VAR
+  Output   : BOOL;
+  OpenTime : TON;
+END_VAR
+
+METHOD Open  : BOOL   Output := TRUE;   END_METHOD
+METHOD Close : BOOL   Output := FALSE;  END_METHOD
+
+(* in the program *)
+Inlet.Open();
+IF TankFull THEN Inlet.Close(); END_IF</pre>
+<p>Three more words you will meet:</p>
+<ul>
+<li><b>EXTENDS</b>: a new block takes everything from an old one and adds to it. FB_ControlValve EXTENDS FB_Valve.</li>
+<li><b>INTERFACE</b>: a list of methods that different blocks promise to have. Then a pump and a valve can both be told <code>Start()</code>.</li>
+<li><b>PROPERTY</b>: a value of the block that you read or write like a variable, with code behind it.</li>
+</ul>
+
+<h3>When to use it, and when not</h3>
+<div class="tbl"><table>
+<tr><th>Good</th><th>Careful</th></tr>
+<tr><td>Twenty equal devices: one tested block, one data type</td><td>Maintenance must be able to read it online. Many plants ask for ladder, or forbid deep inheritance</td></tr>
+<tr><td>Machine builders with a library used on every machine</td><td>Rockwell Logix has no methods: you use AOIs and UDTs</td></tr>
+<tr><td>Clear names: <code>Conveyor.Start()</code></td><td>Three levels of EXTENDS for one valve is too clever</td></tr>
+</table></div>
+<div class="callout where"><b>Where:</b> TwinCAT and CODESYS projects, machine builders' libraries, and more and more in TIA Portal. In interviews for those jobs: "What is the difference between a function and a function block?" (a function has no memory) and "What is a UDT for?"</div>`,
+      sims: {},
+      takeaways: ["A STRUCT / UDT keeps everything about one device under one name.", "An ENUM gives step numbers readable names.", "A method is a named action that belongs to a function block.", "A function has no memory. A function block has.", "Write for the person who must read it online at night."],
+      mistakes: ["Twenty copies of the same code with different tag numbers.", "Step numbers with no names.", "Deep inheritance that nobody on site can follow.", "Using methods on a platform that maintenance cannot open.", "Forgetting that the Lab does not run these parts."],
+      challenges: ["st-case-abc", "st-average"],
+    },
   ];
 
   // keep "How to plan a real project" first in level 6, then tool identification
@@ -3706,6 +3879,17 @@ END_REPEAT</pre>
     ["Held (PackML)", "The machine stopped because of a problem inside itself and waits for a person."],
     ["Suspended (PackML)", "The machine is fine and waits for the line: no product coming in, or no room going out."],
     ["Aborted (PackML)", "The machine was stopped at once by a fault or a safety event and must be cleared."],
+    ["P&ID", "Piping and instrumentation diagram: every pipe, tank, valve and instrument of a process plant."],
+    ["Instrument tag", "The name of an instrument on a P&ID, like LIC-101: letters for what it measures and does, a number for the loop."],
+    ["Loop diagram", "One page that shows how one signal is wired from the field device to the PLC card."],
+    ["Cause and effect matrix", "A table of interlocks: causes in rows, effects in columns, an X where one triggers the other."],
+    ["LOTO", "Lock-out, tag-out: isolate the energy, lock it with your own padlock, and prove the machine is dead before work."],
+    ["Stored energy", "Energy that stays after switching off: air pressure, hydraulic accumulators, raised loads, drive capacitors."],
+    ["As-built drawing", "A drawing updated with every change made during building and commissioning."],
+    ["Punch list", "The list of open points found in a test, each with a name and a date."],
+    ["UDT (STRUCT)", "Your own data type: several values of one device kept together under one name."],
+    ["ENUM", "A data type with named values, used to give step numbers readable names."],
+    ["Method", "A named action that belongs to a function block, called like Valve.Open()."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -3983,6 +4167,12 @@ END_REPEAT</pre>
     { l: 6, q: "In PackML, upstream runs out of product. Which state is right for your machine?", a: ["Suspended", "Held by an operator", "Aborted", "Complete"], c: 0, why: "Suspended means: I am fine, the reason is outside. Held means the reason is inside this machine." },
     { l: 6, q: "What is special about PackML states that end in -ing?", a: ["They finish by themselves", "They need an operator command", "They can only be left by Abort", "They are used only in manual mode"], c: 0, why: "Acting states do a job and then move on when it is complete. Waiting states need a command." },
     { l: 6, q: "After an Abort, what must happen before the machine can produce again?", a: ["Clear, then Reset, then Start", "Start, then Clear, then Reset", "Unhold, then Start again", "Only Start: Abort resets itself"], c: 0, why: "Aborted → Clear → Stopped → Reset → Idle → Start. A person must confirm that the fault is gone." },
+    { l: 5, q: "On a P&ID, what is LIC-101?", a: ["A level controller in loop 101", "A level switch, very low", "A flow transmitter, loop 101", "A light for an alarm, number 101"], c: 0, why: "L = level, I = indicating, C = controller. It is usually a PID in the PLC, shown on the HMI." },
+    { l: 5, q: "A cause and effect matrix has three X in the column 'Stop pump'. What does the rung look like?", a: ["Three conditions in parallel stop the pump", "Three conditions in series stop the pump motor", "Three pumps are stopped by one condition", "Three timers start one after the other"], c: 0, why: "Each X is one cause for that effect. Any one of them must stop the pump: OR." },
+    { l: 5, q: "What is the last step of lock-out before you start to work?", a: ["Prove it is dead: try to start, measure", "Tell the operator the work is done", "Take the padlock off the main switch again", "Press the E-stop two more times"], c: 0, why: "Never trust the switch alone. Try a start and measure with a tester you have just checked." },
+    { l: 5, q: "Why is an E-stop not enough for repair work?", a: ["It stops the machine but does not isolate energy", "It only works while the PLC is still in RUN mode", "It is too far away from most machine parts", "It wears out when it is pressed too often"], c: 0, why: "Someone can release it, and stored air, oil or a raised load are still there. Only isolation with a padlock is safe." },
+    { l: 7, q: "What is a STRUCT (UDT) for?", a: ["To keep the data of one device together", "To make a program run a great deal faster", "To give a step number a clear name", "To call a block at a fixed time"], c: 0, why: "Start, feedback, fault and hours of a motor under one name, and the same type for every motor." },
+    { l: 7, q: "What is the difference between a function and a function block?", a: ["A function block keeps its values between calls", "A function block can only be called one time", "A function can use timers, a block cannot", "A function is written in ladder, a block only in ST"], c: 0, why: "A function has no memory: same inputs, same result. A function block has an instance with its own data." },
   ];
   LL.QUIZ_IV = [
     { t: "Basics", q: "Explain the PLC scan cycle.", a: ["Read all inputs into the image, run the program top to bottom, write the outputs", "React to each input the moment it changes, one rung at a time, with no fixed order", "Write the outputs first, then read the inputs, then run the program from the bottom", "Run every rung at the same time, and update an output as soon as its rung is done"], c: 0, why: "Inputs are frozen for the whole scan; outputs change only at the end. That is why the order of rungs matters." },
@@ -4136,6 +4326,12 @@ END_REPEAT</pre>
     { t: "Drives & motion", q: "What is a braking resistor on a drive for?", a: ["It burns the energy that comes back when braking", "It limits the current when the motor is starting", "It protects the motor cable from a short circuit", "It keeps the drive warm when the motor is off"], c: 0, why: "With it the drive can brake a heavy load quickly without an overvoltage fault." },
     { t: "Projects & practice", q: "In PackML, what is the difference between Held and Suspended?", a: ["Held: own problem. Suspended: waiting for the line", "Held: a safety stop. Suspended: a normal stop", "Held: the manual mode. Suspended: the automatic mode", "Held: end of order. Suspended: start of order"], c: 0, why: "It tells the line and the downtime report who caused the stop: this machine, or its neighbours." },
     { t: "Projects & practice", q: "Why do plants ask for PackML on new machines?", a: ["Every machine reports the same states and tags", "Every machine then uses the very same PLC brand", "Every machine then needs no safety system", "Every machine then runs at the same speed"], c: 0, why: "The operators learn one model, and the line control and the reporting system read all machines the same way." },
+    { t: "Electrical drawings", q: "What do the letters in the tag FIC-203 mean?", a: ["Flow, indicating, controller, loop 203", "Frequency, input, contactor, panel 203", "Fault, interlock, circuit, drawing 203", "Filter, inlet, cooling, pipe number 203"], c: 0, why: "ISA 5.1: the first letter is the measured variable, the following letters are the functions, the number is the loop." },
+    { t: "Electrical drawings", q: "What is a loop diagram used for?", a: ["To follow one signal from the field to the I/O card", "To show every pipe, tank and pump of the whole plant", "To list all the alarms with their set limits", "To show the order of the steps in a sequence"], c: 0, why: "One page per loop with every terminal. It is the fault-finding document for a single signal." },
+    { t: "Projects & practice", q: "What do you check before you change a program on a running plant?", a: ["Online and offline are the same, and you have a backup", "The HMI has the newest colour scheme installed", "The plant manager has left the building for the whole day", "The PLC has been switched off for one full minute"], c: 0, why: "Compare first. If the PLC holds changes that are not in your file, your download would delete them." },
+    { t: "Projects & practice", q: "What is the difference between FAT and SAT?", a: ["FAT is at the builder, SAT is at the customer's site", "FAT is for safety, SAT is for the software only", "FAT is done by operators, SAT by programmers", "FAT is a quick test, SAT a long test with a full load"], c: 0, why: "Factory acceptance test before shipping, site acceptance test after installation. Both follow a written test list." },
+    { t: "Safety", q: "Name the key steps of lock-out, tag-out.", a: ["Isolate, lock, release stored energy, verify", "Press E-stop, put up a sign, then start work", "Stop the PLC, force outputs off, start work", "Call the operator, open the guard, reach in"], c: 0, why: "Each person locks with an own padlock, and the dead state is proven before any work." },
+    { t: "Programming", q: "Why use an ENUM for the steps of a sequence?", a: ["Readable names, checked by the compiler", "The sequence then runs in a shorter time", "The steps then need no memory in the CPU", "The sequence can then skip a broken step"], c: 0, why: "State = Heating is clear in the code and in the watch table. A typing mistake becomes a compile error." },
   ];
   LL.QUIZ_NET = [
     { t: "Basics", q: "Fieldbus or industrial Ethernet: what is the main difference?", a: ["Fieldbuses use serial cables (RS-485, CAN); industrial Ethernet uses Ethernet cables and switches", "Fieldbuses use Ethernet cables and switches; industrial Ethernet uses serial RS-485 or CAN cables", "Fieldbuses carry only digital on/off signals; industrial Ethernet carries only analog sensor values", "Fieldbuses need no device file at all; industrial Ethernet needs a GSD or EDS file for each device"], c: 0, why: "Classic fieldbuses: PROFIBUS, CANopen, DeviceNet. Industrial Ethernet: PROFINET, EtherNet/IP, EtherCAT, Modbus TCP. New machines almost always use Ethernet." },
