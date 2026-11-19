@@ -95,7 +95,7 @@
     Object.keys(this.D).forEach((tag) => {
       const d = this.D[tag], k = this.kind[tag], cell = en[tag], on = !!cell;
       d.en = on ? 1 : 0;
-      if (k === 'k') { if (on) { d.off = 0; d.v = 1; } else if (d.v) { d.off++; if (d.off >= 3) d.v = 0; } }
+      if (k === 'k') { if (d.weld) d.v = 1; else if (on && !d.jam) { d.off = 0; d.v = 1; } else if (d.v) { d.off++; if (d.off >= 3) d.v = 0; } }   // test faults: weld = contacts stuck closed, jam = it cannot pull in
       else if (k === 'kt') {
         const mode = cell ? cell.t : d.mode; if (cell) { d.mode = cell.t; d.s = cell.s; }
         if (mode === 'TOF') { if (on) { d.v = 1; d.acc = 0; } else if (d.v) { d.acc += DT; if (d.acc >= (d.s || 3) * 1000) d.v = 0; } }
@@ -148,13 +148,18 @@
       },
     },
     sd: {
-      init: () => ({ fault: '', n: 0, pct: 0, mode: 0 }),
-      step(st, D, dt) {
+      init: () => ({ fault: '', n: 0, pct: 0, mode: 0, prot: 1 }),
+      step(st, D, dt, pw, task) {
         const m = V(D, 'K1'), y = V(D, 'K2'), d = V(D, 'K3');
+        // a task can ask how the delta contactor is wired (pw.d) and how the overload relay is set (pw.ol)
+        const ask = !!(task && task.power), dsel = ask ? (pw && pw.d) || '' : 'next', ol = ask ? (pw && pw.ol) || '' : '58';
+        st.prot = ol === '58' ? 1 : 0;
+        st.note = ol === '100' ? 'Set to the full nameplate current, the relay trips too late: it sits in the winding circuit, where only 0.58 × that current flows.' : ol === '173' ? 'Set to 1.73 × the nameplate current, the relay never trips before the motor burns: only 0.58 × the nameplate current flows through it.' : '';
         if (y && d && !st.fault) st.fault = 'Star and delta contactors closed together: a short circuit. They need an interlock.';
-        if (m && d && !y && st.n < 0.6 && !st.fault) st.fault = 'Delta at low speed: the starting current tripped the breaker. Start in star first.';
+        if (m && d && !y && st.n < 0.6 && dsel === 'next' && !st.fault) st.fault = 'Delta at low speed: the starting current tripped the breaker. Start in star first.';
         const run = !st.fault && m; st.mode = run && y ? 1 : run && d ? 2 : 0;
-        if (st.mode === 1) spin(st, 'n', 0.88, dt, 900); else if (st.mode === 2) spin(st, 'n', 1, dt, 300); else spin(st, 'n', 0, dt, 900);
+        if (st.mode === 2 && dsel !== 'next') { st.dbad = (st.dbad || 0) + dt; if (st.dbad > 2500 && !st.fault) st.fault = dsel === 'same' ? 'In delta the motor lost its power and slowed down: each winding has the same phase on both ends, so no voltage is across it.' : dsel === 'n' ? 'The winding ends are on N: that is still a star connection, the motor never gets its full power. A delta links each winding end to the next phase.' : 'The delta contactor is not wired yet.'; } else st.dbad = 0;
+        if (st.mode === 1) spin(st, 'n', 0.88, dt, 900); else if (st.mode === 2) spin(st, 'n', dsel === 'next' ? 1 : dsel === 'n' ? 0.88 : 0, dt, dsel === 'next' ? 300 : 900); else spin(st, 'n', 0, dt, 900);
         st.pct = Math.round(st.n * 100); burn(st, D, 'F2', m && (y || d), dt, 'KM1');
       },
     },
@@ -260,6 +265,45 @@
         st.p10 = Math.round(st.bar * 10); burn(st, D, 'F2', k, dt, 'KM1');
       },
     },
+    // two-speed motor with two separate windings: KM1 low speed, KM2 high speed, each with its own overload relay
+    spd2: {
+      init: () => ({ fault: '', n: 0, rpm: 0, sp: 0 }),
+      step(st, D, dt) {
+        const lo = V(D, 'K1'), hi = V(D, 'K2');
+        if (lo && hi && !st.fault) st.fault = 'Low and high speed contactors closed together: both windings are fed at once, they fight each other and the breaker tripped. They need an interlock.';
+        st.sp = st.fault ? 0 : hi ? 2 : lo ? 1 : 0; spin(st, 'n', st.sp === 2 ? 1 : st.sp === 1 ? 0.5 : 0, dt, 600); st.rpm = Math.round(st.n * 2900);
+        burn(st, D, 'F2', lo, dt, 'KM1'); burn(st, D, 'F3', hi, dt, 'KM2');
+      },
+    },
+    // Dahlander motor: one winding with a centre tap. Low: KM1 feeds U1 V1 W1 (delta). High: KM2 feeds U2 V2 W2 and KM3 bridges U1 V1 W1 (double star).
+    dahl: {
+      init: () => ({ fault: '', n: 0, rpm: 0, sp: 0, bad: 0 }),
+      step(st, D, dt) {
+        const lo = V(D, 'K1'), hi = V(D, 'K2'), star = V(D, 'K3');
+        if (lo && star && !st.fault) st.fault = 'KM1 (low speed) and KM3 (star point) closed together: KM3 bridges the three wires that KM1 feeds. A dead short circuit.';
+        if (lo && hi && !st.fault) st.fault = 'Low and high speed contactors closed together: the winding is fed from both ends. The breaker tripped.';
+        if (hi && !star && !st.fault) { st.bad += dt; if (st.bad > 1500) st.fault = 'KM2 feeds U2 V2 W2, but the star point KM3 is open: the winding is not connected for high speed. The motor hums and overheats. KM3 must close first.'; } else st.bad = 0;
+        st.sp = st.fault ? 0 : hi && star ? 2 : lo ? 1 : 0; spin(st, 'n', st.sp === 2 ? 1 : st.sp === 1 ? 0.5 : 0, dt, 600); st.rpm = Math.round(st.n * 2900);
+        burn(st, D, 'F2', lo, dt, 'KM1'); burn(st, D, 'F3', hi, dt, 'KM2');
+      },
+    },
+    // single-phase motor: main winding, start winding with a start capacitor, centrifugal switch (opens at about 75 % speed)
+    cap1: {
+      init: () => ({ fault: '', n: 0, rpm: 0, hum: 0, cs: 1, stall: 0, long: 0, hunt: 0 }),
+      step(st, D, dt, pw) {
+        pw = pw || {};
+        const run = V(D, 'K1'), cap = pw.cap || '', sw = pw.sw || '';
+        st.cs = st.n < 0.75 ? 1 : 0;                                   // the switch on the shaft: closed at standstill
+        const startOk = cap === 'aux' && !!sw, mainOn = run && !(sw === 'main' && !st.cs);
+        const pull = run && !st.fault && mainOn && (st.n > 0.3 || startOk);   // a motor that already turns runs on its main winding alone
+        spin(st, 'n', pull ? 0.97 : 0, dt, 600); st.rpm = Math.round(st.n * 1480);
+        st.hum = run && !st.fault && st.n < 0.3 && !startOk ? 1 : 0;
+        if (st.hum) { st.stall += dt; if (st.stall > 3000 && !st.fault) st.fault = cap === 'main' ? 'The motor only hums: with the capacitor in the main winding there is no strong field and no second, shifted field. The capacitor belongs in series with the start winding.' : cap === 'ln' ? 'The motor only hums: a capacitor across L and N does nothing inside the motor. It must be in series with the start winding, so that winding gets a shifted current.' : 'The motor only hums: the main winding alone makes a field that goes up and down but does not turn. Finish the power circuit.'; } else st.stall = 0;
+        if (run && sw === 'main' && st.n > 0.5) { st.hunt += dt; if (st.hunt > 2500 && !st.fault) st.fault = 'The switch cuts the main winding at speed: the motor falls back, the switch closes, and it starts again, on and on. The switch must cut the start winding.'; } else st.hunt = 0;
+        if (run && sw === 'none' && st.n > 0.9) { st.long += dt; if (st.long > 3000 && !st.fault) st.fault = 'The start winding and the start capacitor stayed connected at full speed: both are made for a few seconds only. The capacitor burst.'; } else st.long = 0;
+        burn(st, D, 'F2', run, dt, 'KM1');
+      },
+    },
     // a drive: no contactors, only signals on its inputs DI1 (forward) and DI2 (reverse)
     vfd: {
       init: () => ({ fault: '', n: 0, hz: 0 }),
@@ -302,7 +346,7 @@
   };
 
   // ───────────── test runner ─────────────
-  // steps: press X · release X · tap X [ms] · both X Y · free X Y · on X · off X · trip X · reset X · wait ms · expect A=1 B=0 · scn key>=n · mcb
+  // steps: press X · release X · tap X [ms] · both X Y · free X Y · on X · off X · trip X · reset X · wait ms · expect A=1 B=0 · scn key>=n · mcb · jam K (cannot close) · weld K (stays closed)
   EC.run = function (task, circ) {
     const name = (tag) => { const p = task.parts.find((x) => x.d === tag); return p ? p.n + ' (' + tag + ')' : tag; };
     return task.tests.map((test) => {
@@ -312,7 +356,7 @@
         run(100);
         test.steps.forEach((step) => {
           stepNo++; cur = step; const p = step.split(/\s+/), d = sim.D[p[1]];
-          if (['press', 'release', 'tap', 'on', 'off', 'trip', 'reset'].includes(p[0]) && !d) throw new Error('unknown device ' + p[1]);
+          if (['press', 'release', 'tap', 'on', 'off', 'trip', 'reset', 'jam', 'weld'].includes(p[0]) && !d) throw new Error('unknown device ' + p[1]);
           switch (p[0]) {
             case 'press': case 'on': case 'trip': d.v = 1; run(30); break;
             case 'release': case 'off': case 'reset': d.v = 0; run(30); break;
@@ -320,6 +364,8 @@
             case 'both': sim.D[p[1]].v = 1; sim.D[p[2]].v = 1; run(30); break;
             case 'free': sim.D[p[1]].v = 0; sim.D[p[2]].v = 0; run(30); break;
             case 'wait': run(+p[1]); break;
+            case 'jam': d.jam = 1; run(30); break;
+            case 'weld': d.weld = 1; d.v = 1; run(30); break;
             case 'mcb': sim.resetMcb(); run(30); break;
             case 'expect': p.slice(1).forEach((cnd) => { const m = /^(\w+)=([01])$/.exec(cnd), v = sim.D[m[1]] ? sim.D[m[1]].v : -1; if (v !== +m[2]) throw new Error(name(m[1]) + ' should be ' + (+m[2] ? 'ON' : 'OFF') + ', but it is ' + (v ? 'ON' : 'OFF') + '.'); }); break;
             case 'scn': p.slice(1).forEach((cnd) => { const m = /^(\w+)(>=|<=|=)(-?\d+)$/.exec(cnd), v = sim.st[m[1]], w = +m[3]; if (!(m[2] === '>=' ? v >= w : m[2] === '<=' ? v <= w : v === w)) throw new Error((task.scnNames && task.scnNames[m[1]] || m[1]) + ' is ' + v + ', expected ' + m[2] + ' ' + w + '.' + (sim.st.note ? ' ' + sim.st.note : '')); }); break;
@@ -339,6 +385,8 @@
       case 'on': return 'switch ' + n(p[1]) + ' on'; case 'off': return 'switch ' + n(p[1]) + ' off';
       case 'trip': return n(p[1]) + ' trips'; case 'reset': return 'reset ' + n(p[1]); case 'wait': return 'wait ' + (+p[1] / 1000) + ' s';
       case 'expect': return 'check ' + p.slice(1).map((c) => { const m = c.split('='); return n(m[0]) + ' ' + (+m[1] ? 'ON' : 'OFF'); }).join(', ');
+      case 'jam': return 'fault: the coil wire of ' + n(p[1]) + ' is broken, it cannot close';
+      case 'weld': return 'fault: the contacts of ' + n(p[1]) + ' weld together, it stays closed';
       case 'scn': return 'check the machine';
     }
     return step;
@@ -436,6 +484,14 @@
       hints: ['F2 NC, S0 NC, then the seal-in on K1 (S1 NO with K1 NO beside it).', 'Below, four paths on one wire: K1 coil · KT1 NC, K3 NC, K2 coil (star) · KT1 NO, K2 NC, K3 coil (delta) · the timer coil.', 'Without the two NC interlock contacts both contactors are closed for a moment: a short circuit.'],
       solution: 'NC:F2\nNC:S0\n~ 0\nNO:S1 NO:K1\n~ 0 1 2\nW NC:KT1 NO:KT1 W\nW NC:K3 NC:K2 W\nCOIL:K1 COIL:K2 COIL:K3 TON:KT1:4',
       tests: [{ name: 'START: line and star', steps: ['tap S1', 'wait 300', 'expect K1=1 K2=1 K3=0', 'wait 3200', 'expect K1=1 K2=1 K3=0'] }, { name: 'After 4 s: star off, delta on, full speed', steps: ['tap S1', 'wait 4500', 'expect K1=1 K2=0 K3=1', 'wait 2000', 'scn pct>=95'] }, { name: 'STOP drops all three; the next start is in star again', steps: ['tap S1', 'wait 5000', 'tap S0', 'wait 200', 'expect K1=0 K2=0 K3=0', 'wait 3000', 'tap S1', 'wait 300', 'expect K1=1 K2=1 K3=0'] }, { name: 'Overload drops everything', steps: ['tap S1', 'wait 5000', 'trip F2', 'wait 200', 'expect K1=0 K2=0 K3=0', 'wait 2500'] }] },
+    { id: 'c-sdp', level: 4, scn: 'sd', title: 'Star-delta: finish the power circuit',
+      brief: 'The control circuit of this star-delta starter is already built. <b>Finish the power circuit</b>:<ul><li>The motor has six terminals. The line contactor KM1 feeds the winding <b>starts</b> U1 V1 W1. The star contactor KM2 bridges the winding <b>ends</b> U2 V2 W2. Where must the <b>delta contactor KM3</b> connect these ends?</li><li>The overload relay F2 sits below KM1, in the wires to U1 V1 W1. To which current do you set it?</li></ul>In delta, each winding must sit between two <b>different</b> phases.',
+      parts: [S0, S1, K1, P('K2', 'k', 'KM2 Y'), P('K3', 'k', 'KM3 Δ'), P('KT1', 'kt', 'Timer', { s: 4 }), F2], scnNames: { pct: 'Motor speed (%)', prot: 'Overload relay setting right (1 = yes)' },
+      power: [{ k: 'd', q: 'KM3 (delta) connects the winding ends U2 V2 W2 to…', o: [['next', 'the next phase: U2 to L2, V2 to L3, W2 to L1'], ['same', 'the same phase: U2 to L1, V2 to L2, W2 to L3'], ['n', 'the neutral wire N, all three']] }, { k: 'ol', q: 'The overload relay F2 is set to…', o: [['100', 'the nameplate current'], ['58', '0.58 × the nameplate current'], ['173', '1.73 × the nameplate current']] }],
+      hints: ['A winding only gets voltage when its two ends are on different phases. U1 is on L1, so U2 must not go to L1.', 'In delta the line current splits over two windings. Through one winding, and through the relay in its wire, flows the line current divided by 1.73, which is 0.58 × the nameplate current.'],
+      starter: 'NC:F2\nNC:S0\n~ 0\nNO:S1 NO:K1\n~ 0 1 2\nW NC:KT1 NO:KT1 W\nW NC:K3 NC:K2 W\nCOIL:K1 COIL:K2 COIL:K3 TON:KT1:4',
+      solution: '@ d=next\n@ ol=58\nNC:F2\nNC:S0\n~ 0\nNO:S1 NO:K1\n~ 0 1 2\nW NC:KT1 NO:KT1 W\nW NC:K3 NC:K2 W\nCOIL:K1 COIL:K2 COIL:K3 TON:KT1:4',
+      tests: [{ name: 'START in star, then delta at full speed', steps: ['tap S1', 'wait 300', 'expect K1=1 K2=1 K3=0', 'wait 4200', 'expect K1=1 K2=0 K3=1', 'wait 4000', 'scn pct>=95'] }, { name: 'The overload relay is set for the current in the winding', steps: ['scn prot=1'] }, { name: 'Overload drops everything', steps: ['tap S1', 'wait 5000', 'trip F2', 'wait 200', 'expect K1=0 K2=0 K3=0', 'wait 2500'] }] },
     { id: 'c-tank', level: 4, scn: 'tank', title: 'Real project: fill a tank with two float switches',
       brief: 'Water is drawn from this tank all the time. A pump (KM1) fills it.<ul><li>Selector <b>AUTO</b> (S1) on: the pump starts when the level falls below the <b>low float</b> B1 (30 %) and runs until the <b>high float</b> B2 (80 %).</li><li>Between 30 % and 80 % it keeps doing what it was doing: you need a <b>seal-in</b>, or the pump clicks on and off every second.</li><li>AUTO off or an overload: pump off.</li></ul>A float switch contact is <b>actuated</b> (NO closed, NC open) while the water is above it.',
       parts: [P('S1', 'sel', 'AUTO'), P('B1', 'ls', 'Low 30%'), P('B2', 'ls', 'High 80%'), K1, F2], scnNames: { lv: 'Tank level (%)', starts: 'Pump starts' },
@@ -472,6 +528,19 @@
       hints: ['In series: F2 NC, S1 NO, B1 NC (closed while the pressure is low).', 'Below, three paths on one wire: K1 coil, the timer coil KT1, and KT1 NO then the valve Y1.'],
       solution: 'NC:F2\nNO:S1\nNC:B1\n~ 0 1\nW W NO:KT1\nCOIL:K1 TON:KT1:3 VALVE:Y1',
       tests: [{ name: 'AUTO on: the motor starts unloaded', steps: ['expect K1=0', 'on S1', 'wait 300', 'expect K1=1 Y1=0', 'wait 2200', 'expect K1=1 Y1=0'] }, { name: 'After 3 s the load valve opens', steps: ['on S1', 'wait 3500', 'expect K1=1 Y1=1'] }, { name: 'One minute in AUTO: pressure stays between 4 and 9 bar, a few long runs', steps: ['on S1', 'wait 30000', 'scn p10>=40 p10<=90', 'wait 30000', 'scn p10>=40 p10<=90 starts>=2 starts<=6'] }, { name: 'AUTO off stops motor and valve', steps: ['on S1', 'wait 5000', 'off S1', 'wait 200', 'expect K1=0 Y1=0'] }, { name: 'Overload stops motor and valve', steps: ['on S1', 'wait 5000', 'trip F2', 'wait 200', 'expect K1=0 Y1=0', 'wait 2500'] }] },
+    { id: 'c-1ph', level: 3, scn: 'cap1', title: 'Single-phase motor with a start capacitor',
+      brief: 'Pumps, compressors and small machines in houses and shops run on <b>230 V single-phase</b>. A single-phase motor has two windings: the <b>main winding</b> and a <b>start winding</b>. The main winding alone only makes the rotor hum. For the start, the start winding gets a shifted current through a <b>start capacitor</b>; a <b>centrifugal switch</b> on the shaft cuts it off at about 75 % speed.<ul><li>Finish the <b>power circuit</b>: where does the capacitor go, and what does the switch cut off?</li><li>Build the control: START, STOP, seal-in, overload contact.</li></ul>',
+      parts: [S0, S1, K1, F2], scnNames: { rpm: 'Motor speed (rpm)' },
+      power: [{ k: 'cap', q: 'Where does the start capacitor go?', o: [['main', 'In series with the main winding'], ['aux', 'In series with the start winding'], ['ln', 'Between L and N']] }, { k: 'sw', q: 'What does the centrifugal switch cut off at speed?', o: [['aux', 'The start winding and its capacitor'], ['main', 'The main winding'], ['none', 'Nothing: leave the switch out']] }],
+      hints: ['The capacitor shifts the current in the winding it is in series with. The main winding must keep its full current, so the capacitor goes to the other one.', 'A start capacitor and a start winding are built for a few seconds. Something must take them out when the motor is up to speed.', 'The control circuit is the normal seal-in circuit: F2 NC, S0 NC, S1 NO with K1 NO beside it, K1 coil.'],
+      solution: '@ cap=aux\n@ sw=aux\n' + SEAL,
+      tests: [{ name: 'START: the motor runs up and keeps running', steps: ['tap S1', 'wait 200', 'expect K1=1', 'wait 3500', 'scn rpm>=1300', 'wait 5000', 'scn rpm>=1300', 'expect K1=1'] }, DOLTESTS[1], DOLTESTS[3]] },
+    { id: 'c-2spd', level: 4, scn: 'spd2', title: 'Two-speed motor: LOW and HIGH with two windings',
+      brief: 'A fan with a <b>two-speed motor</b>: it has two separate windings in one housing. <b>KM1</b> feeds the low-speed winding, <b>KM2</b> the high-speed winding. Each winding has its own overload relay (F2 low, F3 high), because the currents are different.<ul><li><b>LOW</b> (S1) and <b>HIGH</b> (S2), each with its own seal-in.</li><li>Both windings fed together destroy the motor: <b>interlock</b> KM1 and KM2.</li><li>To change the speed you press STOP first.</li><li>STOP (S0) and <b>both</b> overload contacts stop the motor.</li></ul>',
+      parts: [S0, P('S1', 'pb', 'LOW', { c: 'green' }), P('S2', 'pb', 'HIGH', { c: 'green' }), P('K1', 'k', 'KM1 low'), P('K2', 'k', 'KM2 high'), P('F2', 'ol', 'Overload low'), P('F3', 'ol', 'Overload high')], scnNames: { rpm: 'Motor speed (rpm)' },
+      hints: ['It is the forward / reverse circuit with other names: two seal-in circuits side by side, and the NC contact of the other contactor before each coil.', 'Three contacts in series at the top: F2 NC, F3 NC, S0 NC. Then link all four paths below S0.'],
+      solution: 'NC:F2\nNC:F3\nNC:S0\n~ 0 1 2\nNO:S1 NO:K1 NO:S2 NO:K2\n~ 0 2\nNC:K2 . NC:K1\nCOIL:K1 . COIL:K2',
+      tests: [{ name: 'LOW: low speed, and it stays on', steps: ['tap S1', 'wait 300', 'expect K1=1 K2=0', 'wait 3000', 'scn rpm>=1300 rpm<=1600'] }, { name: 'HIGH: high speed', steps: ['tap S2', 'wait 300', 'expect K2=1 K1=0', 'wait 3500', 'scn rpm>=2700'] }, { name: 'HIGH while running LOW does nothing (interlock)', steps: ['tap S1', 'wait 500', 'tap S2', 'wait 200', 'expect K1=1 K2=0'] }, { name: 'LOW while running HIGH does nothing (interlock)', steps: ['tap S2', 'wait 500', 'tap S1', 'wait 200', 'expect K2=1 K1=0'] }, { name: 'STOP, then the other speed', steps: ['tap S1', 'wait 500', 'tap S0', 'wait 200', 'expect K1=0', 'tap S2', 'wait 300', 'expect K2=1 K1=0'] }, { name: 'The overload of each winding stops the motor', steps: ['tap S1', 'wait 500', 'trip F2', 'wait 200', 'expect K1=0', 'wait 2500', 'reset F2', 'tap S2', 'wait 500', 'trip F3', 'wait 200', 'expect K2=0', 'wait 2500'] }] },
     { id: 'c-stein', level: 4, scn: 'stein', title: 'Real project: a 3-phase motor on a single-phase supply (capacitor)',
       brief: 'A workshop has only <b>230 V single-phase</b> (L and N), but the machine has a small <b>3-phase motor</b> (230 / 400 V). The classic trick is the <b>Steinmetz connection</b>: two motor terminals go to L and N, and a <b>run capacitor</b> feeds the third terminal with a shifted current, so the field turns.<ul><li>Finish the <b>power circuit</b>: how are the windings linked, and where does the capacitor go? The motor must turn <b>forward</b>.</li><li>Build the control: START, STOP, seal-in, overload contact.</li></ul>Rule of thumb: about 70 µF for each kW, and the motor gives about 70 % of its power.',
       parts: [S0, S1, K1, F2], scnNames: { rpm: 'Motor speed (rpm)' },
@@ -479,6 +548,12 @@
       hints: ['The nameplate says 230 / 400 V. On a 230 V supply the windings must be in delta, or each one gets too little voltage.', 'A capacitor across L and N shifts nothing in the motor. It must feed the third terminal W1. From L or from N decides the direction.', 'The control circuit is the normal seal-in circuit: F2 NC, S0 NC, S1 NO with K1 NO beside it, K1 coil.'],
       solution: '@ cap=wl\n@ conn=delta\n' + SEAL,
       tests: [{ name: 'START: the motor runs forward at speed', steps: ['tap S1', 'wait 200', 'expect K1=1', 'wait 3500', 'scn rpm>=1300'] }, DOLTESTS[1], DOLTESTS[3]] },
+    { id: 'c-dahl', level: 5, scn: 'dahl', title: 'Master: Dahlander motor, two speeds from one winding',
+      brief: 'A <b>Dahlander</b> motor gets two speeds (1 : 2) from <b>one</b> winding with a tap in the middle, and needs three contactors:<ul><li><b>LOW</b> (S1): <b>KM1</b> feeds U1 V1 W1.</li><li><b>HIGH</b> (S2): <b>KM3</b> bridges U1 V1 W1 to a star point, and <b>KM2</b> feeds U2 V2 W2. KM2 may only close <b>when KM3 is closed</b>.</li><li>KM1 together with KM2 or KM3 is a short circuit: interlock both ways. The tests also break a coil wire and weld a contactor, to see that your circuit stays safe.</li><li>To change the speed you press STOP first. STOP and both overload contacts (F2 low, F3 high) stop the motor.</li></ul>',
+      parts: [S0, P('S1', 'pb', 'LOW', { c: 'green' }), P('S2', 'pb', 'HIGH', { c: 'green' }), P('K1', 'k', 'KM1 low'), P('K2', 'k', 'KM2 high'), P('K3', 'k', 'KM3 star'), P('F2', 'ol', 'Overload low'), P('F3', 'ol', 'Overload high')], scnNames: { rpm: 'Motor speed (rpm)' },
+      hints: ['Top: F2 NC, F3 NC, S0 NC. Then two seal-in pairs: S1 with K1, and S2 with K2. Seal the high speed with KM2, the last contactor of the chain: it is only closed when everything before it worked.', 'Low path below its pair: K2 NC, K3 NC, K1 coil.', 'High path below its pair: K1 NC, then two paths on one wire: the K3 coil, and K3 NO followed by the K2 coil.', 'K3 NO before the K2 coil makes sure the star point is closed first.', 'Think of faults: if KM3 welds closed, the motor must not restart after STOP and LOW must stay blocked. A seal-in on K3 would restart it.'],
+      solution: 'NC:F2\nNC:F3\nNC:S0\n~ 0 1 2\nNO:S1 NO:K1 NO:S2 NO:K2\n~ 0 2\nNC:K2 . NC:K1\n~ 2\nNC:K3 . W NO:K3\nCOIL:K1 . COIL:K3 COIL:K2',
+      tests: [{ name: 'LOW: only KM1, low speed', steps: ['tap S1', 'wait 300', 'expect K1=1 K2=0 K3=0', 'wait 3000', 'scn rpm>=1300 rpm<=1600'] }, { name: 'HIGH: star point KM3 and KM2, high speed', steps: ['tap S2', 'wait 300', 'expect K3=1 K2=1 K1=0', 'wait 3500', 'scn rpm>=2700'] }, { name: 'HIGH while running LOW does nothing', steps: ['tap S1', 'wait 500', 'tap S2', 'wait 200', 'expect K1=1 K2=0 K3=0'] }, { name: 'LOW while running HIGH does nothing', steps: ['tap S2', 'wait 500', 'tap S1', 'wait 200', 'expect K1=0 K2=1 K3=1'] }, { name: 'STOP drops all; then the other speed', steps: ['tap S2', 'wait 500', 'tap S0', 'wait 200', 'expect K1=0 K2=0 K3=0', 'tap S1', 'wait 300', 'expect K1=1 K2=0 K3=0'] }, { name: 'The overload of each speed stops the motor', steps: ['tap S1', 'wait 500', 'trip F2', 'wait 200', 'expect K1=0', 'wait 2500', 'reset F2', 'tap S2', 'wait 500', 'trip F3', 'wait 200', 'expect K2=0 K3=0', 'wait 2500'] }, { name: 'Fault: KM3 cannot close, so KM2 must stay open', steps: ['jam K3', 'tap S2', 'wait 400', 'expect K2=0 K3=0'] }, { name: 'Fault: KM3 welds closed. No restart after STOP, and LOW stays blocked', steps: ['tap S2', 'wait 500', 'weld K3', 'tap S0', 'wait 300', 'expect K2=0', 'tap S1', 'wait 300', 'expect K1=0'] }] },
     { id: 'c-stein2', level: 5, scn: 'steinh', title: 'Master: start capacitor for a heavy start',
       brief: 'The same 3-phase motor on single-phase, now on a loaded compressor. The run capacitor alone cannot start it: the motor only hums. A second, bigger <b>start capacitor</b> is switched in parallel by <b>KM2</b> for the first seconds.<ul><li>START: KM1 (motor with the run capacitor) <b>and</b> KM2 (start capacitor).</li><li>After <b>2 s</b> the timer drops KM2. KM1 stays.</li><li>A start capacitor left in at full speed bursts. STOP and the overload drop everything.</li></ul>',
       parts: [S0, S1, K1, P('K2', 'k', 'KM2 start'), P('KT1', 'kt', 'Timer', { s: 2 }), F2], scnNames: { rpm: 'Motor speed (rpm)' },
