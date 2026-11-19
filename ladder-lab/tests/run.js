@@ -66,6 +66,16 @@ LL.CHALLENGES.filter((c) => c.lang !== 'st').forEach((ch) => {
   ok(F.next(5, 6) === 0 && F.next(0, 6) === 1 && F.SEQ.rows.every((r) => r.length === F.SEQ.outs.length), 'sequencer wraps and its table is square');
 }
 
+// Circuit Lab free play: every machine opens with its parts, and its start circuit runs for 6 s without a fault
+if (LL.EC && LL.EC.freeFor) LL.EC.FREE_SCN.forEach((scn) => {
+  const EC = LL.EC, f = EC.freeFor(scn), c = EC.parse(f.solution || ''), sim = new EC.Sim(c, f);
+  for (let i = 0; i < 30; i++) sim.tick();
+  const tag = sim.D.S1 ? 'S1' : sim.D.S2 ? 'S2' : '';
+  if (tag) { sim.D[tag].v = 1; for (let i = 0; i < 25; i++) sim.tick(); if (f.parts.find((q) => q.d === tag).k === 'pb') sim.D[tag].v = 0; }
+  for (let i = 0; i < 600; i++) sim.tick();
+  ok(f.parts.length >= 9 && !sim.st.fault && !sim.short && !EC.lint(c, f).length, 'free play machine ' + scn + ' ' + (sim.st.fault || sim.short || EC.lint(c, f)[0] || ''));
+});
+
 // roundtrip parse/serialize
 LL.CHALLENGES.forEach((ch) => {
   if (ch.lang === 'st') {

@@ -27,7 +27,7 @@
   const ico = (k) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">${ICON[k] || ''}</svg>`;
 
   const CSS = `
-.ec [hidden]{display:none!important}
+.ec [hidden]{display:none!important}.ec-mach{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-weight:600;font-size:.9rem;margin:2px 0 10px}.ec-mach select{font:inherit;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);min-height:40px;max-width:100%}
 .ec-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0 12px}
 .ec-card{border:1px solid var(--line);border-radius:16px;background:var(--surface);padding:14px 16px}
 .ec-task h2{margin:0 0 6px;font-size:1.25rem}.ec-brief{font-size:.96rem;line-height:1.5;max-width:92ch}.ec-brief ul{margin:6px 0 6px 18px;padding:0}
@@ -91,7 +91,7 @@
     const page = el(`<div class="wrap"><span class="plate">Circuit Lab</span><h1 style="margin:10px 0 6px">Electrical circuits: build them, power them on</h1>
       <p class="muted" style="margin:0 0 8px;max-width:68ch">Contactors, push buttons, overload relays, timers and lamps, wired by you, with the 3-phase power circuit beside it. No PLC here: this is the hard-wired control inside every motor starter. Build it, power it on, try it, then run the tests.</p>
       <div class="ec-how"><div><b>1. Build</b>Pick a part, tap a cell. Current runs from L at the top to N at the bottom. Tap a dot between two paths to link them.</div><div><b>2. Power on</b>Green wires have voltage. Press the buttons on the panel door, trip the overload, watch the contactors and the motor.</div><div><b>3. Run the tests</b>They press the buttons for you and check every case, like a commissioning engineer.</div></div>
-      <div class="ec-top"><span class="chip">${n} / ${EC.TASKS.length} passed</span><a class="btn" href="#circuit-free">Free play: an empty panel</a><a class="btn ghost" href="#lesson-control-circuits">Lesson: read a control circuit</a></div>
+      <div class="ec-top"><span class="chip">${n} / ${EC.TASKS.length} passed</span><a class="btn" href="#circuit-free">Free play: any machine, no tests</a><a class="btn ghost" href="#lesson-control-circuits">Lesson: read a control circuit</a></div>
       <div class="ec-levels"></div></div>`);
     const box = page.querySelector('.ec-levels');
     Object.keys(LEVELS).forEach((lv) => {
@@ -400,8 +400,9 @@
   const W = 84, H = 54, X0 = 30, Y0 = 44, CXO = 30;
   function bench(main, id) {
     css();
-    const task = id === 'free' ? EC.FREE : EC.BY_ID[id];
+    let task = id === 'free' ? EC.FREE : id.indexOf('free-') === 0 ? EC.freeFor(id.slice(5)) : EC.BY_ID[id];
     if (!task) return list(main);
+    if (task.free) task = Object.assign({}, task, { title: 'Free play: ' + SCNNAME[task.scn].toLowerCase() });
     const store = load();
     let circ = EC.parse(store.circ[task.id] != null ? store.circ[task.id] : task.starter || '');
     let sim = null, tool = null, ptool = '', undo = [], hint = 0, askSol = false, timer = 0, lastSig = '';
@@ -419,6 +420,12 @@
           <div class="ec-box"><div class="ec-boxt"></div><div class="ec-pal"></div><div class="ec-door" hidden></div><div class="ec-lint"></div></div></section>
       </div></div>`);
     main.appendChild(page);
+    if (!task.level) {
+      // free play: choose the machine behind the panel
+      const cur = task.scn, row = el(`<label class="ec-mach">Machine behind the panel <select aria-label="Machine">${EC.FREE_SCN.map((k) => `<option value="${k}"${k === cur ? ' selected' : ''}>${esc(SCNNAME[k])}${k === 'steinh' ? ' (heavy start)' : k === 'cap1r' ? ' (two directions)' : ''}</option>`).join('')}</select></label>`);
+      row.querySelector('select').onchange = (e) => { location.hash = e.target.value === 'free' ? '#circuit-free' : '#circuit-free-' + e.target.value; };
+      const tk = page.querySelector('.ec-task'); tk.insertBefore(row, tk.querySelector('.ec-brief'));
+    }
     const $ = (q) => page.querySelector(q), svgBox = $('.ec-svg');
     const status = (t, cls) => { const s = $('.ec-status'); s.className = 'ec-status' + (cls ? ' ' + cls : ''); s.textContent = t; };
     const keep = () => { store.circ[task.id] = EC.toText(circ); save(store); };
