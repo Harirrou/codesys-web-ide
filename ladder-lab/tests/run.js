@@ -1,6 +1,6 @@
 // node ladder-lab/tests/run.js — verifies engine + every challenge solution
 const path = require('path');
-['engine', 'st', 'plants', 'plants-robot', 'plants-starters', 'challenges', 'lessons', 'topics', 'quiz-read', 'fbdview', 'hw-flow'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
+['engine', 'st', 'plants', 'plants-robot', 'plants-starters', 'challenges', 'lessons', 'topics', 'quiz-read', 'fbdview', 'hw-flow', 'hw-safety'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
 const LL = globalThis.LL;
 let fail = 0, pass = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL', m); } };
@@ -106,6 +106,24 @@ if (LL.EC && LL.EC.freeFor) LL.EC.FREE_SCN.forEach((scn) => {
   run(m, { 'I0.1': 1 }, 1); run(m, {}, 1); run(m, { 'I0.1': 1 }, 1); ok(m.word('MW12') === 22 && m.word('MW100') === 0 && !m.error, 'an empty table gives nothing');
   const all = LL.parseProgram('NAME X\nRUNG\nNO(I0.0) JMP(L1)\nRUNG\nNO(I0.0) MCR()\nRUNG\nMCR()\nRUNG\nLBL(L1)\nRUNG\nNO(I0.0) FFL(MW10,MW100,3)\nRUNG\nNO(I0.1) FFU(MW100,3,MW12)\nRUNG\nNO(I0.1) LFU(MW100,3,MW12)');
   ['toST', 'toRockwell', 'toTIA', 'toTwinCAT', 'toSysmac', 'toMachineExpert', 'toOmronCX'].forEach((fn) => { let t = ''; try { const o = LL[fn](all); t = typeof o === 'string' ? o : JSON.stringify(o); } catch (e) { t = 'undefined (threw ' + e.message + ')'; } ok(t.length > 20 && !/undefined|NaN/.test(t), fn + ' handles jump, MCR and FIFO'); });
+}
+
+// safety relay simulator (lesson safety-practice)
+{
+  const S = LL.SafetySim, mk = (o) => S.init(Object.assign({ app: 'estop2', auto: false, fb: true, delay: false, faults: {} }, o || {}));
+  const run = (st, inp, ms) => { for (let t = 0; t < (ms || 100); t += 10) S.step(st, Object.assign({ act: false, reset: false, power: true }, inp), 10); return st; };
+  const press = (st, inp) => { run(st, Object.assign({}, inp, { reset: true }), 50); run(st, inp, 50); };
+  let st = mk(); run(st, {}); ok(!st.out && st.why === 'wait', 'safety relay waits for the reset button'); press(st, {}); ok(st.out && st.motor, 'safety relay starts with reset');
+  run(st, { act: true }); ok(!st.out && !st.motor, 'E-stop drops the outputs'); run(st, {}); ok(!st.out, 'no restart by itself'); run(st, { reset: true, act: true }); run(st, { reset: true }); ok(!st.out, 'a held reset button does not start it'); run(st, {}); press(st, {}); ok(st.out, 'a new press starts it');
+  st = mk({ faults: { weld1: true } }); press(st, {}); run(st, { act: true }); ok(!st.out, 'welded contact: the second channel still stops'); run(st, {}); press(st, {}); ok(!st.out && st.why === 'needopen', 'welded contact: restart refused');
+  st = mk({ app: 'estop1', faults: { weld1: true } }); press(st, {}); run(st, { act: true }, 300); ok(st.out && st.motor, 'one channel and a welded contact: the E-stop does nothing');
+  st = mk(); press(st, {}); st.cfg.faults.cross = true; run(st, {}); ok(!st.out && st.why === 'cross', 'short between the channels trips the relay'); st.cfg.faults.cross = false; press(st, {}); ok(!st.out, 'the fault stays until the supply is cycled'); run(st, { power: false }); run(st, {}); press(st, {}); ok(st.out, 'supply off and on clears the fault');
+  st = mk(); press(st, {}); st.cfg.faults.weldK1 = true; run(st, { act: true }); ok(!st.motor && st.k1 === 1, 'welded K1: K2 still stops the motor'); run(st, {}); press(st, {}); ok(!st.out && st.why === 'fb', 'feedback loop blocks the reset');
+  st = mk({ fb: false }); press(st, {}); st.cfg.faults.weldK1 = true; run(st, { act: true }); run(st, {}); press(st, {}); ok(st.out, 'without a feedback loop the relay restarts on a welded contactor');
+  st = mk({ faults: { stuck: true } }); run(st, {}); run(st, { act: true }); run(st, {}); ok(!st.out && st.why === 'stuck', 'a stuck reset button does not restart');
+  st = mk({ auto: true }); run(st, {}); ok(st.out, 'automatic start'); run(st, { act: true }); run(st, {}); ok(st.out, 'automatic start comes back by itself');
+  st = mk({ delay: true }); press(st, {}); run(st, { act: true }, 500); ok(!st.out && st.motor && st.ramp, 'delayed contacts hold during the ramp'); run(st, { act: true }, 1200); ok(!st.motor, 'delayed contacts open after the time');
+  st = mk({ faults: { break2: true } }); press(st, {}); ok(!st.out && st.why === 'onech', 'a broken wire in one channel keeps it off');
 }
 
 // roundtrip parse/serialize
