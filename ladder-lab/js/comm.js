@@ -95,7 +95,7 @@
     };
     return { title: 'Arbitration: CAN, CANopen, DeviceNet', steps: [
       { d: 3600, t: 'On CAN there is no master. Any node may start sending when the bus is quiet. Every message starts with its ID, and the ID is also its priority.', f(c, K) { table(c, K, 0); } },
-      { d: 5200, t: 'Node A (ID 0x12) and node B (ID 0x15) start at the same moment. Each sends its ID bit by bit AND listens to the bus at the same time.', f(c, K, p) { table(c, K, Math.min(lose, Math.floor(p * (lose + 0.99)))); } },
+      { d: 5200, t: 'Node A (ID 0x12) and node B (ID 0x15) start at the same moment. Each sends its ID bit by bit AND listens to the bus at the same time. (A real ID has 11 bits; 7 are shown.)', f(c, K, p) { table(c, K, Math.min(lose, Math.floor(p * (lose + 0.99)))); } },
       { d: 4200, t: 'Bit ' + (lose + 1) + ': B sends 1 but hears 0 (A\'s 0 is "dominant", it overwrites a 1). B knows it lost, stops at once and just listens. No collision, no time lost.', f(c, K) { table(c, K, lose + 1); text(c, 'B lost here', 210 + lose * 52, 110 + 32, { s: 13, c: K.bad }); } },
       { d: 4200, t: 'A simply goes on: its data (up to 8 bytes), a CRC, then every node that received it correctly sends an ACK bit. Lower ID = higher priority.', f(c, K) { table(c, K, N, true); text(c, '→ A sends its data, CRC, ACK', 470, 230, { s: 13, c: K.ok }); } },
       { d: 4600, t: 'Every node receives every message and keeps only the IDs it cares about. CANopen and DeviceNet are rules on top of CAN that say what the IDs and bytes mean (CANopen: PDO = process data, SDO = parameters).', f(c, K) { table(c, K, N, true); } },
@@ -111,8 +111,8 @@
       SL.forEach(([x, y, n], i) => { line(c, [[x, BUS], [x, y - 21]], K.line, 3); node(c, K, x, y, n, { w: 128, sub: 'slave', hl: hl === i ? K.accent : null }); });
     };
     return { title: 'Header and response: LIN', steps: [
-      { d: 3600, t: 'LIN is a cheap, slow bus (up to 19.2 kbit/s) on one signal wire: one master, up to 16 slaves. It is used for simple things in cars: windows, mirrors, seats, sensors.', f(c, K) { base(c, K); } },
-      { d: 4200, t: 'The master sends a header: a "break" (wake up!), a sync byte 0x55 (01010101) so every slave tunes its clock, then the frame ID.', f(c, K, p) { base(c, K); const [x] = along([[M[0], BUS], [600, BUS]], ease(p)); packet(c, K, x, BUS + 26, 'break | 55 | ID 0x21', K.info, { s: 12 }); } },
+      { d: 3600, t: 'LIN is a cheap, slow bus (up to 19.2 kbit/s) on one signal wire: one master and up to 15 slaves. It is used for simple things in cars: windows, mirrors, seats, sensors.', f(c, K) { base(c, K); } },
+      { d: 4200, t: 'The master sends a header: a "break" (a new frame starts), a sync byte 0x55 (01010101) so every slave tunes its clock, then the frame ID.', f(c, K, p) { base(c, K); const [x] = along([[M[0], BUS], [600, BUS]], ease(p)); packet(c, K, x, BUS + 26, 'break | 55 | ID 0x21', K.info, { s: 12 }); } },
       { d: 4200, t: 'Only the slave that owns ID 0x21 (the rain sensor) fills in the response: 1–8 data bytes and a checksum. The master and anyone interested read it.', f(c, K, p) { base(c, K, 2); const [x] = along([[570, BUS], [M[0], BUS]], ease(p)); packet(c, K, x, BUS + 26, 'data | checksum', K.ok, { s: 12, ink: '#04210f' }); } },
       { d: 3600, t: 'The master works through a fixed schedule: frame 1, frame 2, frame 3, again and again. Simple and predictable, but slow: never for fast machine control.', f(c, K) { base(c, K); ['1: window 0x10', '2: mirror 0x11', '3: rain 0x21'].forEach((s, i) => text(c, s, 330, 40 + i * 22, { s: 13, c: K.ink, a: 'left', mono: true })); text(c, 'schedule table', 330, 18, { s: 12, c: K.muted, a: 'left' }); } },
     ] };

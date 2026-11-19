@@ -207,7 +207,7 @@
 <tr><td>1</td><td>0</td><td>0</td><td>1</td></tr>
 <tr><td>1</td><td>1</td><td>1</td><td>1</td></tr>
 </table></div>
-<div class="callout where"><b>Where:</b> two-hand safety presses (AND), "start from the panel OR from the HMI" (OR), permissives like "guard closed AND air pressure OK AND no fault".</div>
+<div class="callout where"><b>Where:</b> two-hand start on a press (AND; the real safety function also needs a safety relay), "start from the panel OR from the HMI" (OR), permissives like "guard closed AND air pressure OK AND no fault".</div>
 <div class="callout tip"><b>Trick:</b> press <b>ST</b> in the simulator any time to see your rungs written as Boolean text. Reading <code>A AND (B OR C)</code> next to the picture trains your eye fast.</div>`,
       sims: {
         and: { program: 'RUNG Both hands\nNO(I0.0) NO(I0.1) COIL(Q0.0)', inputs: { 'I0.0': pb('Left hand'), 'I0.1': pb('Right hand') }, outputs: { 'Q0.0': 'Press' } },
@@ -283,7 +283,7 @@
 <div class="tbl"><table>
 <tr><th></th><th>Seal-in coil</th><th>Set / Reset</th></tr>
 <tr><td>Visibility</td><td>All conditions on one rung</td><td>Spread over many rungs</td></tr>
-<tr><td>Power cut</td><td>Off after restart</td><td>Can be retentive (stays on!)</td></tr>
+<tr><td>Power cut</td><td>Rockwell: off after restart. Other brands: depends on the memory area</td><td>Rockwell: stays on. Other brands: stays on only if the bit is retentive</td></tr>
 <tr><td>Best for</td><td>Motors, anything with a STOP</td><td>Step bits, alarms, modes, "remember that…"</td></tr>
 </table></div>
 <div class="callout warn"><b>Careful:</b> a bit SET in five places and RESET in seven places is a troubleshooting nightmare. Keep sets and resets for one bit close together.</div>`,
@@ -393,7 +393,7 @@
 <p>Two normal coils with the same address in two rungs: rung 1 sets Q0.0 = 1, rung 2 sets it straight back to 0, and only the <b>last</b> rung's answer reaches the terminal. Pressing PB1 seems to do nothing.</p>
 [[sim:dbl]]
 <p>The fix: <b>one coil per output</b>. Combine every condition into a single rung with branches, or compute parts in M bits and OR them.</p>
-<p>Ladder Lab's checker flags this as <b>"Double coil"</b>. Real tools do too (TIA Portal and GX Works warn, Studio 5000 allows it silently).</p>
+<p>Ladder Lab's checker flags this as <b>"Double coil"</b>. Many real tools do not warn (TIA Portal and Studio 5000 normally allow it silently): use the cross-reference list.</p>
 <h3>Rung order</h3>
 <p>Because rungs are solved top to bottom, a bit written in rung 5 is seen by rung 6 in the <i>same</i> scan, but by rung 4 only in the <i>next</i> scan. Usually harmless, but it matters for:</p>
 <ul>
@@ -431,7 +431,7 @@
 
 <h3>24 V DC and 230 / 400 V AC</h3>
 <div class="tbl"><table><thead><tr><th></th><th>24 V DC</th><th>230 / 400 V AC</th></tr></thead><tbody>
-<tr><td>What it is</td><td>Direct current: always flows the same way, from + to −.</td><td>Alternating current: changes direction 50 times per second (50 Hz; 60 Hz in America).</td></tr>
+<tr><td>What it is</td><td>Direct current: always flows the same way, from + to −.</td><td>Alternating current: makes 50 full cycles per second (50 Hz; 60 Hz in America), so the direction changes 100 times per second.</td></tr>
 <tr><td>Wires</td><td>L+ (+24 V) and M (0 V)</td><td>230 V between a phase L and N. 400 V between two phases L1, L2, L3.</td></tr>
 <tr><td>Used for</td><td>PLC inputs and outputs, sensors, relays, valves, HMI</td><td>Motors, heaters, pumps, and the input of the 24 V power supply</td></tr>
 <tr><td>Danger</td><td>Safe to touch</td><td>Deadly. Only trained electricians work on it.</td></tr>
@@ -531,7 +531,7 @@
 <tr><th>Tag</th><th>Part</th><th>Terminals</th><th>Remember</th></tr>
 <tr><td><b>S</b></td><td>Push button, selector switch, E-stop</td><td>NO 13-14, NC 11-12</td><td>STOP and E-stop are NC: a broken wire stops the machine</td></tr>
 <tr><td><b>K</b> (KM, KA)</td><td>Contactor or relay</td><td>Coil A1-A2, NO 13-14, NC 21-22</td><td>One coil moves all its contacts</td></tr>
-<tr><td><b>F</b></td><td>Overload relay, breaker, fuse</td><td>NC 95-96, NO 97-98</td><td>95-96 goes in the coil path, 97-98 to the TRIP lamp</td></tr>
+<tr><td><b>F</b></td><td>Overload relay (breakers and fuses have other numbers, or no contact)</td><td>NC 95-96, NO 97-98</td><td>95-96 goes in the coil path, 97-98 to the TRIP lamp</td></tr>
 <tr><td><b>KT</b></td><td>Timer relay</td><td>NO 17-18, NC 15-16</td><td>On-delay: the contacts switch after the time</td></tr>
 <tr><td><b>B</b></td><td>Switch moved by the machine: limit, float, pressure</td><td>NO 13-14, NC 11-12</td><td>"Actuated" means the machine pushes it</td></tr>
 <tr><td><b>H</b></td><td>Lamp, horn</td><td>X1-X2</td><td>A load, like a coil</td></tr>
@@ -675,7 +675,7 @@
 [[sim:ctu]]
 <p>Counters count <b>edges</b>, not scans: holding the button adds only 1. That edge detection is built in.</p>
 <h3>Up/down on one counter</h3>
-<p>Point a CTU and a CTD at the <b>same</b> counter number: entries add, exits subtract. That gives a live "how many are inside" count for parking lots, buffers and accumulation conveyors.</p>
+<p>Point a CTU and a CTD at the <b>same</b> counter number: entries add, exits subtract. (That is the way of this simulator and of Rockwell. In TIA Portal, CODESYS and TwinCAT you use one <b>CTUD</b> block with a CU and a CD input.) That gives a live "how many are inside" count for parking lots, buffers and accumulation conveyors.</p>
 <div class="callout where"><b>Where:</b> batch counting (5 boxes per carton), production totals, cycles until maintenance, retries before fault, people/cars inside.</div>
 <div class="callout warn"><b>Watch out:</b> a counter only counts if its input really goes 0 → 1. Two boxes touching each other under a photo-eye look like one long box. Mechanical spacing or a timer gap fixes it.</div>`,
       sims: { ctu: { program: 'RUNG Count presses\nNO(I0.0) CTU(C0,5)\nRUNG Reset\nNO(I0.1) RST(C0)\nRUNG Done lamp\nNO(C0) COIL(Q0.0)', inputs: { 'I0.0': pb('Count'), 'I0.1': pb('Reset') }, outputs: { 'Q0.0': '5 reached' } } },
@@ -880,7 +880,7 @@ level % = (AIW0 − 6400) × 100 ÷ 25600
 <ul>
 <li>High / low alarms with compare instructions (<code>MW0 ≥ 90</code>).</li>
 <li>Add a <b>deadband</b> or delay timer so a value hovering at 90.0 % doesn't make the alarm flicker.</li>
-<li>Out-of-range raw values (below about 3.8 mA) mean a sensor fault, not a reading.</li>
+<li>Out-of-range raw values (below about 3.6 mA) mean a sensor fault, not a reading.</li>
 </ul>
 <div class="callout where"><b>Where:</b> tank levels, line pressure, oven temperature, flow totals, motor speed references. Practically every process plant.</div>`,
       sims: { scale: { program: 'RUNG Remove the 4 mA live zero\nNO(SM0.0) SUB(AIW0,6400,MW0)\nRUNG 256 counts per percent\nNO(SM0.0) DIV(MW0,256,MW0)\nRUNG High alarm ≥ 90 %\nCMP(MW0>=90) COIL(Q0.0)\nRUNG Wire break: below 4 mA\nCMP(AIW0<6000) COIL(Q0.1)', inputs: { 'AIW0': { name: 'Level transmitter', kind: 'ana', min: 0, max: 32000, value: 19200 } }, plant: 'atank', outputs: { 'Q0.0': 'High alarm', 'Q0.1': 'Sensor fault' }, note: 'Drag the slider: 19200 = 12 mA = 50 %. Slide below 4 mA to see the wire-break fault.' } },
@@ -1079,10 +1079,10 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
 <p>Both move cylinders with valves and solenoids, so the ladder looks similar. But oil does not compress, works at 100–300 bar instead of 6 bar, and the machine has its <b>own pump</b>. That changes the program in several places.</p>
 <div class="tbl"><table>
 <tr><th></th><th>Pneumatics</th><th>Hydraulics</th></tr>
-<tr><td>Medium, pressure</td><td>air, about 6 bar</td><td>oil, 100–300 bar: 50 × more force from the same size</td></tr>
+<tr><td>Medium, pressure</td><td>air, about 6 bar</td><td>oil, 100–300 bar: up to 50 × more force from the same size</td></tr>
 <tr><td>Energy source</td><td>the factory air network (compressor somewhere else)</td><td>its own <b>power unit</b> (HPU): tank, pump motor, relief valve, filter, cooler. <b>The PLC runs it.</b></td></tr>
 <tr><td>Typical valve</td><td>5/2 (spring or bistable)</td><td>4/3 <b>spring-centred</b>, two solenoids: Y1 one way, Y2 the other, <b>both off = stop</b></td></tr>
-<tr><td>Stop in the middle</td><td>poor: air is a spring</td><td>yes: closed centre (and a pilot check valve) <b>holds the load</b></td></tr>
+<tr><td>Stop in the middle</td><td>poor: air is a spring</td><td>yes: a closed centre stops the ram (it still creeps slowly); a pilot-operated check valve <b>holds the load</b></td></tr>
 <tr><td>Valve on at the end stop</td><td>harmless, often kept on</td><td>oil goes over the relief valve at full pressure: <b>heat, wasted energy</b>. Switch off, or unload the pump.</td></tr>
 <tr><td>End of a pressing move</td><td>position sensor</td><td>often <b>pressure</b> (pressure switch or transducer): force, not position</td></tr>
 <tr><td>Speed</td><td>fast, hard to control</td><td>slower, controlled: two speeds (fast approach / slow press) or a proportional valve with an analog output</td></tr>
@@ -1108,14 +1108,14 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
 </g></svg></div>
 <h3>The power unit, step by step</h3>
 <ul>
-<li><b>Start unloaded.</b> A motor that starts against full pressure draws a huge current and trips. Keep the unloading valve Y0 off at the start (or use a star-delta starter), and allow pressure after about 2 s.</li>
+<li><b>Start unloaded.</b> A motor that starts against full pressure draws a huge current and trips. Keep the unloading valve Y0 off at the start, and allow pressure after about 2 s. With a star-delta starter, keep it off until the changeover to delta is done.</li>
 <li><b>Unload when idle.</b> With a fixed pump and a closed-centre valve, oil that is not used goes over the relief valve: all the motor power becomes heat. Switch Y0 on only while a valve moves the cylinder (or use a pressure-compensated pump).</li>
 <li><b>Oil level</b>: stop the pump at once when it is low; a pump sucking air is destroyed in seconds.</li>
 <li><b>Oil temperature</b>: cooler on at about 45 °C, off at 40 °C (hysteresis); stop the machine above about 60–70 °C. In winter, some units heat the oil before starting.</li>
 <li><b>Filter clogged</b>: a warning for maintenance, not a stop.</li>
 </ul>
 <h3>The press cycle</h3>
-<p>Fast approach → slow-down point → press until the pressure switch → <b>dwell</b> (hold the force) → <b>decompression</b> (valve centred 0.2–0.5 s) → up → everything off and the pump unloaded. Pump STOP or a fault: the valve centres and the ram holds where it is. Never Y1 and Y2 together.</p>
+<p>Fast approach → slow-down point → press until the pressure switch → <b>dwell</b> (hold the force) → <b>decompression</b> (valve centred 0.2–0.5 s) → up → everything off and the pump unloaded. Pump STOP or a fault: the valve centres and the ram stops (a pilot-operated check valve holds it there). Never Y1 and Y2 together.</p>
 <p>A press is a dangerous machine: the closing stroke needs a <b>two-hand control</b> (both buttons within 0.5 s, held during the stroke) or a light curtain, built with safety hardware. Accumulators keep pressure after the pump stops: they must be discharged before maintenance.</p>
 <h3>Accumulators</h3>
 <p>An <b>accumulator</b> is a steel bottle with a gas bladder that stores oil under pressure. A small pump charges it between two pressures (for example <b>140 → 160 bar</b>) and then runs unloaded; the accumulator supplies short, big flows (clamps, brakes, emergency movements). Because it keeps its pressure when the pump stops, a <b>dump valve</b> empties it at STOP or on a fault: never open a hydraulic pipe before the pressure gauge reads 0.</p>
@@ -1149,9 +1149,10 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
 <li><b>Power off:</b> look at the wiring, terminals tight, protective earth, the right fuses. Check 24 V is not shorted.</li>
 <li><b>Power on, PLC in STOP:</b> 24 V present, the PLC and remote I/O and drives are online, no red LEDs.</li>
 <li><b>Input check:</b> operate every sensor and button by hand and see the right input change in the PLC (the I/O table or a watch table). Tick it on the <b>I/O check sheet</b>.</li>
+<li><b>Before anything moves:</b> test every E-stop and every guard switch, and see the power contactors drop out. Only then go on.</li>
 <li><b>Output check:</b> with the air or oil pressure low and nobody in the machine, switch every output on by <b>forcing</b> it, one at a time, and see the right device react. Motors: <b>bump</b> them to check the direction, with the coupling or belt off if possible.</li>
 <li><b>Analog loop check:</b> simulate 4 mA, 12 mA and 20 mA (a loop calibrator) and read 0 %, 50 %, 100 % in the PLC; check the wire-break value.</li>
-<li><b>Safety functions:</b> every E-stop, door switch, light curtain: does it stop what it must? Write it down (it is part of the validation).</li>
+<li><b>Safety validation:</b> every E-stop, door switch and light curtain again, now with the machine running: does it stop what it must? Write it down (it is part of the validation).</li>
 <li><b>Manual mode:</b> every movement by hand, end positions, interlocks.</li>
 <li><b>Dry run</b> in AUTO without product, then with product at low speed, then at full speed.</li>
 <li><b>Sign-off:</b> FAT (factory acceptance test, at the builder) and SAT (site acceptance test, at the customer).</li>
@@ -1171,7 +1172,7 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
 <li>NPN sensor on a PNP input card (or the reverse): the input never comes on.</li>
 <li>NC contact where NO was planned (or the reverse): the input is inverted.</li>
 <li>Motor turns backwards: swap two phases (or the drive parameter).</li>
-<li>4–20 mA wired as 0–20 mA in the configuration: the reading is off by 20 %.</li>
+<li>4–20 mA wired as 0–20 mA in the configuration: an empty tank shows 20 %, a full tank still shows 100 %.</li>
 </ul>
 <h3>Write programs that help</h3>
 <p>A good program finds wiring and sensor faults by itself, at commissioning and for years: <b>plausibility checks</b> (home and out sensor never together), <b>watchdogs</b> (the sensor must come within a time), analog <b>wire-break</b> detection, and a clear alarm text that names the device. Forcing is a commissioning tool: remove every force before production, and never force a safety signal.</p>
@@ -1266,7 +1267,7 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
 <tr><td>-X</td><td>terminal strip, connector</td><td>-X2:5 = strip X2, terminal 5</td></tr>
 <tr><td>-Y</td><td>valve solenoid</td><td>-Y1 cylinder A out</td></tr>
 </table></div>
-<p>(IEC 81346; older drawings use similar letters. A full tag can also carry the place: <b>=MACHINE+CABINET-K1</b>.)</p>
+<p>(These are the traditional letters, still used on most drawings. New drawings to IEC 81346-2 use P for lamps, Q for power contactors and K for PLCs. A full tag can also carry the place: <b>=MACHINE+CABINET-K1</b>.)</p>
 <h3>Reading a control page: cross-references</h3>
 <div class="sfc-wrap"><svg class="sfc" viewBox="0 0 640 352" width="640" style="max-width:100%;height:auto" role="img" aria-label="Example control page with cross-references"><g fill="none" stroke="currentColor" stroke-width="1.8" font-family="IBM Plex Sans, sans-serif" font-size="12"><rect x="40" y="4" width="100" height="18" stroke-width="1"/><text x="90" y="17" text-anchor="middle" stroke="none" fill="currentColor" font-size="11" font-weight="700">1</text><rect x="140" y="4" width="100" height="18" stroke-width="1"/><text x="190" y="17" text-anchor="middle" stroke="none" fill="currentColor" font-size="11" font-weight="700">2</text><rect x="240" y="4" width="100" height="18" stroke-width="1"/><text x="290" y="17" text-anchor="middle" stroke="none" fill="currentColor" font-size="11" font-weight="700">3</text><rect x="340" y="4" width="100" height="18" stroke-width="1"/><text x="390" y="17" text-anchor="middle" stroke="none" fill="currentColor" font-size="11" font-weight="700">4</text><rect x="440" y="4" width="100" height="18" stroke-width="1"/><text x="490" y="17" text-anchor="middle" stroke="none" fill="currentColor" font-size="11" font-weight="700">5</text><rect x="540" y="4" width="100" height="18" stroke-width="1"/><text x="590" y="17" text-anchor="middle" stroke="none" fill="currentColor" font-size="11" font-weight="700">6</text><path d="M30 46 H630" stroke-width="2.4"/><path d="M30 320 H630" stroke-width="2.4"/><text x="26" y="50" text-anchor="end" stroke="none" fill="currentColor" font-size="11" font-weight="700">L+</text><text x="26" y="324" text-anchor="end" stroke="none" fill="currentColor" font-size="11" font-weight="700">M</text><path d="M190 46 V60"/><path d="M190 60 V80 H203 M190 100 V120 M190 100 L205 76"/><text x="168" y="92" text-anchor="end" stroke="none" fill="currentColor" font-size="12" font-weight="700">-S1</text><text x="168" y="106" text-anchor="end" stroke="none" fill="currentColor" font-size="10" font-weight="500">STOP</text><path d="M190 120 V140"/><text x="196" y="134" text-anchor="start" stroke="none" fill="currentColor" font-size="9" font-weight="500">402</text><path d="M190 140 V160 M190 180 V200 M190 180 L177 158"/><text x="168" y="172" text-anchor="end" stroke="none" fill="currentColor" font-size="12" font-weight="700">-S2</text><text x="168" y="186" text-anchor="end" stroke="none" fill="currentColor" font-size="10" font-weight="500">START</text><path d="M190 140 H290 M190 200 H290"/><path d="M290 140 V160 M290 180 V200 M290 180 L277 158"/><text x="310" y="168" text-anchor="start" stroke="none" fill="currentColor" font-size="12" font-weight="700">-K1</text><text x="310" y="182" text-anchor="start" stroke="none" fill="currentColor" font-size="10" font-weight="500">13 – 14</text><path d="M190 200 V220"/><text x="196" y="212" text-anchor="start" stroke="none" fill="currentColor" font-size="9" font-weight="500">403</text><rect x="174" y="220" width="32" height="22"/><path d="M190 242 V320"/><text x="166" y="236" text-anchor="end" stroke="none" fill="currentColor" font-size="12" font-weight="700">-K1</text><path d="M198 250 H286" stroke-width="1"/><text x="200" y="262" text-anchor="start" stroke="none" fill="currentColor" font-size="9" font-weight="500">1 – 2  /3.2</text><text x="200" y="273" text-anchor="start" stroke="none" fill="currentColor" font-size="9" font-weight="500">3 – 4  /3.2</text><text x="200" y="284" text-anchor="start" stroke="none" fill="currentColor" font-size="9" font-weight="500">5 – 6  /3.3</text><text x="200" y="295" text-anchor="start" stroke="none" fill="currentColor" font-size="9" font-weight="500">13 – 14  /4.3</text><text x="200" y="306" text-anchor="start" stroke="none" fill="currentColor" font-size="9" font-weight="500">23 – 24  /4.5</text><path d="M490 46 V100"/><path d="M490 100 V120 M490 140 V160 M490 140 L477 118"/><text x="510" y="128" text-anchor="start" stroke="none" fill="currentColor" font-size="12" font-weight="700">-K1</text><text x="510" y="142" text-anchor="start" stroke="none" fill="currentColor" font-size="10" font-weight="500">23 – 24   /4.2</text><path d="M490 160 V196"/><text x="496" y="182" text-anchor="start" stroke="none" fill="currentColor" font-size="9" font-weight="500">404</text><circle cx="490" cy="214" r="18"/><path d="M478 202 L502 226 M502 202 L478 226"/><path d="M490 232 V320"/><text x="516" y="210" text-anchor="start" stroke="none" fill="currentColor" font-size="12" font-weight="700">-H1</text><text x="516" y="224" text-anchor="start" stroke="none" fill="currentColor" font-size="10" font-weight="500">running</text><text x="330" y="342" text-anchor="middle" stroke="none" fill="currentColor" font-size="11" font-weight="600">page 4  ·  motor M1 start / stop</text></g></svg></div>
 <ul>
@@ -1300,7 +1301,7 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
 
 <h3>1. The P&amp;ID: what is in the plant</h3>
 <p>A <b>P&amp;ID</b> (piping and instrumentation diagram) shows every pipe, tank, pump, valve and instrument, and how they are connected. Here is a small one: a tank with level control.</p>
-<div class="sfc-wrap"><svg class="sfc" viewBox="0 0 640 300" width="640" style="max-width:100%;height:auto" role="img" aria-label="A small P and I D: tank level control"><g fill="none" stroke="currentColor" stroke-width="1.6" font-family="IBM Plex Sans, sans-serif"><rect x="250" y="70" width="130" height="170" rx="10"/><text x="315" y="262" font-size="12" text-anchor="middle" font-weight="700" fill="currentColor" stroke="none">TK-101</text><path d="M40 110 H120 M160 110 H250" stroke-width="2.4"/><path d="M120 98 L160 122 M120 122 L160 98 M120 98 V122 M160 98 V122"/><path d="M140 110 V84"/><path d="M126 84 a14 12 0 0 1 28 0 z"/><text x="140" y="140" font-size="11" text-anchor="middle" font-weight="700" fill="currentColor" stroke="none">LV-101</text><text x="70" y="100" font-size="10" text-anchor="middle" font-weight="500" fill="currentColor" stroke="none">water in</text><circle cx="315" cy="34" r="19" fill="none"/><text x="315" y="29" font-size="11" text-anchor="middle" font-weight="700" fill="currentColor" stroke="none">LT</text><text x="315" y="47" font-size="10" text-anchor="middle" font-weight="500" fill="currentColor" stroke="none">101</text><path d="M315 53 V70"/><circle cx="190" cy="34" r="19" fill="none"/><path d="M171 34 H209"/><text x="190" y="29" font-size="11" text-anchor="middle" font-weight="700" fill="currentColor" stroke="none">LIC</text><text x="190" y="47" font-size="10" text-anchor="middle" font-weight="500" fill="currentColor" stroke="none">101</text><path d="M296 34 H209" stroke-dasharray="6 4"/><path d="M172 44 L146 74" stroke-dasharray="6 4"/><circle cx="440" cy="100" r="19" fill="none"/><text x="440" y="95" font-size="11" text-anchor="middle" font-weight="700" fill="currentColor" stroke="none">LSHH</text><text x="440" y="113" font-size="10" text-anchor="middle" font-weight="500" fill="currentColor" stroke="none">102</text><path d="M380 100 H421"/><path d="M380 220 H470" stroke-width="2.4"/><circle cx="492" cy="220" r="22"/><path d="M478 203 L514 220 L478 237"/><path d="M514 220 H600" stroke-width="2.4"/><text x="492" y="262" font-size="12" text-anchor="middle" font-weight="700" fill="currentColor" stroke="none">P-101</text><text x="575" y="210" font-size="10" text-anchor="middle" font-weight="500" fill="currentColor" stroke="none">to process</text><path d="M440 119 V160 H492 V198" stroke-dasharray="2 4"/><text x="520" y="156" font-size="10" text-anchor="start" font-weight="500" fill="currentColor" stroke="none">interlock</text><text x="20" y="290" font-size="10" text-anchor="start" font-weight="500" fill="currentColor" stroke="none">thick line = pipe · dashed = electrical signal · dotted = interlock (software)</text></g></svg></div>
+<div class="sfc-wrap"><svg class="sfc" viewBox="0 0 640 300" width="640" style="max-width:100%;height:auto" role="img" aria-label="A small P and I D: tank level control"><g fill="none" stroke="currentColor" stroke-width="1.6" font-family="IBM Plex Sans, sans-serif"><rect x="250" y="70" width="130" height="170" rx="10"/><text x="315" y="262" font-size="12" text-anchor="middle" font-weight="700" fill="currentColor" stroke="none">TK-101</text><path d="M40 110 H120 M160 110 H250" stroke-width="2.4"/><path d="M120 98 L160 122 M120 122 L160 98 M120 98 V122 M160 98 V122"/><path d="M140 110 V84"/><path d="M126 84 a14 12 0 0 1 28 0 z"/><text x="140" y="140" font-size="11" text-anchor="middle" font-weight="700" fill="currentColor" stroke="none">LV-101</text><text x="70" y="100" font-size="10" text-anchor="middle" font-weight="500" fill="currentColor" stroke="none">water in</text><circle cx="315" cy="34" r="19" fill="none"/><text x="315" y="29" font-size="11" text-anchor="middle" font-weight="700" fill="currentColor" stroke="none">LT</text><text x="315" y="47" font-size="10" text-anchor="middle" font-weight="500" fill="currentColor" stroke="none">101</text><path d="M315 53 V70"/><circle cx="190" cy="34" r="19" fill="none"/><path d="M171 34 H209"/><text x="190" y="29" font-size="11" text-anchor="middle" font-weight="700" fill="currentColor" stroke="none">LIC</text><text x="190" y="47" font-size="10" text-anchor="middle" font-weight="500" fill="currentColor" stroke="none">101</text><path d="M296 34 H209" stroke-dasharray="6 4"/><path d="M172 44 L146 74" stroke-dasharray="6 4"/><circle cx="440" cy="100" r="19" fill="none"/><text x="440" y="95" font-size="11" text-anchor="middle" font-weight="700" fill="currentColor" stroke="none">LSHH</text><text x="440" y="113" font-size="10" text-anchor="middle" font-weight="500" fill="currentColor" stroke="none">102</text><path d="M380 100 H421"/><path d="M380 220 H470" stroke-width="2.4"/><circle cx="492" cy="220" r="22"/><path d="M478 203 L514 220 L478 237"/><path d="M514 220 H600" stroke-width="2.4"/><text x="492" y="262" font-size="12" text-anchor="middle" font-weight="700" fill="currentColor" stroke="none">P-101</text><text x="575" y="210" font-size="10" text-anchor="middle" font-weight="500" fill="currentColor" stroke="none">to process</text><path d="M440 81 V62 H166 L154 80" stroke-dasharray="2 4"/><text x="392" y="56" font-size="10" text-anchor="middle" font-weight="500" fill="currentColor" stroke="none">interlock</text><text x="20" y="290" font-size="10" text-anchor="start" font-weight="500" fill="currentColor" stroke="none">thick line = pipe · dashed = electrical signal · dotted = interlock (software)</text></g></svg></div>
 <p>Every instrument is a circle (a "bubble") with a <b>tag</b>. The letters follow a standard (ISA 5.1):</p>
 <div class="tbl"><table>
 <tr><th>First letter: what is measured</th><th>Next letters: what it does</th></tr>
@@ -1308,7 +1309,7 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
 <tr><td colspan="2"><b>H</b> high, <b>L</b> low, <b>HH</b> very high, <b>LL</b> very low. So <b>LSHH</b> is a level switch, very high.</td></tr>
 </table></div>
 <p>Read the picture: <b>LT-101</b> measures the level and sends it to <b>LIC-101</b>, a level controller (a PID in your PLC). The controller moves the valve <b>LV-101</b>. Same number = same loop. <b>LSHH-102</b> is a separate switch for "much too high".</p>
-<p>A line through the bubble means "in the control room / on the HMI". No line means "in the field, on the pipe".</p>
+<p>A line through the bubble means &quot;on the control panel&quot;. A circle inside a square is a function in the PLC or DCS that is shown on the HMI (LIC-101 here; it is drawn as a plain circle to keep the picture simple). No line means &quot;in the field, on the pipe&quot;.</p>
 
 <h3>2. The I/O list: what goes to the PLC</h3>
 <p>One row for each signal: tag, description, type (DI, DO, AI, AO), range and unit, PLC address, alarm limits. It is your tag table before you have written a single rung. Check it against the P&amp;ID: every bubble that has a signal must be in the list.</p>
@@ -1417,7 +1418,7 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
 <li>A condition like "minute = 0" lasts a whole minute: use an edge or a <b>TP</b> to do something once (ring the bell 3 s).</li>
 <li>A button that gives light "for 30 minutes": a <b>TOF</b> started by the button.</li>
 <li>Holidays: a switch or a calendar table in a data block.</li>
-<li>Summer / winter time: let the PLC use local time from NTP, or the schedule shifts one hour twice a year.</li>
+<li>Summer / winter time: synchronise the clock with NTP (it gives UTC) and set the time zone and the summer-time rule in the PLC, or the schedule shifts one hour twice a year.</li>
 </ul>
 <div class="callout where"><b>Where:</b> shift bells and breaks, building services (heating, ventilation, lights), pumps that run at night tariff, cleaning cycles, production calendars.</div>`,
       sims: {},
@@ -1576,7 +1577,7 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
 <p>A machine spends most of its life in <b>AUTO</b>, but people also have to set it up, clear a jam, test a clamp or change a tool. Those jobs need <b>MANUAL</b> control of single movements. Mixing the two without rules is how machines crash and people get hurt, so the mode is a <b>deliberate choice</b>: a key switch or selector, often with password levels on the HMI.</p>
 <div class="tbl"><table>
 <tr><th>Mode</th><th>What may happen</th><th>Typical rules</th></tr>
-<tr><td><b>OFF</b></td><td>Nothing moves. Controls powered, outputs off.</td><td>Machine safe for cleaning or inspection (real lock-out still needs isolators).</td></tr>
+<tr><td><b>OFF</b></td><td>Nothing moves. Controls powered, outputs off.</td><td>Nothing is commanded to move. That is not safe for hands in the machine: for cleaning or inspection, isolate and lock out.</td></tr>
 <tr><td><b>MANUAL</b> (setup, jog)</td><td>One movement per button, <b>only while the button is held</b> (hold-to-run) or one toggle per press on an HMI.</td><td>START does nothing. <b>Interlocks stay active</b>: "B only when A is out", "no clamp the tool does not have", "screw only when clamped". Often reduced speed.</td></tr>
 <tr><td><b>AUTO</b></td><td>The sequence runs by itself after START.</td><td>Jog buttons do nothing. START only from the <b>home position</b>. Leaving AUTO stops or aborts the cycle.</td></tr>
 </table></div>
@@ -1621,7 +1622,7 @@ Valve B = (AUTO AND step wants B) OR (MANUAL AND Jog B AND A is out)   ← inter
 
 <h3>Two kinds of state</h3>
 <ul>
-<li><b>Waiting states</b> (square): Stopped, Idle, Execute, Held, Suspended, Complete, Aborted. The machine stays there until a command comes. (Execute is special: it "waits" while it produces.)</li>
+<li><b>Waiting states</b> (square): Stopped, Idle, Held, Suspended, Complete, Aborted: six of them. The machine stays there until a command comes. Execute is an <b>acting</b> state: it goes on until the order is done.</li>
 <li><b>Acting states</b> (round, they end in -ing): Resetting, Starting, Holding… The machine does a job, and when the job is done it moves on <b>by itself</b>.</li>
 </ul>
 
@@ -1751,8 +1752,8 @@ Valve B = (AUTO AND step wants B) OR (MANUAL AND Jog B AND A is out)   ← inter
 <h3>The ten parameters, and why each one matters</h3>
 <div class="tbl"><table>
 <tr><th>Setting</th><th>Why the drive needs it</th><th>If it is wrong</th></tr>
-<tr><td>Motor rated <b>voltage</b> and <b>frequency</b></td><td>Together they give the voltage for each Hz (400 V / 50 Hz = 8 V per Hz)</td><td>Too low: weak, hot motor. Too high: overcurrent at once</td></tr>
-<tr><td>Motor rated <b>current</b></td><td>It is the overload protection of the motor</td><td>Too low: trips for no reason. Too high: the motor can burn</td></tr>
+<tr><td>Motor rated <b>voltage</b> and <b>frequency</b></td><td>Together they give the voltage for each Hz (400 V / 50 Hz = 8 V per Hz)</td><td>Too few volts per hertz (voltage set too low or frequency too high): weak, hot motor. Too many: overcurrent at once</td></tr>
+<tr><td>Motor rated <b>current</b></td><td>It is the overload protection of the motor (Altivar: set ItH too; PowerFlex: P033)</td><td>Too low: trips for no reason. Too high: the motor can burn</td></tr>
 <tr><td>Motor rated <b>speed</b></td><td>The drive works out the slip and shows the right rpm</td><td>Wrong speed display, poor control at low speed</td></tr>
 <tr><td><b>Ramp-up</b> time</td><td>How fast the frequency may rise</td><td>Too short: overcurrent fault</td></tr>
 <tr><td><b>Ramp-down</b> time</td><td>How fast the frequency may fall</td><td>Too short with a heavy load: overvoltage fault</td></tr>
@@ -1768,11 +1769,11 @@ Valve B = (AUTO AND step wants B) OR (MANUAL AND Jog B AND A is out)   ← inter
 <div class="tbl"><table>
 <tr><th>Setting</th><th>Siemens SINAMICS</th><th>Schneider Altivar</th><th>Rockwell PowerFlex 525</th></tr>
 <tr><td>Rated voltage</td><td>p0304</td><td>UnS</td><td>P031</td></tr>
-<tr><td>Rated current</td><td>p0305</td><td>nCr</td><td>P033</td></tr>
+<tr><td>Rated current</td><td>p0305</td><td>nCr (and ItH for the overload)</td><td>P034 (and P033 for the overload)</td></tr>
 <tr><td>Rated frequency</td><td>p0310</td><td>FrS</td><td>P032</td></tr>
 <tr><td>Rated speed</td><td>p0311</td><td>nSP</td><td>P036</td></tr>
 <tr><td>Ramp-up / ramp-down</td><td>p1120 / p1121</td><td>ACC / dEC</td><td>P041 / P042</td></tr>
-<tr><td>Minimum / maximum</td><td>p1080 / p1082</td><td>LSP / HSP</td><td>P043 / P044</td></tr>
+<tr><td>Minimum / maximum</td><td>p1080 / p1082 (G120: in rpm)</td><td>LSP / HSP</td><td>P043 / P044</td></tr>
 <tr><td>Command and setpoint source</td><td>p0015 (I/O macro)</td><td>Cd1 / Fr1</td><td>P046 / P047</td></tr>
 </table></div>
 <p>The numbers differ, the ideas do not. Always check the manual of your exact drive: parameter numbers change between series.</p>
@@ -1841,7 +1842,7 @@ Valve B = (AUTO AND step wants B) OR (MANUAL AND Jog B AND A is out)   ← inter
 <div class="tbl"><table>
 <tr><th>You send</th><th>Meaning</th><th>The drive answers (status bits)</th></tr>
 <tr><td><code>16#047E</code></td><td>Everything is enabled, but the ON bit (bit 0) is 0: "get ready"</td><td>bit 0 = ready to switch on</td></tr>
-<tr><td><code>16#047F</code></td><td>The same with bit 0 = 1: "run"</td><td>bit 2 = running, bit 10 = speed reached</td></tr>
+<tr><td><code>16#047F</code></td><td>The same with bit 0 = 1: "run"</td><td>bit 2 = running, bit 8 = speed reached, bit 10 = above a comparison speed set in the drive</td></tr>
 <tr><td><code>16#04FE</code></td><td>Bit 7 = 1: "acknowledge the fault"</td><td>bit 3 = fault goes to 0</td></tr>
 </table></div>
 <p>The order matters: the drive wants to see the ON bit <b>go from 0 to 1</b>. If you send 16#047F from the first scan, it does not start. This protects people: a drive must not start by itself when the PLC powers up.</p>
@@ -1886,7 +1887,7 @@ Valve B = (AUTO AND step wants B) OR (MANUAL AND Jog B AND A is out)   ← inter
 </ol>
 <h3>Traps</h3>
 <ul>
-<li><b>Direction</b>: more output must move PV towards SP (pump faster → more pressure). Cooling loops are "reverse acting".</li>
+<li><b>Direction</b>: more output must move PV towards SP (pump faster → more pressure). A loop where more output makes PV go <b>down</b> (cooling) needs the other direction: set the direct / reverse option of the block (PID_Compact: &quot;Invert control logic&quot;). The two words are used differently by different makers, so read the manual of your block.</li>
 <li><b>Windup</b>: when the output is stuck at 100 %, the integral must stop growing (the Lab's PID does this), otherwise it overshoots badly afterwards.</li>
 <li><b>Fast loops in slow tasks</b>: run PID at a fixed, short cycle time (cyclic interrupt OB in Siemens).</li>
 <li><b>When not to use PID</b>: a tank with a simple level band or a thermostat often needs only on/off with hysteresis.</li>
@@ -1971,8 +1972,8 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 <tr><th>You see</th><th>Siemens S7-1500</th><th>Rockwell ControlLogix</th><th>CODESYS PLC (typical)</th></tr>
 <tr><td>Program runs</td><td>RUN/STOP green</td><td>RUN green, OK green</td><td>RUN green</td></tr>
 <tr><td>CPU stopped by an error</td><td>RUN/STOP yellow + ERROR red</td><td>OK flashes red (major fault)</td><td>ERR red, state Exception</td></tr>
-<tr><td>A module or station has a fault</td><td>ERROR flashes red, module LED red</td><td>I/O flashes, module has a yellow triangle</td><td>ERR flashes, red triangle in the device tree</td></tr>
-<tr><td>Something needs attention</td><td>MAINT yellow (for example a force is active)</td><td>FORCE amber (forces on), BAT (battery)</td><td>depends on the PLC; forced values marked F</td></tr>
+<tr><td>A module or station has a fault</td><td>ERROR flashes red, module LED red</td><td>I/O flashes (5580 controllers have no I/O LED: look at the display and the OK LED), module has a yellow triangle</td><td>ERR flashes, red triangle in the device tree</td></tr>
+<tr><td>Something needs attention</td><td>MAINT yellow (for example a force is active)</td><td>FORCE amber (forces on), BAT (battery, older controllers only)</td><td>depends on the PLC; forced values marked F</td></tr>
 </table></div>
 <p>Then go online with the laptop and read the list of events. Try it: five real faults, one after the other.</p>
 [[hw:diag]]
@@ -2202,7 +2203,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 </table></div>
 <div class="tbl"><table>
 <tr><th>CODESYS</th><th>CODESYS Development System V3.5</th></tr>
-<tr><td>PLCs</td><td>PLCs of many brands run the CODESYS runtime (WAGO, Festo, ABB, Eaton, Raspberry Pi …). Schneider Machine Expert and Beckhoff TwinCAT are built on it.</td></tr>
+<tr><td>PLCs</td><td>PLCs of many brands run the CODESYS runtime (WAGO, Festo, ABB, Eaton, Raspberry Pi …). Schneider Machine Expert is built on it. Beckhoff TwinCAT looks very similar (the same languages), but it is its own system.</td></tr>
 <tr><td>Simulator</td><td>A built-in <b>simulation mode</b> (Online → Simulation): no runtime needed, but the I/O and fieldbuses are not simulated. <b>CODESYS Control Win</b>: a real soft PLC on your Windows PC.</td></tr>
 <tr><td>Licence</td><td>The Development System is free (you need a free account in the CODESYS Store). A runtime needs a licence; on a PLC of another brand it usually comes with the PLC.</td></tr>
 <tr><td>To learn</td><td>Free. Without a licence, Control Win runs in demo mode for 2 hours; then you restart it.</td></tr>
@@ -2336,7 +2337,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 <p>A "set" button writes 1 and leaves it there. Then the PLC sees START pressed for ever. After a stop or a power cut the machine <b>starts again by itself</b>. With a momentary button the bit is 1 only while the finger is on the screen, like a real push button. The seal-in in the PLC keeps the pump running.</p>
 <p>One more trap: the screen can lose its connection <b>while the finger is on the button</b>. Then the bit stays 1 in the PLC. Good programs reset HMI command bits in the PLC after they have used them.</p>
 
-<h3>Five design rules (short version of ISA-101)</h3>
+<h3>Five design rules (rule 3 is from ISA-101; the others are good practice and safety standards)</h3>
 <ol>
 <li><b>Momentary buttons</b> for start and stop commands.</li>
 <li><b>No E-stop on the screen.</b> A screen can freeze. An emergency stop is a real, hard-wired button.</li>
@@ -2373,7 +2374,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 <tr><td>BOOL</td><td>1 bit</td><td>0 / 1</td><td>I, Q, M bits</td><td>signals</td></tr>
 <tr><td>INT</td><td>16 bit</td><td>−32 768 … 32 767</td><td>MW, AIW, AQW</td><td>analog values, small counts, steps</td></tr>
 <tr><td>DINT</td><td>32 bit</td><td>−2 147 483 648 … 2 147 483 647</td><td><b>MD</b>, HC</td><td>totals, encoder positions, big intermediate results</td></tr>
-<tr><td>REAL</td><td>32 bit</td><td>±3.4·10<sup>38</sup>, about 7 digits</td><td>(not in the Lab)</td><td>physics, PID, flow totals</td></tr>
+<tr><td>REAL</td><td>32 bit</td><td>±3.4·10<sup>38</sup>, about 7 digits</td><td>MR0 … MR99</td><td>physics, PID, flow totals</td></tr>
 </table></div>
 <h3>Overflow: the silent killer</h3>
 <p>(AIW0 − 6400) × 5000 is up to 128 000 000. In a 16-bit word that does not fit. Depending on the brand the result <b>wraps around</b> (32 767 + 1 = −32 768) and sets an overflow flag, or it is clamped; Ladder Lab clamps at the limit. Either way the number is garbage, and the program keeps running with it.</p>
@@ -2389,7 +2390,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 <h3>REAL (floating point)</h3>
 <p>Real PLCs also calculate with REAL: in TIA Portal NORM_X and SCALE_X turn 0 … 27648 into 0.0 … 100.0 %; in Studio 5000 and CODESYS you write REAL tags in CPT or ST. Two traps:</p>
 <ul>
-<li><b>Never compare REALs with =</b>: 0.1 + 0.2 is not exactly 0.3. Use ≥ / ≤ or a band.</li>
+<li><b>Never compare REALs with =</b>: 0.1 added ten times is not exactly 1.0. Use ≥ / ≤ or a band.</li>
 <li><b>REAL totals stop counting</b>: with about 7 digits, 16 777 216 + 1 is still 16 777 216. Keep totals in DINT (or LREAL).</li>
 </ul>
 <div class="callout tip"><b>Siemens memory:</b> MD20 is MW20 + MW22. If you use MD20, keep MW20 and MW22 free. In Ladder Lab MD and MW are separate.</div>
@@ -2414,11 +2415,11 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 </ol>
 <p>The formula behind both steps:</p>
 <p><code>out = (in − inMin) × (outMax − outMin) / (inMax − inMin) + outMin</code></p>
-<p>For a 4–20 mA sensor the raw minimum is not 0: use <code>NORM_X(5530,AIW0,27648,MR0)</code>. Below 4 mA the result goes negative: a good sign of a broken wire.</p>
+<p>For a 4–20 mA sensor the raw minimum depends on the channel setting. Channel set to 4–20 mA: 4 mA is already 0. Channel set to 0–20 mA: 4 mA is 5530, so use <code>NORM_X(5530,AIW0,27648,MR0)</code>. Below 4 mA the result goes negative: a good sign of a broken wire.</p>
 <div class="tbl"><table>
 <tr><th>Software</th><th>How you scale</th></tr>
 <tr><td>TIA Portal</td><td>NORM_X + SCALE_X</td></tr>
-<tr><td>Studio 5000</td><td>CPT with the formula (SCP on Micro800 and SLC)</td></tr>
+<tr><td>Studio 5000</td><td>CPT with the formula (SCP on SLC and MicroLogix)</td></tr>
 <tr><td>CODESYS, TwinCAT</td><td>The formula in ST, or LIN_TRAFO from the Util library</td></tr>
 <tr><td>Schneider, Omron</td><td>The formula in ST, or the scaling block of the analog card</td></tr>
 </table></div>
@@ -2435,7 +2436,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 
 <h3>Four traps with REAL</h3>
 <ul>
-<li><b>Never compare with "equal".</b> 0.1 + 0.2 is 0.30000001. Use ≥ and ≤, or a small window with <code>LIM</code>.</li>
+<li><b>Never compare with "equal".</b> 0.1 added ten times is 1.0000001, not 1.0. Use ≥ and ≤, or a small window with <code>LIM</code>.</li>
 <li><b>Only about 7 digits.</b> A totalizer in a REAL stops counting small amounts when it gets big: 16 777 216 + 1 is still 16 777 216. Count in a DINT.</li>
 <li><b>Division by zero.</b> NORM_X with min = max divides by zero. In the Lab the PLC stops with an error, like a real CPU can.</li>
 <li><b>REAL is not for counting.</b> Parts, steps and indexes stay whole numbers.</li>
@@ -2473,7 +2474,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 <p>Why the creep? At 400 mm/s the drive needs about 18 mm to stop. Without it, every piece is 18 mm too long, and the error changes with the load. For even better accuracy, real systems use the counter's hardware comparison outputs or a positioning drive.</p>
 <h3>In the real tools</h3>
 <ul>
-<li><b>Siemens</b>: the S7-1200 has built-in HSCs (configure in the device view, read the count, control with CTRL_HSC); the S7-1500 uses Technology Modules (TM Count).</li>
+<li><b>Siemens</b>: the S7-1200 has built-in HSCs (configure in the device view, read the count, control with CTRL_HSC); the S7-1500 uses Technology Modules (TM Count; the compact CPUs 1511C / 1512C have counters built in).</li>
 <li><b>Rockwell</b>: CompactLogix embedded or module HSCs (e.g. 1734-VHSC).</li>
 <li><b>CODESYS</b>: an encoder input module or an EtherCAT encoder terminal; the count appears as a DINT variable.</li>
 </ul>
@@ -2561,7 +2562,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 <p>Easy and universal: almost every meter, temperature controller and drive speaks Modbus. The price: the master must ask for everything, one device after the other, and a dead slave costs a full timeout every round.</p>
 
 <h3>3. Token passing (PROFIBUS DP)</h3>
-<p>PROFIBUS uses the same RS-485 cable but up to 12 Mbit/s, and allows several masters: they pass a token. Each master polls its own slaves in a fixed order, so the cycle time is the same every time.</p>
+<p>PROFIBUS also uses RS-485 signals, up to 12 Mbit/s, but with its own cable (purple, 150 Ω) and its own termination, switched on in the plug at both ends, and allows several masters: they pass a token. Each master polls its own slaves in a fixed order, so the cycle time is the same every time.</p>
 [[comm:token]]
 <p>PROFIBUS PA is the process version (same protocol, slower, power and data on two wires, allowed in explosive areas). Typical: older Siemens plants, process instruments.</p>
 
@@ -2698,7 +2699,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 <h3>The axis</h3>
 <p>You configure the axis once: units (mm), how many encoder counts are one mm, maximum speed and acceleration, <b>software limits</b> (here 0 … 600 mm). After that your program only speaks mm and mm/s. The axis also tells you its state: <code>AX0.POS</code> (mm), <code>AX0.VEL</code>, <code>AX0.ON</code>, <code>AX0.HOMED</code>, <code>AX0.MOVING</code>, <code>AX0.ERR</code>.</p>
 <h3>Homing</h3>
-<p>An incremental encoder only counts: after power-up the axis does not know where it is. <b>Homing</b> moves slowly to a reference switch and calls that point 0. Until the axis is homed, absolute moves are refused and the software limits are not active. With several axes, home them in a <b>safe order</b> (the gripper up first, then the horizontal axis).</p>
+<p>An incremental encoder only counts: after power-up the axis does not know where it is. <b>Homing</b> moves slowly to a reference switch and calls that point 0. Until the axis is homed, the software limits are not active. In TIA Portal an absolute move is then refused; in other systems it may run and go to a wrong place, so always check the homed bit in your own rung. With several axes, home them in a <b>safe order</b> (the gripper up first, then the horizontal axis).</p>
 <h3>The instructions, in every brand</h3>
 <div class="tbl"><table>
 <tr><th>Job</th><th>Ladder Lab</th><th>TIA Portal / CODESYS (PLCopen)</th><th>Studio 5000</th></tr>
@@ -2709,14 +2710,14 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 <tr><td>Jog while a button is held</td><td>MC_JOG(AX0,vel)</td><td>MC_MoveJog / MC_Jog</td><td>MAJ, then MAS</td></tr>
 <tr><td>Stop</td><td>MC_STOP(MC3,AX0)</td><td>MC_Stop / MC_Halt</td><td>MAS</td></tr>
 <tr><td>Clear an error</td><td>MC_RESET(MC4,AX0)</td><td>MC_Reset</td><td>MAFR</td></tr>
-<tr><td>Status of a command</td><td>MC1.DONE, .BUSY, .ERR, .ABORT</td><td>Done, Busy, Error, CommandAborted</td><td>.DN / .PC, .IP, .ER</td></tr>
+<tr><td>Status of a command</td><td>MC1.DONE, .BUSY, .ERR, .ABORT</td><td>Done, Busy, Error, CommandAborted</td><td>.PC (finished), .IP (moving), .ER (.DN only means: accepted)</td></tr>
 </table></div>
 [[sim:servo]]
 <h3>The handshake: Execute, Busy, Done</h3>
 <ul>
 <li>A move <b>starts on the rising edge</b> of its rung (Execute). Holding the rung true does not start it again; the rung must go false and true again.</li>
 <li><b>BUSY</b> while it moves, <b>DONE</b> when it has arrived, <b>ERR</b> if it was refused or failed, <b>ABORT</b> if another command on the same axis took over.</li>
-<li>DONE / ERR stay on while the rung is true and clear when it goes false (PLCopen). In Studio 5000, .DN stays on until the instruction runs again.</li>
+<li>DONE / ERR stay on while the rung is true and clear when it goes false (PLCopen). In Studio 5000, .DN only means the move was accepted: use .PC (process complete) as the Done of the move.</li>
 <li>Give every motion instruction its <b>own command tag</b> (MC0, MC1, …). Two instructions with the same tag mix up their DONE bits.</li>
 </ul>
 <div class="callout tip"><b>Safety:</b> MC_Stop is not an emergency stop. Emergency stops and guard doors switch the drive's <b>STO</b> (Safe Torque Off) input through a safety relay or safety PLC.</div>
@@ -2866,11 +2867,12 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 <tr><td>Over the network</td><td>status contacts to the PLC</td><td>PROFIsafe, CIP Safety, FSoE (Safety over EtherCAT)</td></tr>
 </table></div>
 <h3>Inside the box: a safety relay and its wiring</h3>
-<div class="sfc-wrap"><svg class="sfc" viewBox="0 0 620 330" width="620" style="max-width:100%;height:auto" role="img" aria-label="Safety relay wiring"><g fill="none" stroke="currentColor" stroke-width="1.6" font-family="IBM Plex Mono, monospace" font-size="10"><path d="M20 20 L20 285"/><text x="24" y="16" fill="currentColor" stroke="none" text-anchor="start">+24 V</text><path d="M20 60 L40 60"/><path d="M40 60 L50 60"/><path d="M50 54 L62 60"/><path d="M60 60 L70 60"/><path d="M60 53 L60 61"/><text x="55" y="50" fill="currentColor" stroke="none" text-anchor="middle">E-stop 1</text><path d="M70 60 L90 60"/><path d="M90 60 L100 60"/><path d="M100 54 L112 60"/><path d="M110 60 L120 60"/><path d="M110 53 L110 61"/><text x="105" y="50" fill="currentColor" stroke="none" text-anchor="middle">door 1</text><path d="M120 60 L250 60"/><path d="M20 100 L40 100"/><path d="M40 100 L50 100"/><path d="M50 94 L62 100"/><path d="M60 100 L70 100"/><path d="M60 93 L60 101"/><text x="55" y="90" fill="currentColor" stroke="none" text-anchor="middle">E-stop 2</text><path d="M70 100 L90 100"/><path d="M90 100 L100 100"/><path d="M100 94 L112 100"/><path d="M110 100 L120 100"/><path d="M110 93 L110 101"/><text x="105" y="90" fill="currentColor" stroke="none" text-anchor="middle">door 2</text><path d="M120 100 L250 100"/><path d="M20 150 L40 150"/><path d="M40 150 L50 150"/><path d="M50 150 L62 143"/><path d="M62 150 L70 150"/><text x="55" y="138" fill="currentColor" stroke="none" text-anchor="middle">RESET</text><path d="M70 150 L90 150"/><path d="M90 150 L100 150"/><path d="M100 144 L112 150"/><path d="M110 150 L120 150"/><path d="M110 143 L110 151"/><text x="105" y="140" fill="currentColor" stroke="none" text-anchor="middle">K1</text><path d="M120 150 L140 150"/><path d="M140 150 L150 150"/><path d="M150 144 L162 150"/><path d="M160 150 L170 150"/><path d="M160 143 L160 151"/><text x="155" y="140" fill="currentColor" stroke="none" text-anchor="middle">K2</text><path d="M170 150 L250 150"/><text x="30" y="178" fill="currentColor" stroke="none" text-anchor="start">reset loop: RESET + NC aux contacts</text><text x="30" y="191" fill="currentColor" stroke="none" text-anchor="start">of K1 and K2: a welded contactor</text><text x="30" y="204" fill="currentColor" stroke="none" text-anchor="start">keeps the loop open, no reset</text><rect x="250" y="35" width="120" height="200" rx="6"/><text x="310" y="28" fill="currentColor" stroke="none" text-anchor="middle" font-weight="700">SAFETY RELAY</text><text x="256" y="57" fill="currentColor" stroke="none" text-anchor="start">S11/S12</text><text x="256" y="97" fill="currentColor" stroke="none" text-anchor="start">S21/S22</text><text x="256" y="147" fill="currentColor" stroke="none" text-anchor="start">S33/S34</text><text x="256" y="215" fill="currentColor" stroke="none" text-anchor="start">A1 / A2  supply</text><text x="364" y="67" fill="currentColor" stroke="none" text-anchor="end">13–14</text><text x="364" y="107" fill="currentColor" stroke="none" text-anchor="end">23–24</text><text x="364" y="187" fill="currentColor" stroke="none" text-anchor="end">Y32</text><path d="M370 70 L400 70"/><path d="M400 70 L410 70"/><path d="M410 70 L422 63"/><path d="M422 70 L430 70"/><text x="415" y="58" fill="currentColor" stroke="none" text-anchor="middle">Q0.0 (PLC)</text><path d="M430 70 L470 70"/><rect x="470" y="60" width="26" height="20"/><text x="483" y="74" fill="currentColor" stroke="none" text-anchor="middle">K1</text><path d="M370 110 L400 110"/><path d="M400 110 L410 110"/><path d="M410 110 L422 103"/><path d="M422 110 L430 110"/><text x="415" y="98" fill="currentColor" stroke="none" text-anchor="middle">Q0.1 (PLC)</text><path d="M430 110 L470 110"/><rect x="470" y="100" width="26" height="20"/><text x="483" y="114" fill="currentColor" stroke="none" text-anchor="middle">K2</text><path d="M496 70 L530 70"/><path d="M496 110 L530 110"/><text x="534" y="74" fill="currentColor" stroke="none" text-anchor="start">0 V</text><text x="534" y="114" fill="currentColor" stroke="none" text-anchor="start">0 V</text><path d="M370 190 L440 190"/><text x="444" y="194" fill="currentColor" stroke="none" text-anchor="start">PLC I0.4 (relay OK)</text><text x="250" y="262" fill="currentColor" stroke="none" text-anchor="start" font-weight="700">power to the motor:  L1 ──[ K1 ]──[ K2 ]── M</text><text x="250" y="280" fill="currentColor" stroke="none" text-anchor="start">two contactors in series: one welded, the other still cuts</text><text x="20" y="306" fill="currentColor" stroke="none" text-anchor="start">Terminal names as on Pilz PNOZ X / Schneider XPS-AC. Omron G9SE: T11/T12, T21/T22, T31/T32, S14/S24.</text><text x="20" y="320" fill="currentColor" stroke="none" text-anchor="start">Always follow the datasheet of your relay.</text></g></svg></div>
+<div class="sfc-wrap"><svg class="sfc" viewBox="0 0 620 330" width="620" style="max-width:100%;height:auto" role="img" aria-label="Safety relay wiring"><g fill="none" stroke="currentColor" stroke-width="1.6" font-family="IBM Plex Mono, monospace" font-size="10"><path d="M20 20 L20 285"/><text x="24" y="16" fill="currentColor" stroke="none" text-anchor="start">+24 V</text><path d="M30 60 L40 60"/><path d="M30 60 L30 72 L250 72"/><path d="M40 60 L50 60"/><path d="M50 54 L62 60"/><path d="M60 60 L70 60"/><path d="M60 53 L60 61"/><text x="55" y="50" fill="currentColor" stroke="none" text-anchor="middle">E-stop</text><path d="M70 60 L90 60"/><path d="M90 60 L100 60"/><path d="M100 54 L112 60"/><path d="M110 60 L120 60"/><path d="M110 53 L110 61"/><text x="105" y="50" fill="currentColor" stroke="none" text-anchor="middle">door</text><path d="M120 60 L250 60"/><text x="185" y="55" fill="currentColor" stroke="none" text-anchor="middle">channel 1</text><path d="M30 100 L40 100"/><path d="M30 100 L30 112 L250 112"/><path d="M40 100 L50 100"/><path d="M50 94 L62 100"/><path d="M60 100 L70 100"/><path d="M60 93 L60 101"/><text x="55" y="90" fill="currentColor" stroke="none" text-anchor="middle">E-stop</text><path d="M70 100 L90 100"/><path d="M90 100 L100 100"/><path d="M100 94 L112 100"/><path d="M110 100 L120 100"/><path d="M110 93 L110 101"/><text x="105" y="90" fill="currentColor" stroke="none" text-anchor="middle">door</text><path d="M120 100 L250 100"/><text x="185" y="95" fill="currentColor" stroke="none" text-anchor="middle">channel 2</text><path d="M30 150 L40 150"/><path d="M30 150 L30 162 L250 162"/><path d="M40 150 L50 150"/><path d="M50 150 L62 143"/><path d="M62 150 L70 150"/><text x="55" y="138" fill="currentColor" stroke="none" text-anchor="middle">RESET</text><path d="M70 150 L90 150"/><path d="M90 150 L100 150"/><path d="M100 144 L112 150"/><path d="M110 150 L120 150"/><path d="M110 143 L110 151"/><text x="105" y="140" fill="currentColor" stroke="none" text-anchor="middle">K1</text><path d="M120 150 L140 150"/><path d="M140 150 L150 150"/><path d="M150 144 L162 150"/><path d="M160 150 L170 150"/><path d="M160 143 L160 151"/><text x="155" y="140" fill="currentColor" stroke="none" text-anchor="middle">K2</text><path d="M170 150 L250 150"/><text x="30" y="178" fill="currentColor" stroke="none" text-anchor="start">reset loop: RESET + NC aux contacts</text><text x="30" y="191" fill="currentColor" stroke="none" text-anchor="start">of K1 and K2: a welded contactor</text><text x="30" y="204" fill="currentColor" stroke="none" text-anchor="start">keeps the loop open, no reset</text><rect x="250" y="35" width="120" height="200" rx="6"/><text x="310" y="28" fill="currentColor" stroke="none" text-anchor="middle" font-weight="700">SAFETY RELAY</text><text x="256" y="57" fill="currentColor" stroke="none" text-anchor="start">S11</text><text x="256" y="83" fill="currentColor" stroke="none" text-anchor="start">S12</text><text x="256" y="97" fill="currentColor" stroke="none" text-anchor="start">S21</text><text x="256" y="123" fill="currentColor" stroke="none" text-anchor="start">S22</text><text x="256" y="147" fill="currentColor" stroke="none" text-anchor="start">S33</text><text x="256" y="173" fill="currentColor" stroke="none" text-anchor="start">S34</text><text x="256" y="215" fill="currentColor" stroke="none" text-anchor="start">A1 / A2  supply</text><text x="364" y="67" fill="currentColor" stroke="none" text-anchor="end">13–14</text><text x="364" y="107" fill="currentColor" stroke="none" text-anchor="end">23–24</text><text x="364" y="187" fill="currentColor" stroke="none" text-anchor="end">Y32</text><path d="M370 70 L400 70"/><path d="M400 70 L410 70"/><path d="M410 70 L422 63"/><path d="M422 70 L430 70"/><text x="415" y="58" fill="currentColor" stroke="none" text-anchor="middle">Q0.0 (PLC)</text><path d="M430 70 L470 70"/><rect x="470" y="60" width="26" height="20"/><text x="483" y="74" fill="currentColor" stroke="none" text-anchor="middle">K1</text><path d="M370 110 L400 110"/><path d="M400 110 L410 110"/><path d="M410 110 L422 103"/><path d="M422 110 L430 110"/><text x="415" y="98" fill="currentColor" stroke="none" text-anchor="middle">Q0.1 (PLC)</text><path d="M430 110 L470 110"/><rect x="470" y="100" width="26" height="20"/><text x="483" y="114" fill="currentColor" stroke="none" text-anchor="middle">K2</text><path d="M496 70 L530 70"/><path d="M496 110 L530 110"/><text x="534" y="74" fill="currentColor" stroke="none" text-anchor="start">0 V</text><text x="534" y="114" fill="currentColor" stroke="none" text-anchor="start">0 V</text><path d="M370 190 L440 190"/><text x="444" y="194" fill="currentColor" stroke="none" text-anchor="start">PLC I0.4 (relay OK)</text><text x="250" y="262" fill="currentColor" stroke="none" text-anchor="start" font-weight="700">power to the motor:  L1 ──[ K1 ]──[ K2 ]── M</text><text x="250" y="280" fill="currentColor" stroke="none" text-anchor="start">two contactors in series: one welded, the other still cuts</text><text x="20" y="306" fill="currentColor" stroke="none" text-anchor="start">Terminal names as on Pilz PNOZ X / Schneider XPS-AF. Omron G9SE: T11/T12, T21/T22, T31/T32, S14/S24.</text><text x="20" y="320" fill="currentColor" stroke="none" text-anchor="start">Always follow the datasheet of your relay.</text></g></svg>
+<p>Read the drawing: each E-stop and each door switch has <b>two contacts</b>, one in each channel. Each channel is a <b>loop</b> from one relay terminal through the contacts and back to the next terminal. The relay sends its own test signal through the loop, so it also finds a short between the two channels.</p></div>
 <div class="tbl"><table>
 <tr><th>Terminals</th><th>What is connected</th><th>Why</th></tr>
 <tr><td>A1 / A2</td><td>24 V supply</td><td></td></tr>
-<tr><td>S11–S12, S21–S22</td><td>channel 1 and channel 2: one NC contact of every E-stop and door switch in series on each</td><td>two channels: one welded or bridged contact cannot defeat the stop; the relay also detects cross-circuits</td></tr>
+<tr><td>S11–S12, S21–S22</td><td>channel 1 and channel 2: one NC contact of each E-stop or door switch, in series on each channel (doors that are opened often: better one relay or one safety input pair per door, because series wiring hides faults)</td><td>two channels: one welded or bridged contact cannot defeat the stop; the relay also detects cross-circuits</td></tr>
 <tr><td>S33–S34</td><td>reset loop: RESET button + NC auxiliary contacts of K1 and K2 in series</td><td>manual reset, and feedback: a welded contactor keeps the loop open and blocks the reset</td></tr>
 <tr><td>13–14, 23–24</td><td>safety NO outputs: the coils of K1 and K2 (here in series with the PLC outputs)</td><td>the relay cuts the hazard in hardware, whatever the PLC does</td></tr>
 <tr><td>Y32 (or 33–34)</td><td>semiconductor / auxiliary output to a PLC input</td><td>the PLC sees "relay OK" for messages and to drop its run commands</td></tr>
@@ -2884,9 +2886,9 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 <li><b>Type 4</b> (up to PL e / SIL 3) for hands and bodies at dangerous machines; Type 2 only for lower risks.</li>
 <li><b>Resolution</b>: 14 mm detects a finger, 30 mm a hand, larger values a body.</li>
 <li><b>Restart interlock</b>: after an interruption, nothing restarts until a reset button is pressed, placed where the whole danger zone can be seen.</li>
-<li><b>Safety distance</b> (ISO 13855): the curtain must be far enough away that the machine has stopped before a hand gets there: <b>S = K × T + C</b>, with K = 2000 mm/s (approach speed), T = total stopping time (curtain + relay + machine), C = 8 × (d − 14) mm for resolution d. Example: T = 0.2 s, d = 14 mm → S = 400 mm.</li>
-<li><b>Muting</b>: the curtain is bypassed for a moment so material can pass (pallets on a conveyor). Muting sensors recognise the material by <b>order and timing</b> (A then B within a few seconds, only while the conveyor runs), a <b>muting lamp</b> must show it, and it has a maximum time. A person cannot produce that pattern; a dirty sensor must not either.</li>
-<li><b>Blanking</b>: some beams are ignored permanently where a fixed part of the machine always breaks them.</li>
+<li><b>Safety distance</b> (ISO 13855): the curtain must be far enough away that the machine has stopped before a hand gets there: <b>S = K × T + C</b>, with K = 2000 mm/s (approach speed), T = total stopping time (curtain + relay + machine), C = 8 × (d − 14) mm for a resolution d up to 40 mm (coarser curtains: K = 1600 mm/s and C = 850 mm). Example: T = 0.2 s, d = 14 mm → S = 400 mm.</li>
+<li><b>Muting</b>: the curtain is bypassed for a moment so material can pass (pallets on a conveyor). Muting sensors recognise the material by <b>order and timing</b> (A then B within a few seconds, only while the conveyor runs), a <b>muting lamp</b> must show it, and it has a maximum time. Order, timing and the place of the sensors make it hard for a person to start muting by accident; a dirty sensor must not start it either. Muting is still a bypass: it needs its own risk assessment.</li>
+<li><b>Blanking</b>: some beams may stay blocked by a fixed part of the machine. If that part is missing, the curtain stops the machine; gaps beside it need a fixed guard.</li>
 </ul>
 <p>In the safety blocks: PLCopen <code>SF_MutingSeq</code> / <code>SF_MutingPar</code>, TIA <code>MUTING</code>, GuardLogix <code>LC</code> (light curtain) and <code>TSAM</code> / <code>TSSM</code> / <code>FSBM</code> (two- and four-sensor muting). Practise it in <b>Light curtain 1</b> and <b>Light curtain 2</b>.</p>
 <h3>The building blocks of every safety function</h3>
@@ -2910,7 +2912,7 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 <tr><td>E-stop, two channels</td><td>SF_EmergencyStop + SF_Equivalent</td><td>ESTOP1 (F-I/O does the discrepancy)</td><td>DCS (dual channel input), ESTOP</td></tr>
 <tr><td>Guard door</td><td>SF_GuardMonitoring, SF_GuardLocking</td><td>SFDOOR</td><td>DCS</td></tr>
 <tr><td>Contactor feedback</td><td>SF_EDM</td><td>FDBACK</td><td>CROUT (configurable redundant output)</td></tr>
-<tr><td>Reset / acknowledge</td><td>inputs of the blocks</td><td>ACK_GL, ACK_NEC</td><td>reset inputs, DCSRT</td></tr>
+<tr><td>Reset / acknowledge</td><td>inputs of the blocks</td><td>ACK_GL, ACK_REI</td><td>reset inputs, DCSRT</td></tr>
 <tr><td>Two-hand control</td><td>SF_TwoHandControlTypeII / III</td><td>TWO_HAND</td><td>THRSe</td></tr>
 </table></div>
 <div class="callout tip"><b>About the exercises:</b> in Ladder Lab you write this logic in normal ladder to understand how it works. On a real machine you use the certified blocks of a safety controller, or a safety relay, and the machine is validated by a competent person.</div>
@@ -2960,7 +2962,7 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 <p>The makers of safety parts give these numbers. Free tools (for example SISTEMA) add them up to the PL you reached. It must be at least the PLr you needed.</p>
 
 <h3>PL and SIL</h3>
-<p>A second standard (IEC 62061) uses <b>SIL</b> 1 to 3 for the same idea. Roughly: PL b and c are SIL 1, PL d is SIL 2, PL e is SIL 3. Machine builders mostly use PL, process plants use SIL.</p>
+<p>A second standard (IEC 62061) uses <b>SIL</b> 1 to 3 for the same idea. Roughly: PL b and c are SIL 1, PL d is SIL 2, PL e is SIL 3. For machines you may use PL (ISO 13849-1) or SIL (IEC 62061). Process plants use SIL from another standard, IEC 61511.</p>
 
 <h3>How it stops: stop categories</h3>
 <div class="tbl"><table>
@@ -2979,7 +2981,7 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 </ul>
 <div class="callout where"><b>Where:</b> every new machine and every rebuild. In interviews: "What is the difference between PL d and PL e?" and "Why two channels?". Build the circuits in <a href="#lesson-safety-practice">Safety in practice</a> and on the safety cell machines in the Lab.</div>`,
       sims: {},
-      takeaways: ["Each safety function gets a required performance level, PLr, from a to e.", "Three questions: how bad, how often, can it be avoided.", "PL d and e need two channels and monitoring.", "The PL reached depends on structure, part quality, diagnostics and common-cause protection.", "A normal PLC is not a safety device."],
+      takeaways: ["Each safety function gets a required performance level, PLr, from a to e.", "Three questions: how bad, how often, can it be avoided.", "PL d and e are normally built with two channels and monitoring (Category 3 or 4).", "The PL reached depends on structure, part quality, diagnostics and common-cause protection.", "A normal PLC is not a safety device."],
       mistakes: ["Starting with the hardware and not with the risk.", "One channel for a hazard that can cost a hand.", "Thinking a warning sign replaces a guard.", "Forcing a safety signal during commissioning and forgetting it.", "Changing a safety function without testing and writing it down."],
       challenges: ["saf-1", "saf-2", "lc-1"],
     },
@@ -3000,7 +3002,7 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 <tr><td>String variable</td><td>STR0 … STR31</td><td>STRING[n] in a DB</td><td>STRING tag (.LEN, .DATA)</td><td>STRING(n)</td><td>STRING</td></tr>
 <tr><td>Copy</td><td>SMOV</td><td>S_MOVE / :=</td><td>COP</td><td>:=</td><td>MOV$ / :=</td></tr>
 <tr><td>Join</td><td>CONCAT</td><td>CONCAT</td><td>CONCAT</td><td>CONCAT</td><td>+$ / CONCAT</td></tr>
-<tr><td>Number → text</td><td>ITOS (with leading zeros)</td><td>S_CONV, VAL_STRG</td><td>DTOS</td><td>INT_TO_STRING</td><td>STR4 / IntToString</td></tr>
+<tr><td>Number → text</td><td>ITOS (with leading zeros)</td><td>S_CONV, VAL_STRG</td><td>DTOS</td><td>INT_TO_STRING</td><td>STR4 (4 hex digits, CX-Programmer) / INT_TO_STRING (Sysmac Studio)</td></tr>
 <tr><td>Part of a text</td><td>SMID</td><td>MID</td><td>MID</td><td>MID</td><td>MID$ / MID</td></tr>
 <tr><td>Compare</td><td>CMP(STR1==ISTR0)</td><td>CMP == on strings</td><td>EQU / NEQ on strings</td><td>= / &lt;&gt;</td><td>=$ / EQ</td></tr>
 </table></div>
@@ -3049,7 +3051,7 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 <tr><td>Siemens WinCC (TIA Portal)</td><td>Text and graphic lists</td><td>HMI alarms (discrete / analog), Program_Alarm, ProDiag</td></tr>
 <tr><td>Rockwell FactoryTalk View</td><td>Multistate indicator, local messages</td><td>Alarms and Events (or HMI alarms)</td></tr>
 <tr><td>Schneider EcoStruxure Operator Terminal Expert</td><td>Message / state displays</td><td>Alarm groups</td></tr>
-<tr><td>Omron NA / NB (Sysmac)</td><td>Text lists in the HMI project</td><td>User alarms</td></tr>
+<tr><td>Omron NA (Sysmac Studio) / NB (NB-Designer)</td><td>Text lists in the HMI project</td><td>User alarms</td></tr>
 <tr><td>CODESYS / TwinCAT visualisation</td><td>Text lists</td><td>Alarm manager</td></tr>
 </table></div>
 <div class="callout tip"><b>Practice:</b> the labelling line has an HMI line that shows the text for MW50, and a number without a text shows in red, as on a real panel with a missing entry.</div>`,
@@ -3074,7 +3076,7 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 <h3>The index must be checked</h3>
 <p><code>Length[MW30]</code> with MW30 = 7 reads outside the array. A real PLC stops (TIA Portal: STOP or the programming-error OB121, Studio 5000: a major fault, CODESYS: an exception or wrong data). Always check the index first: <code>CMP(MW30&gt;=1) CMP(MW30&lt;=3)</code>.</p>
 <h3>Start values and a download</h3>
-<p>Every data block has start values. Downloading the block again (or "reinitialising" it) puts the start values back and loses what the operator changed on the HMI. Keep recipes that operators edit in retentive blocks, and download them with care.</p>
+<p>Every data block has start values. Initialising the block again puts the start values back and loses what the operator changed on the HMI. TIA Portal does this when the structure of the block changed; Studio 5000 overwrites the tag values with every download. Keep recipes that operators edit in retentive blocks, and download them with care.</p>
 <h3>The same idea in every brand</h3>
 <div class="tbl"><table>
 <tr><th>Brand</th><th>Where the data lives</th><th>Layout</th><th>Example</th></tr>
@@ -3089,7 +3091,7 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 <p><b>+ DB</b> above the ladder creates a data block. Add fields (type, an array range like 1..3, start values separated by commas) and use them as <code>DB10.NAME</code> or <code>DB10.NAME[2]</code> / <code>DB10.NAME[MW30]</code>. The "Now" column shows the actual values while the PLC runs, and the Other brands window shows the block as a structure in each brand.</p>
 <div class="callout where"><b>Where:</b> recipes and product data, machine parameters, alarm words for the HMI, data per station or per product in tracking, instance data of function blocks.</div>`,
       sims: {},
-      takeaways: ['Data blocks give data names, types and start values.', 'Structures and arrays: one rung with an index serves every recipe.', 'Check every index before using it: out of range stops a real PLC.', 'Retentive data survives a power cut; a download restores start values.', 'TIA: DB + UDT; Rockwell: tags + UDT; CODESYS / TwinCAT / Machine Expert: GVL + STRUCT; Sysmac: global variables + structures.'],
+      takeaways: ['Data blocks give data names, types and start values.', 'Structures and arrays: one rung with an index serves every recipe.', 'Check every index before using it: out of range stops some PLCs and silently damages other data in others.', 'Retentive data survives a power cut; a download restores start values.', 'TIA: DB + UDT; Rockwell: tags + UDT; CODESYS / TwinCAT / Machine Expert: GVL + STRUCT; Sysmac: global variables + structures.'],
       mistakes: ['Using an index from the HMI without a range check.', 'Recipes in non-retentive memory.', 'Downloading a data block and losing the operator\'s values.', 'Absolute addresses (DB10.DBW4) where a name would be clear.'],
       challenges: ['db-recipe', 'bug-db-index'],
     },
@@ -3133,7 +3135,7 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 <p>Until now your whole program ran in one loop: read the inputs, run every rung, write the outputs, again. That loop is the <b>main cyclic program</b>, and it is enough for most machines. But a real CPU can run more than one program, and it decides in every millisecond which one gets the processor.</p>
 <div class="tbl"><table>
 <tr><th>Kind of program</th><th>It runs…</th><th>Use it for</th></tr>
-<tr><td><b>Main cyclic program</b></td><td>again and again, as fast as it can</td><td>Almost everything: sequences, interlocks, alarms</td></tr>
+<tr><td><b>Main cyclic program</b></td><td>again and again: as fast as it can (Siemens, Rockwell) or at a fixed cycle such as 10 ms (CODESYS, TwinCAT, Omron)</td><td>Almost everything: sequences, interlocks, alarms</td></tr>
 <tr><td><b>Periodic task</b></td><td>at a fixed time, for example every 100 ms</td><td>PID, ramps, filters, flow totals: all maths that needs an exact time</td></tr>
 <tr><td><b>Interrupt (event task)</b></td><td>at once, when an input changes</td><td>Very short pulses: a registration mark, a fast sensor</td></tr>
 <tr><td><b>Startup code</b></td><td>once, when the CPU goes to RUN</td><td>Start values, clearing steps</td></tr>
@@ -3146,7 +3148,7 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 <h3>The names in each software</h3>
 <div class="tbl"><table>
 <tr><th></th><th>Siemens TIA</th><th>Studio 5000</th><th>CODESYS / TwinCAT</th><th>Omron Sysmac</th></tr>
-<tr><td>Main</td><td>OB1</td><td>Continuous task</td><td>MainTask (cyclic or freewheeling)</td><td>Primary periodic task</td></tr>
+<tr><td>Main</td><td>OB1</td><td>Continuous task</td><td>MainTask / PlcTask (a fixed cycle, e.g. 10 ms)</td><td>Primary periodic task</td></tr>
 <tr><td>Periodic</td><td>OB30 … (cyclic interrupt)</td><td>Periodic task</td><td>Cyclic task with an interval</td><td>Periodic task</td></tr>
 <tr><td>Event</td><td>OB40 … (hardware interrupt)</td><td>Event task</td><td>Event task</td><td>Event task</td></tr>
 <tr><td>Startup</td><td>OB100</td><td>First scan bit S:FS</td><td>Init code on the first cycle</td><td>P_First_Run flag</td></tr>
@@ -3189,7 +3191,7 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 <p>A jump (JMP) goes straight to a label (LBL) further down. The rungs in between are <b>not scanned at all</b>.</p>
 <ul>
 <li>Everything in the skipped part <b>keeps its last state</b>. A motor that was on stays on. This is the trap.</li>
-<li>Timers in the skipped part are not updated.</li>
+<li>A timer in the skipped part is not checked: its contact does not change while skipped. On many real PLCs the time still runs, so it can be finished at once when it is scanned again. Do not put timers in code that is jumped over.</li>
 <li>A jump <b>backwards</b> makes a loop. If the loop never ends, the watchdog stops the CPU.</li>
 </ul>
 <p><b>Use it for:</b> skipping code that is not needed now, for example the code of a machine option that is not fitted. <b>Never</b> use a jump to switch something off.</p>
@@ -3228,11 +3230,11 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 
 <h3>The names in each software</h3>
 <div class="tbl"><table>
-<tr><th></th><th>Studio 5000</th><th>Siemens TIA</th><th>CODESYS / TwinCAT</th><th>Schneider</th><th>Omron</th></tr>
-<tr><td>Jump</td><td>JMP, LBL</td><td>JMP, JMPN, LABEL</td><td>jump and label in LD; JMP in ST</td><td>jump to %Li</td><td>JMP, JME</td></tr>
+<tr><th></th><th>Studio 5000</th><th>Siemens TIA</th><th>CODESYS / TwinCAT</th><th>Schneider (M221)</th><th>Omron</th></tr>
+<tr><td>Jump</td><td>JMP, LBL</td><td>JMP, JMPN, LABEL</td><td>jump and label in LD; JMP in ST</td><td>jump to %Li</td><td>CJP … JME (JMP … JME jumps when its condition is OFF)</td></tr>
 <tr><td>Zone</td><td>MCR</td><td>only in S7-300/400 (MCR&lt; MCR&gt;); not in S7-1200/1500</td><td>none: use IF or the EN input</td><td>MCS, MCR (small controllers)</td><td>IL, ILC (interlock)</td></tr>
 <tr><td>Queue</td><td>FFL, FFU and LFL, LFU</td><td>library blocks (LGF FIFO / LIFO) or an array with an index</td><td>your own block with an array</td><td>register %Ri (FIFO or LIFO)</td><td>stack instructions (push, FIFO, LIFO)</td></tr>
-<tr><td>Sequencer</td><td>SQO, SQI, SQL</td><td>array with a step index</td><td>array with a step index, or CASE</td><td>drum controller %DRi</td><td>array with a step index</td></tr>
+<tr><td>Sequencer</td><td>SQO, SQI, SQL</td><td>S7-GRAPH, or an array with a step index (old: DRUM)</td><td>array with a step index, or CASE</td><td>drum controller %DRi</td><td>array with a step index</td></tr>
 </table></div>
 <div class="callout tip"><b>What to write today:</b> blocks with an enable input in place of jumps and zones, an array with an index for a queue, and a step sequence in place of a sequencer. Read the old instructions, do not copy them into new programs without a reason.</div>
 <div class="callout where"><b>Where:</b> older Allen-Bradley and Omron machines are full of JMP, MCR / IL, FIFO and SQO. In interviews: "What is the difference between a jump and an MCR zone?" and "How do you track a bad part to the reject station?"</div>
@@ -3402,7 +3404,7 @@ IF Tool = 0 THEN HmiAlarm := 2; Step := 90; END_IF   (* unknown tool *)</pre>
 </table></div>
 <p>The step table is the program. Each row becomes one transition rung, and each output column becomes one output rung.</p>
 <h3>4. Safety and interlocks first</h3>
-<p>List what must <b>never</b> happen: valve open without a bottle, motor up and down together, heater on in an empty tank, car moving with the door open. Make sure every one is blocked by logic before you add any convenience.</p>
+<p>List what must <b>never</b> happen: valve open without a bottle, motor up and down together, heater on in an empty tank, car moving with the door open. Make sure every one is blocked by logic (and where a person can be hurt, by a hard-wired or safety-rated function as well) before you add any convenience.</p>
 <h3>5. Build: transitions, then outputs</h3>
 <p>Write the step logic (memory bits or a step number in MW0), then one rung per output decoded from the steps. One coil per output.</p>
 <h3>6. Test the normal cycle with Step and slow motion</h3>
@@ -3568,7 +3570,7 @@ END_CASE</pre>
   Occ    : ARRAY[0..3] OF BOOL := [FALSE, TRUE, FALSE, FALSE];
 END_VAR
 Levels[3] := 42;</pre>
-<p>An index outside the bounds is a <b>runtime fault</b>. A real PLC stops, and Ladder Lab shows it.</p>
+<p>An index outside the bounds is a <b>runtime fault</b>. Some PLCs stop (S7-1500, Studio 5000), and Ladder Lab shows it that way. Others (CODESYS, TwinCAT without bounds checking) keep running and silently overwrite other data, which is worse.</p>
 <h3>FOR: a known number of times</h3>
 <pre class="code">Sum := 0;
 FOR i := 1 TO 10 DO
@@ -3608,7 +3610,7 @@ END_REPEAT</pre>
       summary: "Three tools beyond the basics of Structured Text: your own data types (STRUCT / UDT), named states (ENUM), and function blocks with methods, EXTENDS and INTERFACE, with advice on when they help and when they hurt.",
       body: `
 <h3>Three tools that make big programs small</h3>
-<p>With the basics of Structured Text you can write any logic. These three tools let you write it <b>once</b> and keep it tidy. The Lab runs IF, CASE, loops, arrays and function blocks, but not the things on this page: read them here, and use them in TIA Portal, CODESYS or TwinCAT.</p>
+<p>With the basics of Structured Text you can write any logic. These three tools let you write it <b>once</b> and keep it tidy. The Lab runs IF, CASE, loops, arrays and function blocks, but not the things on this page: read them here, and use them in CODESYS or TwinCAT (TIA Portal SCL has data types, but no methods).</p>
 
 <h3>1. Your own data types (STRUCT / UDT)</h3>
 <p>A motor is never one bit. It is a start command, a feedback, a fault, a run-hours counter. A <b>structure</b> keeps them together under one name:</p>
@@ -3644,7 +3646,7 @@ END_CASE</pre>
 <p>Online you now read "Heating" in the watch table, not 20.</p>
 
 <h3>3. Blocks with methods (object-oriented ST)</h3>
-<p>CODESYS, TwinCAT and newer Siemens and Schneider systems let a function block have <b>methods</b>: small named actions that belong to the block.</p>
+<p>CODESYS, TwinCAT and Schneider Machine Expert (and the separate Siemens tool SIMATIC AX) let a function block have <b>methods</b>: small named actions that belong to the block.</p>
 <pre class="code">FUNCTION_BLOCK FB_Valve
 VAR
   Output   : BOOL;
@@ -3711,7 +3713,7 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     ['Coil -( )-', 'Writes the rung result (1/0) to a bit every scan.'],
     ['Negated coil -(/)-', 'Writes the inverse of the rung result.'],
     ['Set coil (S) / Latch (L, OTL)', 'Writes 1 when powered, otherwise leaves the bit unchanged.'],
-    ['Reset coil (R) / Unlatch (U, OTU)', 'Writes 0 when powered; also resets timers and counters.'],
+    ['Reset coil (R) / Unlatch (U, OTU)', 'Writes 0 when powered. Here, and in S7-200 style, it also resets a timer or counter; Rockwell uses RES for that.'],
     ['Seal-in / holding contact', 'A contact of an output wired in parallel with its start condition so it stays on after the start signal goes away.'],
     ['Latch', 'Any circuit that remembers a state: seal-in or set/reset.'],
     ['Stop-dominant / reset-dominant', 'When start and stop are both active, stop wins. Safer default for machines.'],
@@ -4001,7 +4003,7 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     ["Category (safety)", "The structure of a safety circuit: B, 1, 2, 3 or 4. From 3 on there are two channels."],
     ["Diagnostic coverage (DC)", "The share of dangerous faults that a safety system notices by itself."],
     ["Stop category", "How a machine stops: 0 = power off at once, 1 = brake then power off, 2 = stop with power on."],
-    ["SIL", "Safety integrity level, 1 to 3: the scale of another safety standard. PL d is about SIL 2."],
+    ["SIL", "Safety integrity level: the scale of another safety standard, 1 to 3 for machines (IEC 62061). PL d is about SIL 2."],
     ["Quick commissioning", "The first set-up of a drive: motor data, ramps, limits and sources."],
     ["Ramp time", "The time a drive takes to change the frequency from zero to maximum, or back."],
     ["DC link", "The energy store inside a drive, between its input and its output. Braking too fast overfills it."],
@@ -4055,7 +4057,7 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { l: 1, q: "On a real Siemens PLC, why do programs use MW10, MW12, MW14 and not MW10, MW11?", a: ["Odd word numbers are not allowed by the CPU", "MW10 and MW11 overlap: both contain byte MB11", "Even addresses are read faster by the CPU", "It is only habit; MW11 would work just the same"], c: 1, why: "MW10 = MB10 + MB11 and MW11 = MB11 + MB12." },
     { l: 1, q: "The biggest value an INT (16-bit signed word) can hold is…", a: ["255", "65535", "32767", "2147483647"], c: 2, why: "−32768 … 32767." },
     { l: 5, q: "A PT100 module returns AIW4 = 1875. The temperature is…", a: ["1875 °C", "187.5 °C", "18.75 °C", "0.1875 °C"], c: 1, why: "Temperature modules give 0.1 °C units." },
-    { l: 5, q: "Why is AIW6 × 300 / 27648 a bad idea with 16-bit words?", a: ["PLCs cannot divide by a number this big", "AIW6 × 300 overflows (more than 32767)", "The multiply takes too long in one scan", "The result always rounds up by one unit"], c: 1, why: "Divide first or use 32-bit / REAL maths." },
+    { l: 5, q: "Why is AIW6 × 300 / 27648 a bad idea with 16-bit words?", a: ["PLCs cannot divide by a number this big", "AIW6 × 300 overflows (more than 32767)", "The multiply takes too long in one scan", "The result always rounds up by one unit"], c: 1, why: "In 16 bits, divide by a constant worked out before (AIW6 / 92). Better: use 32-bit or REAL maths." },
     { l: 5, q: "A temperature sensor is short-circuited and reads −32768. A program that does not check this will…", a: ["stop heating, because the value is too low", "heat forever, because it looks cold", "show 0 °C and keep the heater switched off", "go to STOP with a range error at once"], c: 1, why: "Always check impossible raw values and fail safe." },
     { l: 5, q: "Gross 26.10 kg, empty bag 0.85 kg. Net weight?", a: ["26.95 kg", "25.25 kg", "26.10 kg", "22.185 kg"], c: 1, why: "Net = gross − tare." },
     { l: 5, q: "What is \"in-flight\" (preact) on a filling scale?", a: ["A bag that is still moving on the conveyor", "Material still falling when the gate closes", "The weight of the empty bag on the scale", "Vibration of the scale while the gate is open"], c: 1, why: "Close the gate early by the in-flight amount; good controllers learn it." },
@@ -4128,7 +4130,7 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { l: 1, q: "A rung has NO(A) in series with NC(B). The output is ON when…", a: ["A = 1 and B = 0", "A = 0 and B = 1", "A = 1 and B = 1", "either A or B is 1"], c: 0, why: "NO passes on 1, NC passes on 0, series = AND." },
     { l: 1, q: "Which device is normally wired NC?", a: ["Stop / emergency stop button", "Start button on the panel", "Jog button for setup moves", "Lamp test button on the cabinet"], c: 0, why: "A broken wire must act like a stop." },
     { l: 1, q: "How many bits are in one byte (I0.0 … I0.7)?", a: ["8", "16", "4", "10"], c: 0, why: "Bits 0 to 7." },
-    { l: 1, q: "Two NC contacts in series (NOT A AND NOT B) equal…", a: ["NOT (A OR B)", "NOT (A AND B)", "A OR B", "A AND B"], c: 0, why: "De Morgan: off only when neither is on." },
+    { l: 1, q: "Two NC contacts in series (NOT A AND NOT B) equal…", a: ["NOT (A OR B)", "NOT (A AND B)", "A OR B", "A AND B"], c: 0, why: "De Morgan: ON only when neither A nor B is on." },
     { l: 1, q: "A staircase light switched from two places (either switch changes it) is…", a: ["XOR", "AND", "OR", "NAND"], c: 0, why: "On when exactly one switch is on." },
     { l: 1, q: "Two NO contacts in parallel feeding a coil. Both inputs are 0. The coil is…", a: ["OFF", "ON", "blinking", "unknown"], c: 0, why: "No path is closed." },
     { l: 2, q: "Two start buttons and two stop buttons for one motor: how are they placed?", a: ["Starts in parallel, stops in series", "Starts in series, stops in parallel", "All four buttons wired in one series line", "All four buttons wired in parallel"], c: 0, why: "Any start can start; any stop must break the circuit." },
@@ -4170,7 +4172,7 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { l: 7, q: "Lamp := Motor; in ladder is…", a: ["one NO contact Motor driving coil Lamp", "one NO contact Motor driving a SET Lamp", "one NC contact Motor driving coil Lamp", "a TON on Motor driving coil Lamp"], c: 0, why: "A plain assignment = contact + coil." },
     { l: 7, q: "IF A THEN Q := TRUE; END_IF on its own behaves like…", a: ["a SET coil", "a normal coil", "a RESET coil", "a TON timer"], c: 0, why: "Nothing ever writes FALSE." },
     { l: 7, q: "IF Button THEN Count := Count + 1; END_IF adds…", a: ["1 every scan while the button is held", "1 for each press of the button", "1 per press, because IF reacts to edges", "10 per second while it is held"], c: 0, why: "Use R_TRIG for once per press." },
-    { l: 7, q: "Which keyword leaves a FOR or WHILE loop early?", a: ["EXIT", "BREAK", "STOP", "END"], c: 0, why: "EXIT; RETURN leaves the whole program for this scan." },
+    { l: 7, q: "Which keyword leaves a FOR or WHILE loop early?", a: ["EXIT", "BREAK", "STOP", "END"], c: 0, why: "EXIT leaves the loop; RETURN leaves the current block." },
     { l: 7, q: "FOR i := 1 TO Count DO … with Count = 0 runs…", a: ["zero times", "only once", "forever", "an error"], c: 0, why: "Start is already past the end." },
     { l: 7, q: "Avg := Sum / 10; with INT Sum = 57 gives…", a: ["5", "5.7", "6", "57"], c: 0, why: "Integer division truncates." },
     { l: 7, q: "ARRAY[0..9] OF INT has how many elements?", a: ["10", "9", "11", "0"], c: 0, why: "0 to 9 inclusive." },
@@ -4178,7 +4180,7 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { l: 7, q: "R_TRIG(CLK := Btn); its output .Q is TRUE…", a: ["for one call/scan on a rising edge", "for as long as Btn is held down", "for one scan when Btn is released", "all the time after the first press"], c: 0, why: "Rising-edge detector." },
     { l: 7, q: "In CODESYS, %IX0.3 means…", a: ["input bit 0.3", "output bit 0.3", "memory word 3", "analog input 3"], c: 0, why: "I = input, X = bit." },
     { l: 7, q: "Why call timer blocks every scan, not inside an IF?", a: ["So they see IN go FALSE and reset", "Because an IF cannot contain a block call", "To save memory in the instance data", "Because the timer runs faster that way"], c: 0, why: "A block that is not called is frozen." },
-    { l: 7, q: "WHILE i < 4 AND Occ[i] DO … faults when i reaches 4 because…", a: ["ST evaluates both sides of AND, so it reads Occ[4]", "WHILE conditions are not allowed to use AND", "i overflows as an INT when it goes past 3", "arrays start at 1, so Occ[0] does not exist at all"], c: 0, why: "ST has no short-circuit: both sides of AND are read, and Occ[4] is out of range." },
+    { l: 7, q: "WHILE i < 4 AND Occ[i] DO … faults when i reaches 4 because…", a: ["ST evaluates both sides of AND, so it reads Occ[4]", "WHILE conditions are not allowed to use AND", "i overflows as an INT when it goes past 3", "arrays start at 1, so Occ[0] does not exist at all"], c: 0, why: "In CODESYS and TwinCAT both sides of AND are read, so Occ[4] is out of range (other brands may stop early: never rely on it, check the index first)." },
     { l: 7, q: "Which type holds the literal T#3s?", a: ["TIME", "DINT", "STRING", "TOD"], c: 0, why: "Durations like T#3s are TIME." },
     { l: 6, q: "A barcode scanner on a tool fixture is triggered by the PLC. When should the PLC evaluate the code word?", a: ["While the \"read OK\" status bit is on", "Immediately when it sets the trigger bit", "Any time, the code word is always valid", "Only once, right after power-up"], c: 0, why: "The data is only valid together with its status bit." },
     { l: 6, q: "The scanner reads code 3003, which is not in the tool table. The PLC should…", a: ["raise an \"unknown tool\" alarm and not start", "run the Tool A sequence as a safe default", "ignore the code and wait for a new scan", "run the sequence of the last known tool again"], c: 0, why: "Poka-yoke: unknown means stop and tell the operator." },
@@ -4196,9 +4198,9 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { l: 6, q: "Why put a 1 s filter (TON) on a pressure switch alarm?", a: ["so short dips do not stop the plant", "to make the alarm react faster", "to save memory in the alarm list", "because the law requires a 1 s filter"], c: 0, why: "Filter noise; but not on trips that protect against instant damage." },
     { l: 6, q: "Three alarms come within 2 s. Which one is most likely the cause?", a: ["the first one (first-out)", "the last one (newest)", "the one with the lowest number", "all three are equally likely"], c: 0, why: "Later alarms are often consequences." },
     { l: 6, q: "(AIW0 − 6400) × 5000 ÷ 25600 in 16-bit integers gives nonsense because…", a: ["the product overflows 32 767", "integer division is not allowed", "AIW0 is a REAL, not an INT", "the scan is too slow for maths"], c: 0, why: "Use a 32-bit DINT for the intermediate result." },
-    { l: 6, q: "Integer maths: the best order is…", a: ["multiply first, divide last", "divide first, then multiply last", "the order does not matter", "add first, then multiply"], c: 0, why: "Dividing first throws the fraction away." },
+    { l: 6, q: "Integer maths with a 32-bit intermediate: the best order is…", a: ["multiply first, divide last", "divide first, then multiply last", "the order does not matter", "add first, then multiply"], c: 0, why: "Dividing first throws the fraction away." },
     { l: 6, q: "35 100 MOD 1000 =", a: ["100", "351", "350", "35.1"], c: 0, why: "35100 / 1000 = 35, remainder 100. MOD gives the remainder." },
-    { l: 6, q: "Why not compare a REAL with = 0.3?", a: ["floating-point results are rarely exact", "the = contact only works with BOOL values", "a REAL compare takes too many scans", "a REAL compare overflows the accumulator"], c: 0, why: "0.1 + 0.2 is not exactly 0.3 in a REAL. Use a band, or >= / <=." },
+    { l: 6, q: "Why not compare a REAL with = 0.3?", a: ["floating-point results are rarely exact", "the = contact only works with BOOL values", "a REAL compare takes too many scans", "a REAL compare overflows the accumulator"], c: 0, why: "Add 0.1 ten times in a REAL and you get 1.0000001, not 1.0. Use a band, or >= / <=." },
     { l: 6, q: "An encoder gives 4000 pulses/s. Counting it with a normal input and CTU…", a: ["misses most pulses", "counts every pulse", "counts each pulse twice", "is faster than an HSC"], c: 0, why: "A normal input is read once per scan. Use a high-speed counter." },
     { l: 6, q: "Why slow down to creep speed before the target length?", a: ["a stop from full speed takes many mm", "creep speed uses less energy per cut", "the encoder cannot count at full speed", "the knife needs time to get ready"], c: 0, why: "From creep speed the stop is almost instant and always the same." },
     { l: 6, q: "An A/B (quadrature) encoder gives, compared with a single track…", a: ["the direction, and up to 4× resolution", "the absolute position after power-up", "twice the speed range, no direction", "a backup track if one wire breaks"], c: 0, why: "The order of the A and B edges gives the direction." },
@@ -4245,9 +4247,9 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { l: 6, q: "Where should the serial counter of a label printer be kept?", a: ["in retentive memory, so it survives a power cut", "in a normal M word, cleared at each restart", "only inside the printer, never in the PLC itself", "in a timer preset, so it counts up by itself"], c: 0, why: "Unique numbers must never repeat after a power cut." },
     { l: 6, q: "The operator types recipe 7, but the array is Length[1..3]. Reading Length[MW30]…", a: ["can stop the PLC (index out of range): check it first", "simply reads 0, so there is no need to check it", "reads the last element, Length[3], instead", "is fine: the PLC wraps 7 round to element 1"], c: 0, why: "Always check the index before you use it." },
     { l: 6, q: "What does Rockwell use instead of data blocks?", a: ["tags, with UDTs and arrays", "numbered DBs, like DB10", "only M bits and M words", "tables kept in the HMI"], c: 0, why: "Controller-scoped or program-scoped tags." },
-    { l: 6, q: "You download a data block again. What happens to values the operator changed on the HMI?", a: ["they are reset to the start values (unless kept)", "nothing, the DB keeps all the HMI values", "they are doubled and written back to the HMI", "they move into M memory until the next stop"], c: 0, why: "Values not kept as retentive are re-initialised. Download with care." },
+    { l: 6, q: "You change the structure of a data block and download it, so it is initialised again. What happens to values the operator changed on the HMI?", a: ["they are reset to the start values (unless kept)", "nothing, the DB keeps all the HMI values", "they are doubled and written back to the HMI", "they move into M memory until the next stop"], c: 0, why: "Values not kept as retentive are re-initialised. Download with care." },
     { l: 5, q: "A light curtain has OSSD1 and OSSD2. The safety program should…", a: ["use both: run only when both are on", "use OSSD1 only, OSSD2 is a spare", "use OSSD2 only, it is the safe one", "use them as a counter of beam breaks"], c: 0, why: "One shorted wire must not defeat the stop." },
-    { l: 6, q: "Why does muting need sensor A first, then B within a few seconds?", a: ["so a person cannot fake the muting pattern", "so the sensors use less energy on standby", "so the PLC can count every pallet that passes", "it does not: any order of A and B is fine"], c: 0, why: "Order and timing recognise the material, not a person." },
+    { l: 6, q: "Why does muting need sensor A first, then B within a few seconds?", a: ["so only moving material starts the muting", "so the sensors use less energy on standby", "so the PLC can count every pallet that passes", "it does not: any order of A and B is fine"], c: 0, why: "Order and timing recognise the material, not a person." },
     { l: 5, q: "Safety distance S = K × T + C. If the machine stops more slowly (T bigger), the curtain must be…", a: ["further away from the hazard", "closer to the hazard zone", "at the same distance as now", "removed and replaced by a door"], c: 0, why: "More stopping time needs more distance." },
     { l: 5, q: "After a person leaves the light curtain, the machine…", a: ["stays stopped until RESET and START", "restarts at once, as the beam is clear", "restarts by itself after 2 seconds", "restarts only if it was running before"], c: 0, why: "Restart interlock." },
     { l: 4, q: "A hydraulic press waits at the top with the pump running. What should the PLC do with the unloading valve?", a: ["switch it off: the pump runs unloaded, no heat", "keep full pressure on, so the press is always ready", "switch the pump motor off and on every cycle", "nothing, the relief valve handles it fine"], c: 0, why: "Oil over the relief valve turns all the motor power into heat." },
@@ -4295,7 +4297,7 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { l: 5, q: "A thumbwheel shows 1234 in BCD. What do you read if you take the word as a normal number?", a: ["4660", "1234", "4321", "0"], c: 0, why: "BCD 1234 is the bit pattern 16#1234, and 16#1234 as a number is 4660. Convert with BCD_I." },
     { l: 6, q: "NORM_X(0,AIW0,27648,MR0) and AIW0 is 13824. What is in MR0?", a: ["0.5", "50.0", "13824.0", "2.0"], c: 0, why: "NORM_X answers where the value is between min and max, as 0.0 … 1.0. Half-way is 0.5." },
     { l: 6, q: "MR0 is 2.9. What does TRUNC(MR0,MW0) write?", a: ["2", "3", "2.9", "29"], c: 0, why: "TRUNC cuts the decimals off. ROUND would give 3." },
-    { l: 6, q: "Why should you not test a REAL with \"equal\"?", a: ["Tiny rounding errors make it miss", "REAL numbers cannot be compared at all", "The PLC stops with a type error", "Equal is slower than less-than"], c: 0, why: "0.1 + 0.2 is 0.30000001 in floating point. Use limits or a window." },
+    { l: 6, q: "Why should you not test a REAL with \"equal\"?", a: ["Tiny rounding errors make it miss", "REAL numbers cannot be compared at all", "The PLC stops with a type error", "Equal is slower than less-than"], c: 0, why: "0.1 added ten times is 1.0000001 in floating point, not 1.0. Use limits or a window." },
     { l: 5, q: "The PLC cycle time is 40 ms. A sensor gives a pulse of 5 ms. What will the main program see?", a: ["Sometimes the pulse, mostly nothing", "Every single pulse, only a little bit late", "Every pulse, but twice each", "A pulse of exactly 40 ms"], c: 0, why: "The inputs are read once per cycle. A 5 ms pulse is seen only if it happens to be there at that moment." },
     { l: 5, q: "Where should a PID block be called?", a: ["In a periodic task with a fixed time", "In the main program, on every single cycle", "In a hardware interrupt of a sensor", "In the startup code, one time only"], c: 0, why: "PID maths uses the time between calls. Only a periodic task makes that time exact." },
     { l: 5, q: "A program has a loop that waits until a sensor comes on. The sensor is broken. What happens?", a: ["The watchdog stops the CPU", "The loop ends after ten tries", "The CPU skips that one rung", "The sensor input is forced on"], c: 0, why: "The cycle never ends, the cycle time limit is passed, and the CPU goes to STOP with all outputs off." },
@@ -4339,7 +4341,7 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { t: "Basics", q: "Siemens organisation blocks: what are OB1, OB100 and OB35?", a: ["OB1 main cycle, OB100 start-up, OB35 cyclic interrupt", "OB1 start-up, OB100 main cycle, OB35 error handling", "OB1, OB100 and OB35 are three timers with a fixed time base", "They are data blocks that store the machine settings"], c: 0, why: "Rockwell uses tasks instead: continuous, periodic and event tasks." },
     { t: "Programming", q: "The same coil is written in two rungs. What happens?", a: ["Only the last rung decides; the first rung has no effect", "The output is ON if either of the two rungs is true", "The PLC refuses to go to RUN and shows a compile error", "The output flickers at random between the ON and OFF states"], c: 0, why: "Each rung overwrites the output image; the last one wins. Use one coil and OR the conditions, or SET / RESET." },
     { t: "Programming", q: "What is a seal-in (latching) circuit?", a: ["START in parallel with a contact of the output, in series with STOP", "A timer that holds the output on for a fixed time after START", "A safety relay that keeps the motor on when the PLC fails", "START in series with STOP, and an NC contact of the output in parallel"], c: 0, why: "The most asked interview question. Draw it, and explain why STOP is NC in the field and NO in the program." },
-    { t: "Programming", q: "SET and RESET of the same bit are both true in one scan. Which wins?", a: ["The one in the later rung (SR block: set wins; RS block: reset wins)", "Always SET, because a SET instruction always has the higher priority in a PLC", "Always RESET, in every PLC brand and in every type of block", "The PLC goes to STOP with a fault because of the conflict"], c: 0, why: "Order of execution decides. For a STOP you want reset dominant." },
+    { t: "Programming", q: "SET and RESET of the same bit are both true in one scan. Which wins?", a: ["The one in the later rung (in a flip-flop box it depends on the box and the brand)", "Always SET, because a SET instruction always has the higher priority in a PLC", "Always RESET, in every PLC brand and in every type of block", "The PLC goes to STOP with a fault because of the conflict"], c: 0, why: "Order of execution decides. For a STOP you want reset dominant." },
     { t: "Programming", q: "Why use a one-shot (edge, P / ONS) contact?", a: ["To act once per change, e.g. count a part, not every scan while on", "To make a short signal longer, so the PLC cannot miss it", "To delay a signal, so other rungs see it a few seconds later", "To invert a signal, so the contact is true while the input is switched off"], c: 0, why: "Without the edge an ADD runs in every scan the button is held." },
     { t: "Programming", q: "Function (FC) or function block (FB)?", a: ["An FB has its own memory (instance data) kept between calls; an FC has none", "An FC has its own memory kept between calls; an FB has no memory of its own at all", "An FC always runs faster, and an FB cannot have any inputs or outputs", "They are identical; FB is only the older name used in Step 7 projects"], c: 0, why: "Anything with timers, edges or states inside → FB with an instance per use." },
     { t: "Programming", q: "INT is 16 bits signed. Its range is…", a: ["−32 768 … +32 767", "−32 767 … +32 768", "−16 384 … +16 383", "−65 536 … +65 535"], c: 0, why: "DINT is 32 bits (±2.1 billion), REAL is 32-bit floating point with about 7 significant digits." },
@@ -4357,7 +4359,7 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { t: "Analog & PID", q: "Why is 4–20 mA preferred over 0–10 V?", a: ["Less affected by cable and noise, and 0 mA shows a broken wire", "4–20 mA always has a higher resolution than any 0–10 V input card", "A PLC cannot read 0–10 V signals without an external converter", "It uses less power, so the sensor needs no supply at all"], c: 0, why: "Below about 3.6 mA = wire break or sensor fault (NAMUR NE43)." },
     { t: "Analog & PID", q: "A level transmitter 0–5 m gives 4–20 mA, the card reads 0–27648 for 4–20 mA. The raw value is 13824. The level is…", a: ["2.5 m", "1.25 m", "3.75 m", "5.0 m"], c: 0, why: "13824 / 27648 = 50 % of the span → 2.5 m. Scale: eng = raw × (max − min) / 27648 + min." },
     { t: "Analog & PID", q: "A 12-bit analog input has how many steps?", a: ["4096", "1024", "2048", "65536"], c: 0, why: "2¹² = 4096. 16-bit cards: about 27 648 or 32 000 steps for the nominal range depending on brand." },
-    { t: "Analog & PID", q: "PT100 or thermocouple?", a: ["PT100: accurate, up to ~600 °C. Thermocouple: far hotter, needs cold-junction compensation", "PT100: for 1000 °C and more. Thermocouple: more accurate, and it never needs any compensation", "They are the same sensor; only the wire colour and the price are different", "A thermocouple gives 4–20 mA directly; a PT100 gives 0–10 V directly to the card"], c: 0, why: "PT100 = 100 Ω at 0 °C; wired 2-, 3- or 4-wire to compensate the cable." },
+    { t: "Analog & PID", q: "PT100 or thermocouple?", a: ["PT100: accurate, up to ~600 °C. Thermocouple: far hotter, needs cold-junction compensation", "PT100: for 1000 °C and more. Thermocouple: more accurate, and it never needs any compensation", "They are the same sensor; only the wire colour and the price are different", "A thermocouple gives 4–20 mA directly; a PT100 gives 0–10 V directly to the card"], c: 0, why: "PT100 = 100 Ω at 0 °C; wired with 3 or 4 wires to cancel the cable resistance (with 2 wires the cable adds an error)." },
     { t: "Analog & PID", q: "In a PID controller, what does the I part do?", a: ["Removes the steady-state error by adding up the error over time", "Reacts to the rate of change of the error, to damp the fast changes", "Sets the gain that multiplies the error at this very moment", "Filters the noise of the measured value before the P part"], c: 0, why: "P alone leaves an offset; I removes it; D damps fast changes but amplifies noise." },
     { t: "Analog & PID", q: "What is integral windup?", a: ["The output is at its limit, but the integral keeps growing, so it overshoots", "A wiring fault: the 4–20 mA loop is wired with the wrong polarity", "The D part grows far too big when the measured value has a lot of noise on it", "The motor slowly turns backwards when the setpoint is set to zero"], c: 0, why: "Anti-windup: stop integrating while the output is limited (built into PID blocks)." },
     { t: "Analog & PID", q: "Where do you ground the shield of an analog cable?", a: ["Usually at one end only (cabinet side), to avoid ground loops", "Always at both ends, so that no noise can enter the cable at any point", "Never: a grounded shield brings noise into the analog signal", "In the middle of the cable, at a terminal box, for balance"], c: 0, why: "Follow the manufacturer: some fast digital networks want both ends with equipotential bonding." },
@@ -4371,7 +4373,7 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { t: "Drives & motion", q: "Three sensor types: which detects metal only?", a: ["Inductive proximity sensor", "Capacitive proximity sensor", "Photoelectric (light) sensor", "Ultrasonic distance sensor"], c: 0, why: "Capacitive detects almost anything (also liquids through plastic); photoelectric: through-beam, retro-reflective, diffuse." },
     { t: "Safety", q: "Why must an E-stop not rely only on the normal PLC program?", a: ["A normal PLC can fail, be forced or have a bug; safety needs safety-rated parts", "A normal PLC is too slow: its scan takes seconds, and an E-stop needs milliseconds", "E-stop buttons give an analog signal that a normal PLC card cannot read", "It is only a recommendation; the law allows a normal PLC program for it"], c: 0, why: "Standard PLC = control; safety relay / safety PLC = protection." },
     { t: "Safety", q: "Stop categories 0, 1 and 2 (IEC 60204-1)?", a: ["0: power off at once. 1: controlled stop, then power off. 2: stop, power stays on", "They are three speed levels: 0 = slow stop, 1 = medium stop, 2 = fast stop", "0: controlled stop. 1: power off at once. 2: no stop at all, only a warning on the HMI", "All three are allowed for an E-stop, and 2 is the most common choice there"], c: 0, why: "An E-stop must be category 0 or 1. Category 1 is common with drives: ramp down fast, then STO." },
-    { t: "Safety", q: "What do PL and SIL stand for?", a: ["Performance Level and Safety Integrity Level: how reliable safety must be", "PLC Language and System Integration Level of a control project", "Power Line and Signal Level of the 24 V control supply inside the cabinet", "Production Line and Speed Index Level: how fast the machine may run"], c: 0, why: "PL a–e (ISO 13849-1), SIL 1–3 (IEC 62061 / IEC 61508). A risk assessment decides the required level." },
+    { t: "Safety", q: "What do PL and SIL stand for?", a: ["Performance Level and Safety Integrity Level: how reliable safety must be", "PLC Language and System Integration Level of a control project", "Power Line and Signal Level of the 24 V control supply inside the cabinet", "Production Line and Speed Index Level: how fast the machine may run"], c: 0, why: "PL a–e (ISO 13849-1), SIL 1–3 for machines (IEC 62061; IEC 61508 itself goes up to SIL 4). A risk assessment decides the required level." },
     { t: "Safety", q: "Why two channels for an E-stop?", a: ["So one welded or shorted contact cannot prevent the stop", "So one E-stop button can stop two machines at the same time", "So the second channel can light the E-stop lamp on the panel", "Because two thin wires are cheaper than one thick wire"], c: 0, why: "The safety relay also checks that both channels open together (discrepancy monitoring)." },
     { t: "Safety", q: "After an E-stop is released, the machine must…", a: ["Stay stopped until a deliberate reset and a new start", "Restart at once from the step where it stopped before", "Restart by itself after 5 s, when the area looks clear", "Go to the home position by itself, then wait for start"], c: 0, why: "No automatic restart: a basic rule in every machine." },
     { t: "Safety", q: "What is STO on a drive?", a: ["Safe Torque Off: the drive safely stops making torque in the motor", "Start Torque Optimisation: extra torque for a heavy start", "Speed Target Output: the speed setpoint that the PLC sends to the drive", "Safe Torque Overload: the drive trips when the torque is too high"], c: 0, why: "STO cuts the motor power without opening the main contactor. It is the basis of most drive safety functions (SS1 = ramp, then STO)." },
@@ -4383,7 +4385,7 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { t: "Troubleshooting", q: "What are the dangers of forcing an I/O?", a: ["The machine follows the force, not the program, and people can get hurt", "Forcing sends a high current that can damage the I/O card", "Forces are removed by the next scan, so nothing really happens", "There are no dangers, because the program still checks all the safety parts"], c: 0, why: "Forgotten forces also cause strange faults later. Remove all forces when finished; many plants require a permit to force." },
     { t: "Troubleshooting", q: "What is cross-reference in the programming software good for?", a: ["Finding every place a tag is read or written", "Comparing the programs of two different PLCs", "Printing the wiring diagram of each I/O card", "Making a backup copy of the project on the PC"], c: 0, why: "First tool when \"why is this output on?\"." },
     { t: "Troubleshooting", q: "Online edit (change in RUN): what must you think about?", a: ["What it does in the current machine state, and save so online = offline", "Nothing: an online edit is always safe, in any state the machine is in now", "The PLC must be in STOP first, or the edit is never accepted", "Only the HMI: online edits change nothing in the running logic"], c: 0, why: "Rockwell: test edits / accept; Siemens: download in RUN; CODESYS: online change." },
-    { t: "Electrical drawings", q: "On a schematic, \"-K3\" is…", a: ["A contactor or relay (letter K)", "A circuit breaker (letter K)", "A motor (letter K, kinetic)", "A key switch on the panel (letter K)"], c: 0, why: "Common letters (IEC 81346): K relay / contactor, Q breaker, F protection, M motor, B sensor, S switch, H lamp, X terminal, A PLC / module." },
+    { t: "Electrical drawings", q: "On a schematic, \"-K3\" is…", a: ["A contactor or relay (letter K)", "A circuit breaker (letter K)", "A motor (letter K, kinetic)", "A key switch on the panel (letter K)"], c: 0, why: "Common letters on drawings: K relay / contactor, Q breaker (new standard IEC 81346: Q for power contactors too), F protection, M motor, B sensor, S switch, H lamp (new standard: P), X terminal, A PLC / module." },
     { t: "Electrical drawings", q: "Next to a contact of -K3 you read \"/5.2\". What does it mean?", a: ["The coil of -K3 is on page 5, column 2", "Wire number 5.2 between -K3 and the PLC", "Terminal 5, pin 2 on the -K3 relay base", "The contact is rated 5.2 A at 24 V DC"], c: 0, why: "Cross-references let you jump between a coil and all its contacts." },
     { t: "Electrical drawings", q: "A sensor -B12 is wired to \"-X2:14\". What is that?", a: ["Terminal 14 on terminal strip -X2", "PLC input 14 on the card in slot 2", "Page 2, column 14 of the drawings", "Core 14 in the cable named -X2"], c: 0, why: "Find the terminal plan of -X2 to see what is connected on both sides." },
     { t: "Electrical drawings", q: "On the PLC input page, I0.3 shows a symbol of an NC contact for \"-S2 STOP\". In the program you use…", a: ["A NO contact: the input is 1 while STOP is not pressed", "An NC contact: the input is 1 while STOP is pressed", "An NC contact, because it must match the drawing symbol", "A TON timer, so a short press of STOP is ignored"], c: 0, why: "The drawing shows the device; the program checks the signal." },
@@ -4537,7 +4539,7 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { t: "CAN, CANopen, DeviceNet", q: "In CANopen, PDO and SDO?", a: ["PDO: fast process data. SDO: reading and writing parameters", "PDO: reading and writing parameters. SDO: fast process data", "PDO: data for the safety PLC. SDO: data for the HMI screens", "PDO: data sent by the master only. SDO: data sent by slaves only"], c: 0, why: "PDO = Process Data Object, SDO = Service Data Object (object dictionary). NMT controls the device states; a heartbeat shows it is alive." },
     { t: "CAN, CANopen, DeviceNet", q: "CAN bus termination?", a: ["120 Ω at both ends of the bus", "120 Ω at every node on the bus", "50 Ω at the master only", "1 kΩ at both ends of the bus"], c: 0, why: "Measure about 60 Ω between CAN-H and CAN-L with the power off: both ends are terminated." },
     { t: "CAN, CANopen, DeviceNet", q: "Two CAN nodes start sending at exactly the same moment. What happens?", a: ["The lower ID wins bit by bit; the other stops and tries again later", "Both messages are destroyed and both nodes wait a random time", "The higher ID wins, because it has more dominant 1 bits on the bus wires", "The master on the bus decides which node may send its message"], c: 0, why: "A 0 bit is \"dominant\": it overwrites a 1. The node that hears a 0 when it sent a 1 knows it lost." },
-    { t: "CAN, CANopen, DeviceNet", q: "On CAN, which message gets through first?", a: ["The one with the lowest ID", "The one with the highest ID", "The one with the most data", "The one from the master"], c: 0, why: "So important messages (emergency stop of a drive) get low IDs." },
+    { t: "CAN, CANopen, DeviceNet", q: "On CAN, which message gets through first?", a: ["The one with the lowest ID", "The one with the highest ID", "The one with the most data", "The one from the master"], c: 0, why: "So important messages (network commands, SYNC, drive error messages) get low IDs." },
     { t: "CAN, CANopen, DeviceNet", q: "How many data bytes fit in one classic CAN message?", a: ["Up to 8 (CAN FD: up to 64)", "Up to 64 (CAN FD: up to 512)", "Up to 1500, like Ethernet", "Exactly 2 (one register)"], c: 0, why: "Small messages, sent often and fast." },
     { t: "CAN, CANopen, DeviceNet", q: "CANopen and DeviceNet: what is the same, what is different?", a: ["Both run on CAN; DeviceNet (Rockwell) also carries 24 V in the cable", "Both run on Ethernet; CANopen uses switches, and DeviceNet uses old hubs", "They are the same protocol on CAN; only the name differs by vendor", "CANopen carries 24 V in the cable; DeviceNet needs separate power"], c: 0, why: "Same \"road\" (CAN), different \"language\" on top. CANopen is used for drives, robots, medical and mobile machines." },
     { t: "CAN, CANopen, DeviceNet", q: "How many nodes on DeviceNet?", a: ["Up to 64 (MAC ID 0–63)", "Up to 126 (MAC ID 0–125)", "Up to 247 (MAC ID 1–247)", "Up to 16 (MAC ID 0–15)"], c: 0, why: "Each node has a MAC ID set by switches or software." },
@@ -4545,7 +4547,7 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { t: "LIN", q: "Where do you find LIN?", a: ["In cars: windows, mirrors, seats; a cheap, slow sub-bus under CAN", "In PROFINET switches, to connect the ports to each other", "In safety PLCs, as a fast backplane link between the two CPUs", "In large process plants, as a fast fibre backbone between the PLCs"], c: 0, why: "One wire, 19.2 kbit/s max. Rare in factory machines." },
     { t: "LIN", q: "How many masters does a LIN bus have?", a: ["One", "Two", "Ten", "None"], c: 0, why: "The master sends every header; slaves only answer." },
     { t: "LIN", q: "Why does every LIN header contain the sync byte 0x55?", a: ["Its 01010101 pattern lets slaves tune their clock to the master", "It is the address of the master, so slaves know who is asking", "It marks the end of the frame, so slaves know they can answer", "It is a checksum, so slaves can check the header is not damaged"], c: 0, why: "0x55 = 01010101. Slaves often have no crystal, so they adjust their clock to this byte." },
-    { t: "LIN", q: "Who sends the data in a LIN frame?", a: ["The slave that owns the ID in the master's header", "Always the master; slaves only listen to the bus", "All slaves together, each in its own time slot", "The slave with the lowest address, by arbitration"], c: 0, why: "Header from the master, response from one slave." },
+    { t: "LIN", q: "Who sends the data in a LIN frame?", a: ["The node that owns the ID in the header", "Always the master; slaves only listen to the bus", "All slaves together, each in its own time slot", "The slave with the lowest address, by arbitration"], c: 0, why: "Header from the master, response from one slave." },
     { t: "AS-i & HART", q: "What is special about the AS-Interface (AS-i) cable?", a: ["A yellow two-wire flat cable that carries both power and data", "A fibre-optic cable, so it is fully immune to motor noise", "A green 8-wire shielded cable with RJ45 plugs on every device", "A data-only cable; every device needs its own 24 V supply"], c: 0, why: "Cheap wiring for many simple sensors, buttons and valves." },
     { t: "AS-i & HART", q: "How many slaves on one AS-i network?", a: ["Up to 62 (A/B addressing), 31 classic", "Up to 247 (A/B addressing), 126 classic", "Up to 126 (A/B addressing), 64 classic", "Up to 16 (A/B addressing), 8 classic"], c: 0, why: "The master polls them all in about 5–10 ms." },
     { t: "AS-i & HART", q: "What is HART?", a: ["A digital signal on top of the 4–20 mA loop, for settings and diagnostics", "A fieldbus with its own cable that fully replaces the 4–20 mA loop and its wires", "A safety protocol that turns a 4–20 mA loop into a SIL 3 signal", "A type of small PLC made for process plants with many analog inputs"], c: 0, why: "The 4–20 mA still carries the main value; HART adds information on the same two wires." },
@@ -4574,7 +4576,7 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { t: "EtherCAT", q: "Can you put a normal Ethernet switch between EtherCAT devices?", a: ["No: inside the segment devices are chained; use junction modules", "Yes: any standard unmanaged switch works, like with PROFINET RT", "Yes, but only a managed switch with IGMP snooping turned on", "No: EtherCAT does not use Ethernet frames, so the switch drops them"], c: 0, why: "EtherCAT uses standard Ethernet frames, but each device processes them on the fly. Branches use junction modules, not switches." },
     { t: "EtherCAT", q: "Which file describes an EtherCAT device?", a: ["ESI (EtherCAT Slave Information, XML)", "GSDML (Generic Station Description, XML)", "EDS (Electronic Data Sheet, text)", "IODD (IO Device Description, XML)"], c: 0, why: "Beckhoff TwinCAT, Omron Sysmac and CODESYS scan the bus and match the ESI." },
     { t: "EtherCAT", q: "Safety over EtherCAT is called…", a: ["FSoE (Fail Safe over EtherCAT)", "PROFIsafe, as on PROFINET", "CIP Safety, as on EtherNet/IP", "SafetyBUS p over EtherCAT"], c: 0, why: "Like PROFIsafe and CIP Safety, it uses the black channel principle." },
-    { t: "OPC UA & MQTT", q: "What is OPC UA mostly used for?", a: ["Exchanging structured, secure data between PLCs, SCADA, MES and IT", "Fast cyclic I/O between a PLC and its sensors, with 100 µs cycles", "Safety signals such as emergency stops between two safety PLCs", "Motion control of servo drives with microsecond jitter and sync"], c: 0, why: "Built into S7-1500, Logix (via add-ons / FactoryTalk), CODESYS, TwinCAT, Omron NX." },
+    { t: "OPC UA & MQTT", q: "What is OPC UA mostly used for?", a: ["Exchanging structured, secure data between PLCs, SCADA, MES and IT", "Fast cyclic I/O between a PLC and its sensors, with 100 µs cycles", "Safety signals such as emergency stops between two safety PLCs", "Motion control of servo drives with microsecond jitter and sync"], c: 0, why: "Built into S7-1500, Logix (built in on new 5580 / 5380 firmware; older ones through FactoryTalk Linx or a gateway), CODESYS, TwinCAT, Omron NX." },
     { t: "OPC UA & MQTT", q: "Default port of an OPC UA server (opc.tcp)?", a: ["4840", "502", "1883", "44818"], c: 0, why: "Certificates must be trusted on both sides before a secure connection works." },
     { t: "OPC UA & MQTT", q: "OPC UA connection refused, \"certificate untrusted\". What do you do?", a: ["Trust each side's certificate: client on server, server on client", "Change the IP address of the server, so the client sees it as a new one", "Switch off the PLC firewall for good, so all clients can connect", "Reinstall the PLC firmware so a new certificate is created on it"], c: 0, why: "Security mode None is for tests only." },
     { t: "OPC UA & MQTT", q: "MQTT works with…", a: ["A broker: devices publish to topics, others subscribe to them", "Polling: the client reads registers from each server in turn", "A token ring: only the device with the token may send data", "Device names: the controller assigns IPs and then exchanges I/O"], c: 0, why: "Light, good for cloud and IIoT. Sparkplug B defines the topics and payload for industry." },

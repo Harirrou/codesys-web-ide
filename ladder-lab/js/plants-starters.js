@@ -228,13 +228,13 @@
   const hex = (v) => '16#' + ((v | 0) & 0xffff).toString(16).toUpperCase().padStart(4, '0');
   const DSTATE = { 1: 'S1  switch-on inhibited', 2: 'S2  ready to switch on', 3: 'S3  ready to operate', 4: 'S4  operation', 9: 'FAULT  F07801 overcurrent' };
   P.busdrive = {
-    id: 'busdrive', name: 'Drive on a fieldbus (control word)', blurb: 'A conveyor drive on PROFINET, like a SINAMICS, an Altivar or a drive with CiA 402. No start wire: the PLC sends a 16-bit <b>control word</b> (AQW30) and a speed setpoint (AQW31, 16384 = 100 %), and reads a <b>status word</b> (AIW30) and the actual speed (AIW31). The drive only starts after the right order: first 16#047E (ready), then 16#047F (run). A fault needs an acknowledge edge on bit 7.',
+    id: 'busdrive', name: 'Drive on a fieldbus (control word)', blurb: 'A conveyor drive on PROFINET, like a SINAMICS with the PROFIdrive profile (drives with CiA 402, such as an Altivar, work the same way with other numbers: 6, 7, 15). No start wire: the PLC sends a 16-bit <b>control word</b> (AQW30) and a speed setpoint (AQW31, 16384 = 100 %), and reads a <b>status word</b> (AIW30) and the actual speed (AIW31). The drive only starts after the right order: first 16#047E (ready), then 16#047F (run). A fault needs an acknowledge edge on bit 7.',
     inputs: [
       { addr: 'I0.0', name: 'START', kind: 'pb', color: 'green' },
       { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },
       { addr: 'I0.2', name: 'RESET', kind: 'pb', color: 'blue' },
       { addr: 'AIW0', name: 'Speed knob', kind: 'ana', min: 0, max: 27648, value: 13824, unit: 'V', note: '0–10 V = 0–27648 = 0–100 %' },
-      { addr: 'AIW30', name: 'From drive: status word ZSW1', kind: 'sensor', note: 'bit 0 ready to switch on, 1 ready to operate, 2 running, 3 fault, 6 switch-on inhibited, 10 speed reached' },
+      { addr: 'AIW30', name: 'From drive: status word ZSW1', kind: 'sensor', note: 'bit 0 ready to switch on, 1 ready to operate, 2 running, 3 fault, 6 switch-on inhibited, 8 speed reached, 10 above a comparison value' },
       { addr: 'AIW31', name: 'From drive: actual speed', kind: 'sensor', note: '16384 = 100 % = 1500 rpm' },
     ],
     outputs: [

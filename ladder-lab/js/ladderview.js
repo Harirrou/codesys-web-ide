@@ -29,7 +29,7 @@
     CTU: ['Count up', '+1 on each rising edge; done when CV ≥ PV. Clear with RST.'],
     CTD: ['Count down', '−1 on each rising edge; done when CV ≤ 0. RST reloads PV.'],
     MOV: ['Move', 'Copies a value into a word while powered.'],
-    JMP: ['Jump to a label', 'While powered, the PLC jumps to the rung with the same label (LBL). The rungs in between are NOT scanned: their outputs keep the last state and their timers stand still. The label must be below the jump. Never use a jump to switch something off.'],
+    JMP: ['Jump to a label', 'While powered, the PLC jumps to the rung with the same label (LBL). The rungs in between are NOT scanned: their outputs keep the last state and their timers are not checked (here they stand still; on many real PLCs the time still runs). The label must be below the jump. Never use a jump to switch something off.'],
     LBL: ['Label', 'The place where a jump (JMP) with the same name lands. This rung and everything below it is scanned again. Studio 5000: LBL. TIA: a jump label. Omron: JME.'],
     MCR: ['MCR zone', 'Two MCR instructions make a zone. The first one has the condition; the second one ends the zone. While the condition is false, every rung in the zone is solved as FALSE: coils drop and TON timers reset, but latched (S) bits stay. Not a safety function. Omron: IL / ILC.'],
     FFL: ['FIFO load', 'On each rising edge, puts the value at the end of a queue. The queue lives in a word table: the first word is the count, the next words are the data (MW100 = count, MW101 … = data). A full table refuses the load. Studio 5000: FFL.'],
@@ -61,13 +61,13 @@
     WOR: ['Word OR', 'Result = A OR B, bit by bit. A bit is 1 where at least one word has a 1. Use it to switch some bits on and leave the others alone. TIA / Rockwell / CODESYS: OR.'],
     WXOR: ['Word XOR', 'Result = A XOR B, bit by bit. A bit is 1 where the two words are different. Use it to find which bits changed (old XOR new). TIA / Rockwell / CODESYS: XOR.'],
     WNOT: ['Word NOT (invert)', 'Result = NOT A: every one of the 16 bits flips, 0 → 1 and 1 → 0. TIA: INV, Rockwell / CODESYS: NOT.'],
-    I_BCD: ['Number to BCD', 'I_BCD(MW10,QW…): 1234 becomes 16#1234. In BCD every group of 4 bits holds one decimal digit (0 … 9), so a 7-segment display or a thumbwheel switch can use it directly. Range 0 … 9999. TIA: CONV Int → Bcd16, Rockwell: TOD, Omron: BCD.'],
+    I_BCD: ['Number to BCD', 'I_BCD(MW10,QW…): 1234 becomes 16#1234. In BCD every group of 4 bits holds one decimal digit (0 … 9), so a 7-segment display or a thumbwheel switch can use it directly. Range 0 … 9999. TIA: CONV Int → Bcd16 (only up to 999; for 4 digits DInt → Bcd32), Rockwell: TOD, Omron: BCD.'],
     BCD_I: ['BCD to number', 'BCD_I(MW10,MW12): 16#1234 becomes 1234. Read a thumbwheel switch or a BCD code from a device. A group of 4 bits above 9 is not BCD: then nothing is written. TIA: CONV Bcd16 → Int, Rockwell: FRD, Omron: BIN.'],
     CONV: ['Convert type', 'CONV(SOURCE,RESULT) copies a number into a word of another type: INT → REAL (MW10 → MR0) or REAL → INT (rounds to the nearest; 2.5 → 2 and 3.5 → 4, to the even number, as in TIA). TIA: CONV, Rockwell: MOV, CODESYS: INT_TO_REAL / REAL_TO_INT.'],
     ROUND: ['Round', 'ROUND(MR0,MW10): REAL → whole number, to the nearest. 2.4 → 2, 2.6 → 3, 2.5 → 2 (x.5 goes to the even number, as in TIA). TIA: ROUND, Rockwell: MOV into an INT, CODESYS: REAL_TO_INT.'],
     TRUNC: ['Truncate', 'TRUNC(MR0,MW10): REAL → whole number by cutting off the decimals. 2.9 → 2, -2.9 → -2. TIA: TRUNC, Rockwell: TRN, CODESYS: TRUNC.'],
-    NORM_X: ['Normalize (0.0 … 1.0)', 'NORM_X(MIN,VALUE,MAX,RESULT): RESULT = (VALUE − MIN) ÷ (MAX − MIN). An analog input AIW0 from 0 … 27648 becomes 0.0 … 1.0 in a REAL (MRn). Then SCALE_X turns it into real units. TIA: NORM_X, Rockwell: SCP, CODESYS: a formula.'],
-    SCALE_X: ['Scale (to units)', 'SCALE_X(MIN,VALUE,MAX,RESULT): RESULT = VALUE × (MAX − MIN) + MIN. VALUE 0.0 … 1.0 (from NORM_X) becomes, for example, 0.0 … 100.0 %, or 0 … 27648 for an analog output. TIA: SCALE_X, Rockwell: SCP.'],
+    NORM_X: ['Normalize (0.0 … 1.0)', 'NORM_X(MIN,VALUE,MAX,RESULT): RESULT = (VALUE − MIN) ÷ (MAX − MIN). An analog input AIW0 from 0 … 27648 becomes 0.0 … 1.0 in a REAL (MRn). Then SCALE_X turns it into real units. TIA: NORM_X, Rockwell: CPT with a formula, CODESYS: a formula.'],
+    SCALE_X: ['Scale (to units)', 'SCALE_X(MIN,VALUE,MAX,RESULT): RESULT = VALUE × (MAX − MIN) + MIN. VALUE 0.0 … 1.0 (from NORM_X) becomes, for example, 0.0 … 100.0 %, or 0 … 27648 for an analog output. TIA: SCALE_X, Rockwell: CPT with a formula.'],
     SHRB: ['Shift register (bit)', 'Each time it runs, the bits from START move one place along (length N) and DATA enters the first bit. Negative N shifts the other way. Use an edge so it shifts once per event (one pocket, one part).'],
   };
 
@@ -77,8 +77,8 @@
   const IEC_W = { WAND: 'AND', WOR: 'OR', WXOR: 'XOR', WNOT: 'NOT' };
   const BOX_NAME = {
     tia: Object.assign({ WAND: 'AND', WOR: 'OR', WXOR: 'XOR', WNOT: 'INV', I_BCD: 'CONV', BCD_I: 'CONV', LBL: 'LABEL' }, QN),
-    rk: { WAND: 'AND', WOR: 'OR', WXOR: 'XOR', WNOT: 'NOT', I_BCD: 'TOD', BCD_I: 'FRD', CONV: 'MOV', ROUND: 'MOV', TRUNC: 'TRN', NORM_X: 'SCP', SCALE_X: 'SCP' },
-    ll: QN, cds: Object.assign({}, IEC_W, QN), sch: Object.assign({}, IEC_W, QN), tc: Object.assign({}, IEC_W, QN), om: Object.assign({}, IEC_W, { JMP: 'JMP', LBL: 'JME', MCR: 'IL / ILC', FFL: 'PUSH', FFU: 'FIFO', LFU: 'LIFO' }),
+    rk: { WAND: 'AND', WOR: 'OR', WXOR: 'XOR', WNOT: 'NOT', I_BCD: 'TOD', BCD_I: 'FRD', CONV: 'MOV', ROUND: 'MOV', TRUNC: 'TRN', NORM_X: 'CPT', SCALE_X: 'CPT' },
+    ll: QN, cds: Object.assign({}, IEC_W, QN), sch: Object.assign({}, IEC_W, QN), tc: Object.assign({}, IEC_W, QN), om: Object.assign({}, IEC_W, { JMP: 'CJP', LBL: 'JME', MCR: 'IL / ILC', FFL: 'PUSH', FFU: 'FIFO', LFU: 'LIFO' }),
   };
   const numT = (a) => (LL.numType ? LL.numType(a) : 'INT');
   function newBoxSVG(cell, bx0, bx1, by) {
@@ -212,14 +212,14 @@
       note: 'Ladder Lab uses the Siemens way of writing: #Name inside a block. Choose your brand above to see the same block in its words.' },
     tia: { name: 'Siemens TIA Portal', fb: 'FB', fc: 'FC', fbLong: 'FB (function block) with an instance data block', fcLong: 'FC (function): no instance DB, only Temp variables', inst: 'Instance DB (its own memory)', dirs: { IN: 'Input', OUT: 'Output', INOUT: 'InOut' }, stat: 'Static', temp: 'Temp', inside: '#Start', call: { FB: 'FB', FC: 'FC' },
       note: 'In the block interface you fill Input, Output, InOut, Static and Temp. Inside the block you write #Start, exactly as here. Every call of an FB needs an instance DB (Motor1_DB) that holds its Static memory. An FC has no instance DB: its Temp values are lost after each call.' },
-    rk: { name: 'Rockwell Studio 5000', fb: 'AOI', fc: 'Routine', fbLong: 'Add-On Instruction (AOI): each call has its own backing tag', fcLong: 'Subroutine called with JSR, with input and return parameters', inst: 'Backing tag (its own memory)', dirs: { IN: 'Input', OUT: 'Output', INOUT: 'InOut' }, stat: 'Local tag', temp: 'Local tag (not kept)', inside: 'Start', call: { FB: 'AOI', FC: 'JSR' },
+    rk: { name: 'Rockwell Studio 5000', fb: 'AOI', fc: 'Routine', fbLong: 'Add-On Instruction (AOI): each call has its own backing tag', fcLong: 'Subroutine called with JSR, with input and return parameters', inst: 'Backing tag (its own memory)', dirs: { IN: 'Input', OUT: 'Output', INOUT: 'InOut' }, stat: 'Local tag', temp: 'Local tag (kept too: write before you read)', inside: 'Start', call: { FB: 'AOI', FC: 'JSR' },
       note: 'An FB is an Add-On Instruction. You create a tag of the AOI type for every call (Motor1 : FB_Motor): that backing tag is its memory. Inside the AOI you write Start, without #. An FC is closest to a routine called with JSR (parameters in with SBR, out with RET).' },
     cds: { name: 'CODESYS', fb: 'FUNCTION_BLOCK', fc: 'FUNCTION', fbLong: 'FUNCTION_BLOCK: declare one instance per call in VAR', fcLong: 'FUNCTION: no instance and no memory', inst: 'Instance (declared in VAR)', dirs: { IN: 'VAR_INPUT', OUT: 'VAR_OUTPUT', INOUT: 'VAR_IN_OUT' }, stat: 'VAR', temp: 'VAR (temporary)', inside: 'Start', call: { FB: 'FB', FC: 'FUNC' },
       note: 'A FUNCTION_BLOCK is a type; you declare Motor1 : FB_Motor; in VAR and call Motor1 in the program. Inside you write Start, without #. A FUNCTION has no instance; its local VARs are fresh at every call.' },
   };
   Object.assign(LL.BRANDS, {
     sch: { name: 'Schneider Machine Expert', fb: 'FUNCTION_BLOCK', fc: 'FUNCTION', fbLong: 'FUNCTION_BLOCK (POU): declare one instance per call', fcLong: 'FUNCTION (POU): no instance, no memory', inst: 'Instance (declared in VAR)', dirs: { IN: 'VAR_INPUT', OUT: 'VAR_OUTPUT', INOUT: 'VAR_IN_OUT' }, stat: 'VAR', temp: 'VAR (temporary)', inside: 'Start', call: { FB: 'FB', FC: 'FUNC' },
-      note: 'Machine Expert (M241, M251, M262 …) is based on CODESYS: blocks are POUs of type FUNCTION_BLOCK or FUNCTION, instances are declared in VAR, and inside you write Start without #. The small M221 (Machine Expert Basic) has no user function blocks: there you use subroutines (SRi).' },
+      note: 'Machine Expert (M241, M251, M262 …) is based on CODESYS: blocks are POUs of type FUNCTION_BLOCK or FUNCTION, instances are declared in VAR, and inside you write Start without #. The small M221 (Machine Expert Basic) has user-defined function blocks (UDFB) and functions (UDF) too, plus subroutines (SRi).' },
     tc: { name: 'Beckhoff TwinCAT 3', fb: 'FUNCTION_BLOCK', fc: 'FUNCTION', fbLong: 'FUNCTION_BLOCK: one instance per call, declared in VAR', fcLong: 'FUNCTION: no instance, no memory', inst: 'Instance (declared in VAR)', dirs: { IN: 'VAR_INPUT', OUT: 'VAR_OUTPUT', INOUT: 'VAR_IN_OUT' }, stat: 'VAR', temp: 'VAR (temporary)', inside: 'Start', call: { FB: 'FB', FC: 'FUNC' },
       note: 'TwinCAT 3 is CODESYS-based too: FUNCTION_BLOCK with VAR_INPUT / VAR_OUTPUT, an instance per call (fbMotor1 : FB_Motor;), and names without #. Beckhoff style prefixes names with their type: bStart, nCount, fbMotor1.' },
     om: { name: 'Omron Sysmac Studio', fb: 'FB', fc: 'FUN', fbLong: 'Function block (FB): each call has its own instance variable', fcLong: 'Function (FUN): no instance, no memory', inst: 'Instance (a variable of the FB type)', dirs: { IN: 'Input', OUT: 'Output', INOUT: 'In-Out' }, stat: 'Internal variable', temp: 'Internal (FUN, not kept)', inside: 'Start', call: { FB: 'FB', FC: 'FUN' },
@@ -255,11 +255,11 @@
     ['BCD (7-segment, thumbwheel)', 'I_BCD / BCD_I', 'CONV Int ↔ Bcd16 (3 digits + sign)', 'TOD / FRD', 'formula (/ and MOD) or a library', 'ITB / BTI', 'DEC_TO_BCD / BCD_TO_DEC (Tc2_Utilities, 1 byte)', 'BCD conversion functions (…_TO_BCD…)', 'BCD(024) / BIN(023)'],
     ['REAL (number with decimals)', 'MR0 … MR99, 12.5', 'Real tag (%MD, 4 bytes)', 'REAL tag', 'REAL variable', '%MF0', 'REAL variable (fValue)', 'REAL variable', 'D (2 words), +F / -F / *F / /F'],
     ['Convert / round / cut', 'CONV / ROUND / TRUNC', 'CONV / ROUND / TRUNC', 'MOV (rounds) / TRN', 'INT_TO_REAL / REAL_TO_INT / TRUNC', 'INT_TO_REAL / REAL_TO_INT / TRUNC', 'INT_TO_REAL / REAL_TO_INT / TRUNC', 'INT_TO_REAL / REAL_TO_INT / Trunc', 'FLT(452) / FIX(450)'],
-    ['Scale an analog value', 'NORM_X + SCALE_X', 'NORM_X + SCALE_X', 'SCP (or CPT)', 'formula (or LIN_TRAFO, Util)', 'formula in an operation block', 'formula (or FB_CTRL_NORMALIZE)', 'formula (or ScaleTrans)', 'SCL(194)'],
+    ['Scale an analog value', 'NORM_X + SCALE_X', 'NORM_X + SCALE_X', 'CPT (SCP only on SLC / MicroLogix)', 'formula (or LIN_TRAFO, Util)', 'formula in an operation block', 'formula (or FB_CTRL_NORMALIZE)', 'formula (or ScaleTrans)', 'SCL(194)'],
     ['Analog input', 'AIW0 (0 … 27648)', '%IW64… (0 … 27648)', 'module channel (scaled in the module)', 'module variable', '%IW0.0 (0 … 1000 by default)', 'INT AT %I* (0 … 32767)', 'mapped variable', 'CIO word of the analog unit'],
     ['First scan', 'SM0.1', 'FirstScan bit or OB100', 'S:FS', 'own bit / first-cycle flag', '%S13', '_TaskInfo[].FirstCycle', 'P_First_RunMode', 'A200.11'],
-    ['1 Hz clock', 'SM0.5', 'clock memory bit (e.g. %M0.5)', '(build it with a timer)', 'BLINK (Util)', '%S6', 'BLINK (Tc2_Utilities)', 'Get1sClk', 'P_1s'],
-    ['Block with memory', 'FB (BLOCK)', 'FB + instance DB', 'Add-On Instruction', 'FUNCTION_BLOCK', '— (subroutines only)', 'FUNCTION_BLOCK', 'FB', 'FB'],
+    ['1 Hz clock', 'SM0.5', 'clock memory bit (e.g. %M0.5)', '(build it with a timer)', 'BLINK (Util)', '%S6', 'two timers, or your own blink FB', 'Get1sClk', 'P_1s'],
+    ['Block with memory', 'FB (BLOCK)', 'FB + instance DB', 'Add-On Instruction', 'FUNCTION_BLOCK', 'UDFB (user-defined function block)', 'FUNCTION_BLOCK', 'FB', 'FB'],
     ['Block without memory', 'FC', 'FC', 'Routine (JSR)', 'FUNCTION', 'Subroutine SRi', 'FUNCTION', 'FUN', 'Subroutine (SBS / SBN)'],
     ['Servo: move to a position', 'MC_ABS', 'MC_MoveAbsolute', 'MAM', 'MC_MoveAbsolute (SoftMotion)', 'MC_MoveAbs_PTO (pulse output)', 'MC_MoveAbsolute (Tc2_MC2)', 'MC_MoveAbsolute', 'PLS2 / positioning unit'],
     ['PID', 'PID', 'PID_Compact', 'PIDE / PID', 'PID (Util)', 'PID function', 'FB_CTRL_PID', 'PIDAT', 'PIDAT'],

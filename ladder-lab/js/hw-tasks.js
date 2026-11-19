@@ -11,7 +11,7 @@
     siemens: { n: 'Siemens', main: 'OB1 (program cycle)', per: 'OB30 (cyclic interrupt)', int: 'OB40 (hardware interrupt)', start: 'OB100 (startup)', wd: 'cycle monitoring time, OB80' },
     rockwell: { n: 'Studio 5000', main: 'Continuous task', per: 'Periodic task', int: 'Event task', start: 'first scan bit S:FS', wd: 'task watchdog' },
     codesys: { n: 'CODESYS / TwinCAT', main: 'Freewheeling or cyclic MainTask', per: 'Cyclic task with an interval', int: 'Event task', start: 'first-cycle init code', wd: 'task watchdog' },
-    omron: { n: 'Omron Sysmac', main: 'Primary periodic task', per: 'Periodic task', int: 'Event task', start: 'P_First_Run flag', wd: 'task period exceeded' },
+    omron: { n: 'Omron Sysmac', main: 'Primary periodic task', per: 'Periodic task', int: 'Event task', start: 'P_First_Run flag', wd: 'Task Execution Timeout' },
   };
   const CHECKS = [
     ['miss', 'Make the main program miss at least 3 pulses (long program, no interrupt)'],
@@ -85,7 +85,7 @@
           if (S.mainLeft <= 0) { if (S.scanStart) S.cyc = t - S.scanStart; S.scanStart = t; read = 1; if (S.inp && !S.last) S.seenMain++; S.last = S.inp; S.mainLeft = C.scan + (C.bug ? 200 : 0); if (C.pid === 'main') pid(t); }
           S.mainLeft--;
         }
-        if (t - S.scanStart > 150) { S.stop = true; S.cyc = t - S.scanStart; mark2('wd0'); cap('CPU in STOP: the main program did not finish within 150 ms (' + BR[C.brand].wd + '). All outputs go off. A program must never wait in a loop: remove the slow loop, then restart the CPU.', true); ui(); }
+        if (t - S.scanStart > 150) { S.stop = true; S.cyc = t - S.scanStart; mark2('wd0'); cap('CPU in STOP: the main program did not finish within 150 ms, the limit used here (' + BR[C.brand].wd + '; the default is 150 ms at Siemens, 500 ms at Rockwell, and you set it yourself in CODESYS). All outputs go off. A program must never wait in a loop: remove the slow loop, then restart the CPU.', true); ui(); }
       }
       HIST[t % WIN] = { who, inp: S.inp, read };
       S.t++;

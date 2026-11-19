@@ -11,10 +11,10 @@
   // key, name, unit, min, max, step, factory value, why
   const PAR = [
     ['volt', 'Motor rated voltage', 'V', 200, 480, 10, 230, 'From the nameplate. The drive uses it for the voltage / frequency ratio.'],
-    ['cur', 'Motor rated current', 'A', 2, 20, 0.1, 15, 'From the nameplate. It sets the motor overload protection inside the drive.'],
+    ['cur', 'Motor rated current', 'A', 2, 20, 0.1, 15, 'From the nameplate. It sets the motor overload protection inside the drive (Altivar: set ItH as well; PowerFlex: P033 as well).'],
     ['freq', 'Motor rated frequency', 'Hz', 50, 60, 10, 60, 'From the nameplate: 50 Hz in Europe, 60 Hz in North America.'],
     ['rpm', 'Motor rated speed', 'rpm', 900, 3600, 10, 1750, 'From the nameplate. The drive works out the slip from it.'],
-    ['acc', 'Ramp-up time', 's', 0.5, 20, 0.5, 0.5, 'Time from 0 to the maximum frequency. Too short: overcurrent.'],
+    ['acc', 'Ramp-up time', 's', 0.5, 20, 0.5, 0.5, 'Time from 0 to the maximum frequency (Altivar: to the rated frequency). Too short: overcurrent.'],
     ['dec', 'Ramp-down time', 's', 0.5, 20, 0.5, 0.5, 'Time from maximum to 0. Too short with a heavy load: overvoltage.'],
     ['fmin', 'Minimum frequency', 'Hz', 0, 30, 5, 0, 'The motor never runs slower than this while it has a run command.'],
     ['fmax', 'Maximum frequency', 'Hz', 30, 70, 5, 60, 'The motor never runs faster than this, whatever the setpoint says.'],
@@ -25,7 +25,7 @@
   const CODE = {
     siemens: { n: 'SINAMICS', c: ['p0304', 'p0305', 'p0310', 'p0311', 'p1120', 'p1121', 'p1080', 'p1082', 'p0015', 'p0015'] },
     schneider: { n: 'Altivar', c: ['UnS', 'nCr', 'FrS', 'nSP', 'ACC', 'dEC', 'LSP', 'HSP', 'Cd1', 'Fr1'] },
-    rockwell: { n: 'PowerFlex 525', c: ['P031', 'P033', 'P032', 'P036', 'P041', 'P042', 'P043', 'P044', 'P046', 'P047'] },
+    rockwell: { n: 'PowerFlex 525', c: ['P031', 'P034', 'P032', 'P036', 'P041', 'P042', 'P043', 'P044', 'P046', 'P047'] },
   };
   const CHECKS = [
     ['np', 'Type in the four values from the motor nameplate'],

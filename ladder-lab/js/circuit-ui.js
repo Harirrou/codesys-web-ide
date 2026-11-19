@@ -290,7 +290,7 @@
       }
       g += `<circle cx="${xq}" cy="${ym}" r="25" fill="var(--surface)" stroke="${turning ? GRN : 'currentColor'}" stroke-width="${turning ? 2.2 : 1.4}"/><g transform="rotate(${Math.round(ang[0]) % 360} ${xq} ${ym})"><circle cx="${xq}" cy="${ym - 19}" r="3" fill="${turning ? GRN : 'var(--muted)'}" stroke="none"/><circle cx="${xq + 16.5}" cy="${ym + 9.5}" r="3" fill="${turning ? GRN : 'var(--muted)'}" stroke="none"/><circle cx="${xq - 16.5}" cy="${ym + 9.5}" r="3" fill="${turning ? GRN : 'var(--muted)'}" stroke="none"/></g>`
         + T(xq, ym + 1, 'M', { z: 15, b: 1, a: 'middle' }) + T(xq, ym + 12, '3~', { z: 8.5, a: 'middle', f: 'var(--muted)' })
-        + T(xq - 30, ym - 26, dah ? 'U1 V1 W1' : '1U 1V 1W', { z: 8, a: 'end', f: 'var(--muted)' }) + T(xq + 32, ym - 26, dah ? 'U2 V2 W2' : '2U 2V 2W', { z: 8, f: 'var(--muted)' })
+        + T(xq - 30, ym - 26, '1U 1V 1W', { z: 8, a: 'end', f: 'var(--muted)' }) + T(xq + 32, ym - 26, '2U 2V 2W', { z: 8, f: 'var(--muted)' })
         + T(xq, ym + 40, st.sp === 2 ? (dah ? 'high: double star' : 'high-speed winding') : st.sp === 1 ? (dah ? 'low: delta' : 'low-speed winding') : dah ? 'one winding, two speeds' : 'two windings', { z: 10, a: 'middle', f: 'var(--muted)' });
       read = ['speed ' + st.rpm + ' rpm', st.sp === 2 ? 'HIGH' : st.sp === 1 ? 'LOW' : 'stopped'];
     } else if (scn === 'cap1') {

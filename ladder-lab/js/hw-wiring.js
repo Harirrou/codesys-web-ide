@@ -24,7 +24,7 @@
       ex: { sinking: 'EL1008, positive switching', sourcing: 'EL1088, ground switching', relay: 'EL2622', pnp: 'EL2008, positive switching', npn: 'EL2088, ground switching', triac: 'EL2712' },
       note: 'Beckhoff TwinCAT: say "positive switching" for PNP and "ground switching" for NPN. The 24 V and 0 V come through the power contacts of the terminal row. You link a variable (bSensor AT %I*) to the channel.' },
     omron: { n: 'Omron', i0: '0.00', i1: '0.01', q0: '100.00', diC: () => 'COM', pL: '+V', pM: '0V', rC: 'COM', tC: 'COM',
-      ex: {}, note: 'Omron: the catalogue says "PNP" or "NPN" for every input and transistor output unit. Order the right one: changing it later means rewiring. CP1 addresses: inputs 0.00, outputs 100.00 (Sysmac Studio: variables).' },
+      ex: {}, note: 'Omron: transistor output units are NPN or PNP by type: order the right one. Many inputs (CP1, CJ) take both, by the way COM is wired; NX input units come as NPN or PNP. CP1 addresses: inputs 0.00, outputs 100.00 (Sysmac Studio: variables).' },
     rockwell: { n: 'Studio 5000', i0: 'Local:1:I.Data.0', i1: 'Local:1:I.Data.1', q0: 'Local:2:O.Data.0', diC: (k) => (k === 'sinking' ? 'GND' : 'DC+'), pL: '+DC', pM: 'RTN', rC: 'L1', tC: 'L1',
       ex: { sinking: '1756-IB16, sink input', sourcing: '1756-IV16, source input', relay: '1756-OW16I', pnp: '1756-OB16E, source output', npn: '1756-OV16E, sink output', triac: '1756-OA16, AC output' },
       note: 'Rockwell Studio 5000: the catalogue name says it: "sink input" (takes PNP), "source output" (PNP). The address is the slot: Local:1:I.Data.0.' },

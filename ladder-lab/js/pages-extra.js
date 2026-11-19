@@ -100,14 +100,14 @@ NO(T0) TON(T1,500ms)     lamp = NO(T0)</pre></section>
 <tr><td><b>CTU / CTD</b></td><td>when the count reaches the preset / zero</td><td>parts, batches; count on an edge</td></tr>
 </table></section>
 <section><h2>Scan cycle and its traps</h2><ol><li>Read all inputs → 2. run the program top to bottom → 3. write all outputs.</li></ol><ul>
-<li>A signal shorter than one scan can be missed.</li><li>Two coils for one address: the last rung wins.</li><li>A sequence step needs an edge, or it runs through in one scan.</li><li>PID, ramps and totals: in a periodic task.</li><li>A scan that is too long: the watchdog stops the CPU.</li></ul></section>
+<li>A signal shorter than one scan can be missed.</li><li>Two coils for one address: the last rung wins.</li><li>If the same signal moves two steps in a row, use an edge, or the sequence runs through in one scan.</li><li>PID, ramps and totals: in a periodic task.</li><li>A scan that is too long: the watchdog stops the CPU.</li></ul></section>
 <section><h2>Step sequence (state machine)</h2><pre>CMP(MW0==0) NO(START)     MOV(10,MW0)
 CMP(MW0==10) NO(SENSOR_A) MOV(20,MW0)
 CMP(MW0==20) NO(T0)       MOV(0,MW0)
 outputs:  CMP(MW0==10) COIL(VALVE_A)</pre><p>One word holds the step. Transitions write it. Outputs only read it. Add a watchdog timer per step and an alarm step.</p></section>
 <section><h2>Analog scaling</h2><pre>out = (in − inMin) × (outMax − outMin)
       / (inMax − inMin) + outMin</pre><table>
-<tr><td>0–10 V / 0–20 mA</td><td>raw 0 … 27648 (Siemens)</td></tr><tr><td>4–20 mA</td><td>raw 5530 … 27648; below 4 mA = broken wire</td></tr><tr><td>Hysteresis</td><td>on at 30 %, off at 80 %: no chatter</td></tr></table></section>
+<tr><td>0–10 V / 0–20 mA</td><td>raw 0 … 27648 (Siemens)</td></tr><tr><td>4–20 mA</td><td>raw 0 … 27648 (channel set to 4–20 mA) or 5530 … 27648 (channel set to 0–20 mA); below about 3.6 mA = broken wire</td></tr><tr><td>Hysteresis</td><td>on at 30 %, off at 80 %: no chatter</td></tr></table></section>
 <section><h2>Wiring inputs and outputs</h2><table>
 <tr><th>Device</th><th>Switches</th><th>Needs</th></tr>
 <tr><td>PNP sensor</td><td>+24 V</td><td>sinking input (common to 0 V)</td></tr><tr><td>NPN sensor</td><td>0 V</td><td>sourcing input (common to +24 V)</td></tr>

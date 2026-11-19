@@ -31,7 +31,7 @@
       errOB: 'error OB', wd: 150,
     },
     rockwell: {
-      name: 'Studio 5000', seg: ['Rockwell', 'Studio 5000'], cpu: '1756-L83E', ps: 'PA72', di: 'IB16', dq: 'OB16E', ai: 'IF8',
+      name: 'Studio 5000', seg: ['Rockwell', 'Studio 5000'], cpu: '1756-L63', ps: 'PA72', di: 'IB16', dq: 'OB16E', ai: 'IF8',
       leds: ['RUN', 'I/O', 'OK', 'FORCE'], sw: { stop: 'PROG', run: 'RUN' },
       buf: 'Controller faults & log', where: 'Studio 5000: Controller Properties → Major Faults / Minor Faults (and the Controller Log). A module fault: Module Properties → Connection. Newest at the top here.',
       help: 'Fault help', net: 'EtherNet/IP', rem: 'Point I/O', im: '1734-AENTR', lang: 'ST routine',

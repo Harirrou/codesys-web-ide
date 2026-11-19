@@ -43,6 +43,10 @@ Single-file build (handy to copy to a phone):
 node ladder-lab/tools/build-single.js            # → ladder-lab/dist/ladder-lab.html
 ```
 
+## Content review
+
+The lessons, quiz banks, glossary, cheat sheet, Circuit Lab texts and brand exports were read by five independent reviewers (electrical and motors, safety and commissioning, networks and hardware, PLC programming, quiz / analog / motion). About 115 corrections came out of it: for example the safety-relay drawing (each channel is a loop on the relay's own terminals), the P&ID interlock (very high level closes the inlet valve), the order of commissioning (prove the E-stop before anything moves), Dahlander terminal names (1U / 2U), drive parameter codes (PowerFlex P034, Altivar ItH), PROFIdrive status bits, Omron jump (CJP, not JMP), Rockwell scaling (CPT, not SCP), and several quiz explanations. Points the reviewers could not confirm against a manual are listed for the user to check in their own software.
+
 ## Tests
 
 ```bash

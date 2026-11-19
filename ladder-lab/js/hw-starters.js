@@ -125,7 +125,7 @@
       ]),
     },
     vfd: {
-      name: 'Variable frequency drive', hand: 'Close K1 (the run command). The drive does the whole ramp by itself: there is nothing to sequence.', tag: 'VFD', k: [['K1', 'line']], p: [['tramp', 'Ramp time', 1, 10, 4, 's']],
+      name: 'Variable frequency drive', hand: 'Close K1: here it stands for the run signal on the drive input. A real drive stays on the supply and is not switched on and off with a contactor for every start. The drive does the whole ramp by itself: there is nothing to sequence.', tag: 'VFD', k: [['K1', 'run signal']], p: [['tramp', 'Ramp time', 1, 10, 4, 's']],
       idea: 'The drive raises frequency and voltage together: the motor follows the ramp with about rated current.',
       facts: ['Current: about 1–1.5 × rated', 'Torque: full, controlled', 'Speed control'], use: 'Anything that needs speed control, a very soft start, or energy saving.',
       hw: 'Breaker, the drive (with its own protection), motor cable with shield, often a safe-torque-off input.', plc: 'Run, direction, speed setpoint (analog or network). Reads ready, running, fault, current.',

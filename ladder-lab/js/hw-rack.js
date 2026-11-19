@@ -65,7 +65,7 @@
   const deadOf = (C) => (!C.supply ? 'power' : !C.cpu ? 'cpu' : C.stopped ? 'stop' : null);
   const DEADTXT = { power: 'no power', cpu: 'no CPU', stop: 'CPU in STOP' };
   const STOPTXT = 'The CPU is in STOP (red ERROR LED): the hardware configuration has an error, so the program does not run and the outputs stay off. Fix the red module first.';
-  const ODDTXT = 'No valid address: in CODESYS a word must start on an even byte, so the program cannot ';
+  const ODDTXT = 'No valid address: in CODESYS a word must start on an even byte (real CODESYS gives word addresses itself, so there you cannot make this mistake; it is shown here to explain the rule), so the program cannot ';
   const RW_NOTE = 'Simplified: in a real ControlLogix chassis the power supply sits on the side and has no slot number. The controller is usually in slot 0 (path 1,0), so the first card would be Local:1. Here all three brands share one rack.';
   const aiBad = (v) => v < 3.6 || v > 21;
   const reduced = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);

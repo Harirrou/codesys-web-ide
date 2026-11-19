@@ -2222,7 +2222,7 @@
       else if (st.ph === 'turn') { st.pt -= dt; if (st.pt <= 0) { st.ph = 'rx'; const r = st.req; const regs = this.regs(st, r.slave); let ans;
         if (r.fc === 3 && r.val >= 1 && r.val <= 3 && r.addr + r.val <= regs.length) { const d = regs.slice(r.addr, r.addr + r.val); ans = { ok: 1, d, b: [r.slave, 3, 2 * r.val].concat(...d.map((v) => [v >> 8 & 255, v & 255])) }; }
         else if (r.fc === 6 && r.slave === 1 && r.addr === 1) { ans = { ok: 1, d: [], b: [r.slave, 6, 0, 1, r.val >> 8, r.val & 255], write: r.val }; }
-        else ans = { ok: 0, ex: 2, b: [r.slave, r.fc | 0x80, 2] };
+        else { const ex = r.fc === 3 || r.fc === 6 ? 2 : 1; ans = { ok: 0, ex, b: [r.slave, r.fc | 0x80, ex] }; }   // 01 = function not supported, 02 = no such register
         st.ans = ans; st.pt = (ans.b.length + 2) * CH; } }
       else if (st.ph === 'rx') { st.pt -= dt; if (st.pt <= 0) {
         const a = st.ans, r = st.req; st.nAns++;

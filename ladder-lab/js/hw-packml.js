@@ -9,7 +9,7 @@
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   // id: [name, x, y, acting?, what the program does, stack light]
   const ST = {
-    STOPPED: ['Stopped', 70, 292, 0, 'Everything is off and safe. The machine waits for Reset.', 'off'],
+    STOPPED: ['Stopped', 70, 292, 0, 'Everything has stopped, but the machine is still powered. It waits for Reset.', 'off'],
     RESETTING: ['Resetting', 70, 212, 1, 'Go to the home position, clear counters, check that everything is ready.', 'blue'],
     IDLE: ['Idle', 70, 130, 0, 'Ready. Nothing moves. The machine waits for Start.', 'blue'],
     STARTING: ['Starting', 200, 130, 1, 'Start conveyors and pumps in the right order, wait until they are up to speed.', 'green'],
