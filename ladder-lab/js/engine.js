@@ -1126,14 +1126,22 @@
   /* ST for word logic, BCD and REAL instructions, and for MOV / maths with a REAL operand.
    * dia 'tia' = TIA Portal SCL: it has NORM_X, SCALE_X and ROUND, and SHR has named inputs.
    * Returns true when it wrote the cell. */
-  function newST(cell, e, out, n, dia) {
+  function newST(cell, e, out, n, dia, brand, zoneEnd) {
     const T = cell.type, R = isRealAddr;
     const conv = (s, from, to) => (from === to ? s : from + '_TO_' + to + '(' + s + ')');
     const asReal = (a) => (R(a) ? n(a) : isNumLit(a) ? litInt(a) + '.0' : conv(n(a), numType(a), 'REAL'));
     const put = (dst, expr, note) => out.push('IF ' + e + ' THEN ' + n(dst) + ' := ' + expr + ';' + (note ? '   (* ' + note + ' *)' : '') + ' END_IF');
-    if (T === 'JMP') { out.push('IF ' + e + ' THEN ' + (dia === 'tia' ? 'GOTO ' : 'JMP ') + cell.addr + '; END_IF   (* better: put the skipped code inside IF NOT (' + e + ') THEN … END_IF *)'); return true; }
-    if (T === 'LBL') { out.push(cell.addr + ':   (* the jump lands here *)'); return true; }
-    if (T === 'MCR') { out.push('(* MCR: zone start or end. ST has no MCR: write the rungs of the zone inside IF ' + e + ' THEN … ELSE <outputs of the zone> := FALSE; END_IF *)'); return true; }
+    if (T === 'JMP') {
+      // Sysmac Studio ST has no jump statement: only the note, no code
+      if (brand === 'sysmac') out.push('(* JMP ' + cell.addr + ': Sysmac ST has no jump. Put the rungs from here down to the label ' + cell.addr + ' inside IF NOT (' + e + ') THEN … END_IF *)');
+      else out.push('IF ' + e + ' THEN ' + (dia === 'tia' ? 'GOTO ' : 'JMP ') + cell.addr + '; END_IF   (* better: put the skipped code inside IF NOT (' + e + ') THEN … END_IF *)');
+      return true;
+    }
+    if (T === 'LBL') { out.push(brand === 'sysmac' ? '(* label ' + cell.addr + ': the part that the jump skips ends here *)' : cell.addr + ':   (* the jump lands here *)'); return true; }
+    if (T === 'MCR') {
+      out.push(zoneEnd ? '(* MCR: end of the zone *)' : '(* MCR: zone start. ST has no MCR: write the rungs of the zone inside IF ' + e + ' THEN … ELSE <outputs of the zone> := FALSE; END_IF *)');
+      return true;
+    }
     if (FIFO_OPS.includes(T)) {
       const tbl = T === 'FFL' ? cell.dst : cell.src, cnt = n(tbl), sz = cell.n;
       out.push('(* ' + T + ' on a rising edge of: ' + e + '. Table ' + tbl + ': ' + cnt + ' = count, the next ' + sz + ' words = data. In ST use an ARRAY[1..' + sz + '] OF INT and a count: *)');
@@ -1192,10 +1200,30 @@
     const tags = prog.tags || {};
     const out = ['(* ' + prog.name + ' — Structured Text equivalent generated from the ladder *)'];
     const used = { timers: {}, counters: {}, edges: 0 };
+    const dia = prog._dialect, brand = prog._brand, tia = dia === 'tia', sys = brand === 'sysmac';
     const fbT = new Set();
-    prog.rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && (TIMERS.includes(c.type) || COUNTERS.includes(c.type)) && c.addr && c.addr[0] === '#') fbT.add(c.addr); })));
-    const nm = (a) => (fbT.has(a) ? a.slice(1) + '.Q' : stName(a, tags));
-    prog.rungs.forEach((rung, i) => {
+    // which timers and counters this program (or block) has: T0 → TON, C0 → CTU / CTD / CTUD (counted up and down)
+    const tType = {}, cKind = {};
+    prog.rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => {
+      if (!c || !c.addr) return;
+      if (TIMERS.includes(c.type)) tType[c.addr] = c.type;
+      if (COUNTERS.includes(c.type)) cKind[c.addr] = cKind[c.addr] && cKind[c.addr] !== c.type ? 'CTUD' : c.type;
+      if ((TIMERS.includes(c.type) || COUNTERS.includes(c.type)) && c.addr[0] === '#') fbT.add(c.addr);
+    })));
+    const iname = (a) => (a[0] === '#' ? a.slice(1) : a);                       // the instance: T0, C0, Delay
+    const rtoType = tia ? 'TONR' : sys ? 'AccumulationTimer' : 'FB_RTO';       // only TIA has a retentive timer called TONR
+    // a bit of a word. Sysmac has no Word.3 on an INT: test and write the bit with a mask
+    const sysBit = (a) => { const m = sys ? RE.mwBit.exec(a || '') : null; return m ? { w: stName('MW' + m[1], tags), mask: 'WORD#' + hex4(1 << +m[2]), inv: 'WORD#' + hex4(~(1 << +m[2])) } : null; };
+    const sname = (a) => {
+      const sb = sysBit(a);
+      if (sb) return '((INT_TO_WORD(' + sb.w + ') AND ' + sb.mask + ') <> WORD#16#0000)';
+      const m = /^(#?[A-Za-z_]\w*)\.(Q|DN)$/.exec(a || '');                    // the done bit, written with its field
+      if (m && (tType[m[1]] || cKind[m[1]])) return iname(m[1]) + (cKind[m[1]] === 'CTUD' ? '.QU' : '.Q');
+      return stName(a, tags);
+    };
+    const nm = (a) => (cKind[a] === 'CTUD' ? iname(a) + '.QU' : fbT.has(a) ? a.slice(1) + '.Q' : sname(a));
+    // pass 1: the Boolean result in front of every output, so that a reset rung can go to the reset input of its timer or counter
+    const curs = prog.rungs.map((rung) => {
       const R = rung.rows, C = rung.cols;
       let cur = new Array(R).fill(T);
       for (let c = 0; c < C - 1; c++) {
@@ -1224,28 +1252,81 @@
         }
         cur = next;
       }
+      return cur;
+    });
+    // the resets of timers and counters, and the count inputs of an up / down counter, by instance
+    const resets = {}, cu = {}, cd = {}, cFirst = {};
+    const orAll = (xs) => (xs.length === 1 ? xs[0] : xs.map((x) => (/ (AND|OR) /.test(x) ? '(' + x + ')' : x)).join(' OR '));
+    prog.rungs.forEach((rung, i) => {
+      for (let r = 0; r < rung.rows; r++) {
+        const cell = rung.cells[r][rung.cols - 1];
+        if (!cell || !cell.addr) continue;
+        const e = pr(curs[i][r]);
+        if (cell.type === 'RST' && (tType[cell.addr] || cKind[cell.addr])) (resets[cell.addr] = resets[cell.addr] || []).push(e);
+        if (cell.type === 'CTU') (cu[cell.addr] = cu[cell.addr] || []).push(e);
+        if (cell.type === 'CTD') (cd[cell.addr] = cd[cell.addr] || []).push(e);
+        if (COUNTERS.includes(cell.type) && !cFirst[cell.addr]) cFirst[cell.addr] = cell;
+      }
+    });
+    const RSTIN = tia ? 'R' : 'RESET', LOADIN = tia ? 'LD' : 'LOAD';
+    let zoneOpen = false;                                                      // MCR: the first one opens the zone, the next one closes it
+    // pass 2: the text
+    prog.rungs.forEach((rung, i) => {
+      const R = rung.rows, C = rung.cols, cur = curs[i];
       out.push('');
       out.push('(* Rung ' + (i + 1) + (rung.comment ? ': ' + rung.comment : '') + ' *)');
       for (let r = 0; r < R; r++) {
         const cell = rung.cells[r][C - 1];
         if (!cell) continue;
         const e = pr(cur[r]);
-        const n = (a) => stName(a, tags);
-        if (newST(cell, e, out, n, prog._dialect)) continue;   // word logic, BCD, REAL
+        const n = sname;
+        const zEnd = cell.type === 'MCR' && zoneOpen;
+        if (cell.type === 'MCR') zoneOpen = !zoneOpen;
+        if (newST(cell, e, out, n, dia, brand, zEnd)) continue;   // word logic, BCD, REAL
+        const sb = ['COIL', 'NCOIL', 'SET', 'RST'].includes(cell.type) ? sysBit(cell.addr) : null;
+        if (sb) {   // Sysmac: write one bit of an INT with OR (bit on) and AND (bit off)
+          const on = sb.w + ' := WORD_TO_INT(INT_TO_WORD(' + sb.w + ') OR ' + sb.mask + ');', off = sb.w + ' := WORD_TO_INT(INT_TO_WORD(' + sb.w + ') AND ' + sb.inv + ');';
+          const note = '   (* bit ' + cell.addr.split('.')[1] + ' of ' + sb.w + ': Sysmac has no Word.3 on an INT *)';
+          if (cell.type === 'COIL') out.push('IF ' + e + ' THEN ' + on + ' ELSE ' + off + ' END_IF' + note);
+          else if (cell.type === 'NCOIL') out.push('IF ' + e + ' THEN ' + off + ' ELSE ' + on + ' END_IF' + note);
+          else out.push('IF ' + e + ' THEN ' + (cell.type === 'SET' ? on : off) + ' END_IF' + note);
+          continue;
+        }
         switch (cell.type) {
           case 'COIL': out.push(n(cell.addr) + ' := ' + e + ';'); break;
           case 'NCOIL': out.push(n(cell.addr) + ' := NOT (' + e + ');'); break;
           case 'SET': out.push('IF ' + e + ' THEN ' + n(cell.addr) + ' := TRUE; END_IF'); break;
-          case 'RST':
-            if (RE.tBit.test(cell.addr)) out.push('IF ' + e + ' THEN ' + cell.addr + '(IN := FALSE); END_IF  (* reset timer *)');
-            else if (RE.cBit.test(cell.addr)) out.push('IF ' + e + ' THEN ' + cell.addr + '.CV := 0; END_IF  (* reset counter *)');
-            else out.push('IF ' + e + ' THEN ' + n(cell.addr) + ' := FALSE; END_IF');
+          case 'RST': {
+            const a = cell.addr, tt = tType[a], ck = cKind[a], nme = iname(a);
+            if (tt === 'RTO') out.push('(* reset of the retentive timer ' + nme + ': it is the ' + (tia ? 'R' : sys ? 'Reset' : 'RESET') + ' input of its call *)');
+            else if (tt && tia) out.push('IF ' + e + ' THEN RESET_TIMER(' + nme + '); END_IF  (* reset timer *)');
+            else if (tt === 'TON') out.push('IF ' + e + ' THEN ' + nme + '(IN := FALSE); END_IF  (* reset timer: a call with IN = FALSE clears a TON *)');
+            else if (tt) out.push('(* reset of ' + nme + ': the IEC ' + tt + ' block has no reset input. If you need it, stop its IN input with: AND NOT (' + e + ') *)');
+            else if (ck) out.push('(* reset of the counter ' + nme + ': it is the ' + (ck === 'CTD' ? LOADIN + ' input (load PV)' : RSTIN + ' input') + ' of its call *)');
+            else if (RE.tBit.test(a) || RE.cBit.test(a)) out.push('(* reset of ' + a + ': this ' + (a[0] === 'T' ? 'timer' : 'counter') + ' is not called here. Reset it where it is called, with the reset input of its call *)');
+            else out.push('IF ' + e + ' THEN ' + n(a) + ' := FALSE; END_IF');
             break;
-          case 'TON': case 'TOF': case 'TP': case 'RTO':
-            if (cell.addr[0] !== '#') used.timers[cell.addr] = cell.type === 'RTO' ? 'TONR' : cell.type;
-            out.push(n(cell.addr) + '(IN := ' + e + ', PT := T#' + fmtDuration(cell.pt) + ');'); break;
-          case 'CTU': if (cell.addr[0] !== '#') used.counters[cell.addr] = 'CTU'; out.push(n(cell.addr) + '(CU := ' + e + ', PV := ' + cell.pv + ');'); break;
-          case 'CTD': if (cell.addr[0] !== '#') used.counters[cell.addr] = used.counters[cell.addr] || 'CTD'; out.push(n(cell.addr) + '(CD := ' + e + ', PV := ' + cell.pv + ');'); break;
+          }
+          case 'TON': case 'TOF': case 'TP': case 'RTO': {
+            const nme = iname(cell.addr), pt = 'T#' + fmtDuration(cell.pt), rs = resets[cell.addr];
+            if (cell.addr[0] !== '#') used.timers[cell.addr] = cell.type === 'RTO' ? rtoType : cell.type;
+            if (cell.type !== 'RTO') { out.push(nme + '(IN := ' + e + ', PT := ' + pt + ');'); break; }
+            // retentive timer: TONR in TIA, AccumulationTimer in Sysmac, your own block (FB_RTO, printed at the end) in CODESYS / TwinCAT
+            if (tia) out.push(nme + '(IN := ' + e + (rs ? ', R := ' + orAll(rs) : '') + ', PT := ' + pt + ');');
+            else if (sys) out.push(nme + '(In := ' + e + ', PT := ' + pt + (rs ? ', Reset := ' + orAll(rs) : '') + ');   (* retentive timer: AccumulationTimer *)');
+            else out.push(nme + '(IN := ' + e + ', RESET := ' + (rs ? orAll(rs) : 'FALSE') + ', PT := ' + pt + ');   (* retentive timer: IEC has no TONR, so ' + nme + ' is an FB_RTO, the small block at the end *)');
+            break;
+          }
+          case 'CTU': case 'CTD': {
+            const a = cell.addr, nme = iname(a), k = cKind[a], rs = resets[a];
+            if (a[0] !== '#') used.counters[a] = k;
+            if (k === 'CTUD') {   // counted up and down: ONE instance and ONE call with both inputs
+              if (cFirst[a] !== cell) { out.push('(* ' + nme + ' counts ' + (cell.type === 'CTU' ? 'up' : 'down') + ' here: it is the ' + (cell.type === 'CTU' ? 'CU' : 'CD') + ' input of the CTUD call above *)'); break; }
+              out.push(nme + '(CU := ' + orAll(cu[a] || ['FALSE']) + ', CD := ' + orAll(cd[a] || ['FALSE']) + (rs ? ', ' + RSTIN + ' := ' + orAll(rs) : '') + ', PV := ' + cell.pv + ');   (* up / down counter: one CTUD, its output is ' + nme + '.QU *)');
+            } else if (k === 'CTU') out.push(nme + '(CU := ' + e + (rs ? ', ' + RSTIN + ' := ' + orAll(rs) : '') + ', PV := ' + cell.pv + ');');
+            else out.push(nme + '(CD := ' + e + ', ' + LOADIN + ' := ' + orAll(['FirstScan'].concat(rs || [])) + ', PV := ' + cell.pv + ');   (* a CTD starts at 0: ' + LOADIN + ' loads PV, at the first scan and at every reset *)');
+            break;
+          }
           case 'MOV': out.push('IF ' + e + ' THEN ' + n(cell.dst) + ' := ' + n(cell.src) + '; END_IF'); break;
           case 'SMOV': out.push('IF ' + e + ' THEN ' + n(cell.dst) + ' := ' + n(cell.src) + '; END_IF'); break;
           case 'CONCAT': out.push('IF ' + e + ' THEN ' + n(cell.dst) + ' := CONCAT(' + n(cell.a) + ', ' + n(cell.b) + '); END_IF'); break;
@@ -1293,7 +1374,7 @@
     });
     const decl = ['VAR'];
     Object.keys(used.timers).forEach((t) => decl.push('  ' + t + ' : ' + used.timers[t] + ';'));
-    Object.keys(used.counters).forEach((c) => decl.push('  ' + c + ' : ' + (used.counters[c] === 'CTU' ? 'CTU' : 'CTD') + ';'));
+    Object.keys(used.counters).forEach((c) => decl.push('  ' + c + ' : ' + used.counters[c] + ';'));
     if (used.edges) decl.push('  (* R_TRIG / F_TRIG: each edge contact needs its own trigger instance *)');
     Object.keys(used.inst || {}).forEach((k) => decl.push('  ' + k + ' : ' + used.inst[k] + ';   (* instance = its own memory *)'));
     Object.keys(used.mc || {}).forEach((k) => decl.push('  ' + k + ' : ' + used.mc[k] + ';   (* PLCopen motion block *)'));
@@ -1306,15 +1387,26 @@
     decl.push('END_VAR');
     let fbs = '';
     if (!prog._inBlock) (prog.blocks || []).forEach((b) => {
-      const body = toST({ name: b.name, tags, rungs: b.rungs, blocks: prog.blocks, _inBlock: true, _dialect: prog._dialect });
+      const body = toST({ name: b.name, tags, rungs: b.rungs, blocks: prog.blocks, _inBlock: true, _dialect: prog._dialect, _brand: prog._brand });
       const st = {}, rank = { BOOL: 0, INT: 1 };
-      b.rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (!c) return; ['addr', 'a', 'b', 'src', 'dst'].forEach((k) => { const v = c[k]; if (typeof v === 'string' && v[0] === '#') { const nm2 = v.slice(1).split('.')[0]; if (b.params.some((pp) => pp.name === nm2)) return; const ty = TIMERS.includes(c.type) && k === 'addr' ? (c.type === 'RTO' ? 'TONR' : c.type) : COUNTERS.includes(c.type) && k === 'addr' ? c.type : /\.(ET|PT|CV|PV)$/.test(v) || ['MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'CMP', 'PID', 'LIM'].concat(WORDLOGIC, BCD_OPS, REAL_OPS).includes(c.type) ? 'INT' : 'BOOL'; if (st[nm2] == null || (rank[st[nm2]] != null && (rank[ty] == null || rank[ty] > rank[st[nm2]]))) st[nm2] = ty; } }); })));
+      const bck = {};   // counters of this block: CTU, CTD, or CTUD when one counter is counted up and down
+      b.rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && COUNTERS.includes(c.type) && c.addr) bck[c.addr] = bck[c.addr] && bck[c.addr] !== c.type ? 'CTUD' : c.type; })));
+      b.rungs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (!c) return; ['addr', 'a', 'b', 'src', 'dst'].forEach((k) => { const v = c[k]; if (typeof v === 'string' && v[0] === '#') { const nm2 = v.slice(1).split('.')[0]; if (b.params.some((pp) => pp.name === nm2)) return; const ty = TIMERS.includes(c.type) && k === 'addr' ? (c.type === 'RTO' ? rtoType : c.type) : COUNTERS.includes(c.type) && k === 'addr' ? bck[v] :/\.(ET|PT|CV|PV)$/.test(v) || ['MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'CMP', 'PID', 'LIM'].concat(WORDLOGIC, BCD_OPS, REAL_OPS).includes(c.type) ? 'INT' : 'BOOL'; if (st[nm2] == null || (rank[st[nm2]] != null && (rank[ty] == null || rank[ty] > rank[st[nm2]]))) st[nm2] = ty; } }); })));
       const statics = new Set(Object.keys(st).map((k) => k + ' : ' + st[k] + ';'));
       const sec = (kw, dir) => { const ps = b.params.filter((pp) => pp.dir === dir); return ps.length ? [kw].concat(ps.map((pp) => '  ' + pp.name + ' : ' + pp.type + ';' + (pp.comment ? '   (* ' + pp.comment + ' *)' : '')), ['END_VAR']).join('\n') + '\n' : ''; };
       const fcB = b.kind === 'FC';
       fbs += '\n' + (fcB ? 'FUNCTION ' + b.name + ' : BOOL' : 'FUNCTION_BLOCK ' + b.name) + (b.comment ? '   (* ' + b.comment + ' *)' : '') + '\n' + sec('VAR_INPUT', 'IN') + sec('VAR_OUTPUT', 'OUT') + sec('VAR_IN_OUT', 'INOUT') + (statics.size ? (fcB ? 'VAR   (* temporary: lost after every call *)\n' : 'VAR\n') + [...statics].map((x) => '  ' + x).join('\n') + '\nEND_VAR\n' : '') + body + '\n' + (fcB ? 'END_FUNCTION' : 'END_FUNCTION_BLOCK') + '\n';
     });
     if (prog._inBlock) return out.slice(1).join('\n');
+    // CODESYS, TwinCAT and Machine Expert have no retentive timer block: print a small one when the program uses RTO
+    if (rtoType === 'FB_RTO' && [prog.rungs].concat((prog.blocks || []).map((b) => b.rungs)).some((rs) => rs.some((r) => r.cells.some((row) => row.some((c) => c && c.type === 'RTO'))))) {
+      fbs += '\n' + ['FUNCTION_BLOCK FB_RTO   (* retentive on-delay timer: the time adds up while IN is TRUE, only RESET clears it *)',
+        'VAR_INPUT', '  IN : BOOL;', '  RESET : BOOL;', '  PT : TIME;', 'END_VAR',
+        'VAR_OUTPUT', '  Q : BOOL;    (* TRUE when ET has reached PT *)', '  ET : TIME;', 'END_VAR',
+        'VAR', '  Last : TIME;', '  WasOn : BOOL;', 'END_VAR',
+        'IF RESET THEN', '  ET := T#0s;', 'ELSIF IN AND WasOn AND ET < PT THEN', '  ET := ET + (TIME() - Last);   (* add the time since the last call *)', 'END_IF',
+        'IF ET > PT THEN ET := PT; END_IF', 'Last := TIME();', 'WasOn := IN;', 'Q := (ET >= PT) AND NOT RESET;', 'END_FUNCTION_BLOCK'].join('\n') + '\n';
+    }
     // data blocks = global structures
     let dbs = '';
     (prog.dbs || []).forEach((d) => {
@@ -1416,13 +1508,20 @@
         case 'BCD_I': notes.push('FRD = "from BCD": 16#1234 becomes 1234. TOD = "to BCD" does the opposite.'); return 'FRD(' + tg(cell.src) + ',' + tg(cell.dst) + ')';
         case 'CONV': case 'ROUND': notes.push('Logix converts by itself when MOV copies between INT, DINT and REAL tags. REAL → INT rounds to the nearest (x.5 to the even number).'); return 'MOV(' + tg(cell.src) + ',' + tg(cell.dst) + ')';
         case 'TRUNC': return 'TRN(' + tg(cell.src) + ',' + tg(cell.dst) + ')';
-        case 'NORM_X': notes.push('SCP = Scale with Parameters: input, input min, input max, scaled min, scaled max, output. Same as CPT(' + tg(cell.dst) + ',(' + tg(cell.src) + '-' + tg(cell.a) + ')/(' + tg(cell.b) + '-' + tg(cell.a) + ')) with REAL tags.'); return 'SCP(' + tg(cell.src) + ',' + tg(cell.a) + ',' + tg(cell.b) + ',0.0,1.0,' + tg(cell.dst) + ')';
-        case 'SCALE_X': notes.push('SCP = Scale with Parameters: input, input min, input max, scaled min, scaled max, output. Same as CPT(' + tg(cell.dst) + ',' + tg(cell.src) + '*(' + tg(cell.b) + '-' + tg(cell.a) + ')+' + tg(cell.a) + ').'); return 'SCP(' + tg(cell.src) + ',0.0,1.0,' + tg(cell.a) + ',' + tg(cell.b) + ',' + tg(cell.dst) + ')';
+        case 'NORM_X': case 'SCALE_X': {
+          // Logix 5000 has no SCP (that is SLC 500 / MicroLogix): scale with CPT. Limits written with a decimal point make Logix calculate in REAL
+          const rl = (a) => (RE.int.test(String(a)) ? a + '.0' : tg(a));
+          const real = [cell.src, cell.a, cell.b].some((a) => isNumLit(String(a)) || isRealAddr(a));
+          const v = (real ? '' : '1.0*') + rl(cell.src), lo = rl(cell.a), hi = rl(cell.b);
+          notes.push('Logix 5000 has no SCP instruction (SCP is SLC 500 / MicroLogix): scale with CPT and the formula. Write the limits with a decimal point (0.0, 27648.0), or Logix divides in whole numbers.');
+          return 'CPT(' + tg(cell.dst) + ',' + (t === 'NORM_X' ? '(' + v + '-' + lo + ')/(' + hi + '-' + lo + ')' : v + '*(' + hi + '-' + lo + ')+' + lo) + ')';
+        }
         case 'PID': notes.push('PID: put SP = ' + tg(cell.b) + ', KP = ' + cell.kp + ', KI and KD in the PID tag (' + 'PID_' + tg(cell.dst) + '); many plants use PIDE in a function block diagram instead.'); return 'PID(PID_' + tg(cell.dst) + ',' + tg(cell.a) + ',0,' + tg(cell.dst) + ',0,0,0)';
       }
       return '';
     };
     const rungs = (rs, title) => {
+      let zoneOpen = false;   // MCR: the first one opens the zone, the next one closes it
       rs.forEach((rung, i) => {
         const R = rung.rows, C = rung.cols;
         let cur = new Array(R).fill(T);
@@ -1456,9 +1555,13 @@
         const groups = [];
         for (let r = 0; r < R; r++) {
           const cell = rung.cells[r][C - 1];
-          if (!cell || !cur[r]) continue;
+          if (!cell) continue;
+          // a label has no condition, and the second MCR of a pair closes the zone without one: print them also when they stand alone on the rung
+          if (cell.type === 'LBL') { groups.push({ cond: '', ins: ['LBL(' + cell.addr + ')'], solo: true }); continue; }
+          if (cell.type === 'MCR') { const end = zoneOpen; zoneOpen = !zoneOpen; if (end || !cur[r]) { groups.push({ cond: '', ins: ['MCR()'], solo: true }); continue; } }
+          if (!cur[r]) continue;
           const cond = prR(cur[r]), ins = outIns(cell, notes);
-          const g = groups.find((x) => x.cond === cond);
+          const g = groups.find((x) => !x.solo && x.cond === cond);
           if (g) g.ins.push(ins); else groups.push({ cond, ins: [ins] });
         }
         out.push('');
@@ -1480,7 +1583,7 @@
       out.push('');
       out.push('// ═════ ' + (b.kind === 'FC' ? 'Routine (called with JSR) ' : 'Add-On Instruction ') + b.name + (b.comment ? ': ' + b.comment : '') + ' ═════');
       b.params.forEach((pp) => out.push('//   ' + (pp.dir === 'IN' ? 'Input ' : pp.dir === 'OUT' ? 'Output' : 'InOut ') + ' ' + pp.name + ' : ' + (pp.type === 'INT' ? 'INT' : 'BOOL') + (pp.comment ? '   (' + pp.comment + ')' : '')));
-      out.push(b.kind === 'FC' ? '//   Other names inside are temporary tags: they keep nothing from one call to the next.' : '//   Other names inside are local tags of the AOI (each instance tag has its own copy).');
+      out.push(b.kind === 'FC' ? '//   Other names inside are program tags. Logix has no temporary memory: every tag keeps its value, so write a tag before you read it.' : '//   Other names inside are local tags of the AOI (each instance tag has its own copy, and it keeps its value).');
       rungs(b.rungs, b.name + ' Logic');
     });
     return out.join('\n');
@@ -1520,6 +1623,8 @@
     const tags = prog.tags || {};
     const set = new Set(LL.usedAddrs(prog));
     (prog.blocks || []).forEach((b) => LL.usedAddrs({ rungs: b.rungs }).forEach((a) => set.add(a)));
+    // every bit of a shift register is a variable too, not only its first bit
+    [prog.rungs].concat((prog.blocks || []).map((b) => b.rungs)).forEach((rs) => rs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.type === 'SHRB' && c.addr && c.addr[0] !== '#') (LL.shiftBits(c.addr, Math.abs(c.n)) || []).forEach((a) => set.add(a)); }))));
     const out = [];
     [...set].sort().forEach((a) => {
       let kind = null, type = 'BOOL';
@@ -1537,9 +1642,9 @@
     return out;
   }
   // ST with direct addresses replaced by variable names
-  function namedST(prog) {
+  function namedST(prog, brand) {
     const vars = ioVars(prog);
-    let st = LL.toST(Object.assign({}, prog, { tags: {}, _dialect: 'named' }));
+    let st = LL.toST(Object.assign({}, prog, { tags: {}, _dialect: 'named', _brand: brand }));
     // whole names only: %MW1 must not touch %MW10, MR1 must not touch MR10
     vars.slice().sort((x, y) => y.iec.length - x.iec.length).forEach((v) => { st = st.replace(new RegExp(v.iec.replace(/[.*+?^${}()|[\]\\%]/g, '\\$&') + '(?!\\w)', 'g'), v.name); });
     return { vars, st };
@@ -1550,7 +1655,7 @@
   };
 
   function toTwinCAT(prog, sysmac) {
-    const { vars, st } = namedST(prog);
+    const { vars, st } = namedST(prog, sysmac ? 'sysmac' : 'twincat');
     const { decl, body } = splitDecl(st);
     const out = [];
     if (sysmac) {
@@ -1569,11 +1674,17 @@
     decl.forEach((l) => out.push(l.replace(/\(\*/g, '//').replace(/\*\)/g, '')));
     out.push('END_VAR');
     out.push('');
-    let b = body.replace(/\bFirstScan\b/g, sysmac ? 'P_First_RunMode' : 'bFirstCycle').replace(/\bClock_1Hz\b/g, sysmac ? 'Get1sClk()' : 'fbBlink.OUT');
+    let b = body.replace(/\bFirstScan\b/g, sysmac ? 'P_First_RunMode' : 'bFirstCycle').replace(/\bClock_1Hz\b/g, sysmac ? 'Get1sClk()' : 'bClock1Hz');
     if (!sysmac && /bFirstCycle/.test(b)) out.splice(out.indexOf('END_VAR'), 0, '  bFirstCycle : BOOL;   // = _TaskInfo[GETCURTASKINDEXEX()].FirstCycle');
-    if (!sysmac && /fbBlink/.test(b)) out.splice(out.indexOf('END_VAR'), 0, '  fbBlink : BLINK := (TIMELOW := T#500MS, TIMEHIGH := T#500MS);   // Tc2_Utilities: call fbBlink(ENABLE := TRUE); once per cycle');
-    out.push(b);
+    if (!sysmac && /bClock1Hz/.test(b)) {   // TwinCAT has no ready-made blink block in its standard libraries: two timers make the 1 Hz clock
+      out.splice(out.indexOf('END_VAR'), 0, '  bClock1Hz : BOOL;   // 1 Hz clock, made with the two timers below (or write your own blink FB)', '  fbClockOff, fbClockOn : TON;');
+      b = '// 1 Hz clock: 0.5 s off, 0.5 s on\nfbClockOff(IN := NOT fbClockOn.Q, PT := T#500MS);\nfbClockOn(IN := fbClockOff.Q, PT := T#500MS);\nbClock1Hz := fbClockOff.Q;\n\n' + b;
+    }
+    // the blocks are POUs of their own: they come after END_PROGRAM, not inside the program
+    const cut = b.indexOf('\n\n(* ═════ Function blocks ═════ *)');
+    out.push(cut < 0 ? b : b.slice(0, cut));
     if (!sysmac) out.push('END_PROGRAM');
+    if (cut >= 0) out.push(b.slice(cut + 2));
     return out.join('\n');
   }
 
@@ -1606,10 +1717,12 @@
     b = codeOnly(b, (code) => { let c2 = code;
     Object.keys(inst).forEach((k) => {
       const t = inst[k];
-      if (/^(TON|TOF|TP|TONR|CTU|CTD)$/.test(t)) c2 = c2.replace(new RegExp('(^|\\n)(\\s*)' + k + '\\(', 'g'), '$1$2"' + k + '".' + t + '(');
+      if (/^(TON|TOF|TP|TONR|CTU|CTD|CTUD)$/.test(t)) c2 = c2.replace(new RegExp('(^|\\n)(\\s*)' + k + '\\(', 'g'), '$1$2"' + k + '".' + t + '(').replace(new RegExp('RESET_TIMER\\(' + k + '\\)', 'g'), 'RESET_TIMER("' + k + '")');
       else c2 = c2.replace(new RegExp('(^|[^".#\\w])' + k + '\\(', 'g'), '$1"' + k + '"(');
       c2 = c2.replace(new RegExp('(^|[^".#\\w])' + k + '\\.', 'g'), '$1"' + k + '".');
     });
+    // a call of an FC: the block name is written in quotes
+    (prog.blocks || []).filter((bk) => bk.kind === 'FC').forEach((bk) => { c2 = c2.replace(new RegExp('(^|[^".#\\w])' + bk.name + '\\(', 'g'), '$1"' + bk.name + '"('); });
     quoteNames.forEach((nm) => { c2 = c2.replace(new RegExp('(^|[^".#\\w%])' + nm + '(?![\\w"])', 'g'), '$1"' + nm + '"'); });
     c2 = c2.replace(/\bFirstScan\b/g, '"FirstScan"').replace(/\bClock_1Hz\b/g, '"Clock_1Hz"');
     // a servo axis is a technology object in TIA Portal
@@ -1627,11 +1740,12 @@
         '//   In Ladder Lab M bits and MW words are separate memory; in a Siemens PLC they overlap, so keep other M bits away from these bytes.');
       if ([...used].some((a) => RE.mr.test(a))) out.push('// REAL: MRn becomes a tag of type Real (4 bytes, a %MD address). TIA does not put a Real into an Int by itself: use CONV, ROUND or TRUNC.'); }
     const td = Object.keys(inst);
-    if (td.length) out.push('// Create these instance data blocks (or multi-instances in an FB): ' + td.map((k) => '"' + k + '" : ' + (/^(TON|TOF|TP|TONR)$/.test(inst[k]) ? 'IEC_TIMER' : /^(CTU|CTD)$/.test(inst[k]) ? 'IEC_COUNTER' : inst[k])).join(', ') + '.');
+    if (td.length) out.push('// Create these instance data blocks (or multi-instances in an FB): ' + td.map((k) => '"' + k + '" : ' + (/^(TON|TOF|TP|TONR)$/.test(inst[k]) ? 'IEC_TIMER' : /^(CTU|CTD|CTUD)$/.test(inst[k]) ? 'IEC_COUNTER' : '"' + inst[k] + '"')).join(', ') + '.');
     (prog.dbs || []).forEach((d) => out.push('// Global DB "' + d.name + '" (DB' + d.num + '): ' + d.fields.map((f) => f.name + ' : ' + (f.lo != null ? 'Array[' + f.lo + '..' + f.hi + '] of ' : '') + (f.type === 'STRING' ? 'String' : f.type === 'BOOL' ? 'Bool' : f.type === 'INT' ? 'Int' : 'DInt')).join(', ') + ' (start values in the DB editor).'));
     if (/"FirstScan"/.test(b)) out.push('// "FirstScan": the first-cycle bit of the system memory byte (Device configuration → System and clock memory), or use OB100.');
     if (/"Clock_1Hz"/.test(b)) out.push('// "Clock_1Hz": bit 5 of the clock memory byte (Device configuration → System and clock memory).');
-    if (/R_TRIG\(|F_TRIG\(/.test(b)) out.push('// Edges: TIA needs an R_TRIG / F_TRIG instance per edge ("R_TRIG_DB"(CLK := …); then "R_TRIG_DB".Q), or the P_TRIG / N_TRIG edge-flag instructions.');
+    if (/R_TRIG\(|F_TRIG\(/.test(b)) out.push('// Edges: SCL has no edge contact. R_TRIG(x) / F_TRIG(x) below is short for an edge instance: create one R_TRIG / F_TRIG instance per edge,',
+      '//   call it once per cycle ("R_TRIG_DB"(CLK := x);) and use "R_TRIG_DB".Q in the IF.');
     out.push('');
     out.push(b);
     if (main[1]) {
@@ -1644,6 +1758,12 @@
         if (i < 0) return sec;
         let head = sec.slice(0, i + 7), code = sec.slice(i + 7);
         names.forEach((n) => { code = code.replace(new RegExp('(^|[^".#\\w])' + n + '(?!\\w)', 'g'), '$1#' + n); });
+        // timers and counters inside a block are multi-instances with the TIA data types TON_TIME, CTU_INT …
+        head = head.replace(/^(\s+\w+) : (TON|TOF|TP|TONR);/gm, (m, v, ty) => v + " {InstructionName := '" + ty + "_TIME'; LibVersion := '1.0'} : " + ty + '_TIME;')
+          .replace(/^(\s+\w+) : (CTU|CTD|CTUD);/gm, (m, v, ty) => v + " {InstructionName := '" + ty + "_INT'; LibVersion := '1.0'} : " + ty + '_INT;');
+        // an FC has no static memory: its own variables are Temp
+        if (/^FUNCTION "/.test(sec)) head = head.replace('\nVAR   (* temporary: lost after every call *)\n', '\nVAR_TEMP   (* temporary: lost after every call *)\n');
+        (prog.blocks || []).forEach((bk) => { code = code.replace(new RegExp('(^|[^".#\\w])' + bk.name + '\\(', 'g'), '$1"' + bk.name + '"('); });
         code = code.replace(/END_IF(?!;)/g, 'END_IF;');
         return head + '\nBEGIN' + code;
       }).join('\n');
@@ -1672,15 +1792,21 @@
     if (RE.real.test(a)) return (+a < 0 ? '' : '+') + a;   // floating-point constant
     if ((m = RE.aiw.exec(a))) return 'AIN' + m[1];
     if ((m = RE.aqw.exec(a))) return 'AOUT' + m[1];
-    if (RE.int.test(a)) return '#' + a;
+    if (RE.int.test(a)) return +a < 0 ? String(+a) : '&' + a;   // CX-Programmer: & = decimal, -20 = signed decimal, # = hex (or a BCD set value)
     return a;
   }
   function toOmronCX(prog) {
     const out = ['// Omron CX-Programmer (CP1 / CJ series): mnemonic list. Type it in the mnemonic view, or read it against',
       '// the ladder. Inputs CIO 0.00 …, outputs CIO 100.00 …, work bits W, data words D, timers TIM (0.1 s units),',
-      '// counters CNT (they count DOWN from the set value). @LD = rising edge, %LD = falling edge.', ''];
+      '// counters CNT (they count DOWN from the set value). @LD = rising edge, %LD = falling edge.',
+      '// Constants: &250 = decimal, -20 = signed decimal, #047F = hex, +2.5 = floating point. Only TIM / CNT set values are BCD (#30).', ''];
     const LOGIC = new Set(['NO', 'NC', 'P', 'N', 'CMP', 'NOT', 'WIRE', 'LIM']);
     const isR = LL.isRealAddr, fl = (c) => (isR(c.a) || isR(c.b) || isR(c.src) || isR(c.dst) ? 'F' : '');   // F = floating-point version (LD>=F, +F)
+    const fc = (a) => (RE.int.test(String(a)) || RE.real.test(String(a)) ? (+a < 0 ? '' : '+') + a + (RE.int.test(String(a)) ? '.0' : '') : null);   // floating-point constant
+    const omv = (c, a) => (fl(c) && fc(a) ? fc(a) : omAddr(a));   // an operand of c: in a floating-point instruction a whole number is written +2.0
+    const jn = (a) => '&' + (String(a).replace(/\D/g, '') || '0');   // jump number
+    const W = 'D2980';   // work words for results that need more than one word (D2980 … D2989)
+    let zoneOpen = false;   // MCR: the first one opens the zone (IL), the next one closes it (ILC)
     if ((prog.blocks || []).length) out.push('// This program uses blocks: in CX-Programmer they become function blocks (FB) drawn in ladder or ST; the main program is listed here.', '');
     prog.rungs.forEach((rung, ri) => {
       const R = rung.rows, C = rung.cols;
@@ -1695,8 +1821,8 @@
           if (cell && LOGIC.has(cell.type)) {
             if (cell.type === 'WIRE') e = cur[r];
             else if (cell.type === 'NOT') e = cur[r] ? { t: 'not', x: cur[r] } : null;
-            else if (cell.type === 'CMP') e = AND(cur[r], { t: 'v', op: { '==': '=', '<>': '<>', '>': '>', '>=': '>=', '<': '<', '<=': '<=' }[cell.op] + fl(cell), a: omAddr(cell.a), b: omAddr(cell.b) });
-            else if (cell.type === 'LIM') e = AND(AND(cur[r], { t: 'v', op: '>=' + fl(cell), a: omAddr(cell.src), b: omAddr(cell.a) }), { t: 'v', op: '<=' + fl(cell), a: omAddr(cell.src), b: omAddr(cell.b) });   // or ZCP(088)
+            else if (cell.type === 'CMP') e = AND(cur[r], { t: 'v', op: { '==': '=', '<>': '<>', '>': '>', '>=': '>=', '<': '<', '<=': '<=' }[cell.op] + fl(cell), a: omv(cell, cell.a), b: omv(cell, cell.b) });
+            else if (cell.type === 'LIM') e = AND(AND(cur[r], { t: 'v', op: '>=' + fl(cell), a: omv(cell, cell.src), b: omv(cell, cell.a) }), { t: 'v', op: '<=' + fl(cell), a: omv(cell, cell.src), b: omv(cell, cell.b) });   // or ZCP(088)
             else e = AND(cur[r], { t: 'v', pre: cell.type === 'NC' ? 'NOT' : cell.type === 'P' ? '@' : cell.type === 'N' ? '%' : '', s: omAddr(cell.addr) });
           }
           next.push(e);
@@ -1722,7 +1848,15 @@
       out.push('// Rung ' + (ri + 1) + (rung.comment ? ': ' + rung.comment : ''));
       for (let r = 0; r < R; r++) {
         const cell = rung.cells[r][C - 1];
-        if (!cell || !cur[r] || LOGIC.has(cell.type)) continue;
+        if (!cell || LOGIC.has(cell.type)) continue;
+        // a label has no condition, and the second MCR of a pair closes the zone without one: print them also when they stand alone on the rung
+        if (cell.type === 'LBL') { lines.push('JME(005) ' + jn(cell.addr) + '   // the jump lands here (JME needs no condition)'); continue; }
+        if (cell.type === 'MCR') {
+          const end = zoneOpen; zoneOpen = !zoneOpen;
+          if (end) { lines.push('ILC(003)   // end of the zone (no condition)'); continue; }
+          if (!cur[r]) { lines.push('LD P_Off', 'IL(002)   // zone start with nothing in front: this zone is always off'); continue; }
+        }
+        if (!cur[r]) continue;
         block(cur[r]);
         const T = cell.type, A = omAddr(cell.addr || '');
         const nT = (a) => String(+(/\d+/.exec(a) || [0])[0]).padStart(4, '0');
@@ -1734,11 +1868,10 @@
           case 'TON': lines.push('TIM ' + nT(cell.addr) + ' #' + Math.max(1, Math.round(cell.pt / 100))); break;
           case 'TOF': lines.push('// TOF: no TIM type for it on CP1: NOT of the input into a TIM, or TOF in Sysmac'); lines.push('TIM ' + nT(cell.addr) + ' #' + Math.max(1, Math.round(cell.pt / 100))); break;
           case 'TP': lines.push('// TP: make a pulse with DIFU + KEEP + TIM'); lines.push('TIM ' + nT(cell.addr) + ' #' + Math.max(1, Math.round(cell.pt / 100))); break;
-          case 'RTO': lines.push('TTIM(087) ' + nT(cell.addr) + ' #' + Math.max(1, Math.round(cell.pt / 100)) + '   // accumulative timer'); break;
+          case 'RTO': lines.push('LD P_Off   // second input of TTIM = its reset input (here the reset is done with CNR elsewhere)'); lines.push('TTIM(087) ' + nT(cell.addr) + ' #' + Math.max(1, Math.round(cell.pt / 100)) + '   // accumulative timer'); break;
           case 'CTU': case 'CTD': lines.push('LD P_Off   // reset input of the counter (use CNR elsewhere)'); lines.push('CNT ' + nT(cell.addr) + ' #' + cell.pv + (T === 'CTU' ? '   // counts DOWN from ' + cell.pv + ': done at 0' : '')); break;
           case 'MOV': lines.push(isR(cell.dst) ? (isR(cell.src) ? 'MOVL(498) ' : 'FLT(452) ') + omAddr(cell.src) + ' ' + omAddr(cell.dst) + '   // REAL = 2 words' : 'MOV(021) ' + omAddr(cell.src) + ' ' + omAddr(cell.dst)); break;
-          case 'JMP': lines.push('JMP(004) #' + String(cell.addr).replace(/\D/g, '')); break;
-          case 'LBL': lines.push('JME(005) #' + String(cell.addr).replace(/\D/g, '')); break;
+          case 'JMP': lines.push('CJP(510) ' + jn(cell.addr) + '   // jumps to JME ' + jn(cell.addr) + ' while the condition is ON. (JMP(004) is the opposite: it jumps while the condition is OFF)'); break;
           case 'MCR': lines.push('IL(002)   // zone start; the zone end is ILC(003), without a condition'); break;
           case 'FFL': lines.push('PUSH(632) ' + omAddr(cell.dst) + ' ' + omAddr(cell.src) + '   // the stack must be set up once with SSET(630)'); break;
           case 'FFU': lines.push('FIFO(633) ' + omAddr(cell.src) + ' ' + omAddr(cell.dst)); break;
@@ -1752,19 +1885,40 @@
             else if (isR(cell.dst)) lines.push('MOVL(498) ' + omAddr(cell.src) + ' ' + omAddr(cell.dst));
             else lines.push('FIX(450) ' + omAddr(cell.src) + ' ' + omAddr(cell.dst) + (T === 'TRUNC' ? '   // REAL → INT, cuts the decimals' : '   // FIX cuts the decimals: to round, first +F(454) 0.5 (positive values)'));
             break;
-          case 'NORM_X': case 'SCALE_X': lines.push('// ' + T + ': ' + (T === 'NORM_X' ? '(value − min) / (max − min)' : 'value × (max − min) + min') + ' with FLT(452), -F(455), *F(456), /F(457) and +F(454); or a linear scaling with SCL(194):');
-            lines.push('SCL(194) ' + omAddr(cell.src) + ' D100 ' + omAddr(cell.dst) + '   // the 2 points of the line in D100 … D103'); break;
+          case 'NORM_X': case 'SCALE_X': {
+            // floating-point maths: a REAL takes 2 words. (SCL(194) also scales, but its result is a 4-digit BCD number, not a REAL)
+            lines.push('// ' + T + ': ' + (T === 'NORM_X' ? '(value − min) / (max − min)' : 'value × (max − min) + min') + ' in floating point. A REAL takes 2 words; D2980 … D2991 are work words');
+            const f = (a, w) => { if (fc(a)) return fc(a); if (isR(a)) return omAddr(a); lines.push('FLT(452) ' + omAddr(a) + ' ' + w + '   // whole number → REAL'); return w; };
+            const v = f(cell.src, 'D2980'), lo = f(cell.a, 'D2982'), hi = f(cell.b, 'D2984'), res = isR(cell.dst) ? omAddr(cell.dst) : 'D2990';
+            lines.push('-F(455) ' + hi + ' ' + lo + ' D2986   // max − min');
+            if (T === 'NORM_X') lines.push('-F(455) ' + v + ' ' + lo + ' D2988   // value − min', '/F(457) D2988 D2986 ' + res);
+            else lines.push('*F(456) ' + v + ' D2986 D2988', '+F(454) D2988 ' + lo + ' ' + res);
+            if (!isR(cell.dst)) lines.push('FIX(450) D2990 ' + omAddr(cell.dst) + '   // REAL → whole number (FIX cuts the decimals)');
+            break;
+          }
           case 'SMOV': lines.push('MOV$(664) ' + cell.src + ' ' + cell.dst + '   // string move'); break;
           case 'CONCAT': lines.push('+$(656) ' + cell.a + ' ' + cell.b + ' ' + cell.dst + '   // string concatenation'); break;
           case 'ITOS': lines.push('STR4(601) ' + omAddr(cell.a) + ' ' + cell.dst + '   // number to ASCII'); break;
           case 'SMID': lines.push('MID$(652) ' + cell.src + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.a) + ' ' + cell.dst); break;
-          case 'ADD': case 'SUB': case 'MUL': case 'DIV': if (fl(cell)) { lines.push({ ADD: '+F(454) ', SUB: '-F(455) ', MUL: '*F(456) ', DIV: '/F(457) ' }[T] + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst) + '   // floating point (REAL)'); break; }
-            if (T === 'ADD') { lines.push('+(400) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst)); break; }
-            if (T === 'SUB') { lines.push('-(410) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst)); break; }
-            if (T === 'MUL') { lines.push('*(420) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst)); break; }
-            // falls through for DIV
-          case 'MOD': lines.push('/(430) ' + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst) + (T === 'MOD' ? '   // the remainder is in the next word (D+1)' : '')); break;
-          case 'SHL': case 'SHR': lines.push((T === 'SHL' ? 'ASL(025) ' : 'ASR(026) ') + omAddr(cell.dst) + '   // one bit per execution: repeat ' + cell.b + ' times or use NASL / NASR'); break;
+          case 'ADD': case 'SUB': case 'MUL': case 'DIV': if (fl(cell)) { lines.push({ ADD: '+F(454) ', SUB: '-F(455) ', MUL: '*F(456) ', DIV: '/F(457) ' }[T] + omv(cell, cell.a) + ' ' + omv(cell, cell.b) + ' ' + omAddr(cell.dst) + '   // floating point (REAL)'); break; }
+            // falls through: whole-number maths
+          case 'MOD': {
+            const ab = omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ', d = omAddr(cell.dst);
+            if ([cell.a, cell.b].some((x) => RE.md.test(String(x)) || RE.hc.test(String(x)))) lines.push('// a 32-bit operand takes 2 words: use the double-word versions +L(401), -L(411), *L(421), /L(431)');
+            if (T === 'ADD') lines.push('+(400) ' + ab + d);
+            else if (T === 'SUB') lines.push('-(410) ' + ab + d);
+            else if (T === 'MUL' && RE.md.test(cell.dst)) lines.push('*(420) ' + ab + d + '   // the product takes 2 words');
+            else if (T === 'MUL') lines.push('*(420) ' + ab + W + '   // the product takes 2 words (' + W + ', D2981): do not let it overwrite the word after ' + d, 'MOV(021) ' + W + ' ' + d);
+            else lines.push('/(430) ' + ab + W + '   // quotient in ' + W + ', remainder in D2981', 'MOV(021) ' + (T === 'MOD' ? 'D2981 ' : W + ' ') + d + (T === 'MOD' ? '   // the remainder' : '   // the quotient'));
+            break;
+          }
+          case 'SHL': case 'SHR': {
+            // NASL / NASR shift a word by N bits in place. Control word: the last two hex digits are the number of bits, first digit 0 = zeros come in
+            const d = omAddr(cell.dst), cnt = RE.int.test(String(cell.b)) ? '#' + (+cell.b & 0xff).toString(16).toUpperCase().padStart(4, '0') : omAddr(cell.b);
+            if (omAddr(cell.a) !== d) lines.push('MOV(021) ' + omAddr(cell.a) + ' ' + d + '   // the shift works in the word itself: copy the source first');
+            lines.push((T === 'SHL' ? 'NASL(580) ' : 'NASR(581) ') + d + ' ' + cnt + '   // shift ' + cell.b + ' bits');
+            break;
+          }
           case 'SHRB': lines.push('SFT(010) ' + omAddr(cell.addr).replace(/\.\d+$/, '') + ' ' + omAddr(cell.addr).replace(/\.\d+$/, '') + '   // data and reset inputs before it'); break;
           case 'CALL': lines.push('// CALL ' + cell.block + ': place the FB instance ' + (cell.inst || '') + ' in the ladder'); break;
           case 'PID': lines.push('PIDAT(191) ' + omAddr(cell.a) + ' D100 ' + omAddr(cell.dst) + '   // set point and gains in the parameter words D100 …'); break;
