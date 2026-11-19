@@ -2726,6 +2726,69 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
       challenges: ['saf-1', 'diag-relay', 'saf-2', 'lc-1', 'lc-2'],
     },
     {
+      id: 'safety-design', level: 5, title: "Safety design: from the risk to the performance level", min: 13,
+      summary: "How to decide how reliable a safety function must be: risk assessment, the three questions of the risk graph, performance levels a to e, categories, MTTFd, DC and CCF in plain words, PL against SIL, and stop categories.",
+      body: `
+<h3>A safety function is not normal control</h3>
+<p>Normal control makes the machine work. A <b>safety function</b> keeps people from being hurt when something goes wrong: "when the door opens, the robot stops". It must still work when a wire breaks, a contact welds or the program has a bug. So it is designed in a different way, and the first question is always: <b>how reliable must it be?</b></p>
+
+<h3>The steps, in order</h3>
+<ol>
+<li><b>Risk assessment.</b> Walk around the machine and list every hazard: crushing, cutting, burning, electric shock.</li>
+<li><b>Remove the hazard by design</b> if you can: lower force, more distance, no gap.</li>
+<li><b>Guard it</b>: a fixed cover, or a door or light curtain with a safety function.</li>
+<li><b>Warn</b>: signs and training. This is the weakest step, never the only one.</li>
+</ol>
+<p>For each safety function of step 3 you now need its <b>required performance level, PLr</b>.</p>
+
+<h3>Three questions, one letter</h3>
+<p>The standard ISO 13849-1 uses a small graph. Answer three questions and follow the path:</p>
+[[hw:risk]]
+
+<h3>What the letter means</h3>
+<div class="tbl"><table>
+<tr><th>PL</th><th>Dangerous failures per hour</th><th>In plain words</th><th>Typical structure</th></tr>
+<tr><td><b>a</b></td><td>0.001 % to 0.01 %</td><td>low risk reduction</td><td>one channel, normal parts</td></tr>
+<tr><td><b>b</b></td><td>0.0003 % to 0.001 %</td><td></td><td>one channel, well-tried parts</td></tr>
+<tr><td><b>c</b></td><td>0.0001 % to 0.0003 %</td><td></td><td>one channel, well-tried or tested</td></tr>
+<tr><td><b>d</b></td><td>0.00001 % to 0.0001 %</td><td>the usual level for robot cells and doors</td><td>two channels, faults are found</td></tr>
+<tr><td><b>e</b></td><td>0.000001 % to 0.00001 %</td><td>presses, the highest level</td><td>two channels, full monitoring</td></tr>
+</table></div>
+
+<h3>Four things decide which PL a circuit reaches</h3>
+<ul>
+<li><b>Category</b> (B, 1, 2, 3, 4): the structure. One channel or two? Is it tested? Is every fault found?</li>
+<li><b>MTTFd</b>: how long the parts work before a dangerous failure, on average. Good parts, less switching: longer.</li>
+<li><b>DC</b> (diagnostic coverage): how many of the possible faults the system notices. Contactor feedback and two-channel comparison raise it.</li>
+<li><b>CCF</b> (common cause failure): one event must not kill both channels at once. Separate cables, different parts, protection against over-voltage.</li>
+</ul>
+<p>The makers of safety parts give these numbers. Free tools (for example SISTEMA) add them up to the PL you reached. It must be at least the PLr you needed.</p>
+
+<h3>PL and SIL</h3>
+<p>A second standard (IEC 62061) uses <b>SIL</b> 1 to 3 for the same idea. Roughly: PL b and c are SIL 1, PL d is SIL 2, PL e is SIL 3. Machine builders mostly use PL, process plants use SIL.</p>
+
+<h3>How it stops: stop categories</h3>
+<div class="tbl"><table>
+<tr><th>Stop category</th><th>What happens</th><th>Example</th></tr>
+<tr><td><b>0</b></td><td>Power is cut at once. The motor coasts.</td><td>Contactor drops, a simple conveyor</td></tr>
+<tr><td><b>1</b></td><td>A controlled, fast stop first, then the power is cut.</td><td>A drive brakes a heavy saw, then safe torque off</td></tr>
+<tr><td><b>2</b></td><td>A controlled stop, and the power stays on. The standstill is watched.</td><td>A robot that holds its position</td></tr>
+</table></div>
+
+<h3>What this means for you as the programmer</h3>
+<ul>
+<li>A normal PLC is <b>not</b> a safety device. Safety functions go through a safety relay or a safety PLC with tested blocks.</li>
+<li>Your normal program only <b>reads</b> the safety state, to show a message and to stop sequences cleanly.</li>
+<li>Never bridge or force a safety signal "just for the test".</li>
+<li>After every change: test each safety function and write the result down. This is called <b>validation</b>.</li>
+</ul>
+<div class="callout where"><b>Where:</b> every new machine and every rebuild. In interviews: "What is the difference between PL d and PL e?" and "Why two channels?". Build the circuits in <a href="#lesson-safety-practice">Safety in practice</a> and on the safety cell machines in the Lab.</div>`,
+      sims: {},
+      takeaways: ["Each safety function gets a required performance level, PLr, from a to e.", "Three questions: how bad, how often, can it be avoided.", "PL d and e need two channels and monitoring.", "The PL reached depends on structure, part quality, diagnostics and common-cause protection.", "A normal PLC is not a safety device."],
+      mistakes: ["Starting with the hardware and not with the risk.", "One channel for a hazard that can cost a hand.", "Thinking a warning sign replaces a guard.", "Forcing a safety signal during commissioning and forgetting it.", "Changing a safety function without testing and writing it down."],
+      challenges: ["saf-1", "saf-2", "lc-1"],
+    },
+    {
       id: 'barcode-printer', level: 6, title: 'Strings: barcode readers and label printers', min: 14,
       summary: 'How a PLC reads a barcode, builds a label text with a running serial number, sends it to a print-and-apply printer and checks the result, with the string instructions of every brand.',
       body: `
@@ -2866,6 +2929,54 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
       takeaways: ['Inputs → modes → sequences → alarms → outputs.', 'Troubleshoot from the output backwards.'],
       mistakes: ['Forcing outputs with people near the machine.'],
       challenges: [],
+    },
+    {
+      id: 'plc-tasks', level: 5, title: "Tasks and interrupts: who has the CPU?", min: 12,
+      summary: "Main cyclic program, periodic task, interrupt and startup code: when each one runs, why a short pulse is missed, why PID needs a fixed time, and what the watchdog does. With a millisecond-by-millisecond time line.",
+      body: `
+<h3>One CPU, several programs</h3>
+<p>Until now your whole program ran in one loop: read the inputs, run every rung, write the outputs, again. That loop is the <b>main cyclic program</b>, and it is enough for most machines. But a real CPU can run more than one program, and it decides in every millisecond which one gets the processor.</p>
+<div class="tbl"><table>
+<tr><th>Kind of program</th><th>It runs…</th><th>Use it for</th></tr>
+<tr><td><b>Main cyclic program</b></td><td>again and again, as fast as it can</td><td>Almost everything: sequences, interlocks, alarms</td></tr>
+<tr><td><b>Periodic task</b></td><td>at a fixed time, for example every 100 ms</td><td>PID, ramps, filters, flow totals: all maths that needs an exact time</td></tr>
+<tr><td><b>Interrupt (event task)</b></td><td>at once, when an input changes</td><td>Very short pulses: a registration mark, a fast sensor</td></tr>
+<tr><td><b>Startup code</b></td><td>once, when the CPU goes to RUN</td><td>Start values, clearing steps</td></tr>
+</table></div>
+<p>A program with a higher priority <b>interrupts</b> a lower one: the main program stops in the middle of a rung, the other program runs, then the main program goes on where it was.</p>
+
+<h3>Try it: watch the CPU millisecond by millisecond</h3>
+[[hw:tasks]]
+
+<h3>The names in each software</h3>
+<div class="tbl"><table>
+<tr><th></th><th>Siemens TIA</th><th>Studio 5000</th><th>CODESYS / TwinCAT</th><th>Omron Sysmac</th></tr>
+<tr><td>Main</td><td>OB1</td><td>Continuous task</td><td>MainTask (cyclic or freewheeling)</td><td>Primary periodic task</td></tr>
+<tr><td>Periodic</td><td>OB30 … (cyclic interrupt)</td><td>Periodic task</td><td>Cyclic task with an interval</td><td>Periodic task</td></tr>
+<tr><td>Event</td><td>OB40 … (hardware interrupt)</td><td>Event task</td><td>Event task</td><td>Event task</td></tr>
+<tr><td>Startup</td><td>OB100</td><td>First scan bit S:FS</td><td>Init code on the first cycle</td><td>P_First_Run flag</td></tr>
+</table></div>
+
+<h3>Rule 1: a signal must be longer than one cycle</h3>
+<p>The main program reads its inputs once per cycle. A pulse that comes and goes between two readings does not exist for it. So: if the cycle is 40 ms, every signal you want to see must stay for more than 40 ms (plus the input filter). If it cannot, use an interrupt, or better a <b>high-speed counter</b> input that counts in hardware.</p>
+
+<h3>Rule 2: maths with time goes in a periodic task</h3>
+<p>A PID block calculates with "time since my last call". In the main program this time changes with every cycle. In a periodic task it is exact. The same is true for ramps, for filters and for adding up a flow to a total.</p>
+
+<h3>Rule 3: keep interrupts short, and copy shared data</h3>
+<p>An interrupt can change a value while the main program is in the middle of using it. Two habits keep you safe:</p>
+<ul>
+<li>In the interrupt do only the urgent thing: count, store a position, set a bit. Do the rest in the main program.</li>
+<li>In the main program copy the shared value once at the top, and work with the copy.</li>
+</ul>
+
+<h3>Rule 4: never wait in a loop</h3>
+<p>The CPU measures the time of each cycle. If one cycle is longer than the limit (often 150 ms), the <b>watchdog</b> stops the CPU and switches all outputs off. That is a safety feature: a program that hangs must not leave a machine running. A loop that waits for an input ("repeat until the sensor comes") is the classic cause. Use a step sequence: check the sensor once per cycle and move on.</p>
+<div class="callout where"><b>Where:</b> PID loops, registration marks on packaging machines, flying saws, flow totals, and every time someone asks "why does the PLC not see my sensor?". In interviews: "What is the scan time, and what happens if it is too long?"</div>`,
+      sims: {},
+      takeaways: ["The main program reads its inputs once per cycle.", "A signal must be longer than one cycle, or you need an interrupt or a high-speed counter.", "PID, ramps and totals go in a periodic task.", "Keep interrupts short and copy shared values.", "Never wait in a loop: the watchdog stops the CPU."],
+      mistakes: ["Expecting the main program to see a 5 ms pulse.", "PID in the main program: the tuning changes when the program grows.", "A loop that waits for a sensor.", "A long calculation inside an interrupt.", "Using a value in the main program while an interrupt changes it."],
+      challenges: ["enc-1", "pid-1"],
     },
     {
       id: 'iec', level: 5, title: 'Beyond ladder: IEC 61131-3 & CODESYS', min: 8,
@@ -3478,6 +3589,17 @@ END_REPEAT</pre>
     ["Current path", "One vertical line of a control circuit, from L through contacts to a load and to N."],
     ["Auxiliary contact", "A small extra contact of a contactor (13-14, 21-22) used in the control circuit, for seal-in and interlock."],
     ["Hold-to-run", "A control with no seal-in: the machine moves only while the button is held."],
+    ["Cycle time (scan time)", "The time the PLC needs for one pass: read the inputs, run the program, write the outputs."],
+    ["Periodic task", "A program that the CPU calls at a fixed time, for example every 100 ms. Used for PID and ramps."],
+    ["Interrupt", "A short program that runs at once when an event happens, and pauses the main program."],
+    ["Watchdog", "A timer in the CPU that stops it when one program cycle takes too long."],
+    ["Performance level (PL)", "A letter from a to e that says how reliable a safety function is. e is the highest."],
+    ["PLr", "The required performance level of a safety function, found with the risk graph."],
+    ["Risk assessment", "Listing every hazard of a machine and deciding how each one is removed or guarded."],
+    ["Category (safety)", "The structure of a safety circuit: B, 1, 2, 3 or 4. From 3 on there are two channels."],
+    ["Diagnostic coverage (DC)", "The share of dangerous faults that a safety system notices by itself."],
+    ["Stop category", "How a machine stops: 0 = power off at once, 1 = brake then power off, 2 = stop with power on."],
+    ["SIL", "Safety integrity level, 1 to 3: the scale of another safety standard. PL d is about SIL 2."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -3741,6 +3863,14 @@ END_REPEAT</pre>
     { l: 6, q: "NORM_X(0,AIW0,27648,MR0) and AIW0 is 13824. What is in MR0?", a: ["0.5", "50.0", "13824.0", "2.0"], c: 0, why: "NORM_X answers where the value is between min and max, as 0.0 … 1.0. Half-way is 0.5." },
     { l: 6, q: "MR0 is 2.9. What does TRUNC(MR0,MW0) write?", a: ["2", "3", "2.9", "29"], c: 0, why: "TRUNC cuts the decimals off. ROUND would give 3." },
     { l: 6, q: "Why should you not test a REAL with \"equal\"?", a: ["Tiny rounding errors make it miss", "REAL numbers cannot be compared at all", "The PLC stops with a type error", "Equal is slower than less-than"], c: 0, why: "0.1 + 0.2 is 0.30000001 in floating point. Use limits or a window." },
+    { l: 5, q: "The PLC cycle time is 40 ms. A sensor gives a pulse of 5 ms. What will the main program see?", a: ["Sometimes the pulse, mostly nothing", "Every single pulse, only a little bit late", "Every pulse, but twice each", "A pulse of exactly 40 ms"], c: 0, why: "The inputs are read once per cycle. A 5 ms pulse is seen only if it happens to be there at that moment." },
+    { l: 5, q: "Where should a PID block be called?", a: ["In a periodic task with a fixed time", "In the main program, on every single cycle", "In a hardware interrupt of a sensor", "In the startup code, one time only"], c: 0, why: "PID maths uses the time between calls. Only a periodic task makes that time exact." },
+    { l: 5, q: "A program has a loop that waits until a sensor comes on. The sensor is broken. What happens?", a: ["The watchdog stops the CPU", "The loop ends after ten tries", "The CPU skips that one rung", "The sensor input is forced on"], c: 0, why: "The cycle never ends, the cycle time limit is passed, and the CPU goes to STOP with all outputs off." },
+    { l: 5, q: "What does an interrupt do to the main program?", a: ["It pauses it, runs, then lets it go on", "It ends it and then starts a whole new cycle", "It waits until the cycle has ended", "It runs beside it on a second CPU"], c: 0, why: "A higher priority program takes the CPU at once. The main program continues where it stopped." },
+    { l: 5, q: "In the risk graph, what do S, F and P stand for?", a: ["Severity, frequency, possibility to avoid", "Safety, function and the performance level", "Speed, force, position of the hazard", "Sensor, feedback, power contactor"], c: 0, why: "How bad is the injury, how often is someone there, and can the person avoid it." },
+    { l: 5, q: "Serious injury, operator there often, no chance to avoid it. Which performance level is required?", a: ["PL e", "PL c", "PL a", "PL b"], c: 0, why: "S2, F2, P2 is the worst path of the graph: the highest level, e." },
+    { l: 5, q: "What is the main difference between a Category 1 and a Category 3 safety circuit?", a: ["Category 3 has two channels", "Category 3 uses a normal PLC", "Category 3 needs no E-stop", "Category 3 works without power"], c: 0, why: "With two channels a single fault does not stop the safety function. Category 1 has one well-tried channel." },
+    { l: 5, q: "What is a stop category 1?", a: ["A controlled stop, then power off", "Power off at once, the motor coasts", "A controlled stop, power stays on", "A stop by the operator's stop button"], c: 0, why: "Category 0 cuts power at once. Category 1 brakes first. Category 2 keeps the power on at standstill." },
   ];
   LL.QUIZ_IV = [
     { t: "Basics", q: "Explain the PLC scan cycle.", a: ["Read all inputs into the image, run the program top to bottom, write the outputs", "React to each input the moment it changes, one rung at a time, with no fixed order", "Write the outputs first, then read the inputs, then run the program from the bottom", "Run every rung at the same time, and update an output as soon as its rung is done"], c: 0, why: "Inputs are frozen for the whole scan; outputs change only at the end. That is why the order of rungs matters." },
@@ -3882,6 +4012,13 @@ END_REPEAT</pre>
     { t: "Electrical & wiring", q: "Two lamps are wired in series between L and N. What happens?", a: ["Each gets about half the voltage", "Both light at full brightness", "The control breaker trips at once", "Only the first lamp lights up"], c: 0, why: "Loads in series share the voltage. Loads belong side by side, each on its own path to N." },
     { t: "Electrical & wiring", q: "Why is a hoist button usually wired without a seal-in?", a: ["It must stop when the button is let go", "A seal-in would make the hoist too fast", "Hoist contactors have no extra contacts", "The limit switches do the seal-in job"], c: 0, why: "This is hold-to-run: the operator's hand is the stop. Used for hoists, jog and setup movements." },
     { t: "Electrical & wiring", q: "A tank pump controlled by one float switch clicks on and off every second. What is missing?", a: ["A second level and a seal-in", "A bigger contactor for the pump", "A flyback diode on the float", "A faster overload relay"], c: 0, why: "Start at the low level, stop at the high level, and hold in between. That gap (hysteresis) gives long, calm runs." },
+    { t: "Programming", q: "What is the scan time, and why does it matter?", a: ["The time of one program cycle: shorter signals are missed", "The time the CPU needs to start after power on, in seconds", "The time a timer block needs before its output goes on", "The time between two downloads from the laptop to the PLC"], c: 0, why: "Inputs are read once per cycle and outputs written once per cycle. It limits how fast the PLC can react." },
+    { t: "Programming", q: "When do you use a periodic (cyclic interrupt) task?", a: ["For PID, ramps and totals that need a fixed time", "For every rung that has a timer or a counter in it", "For the start and stop logic of all the motors", "For alarms that the operator must acknowledge"], c: 0, why: "Anything that calculates with elapsed time needs a constant call interval." },
+    { t: "Programming", q: "An interrupt and the main program both use the same counter value. What is the risk?", a: ["The value changes in the middle of the main program", "The interrupt cannot read a value of the main program", "The CPU needs twice the memory for that one value", "The main program is deleted when the interrupt ends"], c: 0, why: "Copy the value once at the start of the main program and work with the copy." },
+    { t: "Safety", q: "How do you find the required performance level of a safety function?", a: ["With the risk graph: severity, frequency, avoidance", "By the price of the safety relay that you plan to buy", "By the number of E-stop buttons on the machine", "By the supply voltage of the machine's motors"], c: 0, why: "ISO 13849-1: three questions lead to PLr a to e. Then you design a circuit that reaches at least that level." },
+    { t: "Safety", q: "Why do higher performance levels need two channels?", a: ["One fault alone must not stop the safety function", "Two channels switch the load off twice as fast as one", "One channel cannot carry the motor current", "Two channels make the wiring cheaper to test"], c: 0, why: "With two channels and comparison, a welded contact or a broken wire is found, and the other channel still stops the machine." },
+    { t: "Safety", q: "What does diagnostic coverage (DC) describe?", a: ["How many dangerous faults the system notices", "How many sensors one safety relay can read at once", "How long a part works before it fails", "How fast the machine stops after a demand"], c: 0, why: "Feedback contacts and channel comparison raise DC. It is one of the four inputs to the reached PL." },
+    { t: "Safety", q: "A drive must brake a heavy saw before the power is cut. Which stop category is that?", a: ["Stop category 1", "Stop category 0", "Stop category 2", "Stop category 3"], c: 0, why: "Category 1: controlled stop, then power removed. Category 0 would let the saw coast for a long time." },
   ];
   LL.QUIZ_NET = [
     { t: "Basics", q: "Fieldbus or industrial Ethernet: what is the main difference?", a: ["Fieldbuses use serial cables (RS-485, CAN); industrial Ethernet uses Ethernet cables and switches", "Fieldbuses use Ethernet cables and switches; industrial Ethernet uses serial RS-485 or CAN cables", "Fieldbuses carry only digital on/off signals; industrial Ethernet carries only analog sensor values", "Fieldbuses need no device file at all; industrial Ethernet needs a GSD or EDS file for each device"], c: 0, why: "Classic fieldbuses: PROFIBUS, CANopen, DeviceNet. Industrial Ethernet: PROFINET, EtherNet/IP, EtherCAT, Modbus TCP. New machines almost always use Ethernet." },
