@@ -1429,7 +1429,7 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
 <tr><td>Drive (VFD)</td><td>1 + speed</td><td>Run command and speed setpoint. Read ready and fault</td><td><a href="#ch-drive-1">Drive</a></td></tr>
 </table></div>
 <p>The soft starter and the drive have their own lessons: <a href="#lesson-motor-starters">Motor starters</a> and <a href="#lesson-drives">Drives</a>.</p>
-<p><b>Wire them by hand too.</b> In the <a href="#circuits">Circuit Lab</a> you build the hard-wired control circuit beside the 3-phase power circuit: <a href="#circuit-c-seal">direct on line</a>, <a href="#circuit-c-sd">star-delta</a>, <a href="#circuit-c-res">stator resistance</a>, <a href="#circuit-c-at">autotransformer</a>, <a href="#circuit-c-rotor">rotor resistance</a>, and a <a href="#circuit-c-stein">3-phase motor on a single-phase supply with a capacitor</a>.</p>
+<p><b>Wire them by hand too.</b> In the <a href="#circuits">Circuit Lab</a> you build the hard-wired control circuit beside the 3-phase power circuit: <a href="#circuit-c-seal">direct on line</a>, <a href="#circuit-c-sd">star-delta</a>, <a href="#circuit-c-res">stator resistance</a>, <a href="#circuit-c-at">autotransformer</a>, <a href="#circuit-c-rotor">rotor resistance</a>, <a href="#circuit-c-soft">soft starter</a>, <a href="#circuit-c-vfd">drive</a>, and a <a href="#circuit-c-stein">3-phase motor on a single-phase supply with a capacitor</a>.</p>
 
 <h3>Which one do I choose?</h3>
 <ul>

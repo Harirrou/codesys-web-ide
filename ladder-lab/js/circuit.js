@@ -102,7 +102,7 @@
         else { if (on) { d.acc += DT; d.v = d.acc >= (d.s || 3) * 1000 ? 1 : 0; } else { d.acc = 0; d.v = 0; } }
       } else if (k === 'lamp' || k === 'horn' || k === 'valve') d.v = on ? 1 : 0;
     });
-    this.scn.step(this.st, this.D, DT, this.c.pw || {});
+    this.scn.step(this.st, this.D, DT, this.c.pw || {}, this.task);
     this.t += DT;
   };
   Sim.prototype.resetMcb = function () { this.mcb = true; this.short = ''; };
@@ -115,12 +115,21 @@
     if (V(D, ol) && running) { st['hot' + ol] = (st['hot' + ol] || 0) + dt; if (st['hot' + ol] > 1500 && !st.fault) st.fault = 'The overload relay ' + ol + ' tripped, but ' + name + ' stayed closed: the motor burns. Put its NC contact (95-96) in the coil circuit.'; }
     else st['hot' + ol] = 0;
   };
+  // A power circuit the learner builds: three places between the supply and the motor (pw.p1 … pw.p3).
+  // Returns '' when it is right, or the reason why it is not.
+  EC.powerCheck = function (pw) {
+    const a = [pw.p1, pw.p2, pw.p3];
+    if (a.some((x) => !x)) return 'The power circuit is not complete: a place between the supply and the motor is still empty.';
+    if (a[0] !== 'Q1') return 'The main breaker Q1 must come first: it protects and isolates everything after it.';
+    if (a[1] !== 'K1') return 'The contactor KM1 comes before the overload relay: the relay sits directly in front of the motor and measures its current.';
+    return '';
+  };
   EC.SCN = {
     none: { init: () => ({ fault: '' }), step() {} },
     free: { init: () => ({ fault: '', n1: 0, n2: 0, n3: 0 }), step(st, D, dt) { ['K1', 'K2', 'K3'].forEach((k, i) => spin(st, 'n' + (i + 1), V(D, k), dt)); } },
     dol: {
       init: () => ({ fault: '', n: 0, rpm: 0, run: 0 }),
-      step(st, D, dt) { const run = V(D, 'K1'); spin(st, 'n', run, dt); st.run = run; st.rpm = Math.round(st.n * 1480); burn(st, D, 'F2', run, dt, 'KM1'); },
+      step(st, D, dt, pw, task) { st.note = task && task.pbuild ? EC.powerCheck(pw) : ''; const run = V(D, 'K1') && !st.note ? 1 : 0; spin(st, 'n', run, dt); st.run = run; st.rpm = Math.round(st.n * 1480); burn(st, D, 'F2', run, dt, 'KM1'); },
     },
     rev: {
       init: () => ({ fault: '', n: 0, rpm: 0, dir: 0 }),
@@ -215,6 +224,52 @@
         st.pct = Math.round(st.n * 100); burn(st, D, 'F2', k1, dt, 'KM1');
       },
     },
+    // soft starter: KM1 feeds it, RUN starts its ramp, the bypass KM2 takes over at the top of the ramp (B1)
+    soft: {
+      init: () => ({ fault: '', n: 0, pct: 0, hot: 0 }),
+      step(st, D, dt) {
+        const k1 = V(D, 'K1'), go = V(D, 'A1'), byp = V(D, 'K2');
+        if (k1 && byp && st.n < 0.9 && !st.fault) st.fault = 'Bypass closed before the top of the ramp: a direct start through KM2.';
+        const ok = !st.fault;
+        if (ok && k1 && byp) spin(st, 'n', 1, dt, 200); else if (ok && k1 && go) st.n = Math.min(1, st.n + dt / 3000); else spin(st, 'n', 0, dt, 700);
+        const top = ok && k1 && go && st.n >= 0.99; if (D.B1) D.B1.v = top ? 1 : 0;
+        if (top && !byp) { st.hot += dt; if (st.hot > 5000 && !st.fault) st.fault = 'The soft starter carried the full current too long and overheated: close the bypass KM2 at the top of the ramp.'; } else st.hot = 0;
+        st.pct = Math.round(st.n * 100); burn(st, D, 'F2', k1, dt, 'KM1');
+      },
+    },
+    // duty and standby pump: only one may run
+    pumps: {
+      init: () => ({ fault: '', n1: 0, n2: 0, both: 0, run1: 0, run2: 0 }),
+      step(st, D, dt) {
+        const a = V(D, 'K1'), b = V(D, 'K2'); spin(st, 'n1', a, dt); spin(st, 'n2', b, dt); st.run1 = a; st.run2 = b;
+        if (a && b) { st.both += dt; if (st.both > 1000 && !st.fault) st.fault = 'Both pumps run together: only the duty pump may run.'; } else st.both = 0;
+        burn(st, D, 'F2', a, dt, 'KM1'); burn(st, D, 'F3', b, dt, 'KM2');
+      },
+    },
+    // air compressor: pressure switch B1 (opens at 8 bar, closes again at 6 bar), load valve Y1
+    comp: {
+      init: () => ({ fault: '', n: 0, bar: 5, p10: 50, starts: 0, was: 0 }),
+      step(st, D, dt) {
+        const k = V(D, 'K1'), load = V(D, 'Y1');
+        if (k && !st.was) st.starts++; st.was = k;
+        if (k && load && st.n < 0.8 && !st.fault) st.fault = 'Started under load: the motor stalled and the breaker tripped. Load the compressor only when it is at speed.';
+        spin(st, 'n', !st.fault && k ? 1 : 0, dt, 600);
+        st.bar = Math.max(0, st.bar + ((k && load && st.n > 0.8 ? 0.6 : 0) - 0.2) * dt / 1000);
+        if (st.bar >= 10 && !st.fault) st.fault = 'Pressure too high: the safety valve blew. The pressure switch must stop the motor.';
+        if (D.B1) { if (st.bar >= 8) D.B1.v = 1; else if (st.bar <= 6) D.B1.v = 0; }
+        st.p10 = Math.round(st.bar * 10); burn(st, D, 'F2', k, dt, 'KM1');
+      },
+    },
+    // a drive: no contactors, only signals on its inputs DI1 (forward) and DI2 (reverse)
+    vfd: {
+      init: () => ({ fault: '', n: 0, hz: 0 }),
+      step(st, D, dt) {
+        const f = V(D, 'A1'), r = V(D, 'A2'), flt = V(D, 'F5');
+        if (f && r && !st.fault) st.fault = 'Run forward and run reverse given together: the drive stops with a command fault.';
+        const tgt = flt || st.fault ? 0 : f ? 1 : r ? -1 : 0, d = tgt - st.n, mx = dt / 2000;
+        st.n += Math.abs(d) <= mx ? d : Math.sign(d) * mx; st.hz = Math.round(st.n * 50);
+      },
+    },
     hoist: {
       init: () => ({ fault: '', pos: 50, p: 50, dir: 0 }),
       step(st, D, dt) {
@@ -234,6 +289,7 @@
   EC.lint = function (circ, task) {
     const out = [], kind = {}; task.parts.forEach((p) => (kind[p.d] = p.k));
     (task.power || []).forEach((q) => { if (!(circ.pw || {})[q.k]) out.push('The power circuit is not finished: ' + q.q); });
+    if (task.pbuild && EC.powerCheck(circ.pw || {})) out.push(EC.powerCheck(circ.pw || {}));
     const coils = {}, contacts = {};
     circ.cells.forEach((row) => row.forEach((x) => { if (!x || !x.d) return; if (isLoad(x)) coils[x.d] = (coils[x.d] || 0) + 1; else contacts[x.d] = 1; }));
     Object.keys(coils).forEach((d) => { if (coils[d] > 1) out.push(d + ' is placed ' + coils[d] + ' times as a load. A device has one coil (or one lamp).'); });
@@ -266,7 +322,7 @@
             case 'wait': run(+p[1]); break;
             case 'mcb': sim.resetMcb(); run(30); break;
             case 'expect': p.slice(1).forEach((cnd) => { const m = /^(\w+)=([01])$/.exec(cnd), v = sim.D[m[1]] ? sim.D[m[1]].v : -1; if (v !== +m[2]) throw new Error(name(m[1]) + ' should be ' + (+m[2] ? 'ON' : 'OFF') + ', but it is ' + (v ? 'ON' : 'OFF') + '.'); }); break;
-            case 'scn': p.slice(1).forEach((cnd) => { const m = /^(\w+)(>=|<=|=)(-?\d+)$/.exec(cnd), v = sim.st[m[1]], w = +m[3]; if (!(m[2] === '>=' ? v >= w : m[2] === '<=' ? v <= w : v === w)) throw new Error((task.scnNames && task.scnNames[m[1]] || m[1]) + ' is ' + v + ', expected ' + m[2] + ' ' + w + '.'); }); break;
+            case 'scn': p.slice(1).forEach((cnd) => { const m = /^(\w+)(>=|<=|=)(-?\d+)$/.exec(cnd), v = sim.st[m[1]], w = +m[3]; if (!(m[2] === '>=' ? v >= w : m[2] === '<=' ? v <= w : v === w)) throw new Error((task.scnNames && task.scnNames[m[1]] || m[1]) + ' is ' + v + ', expected ' + m[2] + ' ' + w + '.' + (sim.st.note ? ' ' + sim.st.note : '')); }); break;
             default: throw new Error('bad test step: ' + step);
           }
         });
@@ -317,16 +373,21 @@
       hints: ['Path 1: S1 NO, then K1 coil.', 'Path 2: K1 NO, then H1. Path 3: K1 NC, then H2.'],
       solution: 'NO:S1 NO:K1 NC:K1\nCOIL:K1 LAMP:H1 LAMP:H2',
       tests: [{ name: 'At rest: red lamp on', steps: ['expect K1=0 H1=0 H2=1'] }, { name: 'Button held: relay in, green on, red off', steps: ['press S1', 'wait 100', 'expect K1=1 H1=1 H2=0', 'release S1', 'wait 100', 'expect K1=0 H1=0 H2=1'] }] },
+    { id: 'c-power', level: 2, scn: 'dol', pbuild: true, title: 'The power circuit: breaker, contactor, overload relay',
+      brief: 'Every motor starter has the same three parts between the supply and the motor. This time the control circuit is already built for you. <b>Build the power circuit</b>: put the three parts in the right order.<ul><li><b>Q1 main breaker</b>: protects against a short circuit and switches everything off for repair.</li><li><b>KM1 contactor</b>: switches the motor on and off, moved by its coil in the control circuit.</li><li><b>F2 overload relay</b>: measures the motor current and trips when the motor is overloaded.</li></ul>Pick a part under the power circuit, then tap a place.',
+      parts: [S0, S1, K1, F2], scnNames: { rpm: 'Motor speed (rpm)' },
+      hints: ['What must you be able to switch off before you touch anything else? That part comes first.', 'The overload relay is mounted directly under the contactor: it is the last part before the motor.', 'Order from the top: Q1, KM1, F2.'],
+      starter: SEAL, solution: '@ p1=Q1\n@ p2=K1\n@ p3=F2\n' + SEAL, tests: DOLTESTS },
     { id: 'c-seal', level: 2, scn: 'dol', title: 'Direct-on-line starter: start, stop, seal-in',
       brief: 'The most important circuit of all. <b>START</b> (S1) pulls in the contactor <b>KM1</b>; a NO contact of KM1 beside the START button keeps it in (<b>seal-in</b>). <b>STOP</b> (S0, an NC button) and the NC contact of the <b>overload relay</b> F2 are in series above: each one can drop the contactor.',
       parts: [S0, S1, K1, F2], scnNames: { rpm: 'Motor speed (rpm)' },
       hints: ['One path from the top: F2 NC, S0 NC, S1 NO, K1 coil.', 'Seal-in: K1 NO in the next path, beside S1. Link the two paths above and below these two contacts.', 'The overload contact must be F2 NC (95-96): it opens when the relay trips.'],
       solution: SEAL, tests: DOLTESTS },
-    { id: 'c-panel', level: 2, scn: 'dol', title: 'A real starter panel: E-stop, RUN lamp, TRIP lamp',
-      brief: 'The complete panel door:<ul><li><b>E-STOP</b> (S9), STOP (S0) and the overload contact in series.</li><li>START with seal-in.</li><li>Green <b>RUN</b> lamp (H1) in parallel with the coil.</li><li>Red <b>TRIP</b> lamp (H2) through the <b>NO</b> contact of the overload relay (97-98).</li></ul>After an E-stop or a trip the motor must not restart by itself.',
+    { id: 'c-panel', level: 2, scn: 'dol', pbuild: true, title: 'A real starter panel: power circuit, E-stop, RUN lamp, TRIP lamp',
+      brief: 'The complete starter, both sheets:<ul><li><b>Power circuit</b>: main breaker, contactor and overload relay in the right order.</li><li><b>E-STOP</b> (S9), STOP (S0) and the overload contact in series.</li><li>START with seal-in.</li><li>Green <b>RUN</b> lamp (H1) in parallel with the coil.</li><li>Red <b>TRIP</b> lamp (H2) through the <b>NO</b> contact of the overload relay (97-98).</li></ul>After an E-stop or a trip the motor must not restart by itself.',
       parts: [P('S9', 'es', 'E-STOP'), S0, S1, K1, F2, P('H1', 'lamp', 'RUN', { c: 'green' }), P('H2', 'lamp', 'TRIP', { c: 'red' })], scnNames: { rpm: 'Motor speed (rpm)' },
-      hints: ['Start from the seal-in circuit and put S9 NC at the very top.', 'RUN lamp: put H1 beside the K1 coil and link the two paths just above them.', 'TRIP lamp: its own path from L: F2 NO, then H2.'],
-      solution: 'NC:S9 . NO:F2\nNC:F2 . LAMP:H2\nNC:S0\n~ 0\nNO:S1 NO:K1\n~ 0\nCOIL:K1 LAMP:H1',
+      hints: ['Power circuit from the top: Q1, KM1, F2.', 'Control: start from the seal-in circuit and put S9 NC at the very top.', 'RUN lamp: put H1 beside the K1 coil and link the two paths just above them.', 'TRIP lamp: its own path from L: F2 NO, then H2.'],
+      solution: '@ p1=Q1\n@ p2=K1\n@ p3=F2\nNC:S9 . NO:F2\nNC:F2 . LAMP:H2\nNC:S0\n~ 0\nNO:S1 NO:K1\n~ 0\nCOIL:K1 LAMP:H1',
       tests: DOLTESTS.slice(0, 2).concat([
         { name: 'RUN lamp follows the contactor', steps: ['expect H1=0', 'tap S1', 'wait 200', 'expect K1=1 H1=1', 'tap S0', 'wait 100', 'expect H1=0'] },
         { name: 'E-STOP drops everything; no start while it is pressed; no restart', steps: ['tap S1', 'wait 300', 'on S9', 'wait 100', 'expect K1=0 H1=0', 'tap S1', 'wait 100', 'expect K1=0', 'off S9', 'wait 300', 'expect K1=0'] },
@@ -387,6 +448,30 @@
       hints: ['F2 NC at the top, then two paths linked below it.', 'Path UP: S1 NO, B1 NC, K2 NC, K1 coil. Path DOWN: S2 NO, B2 NC, K1 NC, K2 coil.'],
       solution: 'NC:F2\n~ 0\nNO:S1 NO:S2\nNC:B1 NC:B2\nNC:K2 NC:K1\nCOIL:K1 COIL:K2',
       tests: [{ name: 'UP only while held (no seal-in)', steps: ['press S1', 'wait 500', 'expect K1=1 K2=0', 'release S1', 'wait 200', 'expect K1=0'] }, { name: 'DOWN only while held', steps: ['press S2', 'wait 500', 'expect K2=1 K1=0', 'release S2', 'wait 200', 'expect K2=0'] }, { name: 'The top limit switch stops UP', steps: ['press S1', 'wait 4000', 'expect K1=0', 'scn p<=99', 'release S1'] }, { name: 'The bottom limit switch stops DOWN; UP still works', steps: ['press S2', 'wait 4000', 'expect K2=0', 'scn p>=1', 'release S2', 'press S1', 'wait 500', 'expect K1=1', 'release S1'] }, { name: 'DOWN pressed while going UP: no short circuit', steps: ['press S1', 'wait 300', 'press S2', 'wait 300', 'expect K1=1 K2=0', 'release S1', 'release S2'] }] },
+    { id: 'c-vfd', level: 3, scn: 'vfd', title: 'A drive needs only signals: run forward, run reverse',
+      brief: 'A variable frequency drive (VFD) has <b>no contactors</b> for start and reverse. It ramps the motor by itself. The control circuit only gives signals to its inputs:<ul><li>Selector <b>RUN</b> (S1) on: input <b>DI1</b> (run forward).</li><li>Selector <b>REVERSE</b> (S2) on as well: DI1 off, input <b>DI2</b> (run reverse). Never both inputs together.</li><li>The drive has a <b>fault relay</b> (F5). When it trips: no run signal, and the red <b>FAULT</b> lamp (H2) is on.</li></ul>',
+      parts: [P('S1', 'sel', 'RUN'), P('S2', 'sel', 'REVERSE'), P('A1', 'valve', 'DI1 fwd'), P('A2', 'valve', 'DI2 rev'), P('F5', 'ol', 'Drive fault'), P('H2', 'lamp', 'FAULT', { c: 'red' })], scnNames: { hz: 'Drive output (Hz)' },
+      hints: ['One path from the top: F5 NC, then S1 NO.', 'Below it two paths, linked: S2 NC then A1, and S2 NO then A2. The same selector opens one path and closes the other.', 'Fault lamp: its own path from L: F5 NO, then H2.'],
+      solution: 'NC:F5 . NO:F5\nNO:S1 . LAMP:H2\n~ 0\nNC:S2 NO:S2\nVALVE:A1 VALVE:A2',
+      tests: [{ name: 'RUN: forward, the drive ramps to 50 Hz', steps: ['expect A1=0 A2=0', 'on S1', 'expect A1=1 A2=0', 'wait 2500', 'scn hz>=48'] }, { name: 'REVERSE: only DI2, the drive ramps down and back up the other way', steps: ['on S1', 'wait 2500', 'on S2', 'expect A1=0 A2=1', 'wait 4500', 'scn hz<=-48'] }, { name: 'RUN off: no signal, the drive ramps to zero', steps: ['on S1', 'wait 2500', 'off S1', 'expect A1=0 A2=0', 'wait 2500', 'scn hz<=1 hz>=-1'] }, { name: 'Drive fault: no run signal, FAULT lamp on', steps: ['expect H2=0', 'on S1', 'wait 1000', 'trip F5', 'expect A1=0 A2=0 H2=1', 'reset F5', 'expect H2=0 A1=1'] }] },
+    { id: 'c-soft', level: 4, scn: 'soft', title: 'Soft starter with a bypass contactor',
+      brief: 'A pump starts on a <b>soft starter</b>: electronics raise the voltage over 3 s. At full speed a bypass contactor takes over, so the soft starter stays cool.<ul><li>START: line contactor <b>KM1</b> and the <b>RUN</b> signal to the soft starter (A1), with seal-in.</li><li>The soft starter closes its <b>top of ramp</b> contact (B1) when the motor is at full speed. Only then: bypass <b>KM2</b>.</li><li>STOP and the overload drop everything.</li></ul>KM2 too early is a direct start. No KM2 at all overheats the soft starter.',
+      parts: [S0, S1, K1, P('K2', 'k', 'KM2 bypass'), P('A1', 'valve', 'RUN'), P('B1', 'ls', 'Top of ramp'), F2], scnNames: { pct: 'Motor speed (%)' },
+      hints: ['Seal-in on K1.', 'Three paths below it: K1 coil, the RUN signal A1, and B1 NO then the K2 coil.'],
+      solution: 'NC:F2\nNC:S0\n~ 0\nNO:S1 NO:K1\n~ 0 1\nW W NO:B1\nCOIL:K1 VALVE:A1 COIL:K2',
+      tests: [{ name: 'START: line contactor and RUN, no bypass yet', steps: ['tap S1', 'wait 300', 'expect K1=1 A1=1 K2=0', 'wait 2000', 'expect K2=0'] }, { name: 'Top of ramp: the bypass closes; nothing overheats', steps: ['tap S1', 'wait 3600', 'expect K1=1 K2=1', 'wait 8000', 'expect K2=1', 'scn pct>=99'] }, { name: 'STOP drops everything; the next start ramps again', steps: ['tap S1', 'wait 4000', 'tap S0', 'wait 200', 'expect K1=0 K2=0 A1=0', 'wait 4000', 'tap S1', 'wait 300', 'expect K1=1 A1=1 K2=0'] }, { name: 'Overload drops everything', steps: ['tap S1', 'wait 4000', 'trip F2', 'wait 200', 'expect K1=0 K2=0', 'wait 2500'] }] },
+    { id: 'c-pumps', level: 4, scn: 'pumps', title: 'Real project: duty pump and standby pump',
+      brief: 'Two pumps on one pipe. One is the <b>duty</b> pump, the other one waits as <b>standby</b>.<ul><li>Selector <b>RUN</b> (S1) on: the duty pump runs. Selector <b>DUTY 2</b> (S4) off = pump 1 is duty, on = pump 2 is duty.</li><li>If the overload relay of the duty pump trips, the <b>standby pump starts by itself</b>.</li><li>The red <b>ALARM</b> lamp (H2) is on while any overload relay is tripped.</li><li>Never both pumps together.</li></ul>Tip: the NO contact of an overload relay (97-98) closes when it trips. Use it as a signal.',
+      parts: [P('S1', 'sel', 'RUN'), P('S4', 'sel', 'DUTY 2'), K1, P('K2', 'k', 'KM2'), F2, P('F3', 'ol', 'Overload 2'), P('H2', 'lamp', 'ALARM', { c: 'red' })],
+      hints: ['Pump 1 path: S1 NO, F2 NC, then S4 NC with F3 NO beside it (linked), then the K1 coil.', 'Pump 2 path: S1 NO, F3 NC, then S4 NO with F2 NO beside it, then the K2 coil.', 'Alarm: F2 NO and F3 NO side by side from L, linked below, then H2.'],
+      solution: 'NO:S1 . . . NO:F2 NO:F3\n~ 0 1 2 4\nNC:F2 . NC:F3 . LAMP:H2\n~ 0 2\nNC:S4 NO:F3 NO:S4 NO:F2\n~ 0 2\nCOIL:K1 . COIL:K2',
+      tests: [{ name: 'RUN off: both pumps off', steps: ['wait 300', 'expect K1=0 K2=0 H2=0'] }, { name: 'Pump 1 is duty', steps: ['on S1', 'wait 300', 'expect K1=1 K2=0 H2=0', 'wait 2000', 'expect K1=1 K2=0'] }, { name: 'Pump 2 is duty', steps: ['on S4', 'on S1', 'wait 300', 'expect K1=0 K2=1', 'wait 2000', 'expect K1=0 K2=1'] }, { name: 'Pump 1 trips: pump 2 takes over, alarm on; reset: back to pump 1', steps: ['on S1', 'wait 500', 'trip F2', 'wait 300', 'expect K1=0 K2=1 H2=1', 'wait 2500', 'reset F2', 'wait 300', 'expect K1=1 K2=0 H2=0', 'wait 1500'] }, { name: 'Pump 2 is duty and trips: pump 1 takes over', steps: ['on S4', 'on S1', 'wait 500', 'trip F3', 'wait 300', 'expect K2=0 K1=1 H2=1', 'wait 2500'] }, { name: 'Both tripped: both off, alarm on', steps: ['on S1', 'wait 500', 'trip F2', 'trip F3', 'wait 300', 'expect K1=0 K2=0 H2=1', 'wait 2500'] }] },
+    { id: 'c-comp', level: 4, scn: 'comp', title: 'Real project: air compressor with a pressure switch',
+      brief: 'A workshop compressor keeps the air tank between 6 and 8 bar.<ul><li>Selector <b>AUTO</b> (S1) on, and the <b>pressure switch</b> B1 says "pressure low": the motor (KM1) runs. B1 is actuated from 8 bar and released again at 6 bar. The gap is inside the switch, so you need no seal-in.</li><li>A compressor must start <b>unloaded</b>. Only <b>3 s</b> after the start the load valve <b>Y1</b> gets voltage and the compressor pumps.</li><li>AUTO off or an overload: motor and valve off.</li></ul>',
+      parts: [P('S1', 'sel', 'AUTO'), P('B1', 'ls', 'Pressure 8 bar'), K1, P('KT1', 'kt', 'Timer', { s: 3 }), P('Y1', 'valve', 'Load valve'), F2], scnNames: { p10: 'Pressure (bar × 10)', starts: 'Motor starts' },
+      hints: ['In series: F2 NC, S1 NO, B1 NC (closed while the pressure is low).', 'Below, three paths on one wire: K1 coil, the timer coil KT1, and KT1 NO then the valve Y1.'],
+      solution: 'NC:F2\nNO:S1\nNC:B1\n~ 0 1\nW W NO:KT1\nCOIL:K1 TON:KT1:3 VALVE:Y1',
+      tests: [{ name: 'AUTO on: the motor starts unloaded', steps: ['expect K1=0', 'on S1', 'wait 300', 'expect K1=1 Y1=0', 'wait 2200', 'expect K1=1 Y1=0'] }, { name: 'After 3 s the load valve opens', steps: ['on S1', 'wait 3500', 'expect K1=1 Y1=1'] }, { name: 'One minute in AUTO: pressure stays between 4 and 9 bar, a few long runs', steps: ['on S1', 'wait 30000', 'scn p10>=40 p10<=90', 'wait 30000', 'scn p10>=40 p10<=90 starts>=2 starts<=6'] }, { name: 'AUTO off stops motor and valve', steps: ['on S1', 'wait 5000', 'off S1', 'wait 200', 'expect K1=0 Y1=0'] }, { name: 'Overload stops motor and valve', steps: ['on S1', 'wait 5000', 'trip F2', 'wait 200', 'expect K1=0 Y1=0', 'wait 2500'] }] },
     { id: 'c-stein', level: 4, scn: 'stein', title: 'Real project: a 3-phase motor on a single-phase supply (capacitor)',
       brief: 'A workshop has only <b>230 V single-phase</b> (L and N), but the machine has a small <b>3-phase motor</b> (230 / 400 V). The classic trick is the <b>Steinmetz connection</b>: two motor terminals go to L and N, and a <b>run capacitor</b> feeds the third terminal with a shifted current, so the field turns.<ul><li>Finish the <b>power circuit</b>: how are the windings linked, and where does the capacitor go? The motor must turn <b>forward</b>.</li><li>Build the control: START, STOP, seal-in, overload contact.</li></ul>Rule of thumb: about 70 µF for each kW, and the motor gives about 70 % of its power.',
       parts: [S0, S1, K1, F2], scnNames: { rpm: 'Motor speed (rpm)' },
