@@ -10,7 +10,9 @@
 
   // ───────────────────────── element catalogue ─────────────────────────
   const LOGIC = ['WIRE', 'NO', 'NC', 'P', 'N', 'NOT', 'CMP', 'LIM'];
-  const OUTPUT = ['COIL', 'NCOIL', 'SET', 'RST', 'TON', 'TOF', 'TP', 'RTO', 'CTU', 'CTD', 'MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'SHRB', 'CALL', 'PID', 'MC_POWER', 'MC_HOME', 'MC_ABS', 'MC_REL', 'MC_JOG', 'MC_STOP', 'MC_RESET', 'MC_SETPOS', 'SMOV', 'CONCAT', 'ITOS', 'SMID', 'WAND', 'WOR', 'WXOR', 'WNOT', 'I_BCD', 'BCD_I', 'CONV', 'ROUND', 'TRUNC', 'NORM_X', 'SCALE_X'];
+  const OUTPUT = ['COIL', 'NCOIL', 'SET', 'RST', 'TON', 'TOF', 'TP', 'RTO', 'CTU', 'CTD', 'MOV', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'SHL', 'SHR', 'SHRB', 'CALL', 'PID', 'MC_POWER', 'MC_HOME', 'MC_ABS', 'MC_REL', 'MC_JOG', 'MC_STOP', 'MC_RESET', 'MC_SETPOS', 'SMOV', 'CONCAT', 'ITOS', 'SMID', 'WAND', 'WOR', 'WXOR', 'WNOT', 'I_BCD', 'BCD_I', 'CONV', 'ROUND', 'TRUNC', 'NORM_X', 'SCALE_X', 'JMP', 'LBL', 'MCR', 'FFL', 'FFU', 'LFU'];
+  // program flow (jump to a label, MCR zone) and queues (FIFO / LIFO in a word table: MWn = count, MWn+1 … = data)
+  const FLOW_OPS = ['JMP', 'LBL', 'MCR'], FIFO_OPS = ['FFL', 'FFU', 'LFU'];
   // word logic (16 bits), BCD conversion and REAL (floating point) instructions
   const WORDLOGIC = ['WAND', 'WOR', 'WXOR', 'WNOT'];
   const BCD_OPS = ['I_BCD', 'BCD_I'];
@@ -190,6 +192,10 @@
       case 'WAND': case 'WOR': case 'WXOR': return mkCell(t, { a: norm(args[0]), b: norm(args[1]), dst: norm(args[2]) });
       case 'WNOT': return mkCell(t, { a: norm(args[0]), dst: norm(args[1]) });
       case 'I_BCD': case 'BCD_I': case 'CONV': case 'ROUND': case 'TRUNC': return mkCell(t, { src: norm(args[0]), dst: norm(args[1]) });
+      case 'JMP': case 'LBL': return mkCell(t, { addr: String(args[0] || 'L1').trim().toUpperCase() });
+      case 'MCR': return mkCell(t, {});
+      case 'FFL': return mkCell(t, { src: norm(args[0] || 'MW10'), dst: norm(args[1] || 'MW100'), n: parseInt(args[2] || '8', 10) });
+      case 'FFU': case 'LFU': return mkCell(t, { src: norm(args[0] || 'MW100'), n: parseInt(args[1] || '8', 10), dst: norm(args[2] || 'MW12') });
       default: throw new Error('Unknown element "' + t + '"');
     }
   }
@@ -222,6 +228,8 @@
       case 'WAND': case 'WOR': case 'WXOR': return c.type + '(' + c.a + ',' + c.b + ',' + c.dst + ')';
       case 'WNOT': return 'WNOT(' + c.a + ',' + c.dst + ')';
       case 'I_BCD': case 'BCD_I': case 'CONV': case 'ROUND': case 'TRUNC': return c.type + '(' + c.src + ',' + c.dst + ')';
+      case 'FFL': return 'FFL(' + c.src + ',' + c.dst + ',' + c.n + ')';
+      case 'FFU': case 'LFU': return c.type + '(' + c.src + ',' + c.n + ',' + c.dst + ')';
       default: return c.type + '(' + (c.addr || '') + ')';
     }
   }
@@ -362,6 +370,7 @@
         if (c.type === 'CTD' && this.cMode[counterNo(c.addr)] !== 'up') this.cMode[counterNo(c.addr)] = 'down';
       })));
       this.trace = prog.rungs.map(mkTrace);
+      this.rungLbl = prog.rungs.map((r) => r.cells.map((row) => row[r.cols - 1]).filter((c) => c && c.type === 'LBL').map((c) => c.addr));
       this.blocks = {};
       (prog.blocks || []).forEach((b) => (this.blocks[b.name] = b));
       this.itrace = {};
@@ -699,6 +708,12 @@
           }
           break;
         }
+        case 'JMP': if (p) this.jmp = cell.addr; break;          // the rungs down to LBL are not scanned (see evalRung)
+        case 'LBL': break;
+        case 'MCR':                                              // first MCR opens a zone (off when its rung is false), the next one closes it
+          if (!this.mcrZone) { this.mcrZone = true; this.mcrOff = !p; } else { this.mcrZone = false; this.mcrOff = false; }
+          break;
+        case 'FFL': case 'FFU': case 'LFU': { const k = 'ff:' + this.ek(cell.id), prev = this.edges[k] || 0; this.edges[k] = p ? 1 : 0; if (p && !prev) this.fifoOp(cell); break; }
         case 'MOV': if (p) this.setWord(cell.dst, this.word(cell.src)); break;
         case 'SMOV': if (p) this.setStr(cell.dst, this.str(cell.src)); break;
         case 'CONCAT': if (p) this.setStr(cell.dst, this.str(cell.a) + this.str(cell.b)); break;
@@ -744,11 +759,31 @@
       }
     }
 
-    evalRung(i, dt) { return this.evalRungOf(this.prog.rungs[i], this.trace[i], dt); }
+    evalRung(i, dt) {
+      const tr = this.trace[i];
+      if (this.jmp != null) {
+        if ((this.rungLbl[i] || []).includes(this.jmp)) this.jmp = null;      // the jump lands here: this rung is scanned again
+        else { tr.pin.forEach((row) => row.fill(0)); tr.pout.forEach((row) => row.fill(0)); tr.node.forEach((row) => row.fill(0)); tr.skip = 1; return; }   // not scanned: its outputs keep their state
+      }
+      tr.skip = 0;
+      return this.evalRungOf(this.prog.rungs[i], tr, dt);
+    }
+    // FIFO / LIFO in a word table: MWn holds the count, MWn+1 … MWn+size the data (oldest first)
+    fifoOp(cell) {
+      const T = cell.type, tbl = T === 'FFL' ? cell.dst : cell.src, m = /^MW(\d+)$/.exec(this.res(tbl) || '');
+      if (!m) { this.error = this.error || T + ': the table must be a memory word like MW100 (MW100 = count, MW101 … = data).'; return; }
+      const b = +m[1], n = Math.max(1, Math.min(32, Math.abs(+cell.n) || 8)), cnt = Math.max(0, Math.min(n, this.word('MW' + b)));
+      if (T === 'FFL') { if (cnt < n) { this.setWord('MW' + (b + 1 + cnt), this.word(cell.src)); this.setWord('MW' + b, cnt + 1); } return; }   // a full table refuses the load
+      if (cnt === 0) return;                                                  // an empty table gives nothing
+      if (T === 'FFU') { this.setWord(cell.dst, this.word('MW' + (b + 1))); for (let k = 1; k < cnt; k++) this.setWord('MW' + (b + k), this.word('MW' + (b + k + 1))); }
+      else this.setWord(cell.dst, this.word('MW' + (b + cnt)));
+      this.setWord('MW' + (b + cnt), 0); this.setWord('MW' + b, cnt - 1);
+    }
     evalRungOf(rung, tr, dt) {
       const R = rung.rows, C = rung.cols;
-      let cur = new Array(R).fill(1);
-      for (let r = 0; r < R; r++) tr.node[r][0] = 1;
+      const rail = this.mcrOff ? 0 : 1;                           // inside an MCR zone that is off, every rung is solved as false
+      let cur = new Array(R).fill(rail);
+      for (let r = 0; r < R; r++) tr.node[r][0] = rail;
       for (let c = 0; c < C - 1; c++) {
         const next = new Array(R);
         for (let r = 0; r < R; r++) {
@@ -781,11 +816,15 @@
 
     beginScan() {
       for (const k in this.inputs) { if (/^I/.test(k)) this.bits[k] = this.inputs[k]; else if (RE.aiw.test(k)) this.words[k] = Math.max(-32768, Math.min(32767, this.inputs[k])); else if (RE.hc.test(k)) this.words[k] = this.inputs[k]; }
+      this.jmp = null; this.mcrZone = false; this.mcrOff = false;
       this.bits['SM0.0'] = 1;
       this.bits['SM0.1'] = this.scanCount === 0 ? 1 : 0;
       this.bits['SM0.5'] = (this.time % 1000) < 500 ? 1 : 0;
     }
-    endScan(dt) { for (const n in this.axes) this.axisStep(+n, dt); this.scanCount++; this.time += dt; }
+    endScan(dt) {
+      if (this.jmp != null) { this.error = this.error || 'JMP ' + this.jmp + ': there is no rung with LBL ' + this.jmp + ' below the jump. A real PLC goes to STOP or will not download this.'; this.jmp = null; }
+      for (const n in this.axes) this.axisStep(+n, dt); this.scanCount++; this.time += dt;
+    }
 
     scan(dt) {
       dt = dt || 10;
@@ -892,6 +931,27 @@
   function lintRungs(prog, rungs, blk, blocks) {
     const issues = [];
     const coils = {}, timers = {}, ctr = {};
+    const mcrEnd = new Set();   // rungs whose MCR closes a zone: it needs no condition
+    {
+      // jumps, labels, MCR zones and queues
+      const lbl = {}, jmps = []; let mcr = 0, mcrAt = 0;
+      rungs.forEach((rung, i) => rung.cells.forEach((row) => row.forEach((c) => {
+        if (!c) return; const n = i + 1;
+        if (FLOW_OPS.includes(c.type) && blk) issues.push({ level: 'error', rung: n, msg: c.type + ' is only allowed in the main program here, not inside a block.' });
+        if ((c.type === 'JMP' || c.type === 'LBL') && !/^L\d{1,2}$/.test(c.addr || '')) issues.push({ level: 'error', rung: n, msg: c.type + ' needs a label name like L1.' });
+        if (c.type === 'LBL') { if (lbl[c.addr]) issues.push({ level: 'error', rung: n, msg: 'Label ' + c.addr + ' is used twice (rung ' + lbl[c.addr] + ' and here). A label must be unique.' }); else lbl[c.addr] = n; }
+        if (c.type === 'JMP') jmps.push([c.addr, n]);
+        if (c.type === 'MCR') { mcr++; mcrAt = n; if (mcr % 2 === 0) mcrEnd.add(n); }
+        if (FIFO_OPS.includes(c.type)) {
+          const tbl = c.type === 'FFL' ? c.dst : c.src, val = c.type === 'FFL' ? c.src : c.dst;
+          if (!/^MW\d{1,4}$/.test(tbl || '')) issues.push({ level: 'error', rung: n, msg: c.type + ': the table must be a memory word like MW100. MW100 then holds the count and MW101 … the data.' });
+          if (!(c.n >= 1 && c.n <= 32)) issues.push({ level: 'error', rung: n, msg: c.type + ': the size must be 1 … 32.' });
+          if (c.type === 'FFL' ? !isWordAddr(val || '') : !isWritableWord(val || '')) issues.push({ level: 'error', rung: n, msg: c.type + (c.type === 'FFL' ? ': the value to load must be a word or a number.' : ': the value must go to a word like MW12.') });
+        }
+      })));
+      jmps.forEach(([a, n]) => { if (!lbl[a]) issues.push({ level: 'error', rung: n, msg: 'JMP ' + a + ': there is no rung with LBL ' + a + '.' }); else if (lbl[a] <= n) issues.push({ level: 'error', rung: n, msg: 'JMP ' + a + ' jumps backwards (the label is in rung ' + lbl[a] + '). A loop that never ends stops a real PLC: put the label below the jump.' }); });
+      if (mcr % 2) issues.push({ level: 'error', rung: mcrAt, msg: 'An MCR zone needs two MCR instructions: one starts the zone (with its condition), one ends it. There ' + (mcr === 1 ? 'is 1' : 'are ' + mcr) + '.' });
+    }
     rungs.forEach((rung, i) => {
       const n = i + 1;
       let hasOut = false, hasAny = false;
@@ -983,6 +1043,7 @@
       for (let r = 0; r < rung.rows; r++) for (let col = 1; col < rung.cols; col++) {
         const c = rung.cells[r][col];
         if (!c || rung.cells[r][col - 1] || rung.links[r][col] || (r > 0 && rung.links[r - 1][col])) continue;
+        if (c.type === 'LBL' || (c.type === 'MCR' && mcrEnd.has(n))) continue;   // a label and the end of an MCR zone stand alone on their rung
         issues.push({ level: 'warn', rung: n, msg: 'Row ' + (r + 1) + ': ' + (c.addr || c.type) + ' is not connected on its left side, so it never gets power. Add a vertical link (Branch tool) or a wire.' });
         break;
       }
@@ -1070,6 +1131,17 @@
     const conv = (s, from, to) => (from === to ? s : from + '_TO_' + to + '(' + s + ')');
     const asReal = (a) => (R(a) ? n(a) : isNumLit(a) ? litInt(a) + '.0' : conv(n(a), numType(a), 'REAL'));
     const put = (dst, expr, note) => out.push('IF ' + e + ' THEN ' + n(dst) + ' := ' + expr + ';' + (note ? '   (* ' + note + ' *)' : '') + ' END_IF');
+    if (T === 'JMP') { out.push('IF ' + e + ' THEN ' + (dia === 'tia' ? 'GOTO ' : 'JMP ') + cell.addr + '; END_IF   (* better: put the skipped code inside IF NOT (' + e + ') THEN … END_IF *)'); return true; }
+    if (T === 'LBL') { out.push(cell.addr + ':   (* the jump lands here *)'); return true; }
+    if (T === 'MCR') { out.push('(* MCR: zone start or end. ST has no MCR: write the rungs of the zone inside IF ' + e + ' THEN … ELSE <outputs of the zone> := FALSE; END_IF *)'); return true; }
+    if (FIFO_OPS.includes(T)) {
+      const tbl = T === 'FFL' ? cell.dst : cell.src, cnt = n(tbl), sz = cell.n;
+      out.push('(* ' + T + ' on a rising edge of: ' + e + '. Table ' + tbl + ': ' + cnt + ' = count, the next ' + sz + ' words = data. In ST use an ARRAY[1..' + sz + '] OF INT and a count: *)');
+      if (T === 'FFL') out.push('(*   IF edge AND Count < ' + sz + ' THEN Count := Count + 1; Data[Count] := ' + n(cell.src) + '; END_IF *)');
+      else if (T === 'FFU') out.push('(*   IF edge AND Count > 0 THEN ' + n(cell.dst) + ' := Data[1]; FOR i := 1 TO Count - 1 DO Data[i] := Data[i + 1]; END_FOR; Count := Count - 1; END_IF *)');
+      else out.push('(*   IF edge AND Count > 0 THEN ' + n(cell.dst) + ' := Data[Count]; Count := Count - 1; END_IF *)');
+      return true;
+    }
     if (T === 'MOV' && R(cell.dst) && !R(cell.src)) { put(cell.dst, asReal(cell.src)); return true; }
     if (['ADD', 'SUB', 'MUL', 'DIV'].includes(T) && (R(cell.a) || R(cell.b) || R(cell.dst))) {
       const op = { ADD: '+', SUB: '-', MUL: '*', DIV: '/' }[T];
@@ -1334,6 +1406,10 @@
         case 'MC_STOP': return 'MAS(' + cell.ax + ',' + cell.addr + ',All)';
         case 'MC_RESET': return 'MAFR(' + cell.ax + ',' + cell.addr + ')';
         case 'MC_SETPOS': return 'MRP(' + cell.ax + ',' + cell.addr + ',Absolute,Actual,' + tg(cell.a) + ')';
+        case 'JMP': case 'LBL': return t + '(' + cell.addr + ')';
+        case 'MCR': return 'MCR()';
+        case 'FFL': notes.push('FFL / FFU / LFU need an array tag and a CONTROL tag (its .POS is the count, .EM = empty, .DN = full).'); return 'FFL(' + tg(cell.src) + ',Fifo[0],FifoCtl,' + cell.n + ',0)';
+        case 'FFU': case 'LFU': notes.push('FFL / FFU / LFU need an array tag and a CONTROL tag (its .POS is the count, .EM = empty, .DN = full).'); return t + '(Fifo[0],' + tg(cell.dst) + ',FifoCtl,' + cell.n + ',0)';
         case 'WAND': case 'WOR': case 'WXOR': return { WAND: 'AND', WOR: 'OR', WXOR: 'XOR' }[t] + '(' + tg(cell.a) + ',' + tg(cell.b) + ',' + tg(cell.dst) + ')';
         case 'WNOT': return 'NOT(' + tg(cell.a) + ',' + tg(cell.dst) + ')';
         case 'I_BCD': notes.push('TOD = "to BCD": 1234 becomes 16#1234. FRD = "from BCD" does the opposite.'); return 'TOD(' + tg(cell.src) + ',' + tg(cell.dst) + ')';
@@ -1427,7 +1503,7 @@
     parseDuration, fmtDuration, shiftBits, mkCell, cloneCell, emptyRung,
     parseRung, rungToLines, parseProgram, programToText, cloneProgram, parseToken, cellToken,
     Machine, lint, toST, toRockwell, stName, usedAddrs,
-    WORDLOGIC, BCD_OPS, REAL_OPS, isRealAddr, isNumLit, numType, litInt, roundEven, fmtReal, hex4,
+    WORDLOGIC, BCD_OPS, REAL_OPS, FLOW_OPS, FIFO_OPS, isRealAddr, isNumLit, numType, litInt, roundEven, fmtReal, hex4,
   });
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -1661,6 +1737,12 @@
           case 'RTO': lines.push('TTIM(087) ' + nT(cell.addr) + ' #' + Math.max(1, Math.round(cell.pt / 100)) + '   // accumulative timer'); break;
           case 'CTU': case 'CTD': lines.push('LD P_Off   // reset input of the counter (use CNR elsewhere)'); lines.push('CNT ' + nT(cell.addr) + ' #' + cell.pv + (T === 'CTU' ? '   // counts DOWN from ' + cell.pv + ': done at 0' : '')); break;
           case 'MOV': lines.push(isR(cell.dst) ? (isR(cell.src) ? 'MOVL(498) ' : 'FLT(452) ') + omAddr(cell.src) + ' ' + omAddr(cell.dst) + '   // REAL = 2 words' : 'MOV(021) ' + omAddr(cell.src) + ' ' + omAddr(cell.dst)); break;
+          case 'JMP': lines.push('JMP(004) #' + String(cell.addr).replace(/\D/g, '')); break;
+          case 'LBL': lines.push('JME(005) #' + String(cell.addr).replace(/\D/g, '')); break;
+          case 'MCR': lines.push('IL(002)   // zone start; the zone end is ILC(003), without a condition'); break;
+          case 'FFL': lines.push('PUSH(632) ' + omAddr(cell.dst) + ' ' + omAddr(cell.src) + '   // the stack must be set up once with SSET(630)'); break;
+          case 'FFU': lines.push('FIFO(633) ' + omAddr(cell.src) + ' ' + omAddr(cell.dst)); break;
+          case 'LFU': lines.push('LIFO(634) ' + omAddr(cell.src) + ' ' + omAddr(cell.dst)); break;
           case 'WAND': case 'WOR': case 'WXOR': lines.push({ WAND: 'ANDW(034) ', WOR: 'ORW(035) ', WXOR: 'XORW(036) ' }[T] + omAddr(cell.a) + ' ' + omAddr(cell.b) + ' ' + omAddr(cell.dst)); break;
           case 'WNOT': lines.push('MOV(021) ' + omAddr(cell.a) + ' ' + omAddr(cell.dst)); lines.push('COM(029) ' + omAddr(cell.dst) + '   // invert all 16 bits'); break;
           case 'I_BCD': lines.push('BCD(024) ' + omAddr(cell.src) + ' ' + omAddr(cell.dst) + '   // binary → BCD'); break;

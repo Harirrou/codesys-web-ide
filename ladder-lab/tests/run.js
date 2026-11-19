@@ -76,6 +76,37 @@ if (LL.EC && LL.EC.freeFor) LL.EC.FREE_SCN.forEach((scn) => {
   ok(f.parts.length >= 9 && !sim.st.fault && !sim.short && !EC.lint(c, f).length, 'free play machine ' + scn + ' ' + (sim.st.fault || sim.short || EC.lint(c, f)[0] || ''));
 });
 
+// Lab instructions: jump to a label, MCR zone, FIFO / LIFO in a word table
+{
+  const Z = { 'I0.0': 0, 'I0.1': 0, 'I0.2': 0 }, run = (m, I, n) => { for (let k = 0; k < (n || 1); k++) { m.setInputs(Object.assign({}, Z, I)); m.scan(10); } };
+  const noErr = (p) => LL.lint(p).filter((x) => x.level === 'error').length === 0, same = (p) => LL.programToText(LL.parseProgram(LL.programToText(p))) === LL.programToText(p);
+  let p = LL.parseProgram('RUNG\nNO(I0.0) JMP(L1)\nRUNG\nNO(I0.1) COIL(Q0.0)\nRUNG\nNO(I0.1) TON(T0,100ms)\nRUNG\nLBL(L1)\nRUNG\nNO(I0.2) COIL(Q0.1)'), m = LL.makeMachine(p);
+  ok(noErr(p) && same(p) && !LL.lint(p).length, 'jump program: clean lint and round trip');
+  run(m, { 'I0.1': 1, 'I0.2': 1 }, 5); ok(m.bit('Q0.0') === 1 && m.bit('Q0.1') === 1, 'no jump: every rung is scanned');
+  run(m, { 'I0.0': 1 }, 30); ok(m.bit('Q0.0') === 1 && m.bit('Q0.1') === 0 && !m.bit('T0') && m.timerFor('T0').et === 50, 'jump: skipped coil keeps its state, skipped timer stands still, the rung after the label is scanned');
+  ok(m.trace[1].skip === 1 && m.trace[3].skip === 0 && m.trace[4].skip === 0, 'jump: the skipped rungs are marked');
+  run(m, { 'I0.1': 1 }, 6); ok(m.bit('T0') === 1, 'jump off: the timer goes on from where it was');
+  run(m, {}, 1); ok(m.bit('Q0.0') === 0 && !m.error, 'jump off: the coil is solved again');
+  p = LL.parseProgram('RUNG\nNO(I0.0) JMP(L2)\nRUNG\nNO(I0.1) COIL(Q0.0)'); m = LL.makeMachine(p);
+  ok(LL.lint(p).some((x) => x.level === 'error' && /no rung with LBL/.test(x.msg)), 'lint: jump without a label'); run(m, { 'I0.0': 1 }, 1); ok(/LBL L2/.test(m.error || ''), 'a jump without a label stops the PLC');
+  ok(LL.lint(LL.parseProgram('RUNG\nLBL(L1)\nRUNG\nNO(I0.0) JMP(L1)')).some((x) => /backwards/.test(x.msg)), 'lint: a backward jump is refused');
+  p = LL.parseProgram('RUNG\nNO(I0.0) MCR()\nRUNG\nNO(I0.1) COIL(Q0.0)\nRUNG\nNO(I0.2) SET(Q0.1)\nRUNG\nNO(I0.1) TON(T0,50ms)\nRUNG\nMCR()\nRUNG\nNO(I0.1) COIL(Q0.2)'); m = LL.makeMachine(p);
+  ok(noErr(p) && same(p) && !LL.lint(p).length, 'MCR program: clean lint and round trip');
+  run(m, { 'I0.0': 1, 'I0.1': 1, 'I0.2': 1 }, 8); ok(m.bit('Q0.0') === 1 && m.bit('Q0.1') === 1 && m.bit('T0') === 1 && m.bit('Q0.2') === 1, 'MCR zone on: like normal rungs');
+  run(m, { 'I0.1': 1, 'I0.2': 1 }, 1); ok(m.bit('Q0.0') === 0 && m.bit('Q0.1') === 1 && m.bit('T0') === 0 && m.bit('Q0.2') === 1, 'MCR zone off: coil drops, timer resets, latch stays, the rung after the zone is normal');
+  ok(LL.lint(LL.parseProgram('RUNG\nNO(I0.0) MCR()\nRUNG\nNO(I0.1) COIL(Q0.0)')).some((x) => /two MCR/.test(x.msg)), 'lint: an MCR zone needs an end');
+  p = LL.parseProgram('RUNG\nNO(I0.0) FFL(MW10,MW100,3)\nRUNG\nNO(I0.1) FFU(MW100,3,MW12)\nRUNG\nNO(I0.2) LFU(MW100,3,MW14)'); m = LL.makeMachine(p);
+  ok(noErr(p) && same(p), 'FIFO program: clean lint and round trip');
+  const load = (v) => { m.setWord('MW10', v); run(m, { 'I0.0': 1 }, 2); run(m, {}, 1); };
+  load(11); load(22); ok(m.word('MW100') === 2 && m.word('MW101') === 11 && m.word('MW102') === 22, 'FFL: one load per rising edge');
+  load(33); load(44); ok(m.word('MW100') === 3 && m.word('MW103') === 33, 'FFL: a full table refuses the load');
+  run(m, { 'I0.1': 1 }, 2); run(m, {}, 1); ok(m.word('MW12') === 11 && m.word('MW100') === 2 && m.word('MW101') === 22 && m.word('MW103') === 0, 'FFU: the oldest comes out, the rest moves up');
+  run(m, { 'I0.2': 1 }, 2); run(m, {}, 1); ok(m.word('MW14') === 33 && m.word('MW100') === 1, 'LFU: the newest comes out');
+  run(m, { 'I0.1': 1 }, 1); run(m, {}, 1); run(m, { 'I0.1': 1 }, 1); ok(m.word('MW12') === 22 && m.word('MW100') === 0 && !m.error, 'an empty table gives nothing');
+  const all = LL.parseProgram('NAME X\nRUNG\nNO(I0.0) JMP(L1)\nRUNG\nNO(I0.0) MCR()\nRUNG\nMCR()\nRUNG\nLBL(L1)\nRUNG\nNO(I0.0) FFL(MW10,MW100,3)\nRUNG\nNO(I0.1) FFU(MW100,3,MW12)\nRUNG\nNO(I0.1) LFU(MW100,3,MW12)');
+  ['toST', 'toRockwell', 'toTIA', 'toTwinCAT', 'toSysmac', 'toMachineExpert', 'toOmronCX'].forEach((fn) => { let t = ''; try { const o = LL[fn](all); t = typeof o === 'string' ? o : JSON.stringify(o); } catch (e) { t = 'undefined (threw ' + e.message + ')'; } ok(t.length > 20 && !/undefined|NaN/.test(t), fn + ' handles jump, MCR and FIFO'); });
+}
+
 // roundtrip parse/serialize
 LL.CHALLENGES.forEach((ch) => {
   if (ch.lang === 'st') {

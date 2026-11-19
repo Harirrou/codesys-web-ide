@@ -1291,6 +1291,7 @@
     [['WAND', 'W AND'], ['WOR', 'W OR'], ['WXOR', 'W XOR'], ['WNOT', 'W NOT'], ['I_BCD', 'INT→BCD'], ['BCD_I', 'BCD→INT']],
     [['CONV', 'CONV'], ['ROUND', 'ROUND'], ['TRUNC', 'TRUNC'], ['NORM_X', 'NORM_X'], ['SCALE_X', 'SCALE_X']],
     [['SMOV', 'S MOV'], ['CONCAT', 'CONCAT'], ['ITOS', 'INT→STR'], ['SMID', 'MID']],
+    [['JMP', 'JMP'], ['LBL', 'LBL'], ['MCR', 'MCR'], ['FFL', 'FIFO in'], ['FFU', 'FIFO out'], ['LFU', 'LIFO out']],
     [['CALL', 'CALL block'], ['PID', 'PID']],
     [['MC_POWER', 'MC Power'], ['MC_HOME', 'MC Home'], ['MC_ABS', 'Move abs'], ['MC_REL', 'Move rel'], ['MC_JOG', 'MC Jog'], ['MC_STOP', 'MC Stop'], ['MC_RESET', 'MC Reset'], ['MC_SETPOS', 'Set pos']],
   ];
@@ -1741,6 +1742,10 @@
         const home = (this.plant.inputs.find((x) => /home/i.test(x.name)) || this.plant.inputs[0]).addr;
         return { MC_POWER: { ax: 'AX0' }, MC_JOG: { ax: 'AX0', a: '50' }, MC_HOME: { addr: 'MC' + k, ax: 'AX0', src: home }, MC_ABS: { addr: 'MC' + k, ax: 'AX0', a: '100', b: '200' }, MC_REL: { addr: 'MC' + k, ax: 'AX0', a: '50', b: '100' }, MC_STOP: { addr: 'MC' + k, ax: 'AX0' }, MC_RESET: { addr: 'MC' + k, ax: 'AX0' }, MC_SETPOS: { addr: 'MC' + k, ax: 'AX0', a: '0' } }[type];
       }
+      if (type === 'JMP' || type === 'LBL') return { addr: 'L1' };
+      if (type === 'MCR') return {};
+      if (type === 'FFL') return { src: 'MW10', dst: 'MW100', n: 8 };
+      if (type === 'FFU' || type === 'LFU') return { src: 'MW100', n: 8, dst: 'MW12' };
       if (type === 'PID') { const ai = this.plant.inputs.find((x) => /^AIW/.test(x.addr)), aq = this.plant.outputs.find((x) => /^AQW/.test(x.addr)); return { a: ai ? ai.addr : 'MW10', b: 'MW20', dst: aq ? aq.addr : 'MW30', kp: 1, ti: 10, td: 0 }; }
       if (type === 'SHRB') return { src: (this.plant.inputs.find((x) => x.kind === 'sensor') || this.plant.inputs[0]).addr, addr: 'M10.0', n: 8 };
       // word logic, BCD, REAL: a free word / REAL for the result, an analog input of this machine for NORM_X
@@ -2000,6 +2005,16 @@
         else if (T === 'NORM_X' || T === 'SCALE_X') { fields += fld('a', 'MIN') + fld('src', 'VALUE') + fld('b', 'MAX') + res(T === 'NORM_X' ? '(MRn)' : '(MRn or word)'); note = T === 'NORM_X' ? 'VALUE from MIN … MAX (e.g. AIW0, 0 … 27648) becomes 0.0 … 1.0 in a REAL (MR0 … MR99).' : 'VALUE 0.0 … 1.0 (a REAL, e.g. from NORM_X) becomes MIN … MAX. Into a word (MW, AQW) it is rounded.'; }
         else { fields += fld('src', 'Source') + res(T === 'CONV' ? '(other type)' : '(word or MRn)'); note = T === 'CONV' ? 'INT → REAL: MW10 into MR0. REAL → INT: MR0 into MW10, rounded to the nearest (2.5 → 2, 3.5 → 4).' : T === 'ROUND' ? 'Source is a REAL (MR0 or 2.5). 2.4 → 2, 2.6 → 3, x.5 → the even number.' : 'Source is a REAL (MR0 or 2.5). The decimals are cut off: 2.9 → 2, -2.9 → -2.'; }
         chips = `<p class="muted" style="font-size:.82rem;margin:0 0 6px">${note}${T === 'LIM' || (LL.REAL_OPS || []).includes(T) ? ' MR0 … MR99 hold REAL numbers: write them with a point (100.0).' : ''}</p>` + this.quickChips(T === 'LIM' || T === 'NORM_X' ? 'src' : (LL.WORDLOGIC || []).includes(T) ? 'a' : 'src', words);
+      } else if ((LL.FLOW_OPS || []).includes(T) || (LL.FIFO_OPS || []).includes(T)) {
+        // jump, label, MCR zone, FIFO / LIFO
+        const fld = (f, label) => `<div class="field"><label for="f-${f}">${label}</label><input id="f-${f}" class="mono" data-f="${f}" value="${esc(cell[f])}" autocomplete="off" spellcheck="false"></div>`;
+        let note;
+        if (T === 'JMP') { fields += fld('addr', 'Label (L1 … L99)'); note = 'While this rung is true, the PLC jumps to the rung with LBL of the same name, further down. The rungs in between are not scanned (shown pale): their outputs keep the last state.'; }
+        else if (T === 'LBL') { fields += fld('addr', 'Label (L1 … L99)'); note = 'A rung with only this label: the jump with the same name lands here.'; }
+        else if (T === 'MCR') note = 'Use two: the first MCR (with a condition) starts the zone, the second one (alone on its rung) ends it. While the condition is false, the rungs of the zone are solved as FALSE. Not a safety function.';
+        else if (T === 'FFL') { fields += fld('src', 'Value to load') + fld('dst', 'Table (MWn)') + fld('n', 'Size (1 … 32)'); note = 'One load on each rising edge. The table MW100 uses MW100 as the count and MW101 … for the data. Full when the count equals the size: test it with a Compare (MW100 >= 8).'; }
+        else { fields += fld('src', 'Table (MWn)') + fld('n', 'Size (1 … 32)') + fld('dst', 'Value goes to'); note = (T === 'FFU' ? 'FIFO: the oldest value comes out and the rest moves up.' : 'LIFO: the newest value comes out.') + ' One unload on each rising edge. Empty when the count (the first word) is 0.'; }
+        chips = `<p class="muted" style="font-size:.82rem;margin:0 0 6px">${note}</p>`;
       } else if (LL.MATH.includes(T)) {
         fields += `<div class="field"><label for="f-a">A</label><input id="f-a" class="mono" data-f="a" value="${esc(cell.a)}"></div><div class="field"><label for="f-b">B</label><input id="f-b" class="mono" data-f="b" value="${esc(cell.b)}"></div><div class="field"><label for="f-dst">Result</label><input id="f-dst" class="mono" data-f="dst" value="${esc(cell.dst)}"></div>`;
       }
@@ -2014,6 +2029,9 @@
         else if (f === 'pv') { const n = parseInt(v, 10); if (isNaN(n)) { inp && inp.classList.add('bad'); return; } cell.pv = n; }
         else if (f === 'op') cell.op = v;
         else if (f === 'kp' || f === 'ti' || f === 'td') { const x = parseFloat(v); if (isNaN(x) || x < 0 || (f === 'kp' && x <= 0)) { inp && inp.classList.add('bad'); return; } cell[f] = x; }
+        else if (T === 'JMP' || T === 'LBL') { const a = String(v).trim().toUpperCase(); if (!/^L\d{1,2}$/.test(a)) { inp && inp.classList.add('bad'); return; } cell.addr = a; }
+        else if ((LL.FIFO_OPS || []).includes(T) && f === 'n') { const n = parseInt(v, 10); if (!(n >= 1 && n <= 32)) { inp && inp.classList.add('bad'); return; } cell.n = n; }
+        else if ((LL.FIFO_OPS || []).includes(T)) { const a = LL.norm(v), isTbl = (T === 'FFL') === (f === 'dst'); if (isTbl ? !/^MW\d{1,4}$/.test(a) : !LL.isWordAddr(a)) { inp && inp.classList.add('bad'); return; } cell[f] = a; }
         else if (f === 'n' && T === 'ITOS') { const n = parseInt(v, 10); if (isNaN(n) || n < 0 || n > 10) { inp && inp.classList.add('bad'); return; } cell.n = n; }
         else if (f === 'n') { const n = parseInt(v, 10); if (isNaN(n) || n === 0 || Math.abs(n) > 64) { inp && inp.classList.add('bad'); return; } cell.n = n; }
         else if (LL.STRING_OPS.includes(T) || (T === 'CMP' && /'|STR/i.test(String(v)))) { const a = /^'.*'$/.test(String(v).trim()) ? "'" + String(v).trim().slice(1, -1).toUpperCase().replace(/\s+/g, '') + "'" : LL.norm(v); const ok = f === 'dst' ? LL.isWritableStr(a) : (T === 'ITOS' || (T === 'SMID' && f !== 'src')) ? LL.isWordAddr(a) : LL.isStrAddr(a); inp && inp.classList.toggle('bad', !ok); if (!ok) return; cell[f] = a; }

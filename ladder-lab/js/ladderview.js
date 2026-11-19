@@ -29,6 +29,12 @@
     CTU: ['Count up', '+1 on each rising edge; done when CV ≥ PV. Clear with RST.'],
     CTD: ['Count down', '−1 on each rising edge; done when CV ≤ 0. RST reloads PV.'],
     MOV: ['Move', 'Copies a value into a word while powered.'],
+    JMP: ['Jump to a label', 'While powered, the PLC jumps to the rung with the same label (LBL). The rungs in between are NOT scanned: their outputs keep the last state and their timers stand still. The label must be below the jump. Never use a jump to switch something off.'],
+    LBL: ['Label', 'The place where a jump (JMP) with the same name lands. This rung and everything below it is scanned again. Studio 5000: LBL. TIA: a jump label. Omron: JME.'],
+    MCR: ['MCR zone', 'Two MCR instructions make a zone. The first one has the condition; the second one ends the zone. While the condition is false, every rung in the zone is solved as FALSE: coils drop and TON timers reset, but latched (S) bits stay. Not a safety function. Omron: IL / ILC.'],
+    FFL: ['FIFO load', 'On each rising edge, puts the value at the end of a queue. The queue lives in a word table: the first word is the count, the next words are the data (MW100 = count, MW101 … = data). A full table refuses the load. Studio 5000: FFL.'],
+    FFU: ['FIFO unload (oldest)', 'On each rising edge, takes the OLDEST value out of the queue and moves the rest one place up. First in, first out. An empty table gives nothing: check that the count is above 0. Studio 5000: FFU.'],
+    LFU: ['LIFO unload (newest)', 'On each rising edge, takes the NEWEST value out of the queue. Last in, first out, like a stack of plates. Studio 5000: LFU.'],
     ADD: ['Add', 'dst = a + b while powered (use an edge to do it once).'],
     SUB: ['Subtract', 'dst = a − b while powered.'],
     MUL: ['Multiply', 'dst = a × b while powered.'],
@@ -66,12 +72,13 @@
   };
 
   /* Boxes for word logic, BCD and REAL. The header shows the brand's own name for the box. */
-  const NEW_BOX = ['WAND', 'WOR', 'WXOR', 'WNOT', 'I_BCD', 'BCD_I', 'CONV', 'ROUND', 'TRUNC', 'NORM_X', 'SCALE_X'];
+  const NEW_BOX = ['WAND', 'WOR', 'WXOR', 'WNOT', 'I_BCD', 'BCD_I', 'CONV', 'ROUND', 'TRUNC', 'NORM_X', 'SCALE_X', 'JMP', 'LBL', 'MCR', 'FFL', 'FFU', 'LFU'];
+  const QN = { FFL: 'FIFO in', FFU: 'FIFO out', LFU: 'LIFO out' };
   const IEC_W = { WAND: 'AND', WOR: 'OR', WXOR: 'XOR', WNOT: 'NOT' };
   const BOX_NAME = {
-    tia: { WAND: 'AND', WOR: 'OR', WXOR: 'XOR', WNOT: 'INV', I_BCD: 'CONV', BCD_I: 'CONV' },
+    tia: Object.assign({ WAND: 'AND', WOR: 'OR', WXOR: 'XOR', WNOT: 'INV', I_BCD: 'CONV', BCD_I: 'CONV', LBL: 'LABEL' }, QN),
     rk: { WAND: 'AND', WOR: 'OR', WXOR: 'XOR', WNOT: 'NOT', I_BCD: 'TOD', BCD_I: 'FRD', CONV: 'MOV', ROUND: 'MOV', TRUNC: 'TRN', NORM_X: 'SCP', SCALE_X: 'SCP' },
-    cds: IEC_W, sch: IEC_W, tc: IEC_W, om: IEC_W,
+    ll: QN, cds: Object.assign({}, IEC_W, QN), sch: Object.assign({}, IEC_W, QN), tc: Object.assign({}, IEC_W, QN), om: Object.assign({}, IEC_W, { JMP: 'JMP', LBL: 'JME', MCR: 'IL / ILC', FFL: 'PUSH', FFU: 'FIFO', LFU: 'LIFO' }),
   };
   const numT = (a) => (LL.numType ? LL.numType(a) : 'INT');
   function newBoxSVG(cell, bx0, bx1, by) {
@@ -79,6 +86,12 @@
     let s = '';
     const right = (txt) => { s += `<text class="bx-addr" x="${bx1 - 7}" y="${by + 12.5}">${esc(txt)}</text>`; };
     const lines = (l1) => { s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 32}">${esc(l1)}</text><text class="bx-l bx-v" x="${bx0 + 7}" y="${by + 48}">→ ${esc(trunc(cell.dst, 6))} = <tspan data-v="dst">0</tspan></text>`; };
+    const two = (l1, l2) => { s += `<text class="bx-l" x="${bx0 + 7}" y="${by + 32}">${esc(l1)}</text><text class="bx-l bx-v" x="${bx0 + 7}" y="${by + 48}">${l2}</text>`; };
+    if (t === 'JMP') { right(cell.addr); two('jump to ' + cell.addr, 'skips the rungs'); return s; }
+    if (t === 'LBL') { right(cell.addr); two('label ' + cell.addr, 'a jump lands here'); return s; }
+    if (t === 'MCR') { right('zone'); two('zone start / end', 'off: rungs = FALSE'); return s; }
+    if (t === 'FFL') { right('size ' + cell.n); two(trunc(cell.src, 7) + ' → ' + trunc(cell.dst, 6), 'count <tspan data-v="dst">0</tspan> of ' + cell.n); return s; }
+    if (t === 'FFU' || t === 'LFU') { right('size ' + cell.n); two((t === 'FFU' ? 'oldest of ' : 'newest of ') + trunc(cell.src, 6), '→ ' + esc(trunc(cell.dst, 6)) + ' = <tspan data-v="dst">0</tspan>'); return s; }
     if (t === 'WNOT') { right('16 bits'); lines('NOT ' + trunc(cell.a, 13)); }
     else if (IEC_W[t]) { right('16 bits'); lines(trunc(cell.a, 6) + ' ' + IEC_W[t] + ' ' + trunc(cell.b, 7)); }
     else if (t === 'I_BCD' || t === 'BCD_I') { right(t === 'I_BCD' ? 'INT→BCD' : 'BCD→INT'); lines(trunc(cell.src, 14) + ' →'); }
@@ -356,6 +369,9 @@
     update(m, monitor) {
       if (!this.svg || !m || !m.trace) return;
       const on = monitor !== false;
+      // rungs that a jump skips in this scan are shown pale
+      if (!this._rg || this._rg.length !== m.trace.length || (this._rg[0] && !this._rg[0].isConnected)) this._rg = [...this.svg.querySelectorAll('g.rung')];
+      this._rg.forEach((g, i) => { const sk = on && m.trace[i] && m.trace[i].skip ? 1 : 0; if (g._sk !== sk) { g._sk = sk; g.classList.toggle('skipped', !!sk); } });
       for (const p of this.parts) {
         const tr = m.trace[p.i];
         if (!tr) continue;

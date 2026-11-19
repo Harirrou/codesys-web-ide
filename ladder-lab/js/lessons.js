@@ -3183,6 +3183,8 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 <h3>Try it first</h3>
 [[hw:flow]]
 
+<div class="callout tip"><b>Also in the Lab:</b> the toolbox has <b>JMP</b>, <b>LBL</b>, <b>MCR</b>, <b>FIFO in</b>, <b>FIFO out</b> and <b>LIFO out</b>. A rung that a jump skips is shown pale while the program runs. A queue lives in memory words: with the table MW100, MW100 is the count and MW101 … hold the data.</div>
+
 <h3>1. Jump: skip a part of the program</h3>
 <p>A jump (JMP) goes straight to a label (LBL) further down. The rungs in between are <b>not scanned at all</b>.</p>
 <ul>
