@@ -1365,6 +1365,8 @@
             <button class="btn small ld-only" data-a="undo" title="Undo">${I.undo}</button>
             <button class="btn small ld-only" data-a="redo" title="Redo">${I.redo}</button>
             <button class="btn small ld-only" data-a="brands" title="This ladder in TIA Portal, Studio 5000, Schneider, TwinCAT, Omron and as Structured Text">${I.code} Other brands</button>
+            <button class="btn small ld-only" data-a="xref" title="Cross-reference: where is each address written and read?">⌖<span class="hide-s"> Cross-ref</span></button>
+            <button class="btn small" data-a="trend" title="Trend: a live chart of the signals you pick">∿<span class="hide-s"> Trend</span></button>
             <button class="btn small" data-a="clear" title="Empty the editor">${I.trash}<span class="hide-s">Clear</span></button>
             <button class="btn small" data-a="file" title="New, examples, import/export">${I.file} File</button>
             ${ch ? '' : `<button class="btn small" data-a="myprogs" title="My programs: save, load, download and back up your programs">${I.folder}<span class="hide-s">My programs</span></button>`}
@@ -1793,6 +1795,8 @@
         case 'rk': modal('Studio 5000 rung text', `<p class="muted" style="margin:0 0 10px">The same ladder in Rockwell's rung text (XIC = NO contact, XIO = NC contact, OTE = coil, OTL / OTU = set / reset, [ , ] = a parallel branch). Logix Designer shows it when you edit a rung as text, and you can paste a rung into it. See the lesson "From Ladder Lab to the real software".</p><pre>${esc(LL.toRockwell(Object.assign({}, this.prog, { tags: this.tags() })))}</pre>`, [{ label: 'Close' }]); break;
         case 'st': modal('Structured Text', `<p class="muted" style="margin:0 0 10px">The same logic written as IEC 61131-3 Structured Text, as in CODESYS. Reading both side by side is a great way to learn.</p><pre>${esc(LL.toST(Object.assign({}, this.prog, { tags: this.tags() })))}</pre>`, [{ label: 'Close' }]); break;
         case 'file': this.fileMenu(); break;
+        case 'xref': if (LL.LabTools) LL.LabTools.xref(this, modal); break;
+        case 'trend': if (LL.LabTools) { const on = LL.LabTools.toggleTrend(this); const mv = $('[data-v="machine"]', this.el); if (on && mv) mv.click(); } break;
         case 'myprogs': myPrograms(); break;
         case 'clear': this.clearEditor(); break;
         // rung ops
@@ -2187,6 +2191,7 @@
       // views
       if (this.lang !== 'st') { if (this.blk) { const mon = this.monInst && this.m.monitor(this.monInst); if (mon && mon.trace) this.ladder.update(mon, true); } else this.ladder.update(this.m, true); }
       this.drawPlant();
+      if (this._trend && LL.LabTools) LL.LabTools.sample(this);
       const Q = this.m.outputs();
       this.lampEls.forEach((l) => l.classList.toggle('on', !!Q[l.dataset.a]));
       this.ioCells.forEach((c) => { const a = c.dataset.io; const F = this.forces || {}; const v = a in F ? F[a] : a[0] === 'I' || /^(AIW|HC)/.test(a) ? (this.I[a] || 0) : /^(AQW|MW|MD)/.test(a) ? this.m.word(a) : /STR/.test(a) ? "'" + this.m.str(a) + "'" : this.m.bit(a); if (c._v !== v) { c.textContent = v; c.className = v === 1 ? 'v1' : ''; c._v = v; } });
