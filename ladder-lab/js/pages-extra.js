@@ -135,7 +135,7 @@ outputs:  CMP(MW0==10) COIL(VALVE_A)</pre><p>One word holds the step. Transition
     css();
     main.appendChild(el(`<div class="wrap"><span class="plate">Reference</span><h1 style="margin:10px 0 6px">Cheat sheet</h1>
       <p class="muted xc-noprint" style="margin:0 0 6px;max-width:66ch">The things to have in your head before an interview or a first day on site. One page: print it, or keep it open on your phone.</p>
-      <div class="xc-noprint" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="xc-print">Print this page</button><a class="btn ghost" href="#oral">Practise interview answers out loud</a><a class="btn ghost" href="#glossary">Glossary</a></div>
+      <div class="xc-noprint" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="xc-print">Print this page</button><a class="btn ghost" href="#oral">Practise interview answers out loud</a><a class="btn ghost" href="#glossary">Glossary</a><a class="btn ghost" href="#calc">Calculators</a></div>
       <div class="xc">${SHEET}</div></div>`));
     const b = main.querySelector('#xc-print'); if (b) b.onclick = () => { try { window.print(); } catch (e) { /* not available */ } };
   }

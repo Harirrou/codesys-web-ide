@@ -368,5 +368,79 @@ require(path.join(__dirname, '../js/circuit.js'));
   ok(/CJP\(510\) &1/.test(cx) && !/JMP\(004\)\s+[#&]/.test(cx) && /^JME\(005\) &1/m.test(cx) && /^IL\(002\)/m.test(cx) && /^ILC\(003\)/m.test(cx), 'Omron CX: CJP + JME for a jump on TRUE, IL / ILC for the zone');
   ok(/LD P_Off[^\n]*\nTTIM\(087\) 0005 #50/.test(cx) && !/SCL\(194\) \w/.test(cx) && /\/F\(457\) D2988 D2986 D2000/.test(cx) && /\/\(430\) D0 &10 D2980[^\n]*\nMOV\(021\) D2981 D6/.test(cx) && /MOV\(021\) D0 D8[^\n]*\nNASL\(580\) D8 #0002/.test(cx), 'Omron CX: TTIM reset line, REAL maths for NORM_X, MOD from the remainder word, NASL');
 }
+
+// calculators: every one runs with its example, and known results are right
+require(path.join(__dirname, '../js/calc.js'));
+{
+  const C = LL.Calc, ids = new Set(), groups = new Set(C.GROUPS.map((g) => g[0]));
+  ok(C.LIST.length >= 50, 'calculators: at least 50');
+  C.LIST.forEach((c) => {
+    ok(!ids.has(c.id) && /^[a-z0-9]+$/.test(c.id), 'calc ' + c.id + ': unique simple id'); ids.add(c.id);
+    ok(groups.has(c.g) && C.LEVELS[c.lv] && c.t && c.d && (c.tips || []).length > 0, 'calc ' + c.id + ': group, level, title, text and tips');
+    const r = C.run(c.id);
+    ok(r && !r.err && r.r.length > 0 && r.r.some((x) => /big/.test(x[3] || '')), 'calc ' + c.id + ': the example gives a main result' + (r && r.err ? ' (' + r.err + ')' : ''));
+    if (!r || r.err) return;
+    ok(r.r.every((x) => typeof x[0] === 'string' && typeof x[1] === 'string' && !/NaN|undefined|Infinity|—/.test(x[0] + x[1])), 'calc ' + c.id + ': no broken value in ' + JSON.stringify(r.r.map((x) => x[1])));
+    ok((r.how || []).length > 0 && r.how.every((h) => typeof h === 'string' && !/NaN|undefined/.test(h)), 'calc ' + c.id + ': the steps are shown');
+    // an empty number field gives a message, not a crash
+    const num = c.f.find((x) => x.ty === 'n' && !x.show);
+    if (num) ok(!!C.run(c.id, { [num.k]: NaN }).err, 'calc ' + c.id + ': empty field gives a message');
+    // zeros must never throw or print NaN
+    const z = {}; c.f.forEach((x) => { if (x.ty === 'n') z[x.k] = 0; });
+    const rz = C.run(c.id, z);
+    ok(rz && (rz.err || rz.r.every((x) => !/NaN|undefined/.test(String(x[1])))), 'calc ' + c.id + ': all zeros is handled ' + JSON.stringify(rz && (rz.err || rz.r.map((x) => x[1]))));
+  });
+  const val = (id, v, row) => { const r = C.run(id, v); return r.err ? 'ERR ' + r.err : r.r[row || 0][1]; };
+  const find = (id, v, label) => { const r = C.run(id, v); const x = !r.err && r.r.find((y) => y[0].indexOf(label) === 0); return x ? x[1] : 'none'; };
+  const eq = (a, b, m) => ok(a === b, 'calc ' + m + ': got ' + a + ', want ' + b);
+  eq(val('ohm'), '0.1', 'Ohm 24 V / 240 Ω');
+  eq(val('ohm', { find: 'r', u: 24, i: 0.02 }), '1200', 'Ohm R');
+  eq(val('res', { m: 'p', r1: 100, r2: 100, r3: 0 }), '50', 'parallel');
+  eq(val('res', { m: 'd', r1: 3000, r2: 1000, u: 24 }), '6', 'divider');
+  eq(val('p3'), '16.98', '10 kW at 400 V');
+  eq(val('p3', { sys: 'dc', u: 24, p: 0.12 }), '5', 'DC current');
+  eq(val('pfc'), '27.7', 'kvar');
+  eq(val('trafo'), '909', 'transformer current'); eq(val('trafo', {}, 1), '22.7', 'short circuit kA');
+  eq(val('flc'), '14.5', 'motor current');
+  eq(val('speed'), '1000', 'shaft speed at 35 Hz'); eq(val('speed', {}, 1), '1500', 'field speed');
+  eq(val('torque'), '49.4', 'torque');
+  eq(val('stardelta'), '17.4', 'star-delta relay');
+  eq(val('gear'), '45.6', 'belt speed'); eq(find('gear', {}, 'Frequency for'), '32.9', 'Hz for 30 m/min');
+  eq(val('accel'), '12.6', 'ramp torque');
+  eq(val('cable'), '2.5', 'cable 16 A 50 m'); eq(val('cable', { sys: 'dc', u: 24, i: 2, l: 80, max: 5 }), '6', '24 V cable by drop');
+  eq(find('starter', {}, 'Contactor'), '18', 'contactor'); eq(find('starter', {}, 'Motor breaker'), '13 … 18', 'breaker range');
+  eq(val('psu24'), '5', '24 V supply'); eq(find('psu24', {}, 'Load now'), '2.54', '24 V load');
+  eq(val('heat'), '89', 'fan air flow'); eq(val('heat', { pv: 100 }), 'none', 'no cooling'); eq(find('heat', { tu: 40 }, 'Cooling unit'), '757', 'cooling unit');
+  eq(val('io'), '9', 'I/O cards');
+  eq(val('scale'), '50', 'scaling'); eq(val('scale', { dir: 'e', x: 25 }), '6912', 'scaling back'); eq(val('scale', { raw: 's74', x: 5530 }), '0', '4 mA on a 0–20 mA channel');
+  eq(val('ma'), '5', '12 mA'); eq(val('ma', { dir: 'v', x: 2.5 }), '8', '25 %'); eq(find('ma', { x: 2 }, 'Signal check'), 'Broken wire or dead transmitter', 'wire break');
+  eq(val('resol'), '0.0244', '12 bit');
+  eq(val('pt100'), '138.51', 'Pt100 at 100 °C'); eq(val('pt100', { dir: 'r', x: 138.5055 }), '100', 'Pt100 back'); eq(val('pt100', { dir: 'r', x: 80.31 }), '-50', 'Pt100 below zero'); eq(val('pt100', { typ: '1000', x: 0 }), '1000', 'Pt1000');
+  eq(val('loadcell'), '8', 'load cell mV');
+  eq(val('flow'), '30', 'flow l/min'); eq(val('dpflow'), '50', 'dp flow');
+  eq(val('num'), '16#00FF', 'hex'); eq(val('num', { x: '-1' }), '16#FFFF', 'minus one'); eq(val('num', { x: '16#8000' }, 2), '-32768', 'signed'); eq(val('num', { x: '1234' }, 6), '16#1234', 'to BCD'); eq(val('num', { x: '16#1234' }, 7), '16#3412', 'swap');
+  eq(val('num', { x: '2#1010', bits: '8' }), '16#0A', 'binary in'); ok(/does not fit/.test(val('num', { x: '70000' })), 'calc num: too big');
+  eq(val('real'), '16#42F6E979', 'REAL to hex'); eq(val('real', { dir: 'w' }), '123.456001', 'hex to REAL'); eq(val('real', { dir: 'w', h: 'E979 42F6' }, 1), '123.456001', 'word swap');
+  ok(/^16#0003 /.test(val('bits')), 'calc bits: AND'); ok(/^16#0F30 /.test(val('bits', {}, 4)), 'calc bits: shift left');
+  eq(val('addr'), '10.3', 'byte.bit'); eq(val('addr', { dir: 'a' }), '83', 'bit number');
+  ok(/^YES.*10, 11$/.test(val('overlap')), 'calc overlap: MW10 and MD8'); ok(/^No/.test(val('overlap', { a: 'MW10', b: 'MW12' })), 'calc overlap: apart'); ok(/^No/.test(val('overlap', { a: 'MW10', b: 'MD8', m: 'size' })), 'calc overlap: counted by size');
+  eq(val('modbus'), '10 = 16#000A', 'Modbus 40011'); eq(val('modbus', { dir: 'o', ty: '4', off: 0 }), '40001 or 400001', 'Modbus back'); eq(find('modbus', { ref: 30001 }, 'Function code to read'), '04', 'input register');
+  eq(val('crc'), 'C5 CD', 'CRC-16'); ok(/correct CRC/.test(val('crc', { x: '01 03 00 00 00 0A C5 CD' }, 1)), 'calc crc: check of a full frame');
+  eq(val('time'), 'T#2s500ms', 'IEC time'); eq(val('time', { x: 90, u: '60000' }), 'T#1h30m', '90 min');
+  eq(val('ovf'), '54.6 min', 'INT overflow');
+  eq(val('units'), '6000', 'bar to mbar'); eq(find('units', {}, '6 bar ='), '6000', 'units first row'); eq(val('units', { x: 100, u: '1.0' }), '212', '°C to °F');
+  eq(val('scan'), '24', 'reaction time'); eq(val('enc'), '0.0767', 'mm per count'); eq(val('move'), '1.3', 'move time'); eq(val('move', { d: 100 }), '0.447', 'triangle move');
+  eq(val('step'), '320', 'pulses per mm'); eq(val('track'), '2.4', 'travel time');
+  eq(val('conv'), '0.55', 'conveyor motor'); eq(val('conv', { ang: 90, mu: 0, m: 500, sp: 12, eta: 80, sf: 1 }), '1.5', 'lift motor');
+  eq(val('pump'), '5.5', 'pump motor'); eq(val('fan'), '7.68', 'fan power'); eq(val('pneu'), '1178', 'cylinder force'); eq(val('hyd'), '49.9', 'hydraulic force');
+  eq(val('tank'), '3770', 'standing tank'); eq(val('tank', { sh: 'h', d: 2, l: 3, lv: 1 }, 1), '50', 'lying tank half full'); eq(val('tank', { sh: 'b', w: 1, l: 2, ht: 2, lv: 1 }), '2000', 'box');
+  eq(val('heatup'), '38.8', 'heater'); eq(val('prod'), '79.6', 'OEE');
+  eq(val('pid'), '1.8', 'PI gain'); eq(val('pid', {}, 1), '16.67', 'PI Ti'); eq(val('pid', { m: 'o', ty: 'pid' }), '8', 'open-loop PID');
+  eq(val('filt'), '0.0476', 'filter'); eq(val('serial'), '254', 'Modbus round');
+  eq(val('ip'), '192.168.0.0 /24', 'network'); ok(/^No/.test(val('ip', {}, 1)), 'calc ip: other network'); ok(/^Yes/.test(val('ip', { mask: '/16' }, 1)), 'calc ip: same network with /16'); ok(/not a valid subnet/.test(val('ip', { mask: '255.0.255.0' })), 'calc ip: bad mask');
+  eq(find('ip', { ip: '10.1.2.200', mask: '/26', ip2: '' }, 'Addresses'), '10.1.2.193 to 10.1.2.254', 'host range');
+  ok(/^263/.test(val('datalog')), 'calc datalog: days'); eq(val('safedist'), '300', 'safety distance'); eq(val('safedist', { t1: 300, t2: 50, d: '30' }), '688', 'safety distance above 500');
+  ok(C.run('constructor') === null && C.run('nothing') === null, 'calc: unknown id');
+}
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

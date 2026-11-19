@@ -626,6 +626,7 @@
     ((LL.EC && LL.EC.TASKS) || []).forEach((c) => add({ type: 'task', href: '#circuit-' + c.id, title: c.title, sub: plainText(c.brief), meta: 'Circuit Lab · Level ' + c.level, id: c.id }));
     LL.CHALLENGES.forEach((c) => add({ type: 'task', href: '#ch-' + c.id, title: c.title, sub: plainText(c.brief), meta: 'Level ' + c.level + (c.lang === 'st' ? ' · ST' : '') + ' · ' + plantName(c.plant), id: c.id }));
     LL.PLANT_ORDER.forEach((p) => { const M = LL.Plants[p]; if (M) add({ type: 'machine', href: '#lab', title: M.name, sub: plainText(M.blurb), plant: p, meta: 'Machine in the Lab' }); });
+    ((LL.Calc && LL.Calc.LIST) || []).forEach((c) => add({ type: 'calc', href: '#calc-' + c.id, title: c.t, sub: c.d, body: c.key || '', meta: 'Calculator · ' + LL.Calc.LEVELS[c.lv] }));
     (LL.GLOSSARY || []).forEach(([t, d]) => add({ type: 'term', href: '#glossary', title: t, sub: d, term: t, meta: 'Glossary' }));
     SIDX = out;
     return out;
@@ -668,7 +669,7 @@
     hits.sort((a, b) => b.sc - a.sc || a.it.n - b.it.n);
     return { words, hits };
   }
-  const SEARCH_GROUPS = [['topic', 'Topics'], ['lesson', 'Lessons'], ['task', 'Tasks'], ['machine', 'Machines'], ['term', 'Glossary']];
+  const SEARCH_GROUPS = [['topic', 'Topics'], ['lesson', 'Lessons'], ['task', 'Tasks'], ['machine', 'Machines'], ['calc', 'Calculators'], ['term', 'Glossary']];
   const SEARCH_TRY = ['seal-in', 'TON', 'PNP', 'counter', 'Modbus', 'PID', 'star-delta', 'safety', 'interview', 'CASE'];
   function pageSearch(q0) {
     const el = h(`<div class="wrap srch"><span class="plate">Search</span><h1>Search</h1>
@@ -680,7 +681,7 @@
     const hitHtml = (it, words) => {
       const inS = words.filter((w) => it.ls.includes(w)).length, inB = words.filter((w) => it.lb.includes(w)).length;
       const text = inB > inS ? snip(it.body, words) : snip(it.sub || '', words, it.type === 'term' ? 260 : 170);
-      const ic = it.type === 'topic' ? topicIc(it.T, 'srch-tic') : `<span class="srch-ic" aria-hidden="true">${{ lesson: I.learn, task: I.target, machine: I.lab, term: I.book }[it.type]}</span>`;
+      const ic = it.type === 'topic' ? topicIc(it.T, 'srch-tic') : `<span class="srch-ic" aria-hidden="true">${{ lesson: I.learn, task: I.target, machine: I.lab, term: I.book, calc: I.quiz }[it.type]}</span>`;
       const done = it.type === 'lesson' ? !!S.lessons[it.href.slice(8)] : it.type === 'task' ? !!S.ch[it.id] : false;
       return `<a class="srch-hit" href="${it.href}"${it.T ? ` style="--tc:${it.T.color}"` : ''}${it.plant ? ` data-plant="${esc(it.plant)}"` : ''}${it.term ? ` data-term="${esc(it.term)}"` : ''}>${ic}<span class="srch-tx"><span class="srch-t">${hl(it.title, words)}${done ? ' <span class="chip ok">✓</span>' : ''}</span><span class="srch-meta">${esc(it.meta || '')}</span>${text ? `<span class="srch-sn">${hl(text, words)}</span>` : ''}</span></a>`;
     };
@@ -779,6 +780,7 @@
         <a class="card path" href="#path-interview"><span class="ic">${I.arrow}</span><h3>Interview path</h3><p>The classic PLC interview tasks, in the order to prepare them.</p></a>
         <a class="card path" href="#challenges"><span class="ic">${I.target}</span><h3>Challenges</h3><p>Real tasks with automatic tests, hints and bug hunts.</p></a>
         <a class="card path" href="#quiz"><span class="ic">${I.quiz}</span><h3>Quiz</h3><p>Concept questions plus endless "predict the output" drills.</p></a>
+        <a class="card path" href="#calc"><span class="ic">${I.target}</span><h3>Calculators</h3><p>The formulas for a project: motor current, cable size, 24 V supply, analog scaling, hex, encoder and more.</p></a>
       </div>
       <section class="card mp-home" aria-labelledby="mp-home-h">
         <span class="mp-home-ic" aria-hidden="true">${I.folder}</span>
@@ -808,7 +810,7 @@
   }
 
   function pageLearn() {
-    const el = h(`<div class="wrap"><span class="plate">Course</span><h1 style="margin:10px 0 6px">Lessons</h1><p class="muted" style="margin:0 0 26px;max-width:62ch">Work through the levels in order. Every lesson explains <b>what</b> an instruction is, <b>why</b> it exists and <b>where</b> it is used, with live examples. Then practise in the linked challenges.</p><a class="srch-learn" href="#search">${I.search}<span>Search lessons, tasks, machines and terms</span></a>${TOPICS.length ?`<div class="tp-pick"><div class="tp-pick-h"><h2>Or pick a topic</h2><a class="tp-all" href="#topics">All ${TOPICS.length} topics ${I.arrow}</a></div><div class="tp-strip tp-swipe">${TOPICS.map((T) => topicChip(T)).join('')}</div><p class="tp-swipe-hint" aria-hidden="true">Swipe for more topics →</p></div>` : ''}<div class="levels"></div><div class="sec-head"><div><h2>Reference</h2><p>Terms you'll hear on site, in plain words.</p></div><a class="btn" href="#glossary">${I.book} Open glossary</a></div></div>`);
+    const el = h(`<div class="wrap"><span class="plate">Course</span><h1 style="margin:10px 0 6px">Lessons</h1><p class="muted" style="margin:0 0 26px;max-width:62ch">Work through the levels in order. Every lesson explains <b>what</b> an instruction is, <b>why</b> it exists and <b>where</b> it is used, with live examples. Then practise in the linked challenges.</p><a class="srch-learn" href="#search">${I.search}<span>Search lessons, tasks, machines and terms</span></a>${TOPICS.length ?`<div class="tp-pick"><div class="tp-pick-h"><h2>Or pick a topic</h2><a class="tp-all" href="#topics">All ${TOPICS.length} topics ${I.arrow}</a></div><div class="tp-strip tp-swipe">${TOPICS.map((T) => topicChip(T)).join('')}</div><p class="tp-swipe-hint" aria-hidden="true">Swipe for more topics →</p></div>` : ''}<div class="levels"></div><div class="sec-head"><div><h2>Reference</h2><p>Terms you'll hear on site, in plain words.</p></div><span style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="#glossary">${I.book} Open glossary</a><a class="btn" href="#calc">Calculators</a></span></div></div>`);
     const lv = $('.levels', el);
     LL.LEVELS.forEach((L) => {
       const b = h(`<section class="level-block"><div class="level-head"><span class="big">${L.n}</span><div><h2>${esc(L.name)}</h2><p>${esc(L.sub)}</p></div></div><div class="lessons"></div></section>`);
@@ -1065,7 +1067,7 @@
   }
 
   function pageGlossary() {
-    const el = h(`<div class="wrap"><span class="plate">Reference</span><h1 style="margin:10px 0 8px">Glossary</h1><p style="margin:0 0 12px"><a class="btn small" href="#cheat">Cheat sheet: everything on one page</a></p><input class="gl-search" id="gl-q" type="search" placeholder="Search ${LL.GLOSSARY.length} terms: seal-in, TON, PNP…" aria-label="Search glossary"><div class="gl-list"></div></div>`);
+    const el = h(`<div class="wrap"><span class="plate">Reference</span><h1 style="margin:10px 0 8px">Glossary</h1><p style="margin:0 0 12px"><a class="btn small" href="#cheat">Cheat sheet: everything on one page</a> <a class="btn small" href="#calc">Calculators</a></p><input class="gl-search" id="gl-q" type="search" placeholder="Search ${LL.GLOSSARY.length} terms: seal-in, TON, PNP…" aria-label="Search glossary"><div class="gl-list"></div></div>`);
     const list = $('.gl-list', el);
     const draw = (q) => {
       q = (q || '').toLowerCase();
@@ -2357,6 +2359,7 @@
     else if (hsh === 'path' || hsh.startsWith('path-')) tab = 'path';
     else if (hsh === 'quiz' || hsh.startsWith('quiz-') || hsh === 'oral') tab = 'quiz';
     else if (hsh === 'search' || hsh.startsWith('search-')) tab = 'search';
+    else if (hsh === 'calc' || hsh.startsWith('calc-')) tab = 'learn';
     $$('[data-tab]').forEach((a) => a.classList.toggle('on', a.dataset.tab === tab));
     if (hsh === 'learn') pageLearn();
     else if (hsh.startsWith('lesson-')) { const [lid, tid] = hsh.slice(7).split('~'); pageLesson(lid, tid); }
@@ -2369,6 +2372,7 @@
     else if (hsh === 'glossary') pageGlossary();
     else if (hsh === 'oral' && LL.Extra) LL.Extra.oral(m);
     else if (hsh === 'cheat' && LL.Extra) LL.Extra.cheat(m);
+    else if ((hsh === 'calc' || hsh.startsWith('calc-')) && LL.Calc) LL.Calc.page(m, hsh.slice(5));
     else if (tab === 'search') { let q = hsh.slice(7); try { q = decodeURIComponent(q); } catch (e) { /* keep it raw */ } pageSearch(q); }
     else if (isTopic) pageTopic(hsh.slice(6));
     else pageHome();
