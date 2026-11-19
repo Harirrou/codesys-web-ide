@@ -1084,17 +1084,18 @@
     const modes = $('.modes', el);
     const area = $('.qarea', el);
     [['predict', 'Predict the output', 'Random rungs and input states. Will the lamp light? Endless.', 'Best streak ' + (S.quiz.predictBest || 0)],
+      ['read', 'Read a program', 'Several rungs and a short story: buttons pressed, time passing. What is ON at the end? Endless.', 'Best streak ' + (S.quiz.readBest || 0)],
       ['drill', 'Timer & counter drill', 'TON, TOF, TP, RTO, CTU, CTD scenarios. Endless.', 'Best streak ' + (S.quiz.drillBest || 0)],
       ['concept', 'Concept check', LL.QUIZ.length + ' questions, 10 per round, pick a level.', 'Best score ' + (S.quiz.best || 0) + '/10'],
       ['iv', 'Interview questions', (LL.QUIZ_IV || []).length + ' questions asked in PLC job interviews, by topic, with a model answer.', 'Best score ' + (S.quiz.ivBest || 0) + '/10'],
       ['net', 'Industrial networks', (LL.QUIZ_NET || []).length + ' questions: how it works, RS-232 / RS-485, Modbus, PROFIBUS, CAN / CANopen / DeviceNet, LIN, AS-i, HART, IO-Link, PROFINET, EtherNet/IP, EtherCAT, OPC UA, MQTT, safety, troubleshooting.', 'Best score ' + (S.quiz.netBest || 0) + '/10']].forEach(([k, t, d, s]) => {
-      const b = h(`<button class="card path" style="text-align:left;cursor:pointer"><span class="ic">${k === 'predict' ? I.lab : k === 'drill' ? I.reset : I.quiz}</span><h3>${t}</h3><p>${d}</p><span class="chip">${s}</span></button>`);
-      b.onclick = () => (k === 'predict' ? predict(area) : k === 'drill' ? drill(area) : concept(area, k));
+      const b = h(`<button class="card path" style="text-align:left;cursor:pointer"><span class="ic">${k === 'predict' || k === 'read' ? I.lab : k === 'drill' ? I.reset : I.quiz}</span><h3>${t}</h3><p>${d}</p><span class="chip">${s}</span></button>`);
+      b.onclick = () => (k === 'predict' ? predict(area) : k === 'read' ? readQuiz(area) : k === 'drill' ? drill(area) : concept(area, k));
       modes.appendChild(b);
     });
     [['#oral', 'Answer out loud', 'The interview questions without the four choices: say your answer, then compare with the model answer.', 'Interview practice'], ['#cheat', 'Cheat sheet', 'One page with the rungs, tables and rules to remember. Made to be printed.', 'Reference']].forEach(([href, t, d, s]) => modes.appendChild(h(`<a class="card path" href="${href}" style="text-align:left;text-decoration:none"><span class="ic">${I.quiz}</span><h3>${t}</h3><p>${d}</p><span class="chip">${s}</span></a>`)));
     main().appendChild(el);
-    if (start === 'iv' || start === 'net' || start === 'concept') concept(area, start); else predict(area);
+    if (start === 'iv' || start === 'net' || start === 'concept') concept(area, start); else if (start === 'read') readQuiz(area); else predict(area);
   }
 
   // question banks: the concept bank is filtered by level, the interview and network banks by topic
@@ -1236,6 +1237,44 @@
         $('.fb', area).innerHTML = `<div class="why"><b>${ok ? 'Correct!' : 'Not this time.'}</b> The lamp is <b>${g.ans ? 'ON' : 'OFF'}</b>. Green shows where power can flow. Remember: NO passes on 1, NC passes on 0.<pre class="code" style="margin:8px 0 0;font-family:var(--f-mono);font-size:.85rem;white-space:pre-wrap">${esc(st)}</pre></div><div class="row" style="margin-top:12px"><button class="btn primary" data-n>Next rung ${I.arrow}</button></div>`;
         $('[data-n]', area).onclick = () => { delete area.dataset.lock; show(); };
       }));
+    };
+    delete area.dataset.lock;
+    show();
+  }
+
+  // "Read a program": several rungs and a short story; say what is ON at the end (patterns in quiz-read.js)
+  function readQuiz(area) {
+    let streak = S.quiz.read || 0;
+    const show = () => {
+      const g = LL.genRead(), r = LL.readRun(g), pick = {};
+      const nm = (a) => (g.tags[a] ? `<b>${esc(g.tags[a])}</b> <small>${a}</small>` : `<b>${a}</b>`);
+      const initOn = Object.keys(g.init).filter((a) => g.init[a]);
+      area.innerHTML = `<div class="card qcard"><div class="row" style="justify-content:space-between"><span class="eyebrow">Read a program · ${esc(g.kind)}</span><span class="scorebar">Streak <b>${streak}</b> · Best <b>${S.quiz.readBest || 0}</b></span></div>
+        <h2>What is ON at the end?</h2>
+        <ol class="rd-steps"><li class="rd-0">The PLC is running. All inputs are 0${initOn.length ? ', only ' + initOn.map((a) => esc(g.tags[a] || a)).join(' and ') + ' is 1 (wired NC, not pressed)' : ''}.</li>${g.steps.map((x) => `<li>${x.say}</li>`).join('')}</ol>
+        <div class="ladder-host card" style="padding:6px;overflow-x:auto"></div>
+        <div class="rd-ask">${g.ask.map((a) => `<div class="rd-q" data-q="${a}"><span>${nm(a)}</span><span class="rd-seg"><button type="button" data-v="1">ON</button><button type="button" data-v="0">OFF</button></span></div>`).join('')}</div>
+        <div class="row"><button class="btn primary" data-check disabled>Check</button></div><div class="fb"></div></div>`;
+      const view = new LL.LadderView($('.ladder-host', area), { fit: true });
+      view.setProgram(r.prog, g.tags);
+      view.update(new LL.Machine(r.prog), false);
+      $$('.rd-seg button', area).forEach((b) => (b.onclick = () => {
+        if (area.dataset.lock) return;
+        const q = b.closest('.rd-q'); pick[q.dataset.q] = +b.dataset.v;
+        $$('button', q).forEach((x) => x.classList.toggle('on', x === b));
+        $('[data-check]', area).disabled = Object.keys(pick).length < g.ask.length;
+      }));
+      $('[data-check]', area).onclick = () => {
+        if (area.dataset.lock) return; area.dataset.lock = 1;
+        const ok = g.ask.every((a) => pick[a] === r.got[a]);
+        streak = ok ? streak + 1 : 0;
+        S.quiz.read = streak; S.quiz.readBest = Math.max(S.quiz.readBest || 0, streak); save();
+        g.ask.forEach((a) => { const q = $(`.rd-q[data-q="${a}"]`, area); q.classList.add(pick[a] === r.got[a] ? 'ok' : 'bad'); q.firstElementChild.insertAdjacentHTML('beforeend', `<span class="rd-res">${pick[a] === r.got[a] ? '✓ right' : '✕ it is ' + (r.got[a] ? 'ON' : 'OFF')}</span>`); });
+        $('[data-check]', area).parentNode.remove();
+        view.update(r.m, true);
+        $('.fb', area).innerHTML = `<div class="why"><b>${ok ? 'Correct!' : 'Not this time.'}</b> ${g.why} <span class="muted">The ladder above now shows the end of the story: green is where power flows.</span></div><div class="row" style="margin-top:12px"><button class="btn primary" data-n>Next program ${I.arrow}</button></div>`;
+        $('[data-n]', area).onclick = () => { delete area.dataset.lock; show(); };
+      };
     };
     delete area.dataset.lock;
     show();

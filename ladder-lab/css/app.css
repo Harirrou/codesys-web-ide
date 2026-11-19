@@ -895,3 +895,18 @@ ul.guide { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 6
   .srch-sn { font-size: .86rem; }
 }
 /* ═════ END my-work + search ═════ */
+
+/* quiz: read a program */
+.rd-steps { margin: 0 0 12px; padding-left: 1.4em; display: grid; gap: 4px; font-size: .95rem; }
+.rd-steps .rd-0 { color: var(--muted); }
+.rd-ask { display: grid; gap: 8px; margin: 12px 0; }
+.rd-q { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line-2); }
+.rd-q small { font-family: var(--f-mono); color: var(--muted); margin-left: 4px; }
+.rd-q.ok { border-color: var(--power); background: var(--power-soft); }
+.rd-q.bad { border-color: var(--danger); background: var(--danger-soft); }
+.rd-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--surface); }
+.rd-seg button { border: 0; background: none; color: var(--ink); font: inherit; font-weight: 600; padding: 8px 18px; min-height: 40px; cursor: pointer; }
+.rd-seg button + button { border-left: 1px solid var(--line); }
+.rd-seg button.on { background: var(--ink); color: var(--surface); }
+.rd-res { font-weight: 700; font-size: .88rem; margin-left: 10px; white-space: nowrap; }
+.rd-q.ok .rd-res { color: var(--power); } .rd-q.bad .rd-res { color: var(--danger); }

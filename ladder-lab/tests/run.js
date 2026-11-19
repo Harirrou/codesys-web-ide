@@ -1,6 +1,6 @@
 // node ladder-lab/tests/run.js — verifies engine + every challenge solution
 const path = require('path');
-['engine', 'st', 'plants', 'plants-robot', 'plants-starters', 'challenges', 'lessons', 'topics'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
+['engine', 'st', 'plants', 'plants-robot', 'plants-starters', 'challenges', 'lessons', 'topics', 'quiz-read'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
 const LL = globalThis.LL;
 let fail = 0, pass = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL', m); } };
@@ -13,6 +13,17 @@ const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL', m); } }
   m.reset();
   ok(!m.error, 'reset clears the PLC stop');
 }
+
+// "Read a program" quiz: in every pattern the reasoning (want) must match the PLC engine (got)
+LL.READ_PATTERNS.forEach((_, k) => {
+  let bad = '';
+  for (let i = 0; i < 60 && !bad; i++) {
+    const sc = LL.genRead(k), r = LL.readRun(sc);
+    if (LL.lint(r.prog).some((x) => x.level === 'error') || r.m.error) bad = 'program error in ' + sc.kind;
+    else if (sc.ask.some((a) => sc.want[a] !== r.got[a])) bad = sc.kind + ': want ' + JSON.stringify(sc.want) + ' got ' + JSON.stringify(r.got) + ' / ' + sc.steps.map((x) => x.say).join(' ');
+  }
+  ok(!bad, 'read quiz pattern ' + k + ' ' + bad);
+});
 
 // roundtrip parse/serialize
 LL.CHALLENGES.forEach((ch) => {
