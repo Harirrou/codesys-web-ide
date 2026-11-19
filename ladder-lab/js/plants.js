@@ -4299,46 +4299,47 @@
    *   pulses A ms min max                      count rising edges over a window
    *   stays A=0 ms                             value must hold for the whole window
    */
-  function runTest(prog, plantId, steps, opts) {
-    opts = opts || {};
-    const plant = P[plantId];
-    const m = LL.makeMachine(prog);
-    const st = plant.init();
-    (opts.faults || []).forEach((f) => { if (f.kind === 'plant') st[f.flag] = f.value; });   // a fault inside the machine (e.g. a welded contactor)
-    const ctrl = {};
-    const dt = 10;
-    const never = opts.never || [];
-    let t = 0, I = {};
+  // The values and names a test looks at. env: { m, plant, ctrl, st, I } (the Lab passes getters, so a reset is followed).
+  function testVals(env, opts) {
     const name = (a) => (opts.tags && opts.tags[a] ? opts.tags[a] + ' (' + a + ')' : a);
-    const val = (a) => (/^ISTR/.test(a) ? String(I[a] || '') : /^I\d/.test(a) || /^AIW/.test(a) ? (I[a] || 0) : m.read(a));
+    const val = (a) => { const I = env.I || {}; return /^ISTR/.test(a) ? String(I[a] || '') : /^I\d/.test(a) || /^AIW/.test(a) ? (I[a] || 0) : env.m.read(a); };
     const parseConds = (arr) => arr.map((s) => { const i = s.indexOf('='); const a = s.slice(0, i), v = s.slice(i + 1); return { a: LL.norm(a), v: /^'.*'$/.test(v) ? v.slice(1, -1) : +v }; });
     const condOk = (cs) => cs.every((x) => val(x.a) === x.v);
     const fmt = (v, a) => (LL.isBitAddr(a) || /^[IQM]\d+\.[0-7]$/.test(a) || /\.(Q|Q1)$/.test(a) ? (v ? 'ON' : 'OFF') : String(v));
-    function tick() {
-      I = LL.faultIn(plant.step(st, ctrl, LL.faultOut(LL.plantOutputs(plant, m), opts.faults), dt), opts.faults);
-      m.setInputs(I);
-      m.scan(dt);
-      t += dt;
-      if (st.fault) throw new Error('Machine fault: ' + st.fault);
-      if (m.error) throw new Error('PLC stopped: ' + m.error);
-      for (const n of never) if (condOk(parseConds(n.when.split(/\s+/)))) throw new Error(n.msg);
-    }
-    function run(ms) { for (let k = 0; k < ms / dt; k++) tick(); }
-    tick();
-    steps.forEach((step, idx) => {
+    return { name, val, parseConds, condOk, fmt };
+  }
+  // Checked after every scan: machine fault, PLC stop, and the "never" rules of the task.
+  function testAfterTick(env, opts) {
+    opts = opts || {};
+    if (env.st.fault) throw new Error('Machine fault: ' + env.st.fault);
+    if (env.m.error) throw new Error('PLC stopped: ' + env.m.error);
+    const never = opts.never || [];
+    if (never.length) { const V = testVals(env, opts); for (const n of never) if (V.condOk(V.parseConds(n.when.split(/\s+/)))) throw new Error(n.msg); }
+  }
+  // The steps of one test as a generator: every `yield` asks the caller to run ONE scan (10 ms) of machine + PLC.
+  // The test runner drives it at full speed; the Lab drives the very same steps live ("Watch it").
+  // An error from the scan is thrown into the generator (gen.throw), so it gets the "Step n" text too.
+  function* testSteps(env, steps, opts) {
+    opts = opts || {};
+    const dt = 10;
+    const { name, val, parseConds, condOk, fmt } = testVals(env, opts);
+    function* run(ms) { for (let k = 0; k < ms / dt; k++) yield; }
+    for (let idx = 0; idx < steps.length; idx++) {
+      const step = steps[idx];
+      env.idx = idx;
       const p = step.trim().split(/\s+/);
       const cmd = p[0];
       const where = 'Step ' + (idx + 1) + ' (' + LL.describeStep(step, opts.tags) + '): ';
       try {
         switch (cmd) {
-          case 'press': case 'on': ctrl[p[1]] = true; run(30); break;
-          case 'set': ctrl[p[1]] = +p[2]; run(30); break;
-          case 'release': case 'off': ctrl[p[1]] = false; run(30); break;
-          case 'tap': ctrl[p[1]] = true; run(+(p[2] || 150)); ctrl[p[1]] = false; run(150); break;
-          case 'wait': run(+p[1]); break;
-          case 'poke': m.setWord(LL.norm(p[1]), +p[2]); run(10); break;
+          case 'press': case 'on': env.ctrl[p[1]] = true; yield* run(30); break;
+          case 'set': env.ctrl[p[1]] = +p[2]; yield* run(30); break;
+          case 'release': case 'off': env.ctrl[p[1]] = false; yield* run(30); break;
+          case 'tap': env.ctrl[p[1]] = true; yield* run(+(p[2] || 150)); env.ctrl[p[1]] = false; yield* run(150); break;
+          case 'wait': yield* run(+p[1]); break;
+          case 'poke': env.m.setWord(LL.norm(p[1]), +p[2]); yield* run(10); break;
           case 'same': { const a = LL.norm(p[1]), b = LL.norm(p[2]), tol = +(p[3] || 0); if (Math.abs(val(a) - val(b)) > tol) throw new Error(name(a) + ' is ' + val(a) + ' but ' + name(b) + ' is ' + val(b) + '; they should be equal.'); break; }
-          case 'action': { const a = plant.actions.find((x) => x.id === p[1]); a.run(st); run(20); break; }
+          case 'action': { const a = env.plant.actions.find((x) => x.id === p[1]); a.run(env.st); env.acted = a; yield* run(20); break; }
           case 'expect': {
             parseConds(p.slice(1)).forEach((x) => { const v = val(x.a); if (v !== x.v) throw new Error('expected ' + name(x.a) + ' = ' + fmt(x.v, x.a) + ' but it is ' + fmt(v, x.a) + '.'); });
             break;
@@ -4346,12 +4347,12 @@
           case 'waitfor': {
             const cs = parseConds(p.slice(1, -1)), lim = +p[p.length - 1];
             let w = 0;
-            while (!condOk(cs)) { if (w >= lim) throw new Error('waited ' + lim / 1000 + ' s but it never happened.'); tick(); w += dt; }
+            while (!condOk(cs)) { if (w >= lim) throw new Error('waited ' + lim / 1000 + ' s but it never happened.'); yield; w += dt; }
             break;
           }
           case 'stays': {
             const cs = parseConds(p.slice(1, -1)), lim = +p[p.length - 1];
-            for (let w = 0; w < lim; w += dt) { tick(); if (!condOk(cs)) throw new Error(cs.map((x) => name(x.a)).join(', ') + ' changed after ' + (w / 1000).toFixed(1) + ' s; it should have held.'); }
+            for (let w = 0; w < lim; w += dt) { yield; if (!condOk(cs)) throw new Error(cs.map((x) => name(x.a)).join(', ') + ' changed after ' + (w / 1000).toFixed(1) + ' s; it should have held.'); }
             break;
           }
           case 'order': {
@@ -4360,7 +4361,7 @@
             const prev = {}; addrs.forEach((a) => (prev[a] = val(a)));
             const got = [];
             for (let w = 0; w < lim && got.length < want.length; w += dt) {
-              tick();
+              yield;
               addrs.forEach((a) => { const v = val(a); if (v !== prev[a]) { got.push(a + (v ? '+' : '-')); prev[a] = v; } });
             }
             for (let k = 0; k < want.length; k++) if (got[k] !== want[k]) {
@@ -4372,7 +4373,7 @@
           case 'pulses': {
             const a = p[1], win = +p[2], mn = +p[3], mx = +p[4];
             let n = 0, pv = val(a);
-            for (let w = 0; w < win; w += dt) { tick(); const v = val(a); if (v && !pv) n++; pv = v; }
+            for (let w = 0; w < win; w += dt) { yield; const v = val(a); if (v && !pv) n++; pv = v; }
             if (n < mn || n > mx) throw new Error(name(a) + ' switched on ' + n + ' times in ' + win / 1000 + ' s; expected ' + (mn === mx ? mn : mn + '–' + mx) + '.');
             break;
           }
@@ -4384,7 +4385,7 @@
           case 'plant': {
             p.slice(1).forEach((cond) => {
               const m2 = /^(\w+)(>=|<=|=|>|<)(-?\d+)$/.exec(cond);
-              const v = st[m2[1]], w = +m2[3];
+              const st = env.st, v = st[m2[1]], w = +m2[3];
               const ok = { '>=': v >= w, '<=': v <= w, '=': v === w, '>': v > w, '<': v < w }[m2[2]];
               if (!ok) throw new Error('machine check failed: ' + m2[1] + ' is ' + v + ', expected ' + m2[2] + ' ' + w + (st.last ? ' (' + st.last + ')' : '') + '.');
             });
@@ -4392,8 +4393,34 @@
           }
           default: throw new Error('unknown test step');
         }
-      } catch (e) { e.message = where + e.message; e.step = idx; throw e; }
-    });
+      } catch (e) { if (e.step == null) { e.message = where + e.message; e.step = idx; } throw e; }
+    }
+  }
+  LL.testSteps = testSteps;
+  LL.testAfterTick = testAfterTick;
+
+  function runTest(prog, plantId, steps, opts) {
+    opts = opts || {};
+    const plant = P[plantId];
+    const m = LL.makeMachine(prog);
+    const st = plant.init();
+    (opts.faults || []).forEach((f) => { if (f.kind === 'plant') st[f.flag] = f.value; });   // a fault inside the machine (e.g. a welded contactor)
+    const env = { m, plant, ctrl: {}, st, I: {} };
+    const dt = 10;
+    function tick() {
+      env.I = LL.faultIn(plant.step(st, env.ctrl, LL.faultOut(LL.plantOutputs(plant, m), opts.faults), dt), opts.faults);
+      m.setInputs(env.I);
+      m.scan(dt);
+      testAfterTick(env, opts);
+    }
+    tick();
+    const g = testSteps(env, steps, opts);
+    let r = g.next();
+    while (!r.done) {
+      let err = null;
+      try { tick(); } catch (e) { err = e; }
+      r = err ? g.throw(err) : g.next();
+    }
     return true;
   }
 

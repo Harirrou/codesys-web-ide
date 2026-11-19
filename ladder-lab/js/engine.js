@@ -395,6 +395,7 @@
       this.scanCount = 0;
       this.time = 0;
       this.phase = 0;
+      this.error = null;            // a reset takes the PLC out of STOP
       this.load(this.prog);
     }
 

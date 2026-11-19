@@ -1300,6 +1300,7 @@
       this.build();
       this.newMachine();
       tickers.add(this);
+      LL._lab = this;   // the Lab on screen (used by the browser checks)
       if (!this.ch) {
         labNow = this;
         // opened by a replacement (lesson example, My programs…): offer Undo; Ladder also gets it on ↶
@@ -2052,8 +2053,11 @@
       const allOk = res.every((r) => r.ok);
       const box = $('.results', this.el);
       const tags = this.tags();
+      // the tests really ran (no "fix this first" message) and the machine in the Lab is the one that was tested
+      const canWatch = !!LL.LabTools && !this.ch.faults && !res.some((r) => !r.ok && /^(Not run\.|Fix |This project is|This task )/.test(r.msg));
       box.innerHTML = (allOk ? `<div class="passed-banner"><span>All ${res.length} tests passed. Machine commissioned!</span>${this.nextCh() ? `<a class="btn small" href="#ch-${this.nextCh().id}">${this.pathOf() ? 'Next in the path' : 'Next challenge'}: ${esc(this.nextCh().title)} ${I.arrow}</a>` : ''}</div>` : '') +
-        res.map((r, k) => `<div class="res ${r.ok ? 'ok' : 'bad'}"><span class="ri">${r.ok ? '✓' : '✕'}</span><div><b>${esc(r.name)}</b>${r.ok ? '' : `<div class="rm">${esc(r.msg)}</div><ol class="steps-list">${this.ch.tests[k].steps.map((st) => `<li>${esc(LL.describeStep(st, tags))}</li>`).join('')}</ol>`}</div></div>`).join('');
+        res.map((r, k) => `<div class="res ${r.ok ? 'ok' : 'bad'}"><span class="ri">${r.ok ? '✓' : '✕'}</span><div><b>${esc(r.name)}</b>${r.ok ? '' : `<div class="rm">${esc(r.msg)}</div><ol class="steps-list">${this.ch.tests[k].steps.map((st) => `<li>${esc(LL.describeStep(st, tags))}</li>`).join('')}</ol>`}${canWatch ? `<div><button type="button" class="btn small lt-watch" data-watch="${k}" title="Run the steps of this test live on the machine">▶ Watch this test${r.ok ? '' : ' fail'}</button></div>` : ''}</div></div>`).join('');
+      box.onclick = (e) => { const b = e.target.closest('[data-watch]'); if (b) LL.LabTools.replay(this, +b.dataset.watch); };
       if (allOk) { S.ch[this.ch.id] = 1; save(); this.renderTaskBadge(); toast('Challenge passed!'); }
       else toast(res.filter((r) => !r.ok).length + ' test(s) failed. See the details.');
       if (this.view !== 'task' && window.innerWidth <= 1000) this.setView('task');
@@ -2178,12 +2182,13 @@
     tick(dt) {
       if (!document.body.contains(this.el)) { tickers.delete(this); window.removeEventListener('resize', this._onResize); return; }
       if (this.running && !this.pst.fault && !this.m.error) {
-        this.acc += dt * this.speed;
+        this.acc += dt * this.speed * (this._replay ? this._replay.speed : 1);
         let n = 0;
         while (this.acc >= 10 && n < 30) {
           this.plantStep(10);
           this.m.scan(10);
           this.acc -= 10; n++;
+          if (this._replay && LL.LabTools && !LL.LabTools.replayScan(this)) break;   // "Watch this test": the test steps drive the buttons
         }
         if (n >= 30) this.acc = 0;
         this.scanText(this._noticeUntil > performance.now() ? this._notice : 'scan ' + this.m.scanCount + ' · 10 ms');
@@ -2192,6 +2197,7 @@
       if (this.lang !== 'st') { if (this.blk) { const mon = this.monInst && this.m.monitor(this.monInst); if (mon && mon.trace) this.ladder.update(mon, true); } else this.ladder.update(this.m, true); }
       this.drawPlant();
       if (this._trend && LL.LabTools) LL.LabTools.sample(this);
+      if (this._replay && LL.LabTools) LL.LabTools.replayDraw(this);
       const Q = this.m.outputs();
       this.lampEls.forEach((l) => l.classList.toggle('on', !!Q[l.dataset.a]));
       this.ioCells.forEach((c) => { const a = c.dataset.io; const F = this.forces || {}; const v = a in F ? F[a] : a[0] === 'I' || /^(AIW|HC)/.test(a) ? (this.I[a] || 0) : /^(AQW|MW|MD)/.test(a) ? this.m.word(a) : /STR/.test(a) ? "'" + this.m.str(a) + "'" : this.m.bit(a); if (c._v !== v) { c.textContent = v; c.className = v === 1 ? 'v1' : ''; c._v = v; } });

@@ -5,6 +5,15 @@ const LL = globalThis.LL;
 let fail = 0, pass = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL', m); } };
 
+// a reset takes the PLC out of STOP (division by zero stops it)
+{
+  const m = LL.makeMachine(LL.parseProgram('RUNG\nNO(SM0.0) DIV(10,MW0,MW2)'));
+  m.scan(10);
+  ok(!!m.error, 'division by zero stops the PLC');
+  m.reset();
+  ok(!m.error, 'reset clears the PLC stop');
+}
+
 // roundtrip parse/serialize
 LL.CHALLENGES.forEach((ch) => {
   if (ch.lang === 'st') {
