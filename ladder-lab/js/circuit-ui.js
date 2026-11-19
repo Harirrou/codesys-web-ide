@@ -13,8 +13,8 @@
   const save = (d) => { try { localStorage.setItem(STORE, JSON.stringify(d)); } catch (e) { /* private mode */ } };
   const LEVELS = { 1: 'First circuits', 2: 'Motor basics', 3: 'Interlocks and timers', 4: 'Real projects', 5: 'Master' };
   const KIND = { pb: 'push button', es: 'emergency stop', sel: 'switch', ls: 'moved by the machine', k: 'contactor / relay', kt: 'timer relay', ol: 'overload relay', lamp: 'lamp', horn: 'horn', valve: 'valve' };
-  const SCNNAME = { none: 'Lamps only', free: 'Three motors', dol: 'One motor', rev: 'Reversing motor', two: 'Two conveyors', sd: 'Star-delta motor', tank: 'Tank and pump', hoist: 'Hoist', stein: 'Motor on single phase', steinh: 'Motor on single phase', res: 'Stator resistance', at: 'Autotransformer', rotor: 'Slip-ring motor', soft: 'Soft starter', pumps: 'Two pumps', comp: 'Compressor', vfd: 'Drive (VFD)', spd2: 'Two-speed motor', dahl: 'Dahlander motor', cap1: 'Single-phase motor' };
-  const SUPPLY = { stein: '1 × 230 V', steinh: '1 × 230 V', cap1: '1 × 230 V' };
+  const SCNNAME = { none: 'Lamps only', free: 'Three motors', dol: 'One motor', rev: 'Reversing motor', two: 'Two conveyors', sd: 'Star-delta motor', tank: 'Tank and pump', hoist: 'Hoist', stein: 'Motor on single phase', steinh: 'Motor on single phase', res: 'Stator resistance', at: 'Autotransformer', rotor: 'Slip-ring motor', soft: 'Soft starter', pumps: 'Two pumps', comp: 'Compressor', vfd: 'Drive (VFD)', spd2: 'Two-speed motor', dahl: 'Dahlander motor', cap1: 'Single-phase motor', cap1r: 'Single-phase motor', brake: 'Motor with DC brake', plug: 'Motor with plugging' };
+  const SUPPLY = { stein: '1 × 230 V', steinh: '1 × 230 V', cap1: '1 × 230 V', cap1r: '1 × 230 V' };
   const LAMPC = { green: '#22c55e', red: '#ef4444', amber: '#f5a524' };
   const CAPC = { green: '#16a34a', red: '#dc2626', amber: '#d97706' };
   const TERM = { pb: { NO: ['13', '14'], NC: ['11', '12'] }, sel: { NO: ['13', '14'], NC: ['11', '12'] }, es: { NO: ['13', '14'], NC: ['11', '12'] }, ls: { NO: ['13', '14'], NC: ['11', '12'] }, k: { NO: ['13', '14'], NC: ['21', '22'] }, kt: { NO: ['17', '18'], NC: ['15', '16'] }, ol: { NO: ['97', '98'], NC: ['95', '96'] } };
@@ -193,6 +193,27 @@
     }
     else if (scn === 'free') { vb = [480, 300]; g = bus(PHC, ['L1', 'L2', 'L3'], 26, 464) + [['K1', 'KM1', 70, st.n1], ['K2', 'KM2', 230, st.n2], ['K3', 'KM3', 390, st.n3]].map(([k, lab, x, n], i) => { const on = v(k); return tap(x, 60, PHC) + dev(x, 60, 'k', on, lab, 'contactor', PHC, true) + run(x, 94, 204, on, on) + motor(x, 245, n, ang[i], 'M' + (i + 1), '3~', on); }).join(''); }
     else if (scn === 'two') { g = B3() + [[82, 'K1', 'KM1', 'F2', st.n1, 0, 'conveyor 1', 'Q1'], [212, 'K2', 'KM2', 'F3', st.n2, 1, 'conveyor 2', 'Q2']].map(([x, k, kl, f, n, i, lab, q]) => feeder(x, k, kl, f, n, ang[i], lab, q)).join(''); read = ['conveyor 1 ' + (st.run1 ? 'runs' : 'stopped'), 'conveyor 2 ' + (st.run2 ? 'runs' : 'stopped')]; }
+    else if (scn === 'rev' && opt.build) {
+      // the learner builds the reversing feeder: one place above, two side by side, one below
+      const xa = 86, xb = 206, xm = 146, sl = [pw.p1, pw.p2, pw.p3, pw.p4], sw = pw.swap || '', map = sw === 'l13' ? [2, 1, 0] : sw === 'rot' ? [1, 2, 0] : [0, 1, 2];
+      const pass = (pt) => (pt === 'Q1' ? ok : pt === 'F2' ? true : pt === 'K1' ? ok && !!v('K1') : pt === 'K2' ? ok && !!v('K2') : false);
+      const part = (pt, x, y, live, i) => (pt === 'Q1' ? dev(x, y, 'q', ok, 'Q1', 'main breaker', PHC, live) : pt === 'K1' ? dev(x, y, 'k', ok && !!v('K1'), 'KM1', 'forward', PHC, live) : pt === 'K2' ? dev(x, y, 'k', ok && !!v('K2'), 'KM2', 'reverse', PHC, live)
+        : pt === 'F2' ? run(x, y, y + 4, live, false) + ovl(x, y + 4, 'F2', live) + run(x, y + 30, y + 34, live, false)
+        : `<rect x="${x - 34}" y="${y + 2}" width="68" height="30" rx="8" fill="var(--surface)" stroke="var(--info)" stroke-width="1.3" stroke-dasharray="5 4"/>` + T(x, y + 21, opt.edit ? '+ place a part' : 'empty', { z: 9, a: 'middle', f: 'var(--info)', b: 1 }))
+        + (opt.edit ? `<rect class="ps" x="${x - 40}" y="${y}" width="112" height="34" rx="8" fill="transparent" stroke="none" data-ps="${i}" style="cursor:pointer"/>` : '');
+      const l1 = pass(sl[0]), la = l1 && pass(sl[1]), lb = l1 && pass(sl[2]), good = !EC.powerCheck(pw, opt.task), lm = (la || lb) && pass(sl[3]), turn = good && lm && Math.abs(st.dir) > 0;
+      g = B3() + tap(xm, 40, PHC) + part(sl[0], xm, 40, true, 0);
+      [xa, xb].forEach((x, k) => xs(x, 3).forEach((p, i) => { g += seg([[xs(xm, 3)[i], 74], [xs(xm, 3)[i], 82 + i * 6], [p, 82 + i * 6], [p, 104]], PHC[i], l1, turn && (k ? lb : la)); }));
+      g += part(sl[1], xa, 104, l1, 1) + part(sl[2], xb, 104, l1, 2);
+      [[xa, sl[1], la], [xb, sl[2], lb]].forEach(([x, pt, lv]) => {
+        const mp = pt === 'K2' ? map : [0, 1, 2];
+        if (pt === 'K2' && !sw) g += xs(x, 3).map((p) => `<path d="M${p} 138 V160" stroke="var(--danger)" stroke-width="1.25" stroke-dasharray="3 3"/>`).join('') + T(x, 172, 'not wired yet', { z: 9, a: 'middle', f: 'var(--danger)', b: 1 });
+        else xs(x, 3).forEach((p, i) => { const k = mp[i]; g += seg([[p, 138], [p, 150 + k * 6], [xs(xm, 3)[k], 150 + k * 6], [xs(xm, 3)[k], 176]], PHC[i], lv, lv && turn); });
+      });
+      const rv = lb && sl[2] === 'K2' || la && sl[1] === 'K2', cols = rv && sw ? [0, 1, 2].map((k) => PHC[map.indexOf(k)]) : PHC;
+      g += part(sl[3], xm, 176, la || lb, 3) + run(xm, 210, 214, lm, turn, cols) + motor(xm, 255, st.n, ang[0], st.dir > 0 ? 'forward ↻' : st.dir < 0 ? 'reverse ↺' : 'motor', '3~', lm, cols);
+      read = ['speed ' + st.rpm + ' rpm'];
+    }
     else if (scn === 'rev' || scn === 'hoist') {
       const a = ok && v('K1'), b = ok && v('K2'), sw = scn === 'hoist' ? 'l13' : pw.swap || '', map = sw === 'l13' ? [2, 1, 0] : sw === 'rot' ? [1, 2, 0] : [0, 1, 2], xa = 86, xb = 206, xm = 146;
       g = B3() + tap(xm, 40, PHC) + dev(xm, 40, 'q', ok, 'Q1', 'main breaker', PHC, true);
@@ -286,6 +307,45 @@
       if (cap !== 'ln' && cap && sw) g += `<circle cx="268" cy="248" r="13" fill="var(--surface)" stroke="${turning ? GRN : 'currentColor'}" stroke-width="${turning ? 2 : 1.3}"/><g transform="rotate(${Math.round(ang[0]) % 360} 268 248)"><circle cx="268" cy="239" r="2.6" fill="${turning ? GRN : 'var(--muted)'}" stroke="none"/><circle cx="268" cy="257" r="2.6" fill="${turning ? GRN : 'var(--muted)'}" stroke="none"/></g>`;
       g += T(175, 312, st.hum ? 'hums, does not turn' : turning ? (sw === 'aux' ? (cs ? 'starting: the start winding helps' : 'at speed: the switch S has cut the start winding') : 'runs') : 'main winding + start winding with capacitor C and switch S', { z: 9.5, a: 'middle', f: st.hum ? 'var(--danger)' : 'var(--muted)', b: !!st.hum });
       read = ['speed ' + st.rpm + ' rpm', sw === 'aux' ? (cs ? 'switch S closed' : 'switch S open') : 'single-phase motor'];
+    } else if (scn === 'brake' || scn === 'plug') {
+      // a feeder with a brake contactor beside it: DC from a rectifier (brake) or two phases swapped (plug)
+      const pl = scn === 'plug', a = ok && v('K1'), b = ok && v('K2'), xa = 92, xb = 222, xm = xa, out = a || b;
+      vb = [318, 322];
+      g = bus(PHC, ['L1', 'L2', 'L3'], 26, 302) + tap(xa, 40, PHC) + dev(xa, 40, 'q', ok, 'Q1', 'main breaker', PHC, true) + run(xa, 74, 96, ok, a) + dev(xa, 96, 'k', a, 'KM1', 'run', PHC, ok) + run(xa, 130, 196, a, a);
+      if (pl) {
+        // KM2 gets the three phases with L1 and L3 swapped
+        xs(xb, 3).forEach((p, i) => { g += seg([[xs(xa, 3)[i], 80 + i * 5], [p, 80 + i * 5], [p, 96]], PHC[i], ok, b) + `<circle cx="${xs(xa, 3)[i]}" cy="${80 + i * 5}" r="2" fill="${ok ? PHC[i] : DEAD}" stroke="none"/>` + seg([[p, 130], [p, 150 + (2 - i) * 6], [xs(xa, 3)[2 - i], 150 + (2 - i) * 6]], PHC[i], b, b) + `<circle cx="${xs(xa, 3)[2 - i]}" cy="${150 + (2 - i) * 6}" r="2" fill="${out ? PHC[b ? i : 2 - i] : DEAD}" stroke="none"/>`; });
+        g += dev(xb, 96, 'k', b, 'KM2', 'brake', PHC, ok) + T(xb, 178, 'L1 and L3 swapped', { z: 8.5, a: 'middle', f: 'var(--muted)' });
+        g += `<path d="M${xa + 46} 262 h18" stroke="${v('B1') ? GRN : 'currentColor'}" stroke-width="1.3"/><circle cx="${xa + 70}" cy="262" r="5.5" fill="${v('B1') ? GRN : 'var(--surface)'}" stroke="currentColor" stroke-width="1.2"/>` + T(xa + 80, 260, 'B1', { z: 10, b: 1, m: 1 }) + T(xa + 80, 271, v('B1') ? 'shaft turns' : 'shaft stands still', { z: 8.5, f: 'var(--muted)' });
+      } else {
+        // two phases feed a transformer + rectifier; KM2 puts its DC on two motor wires
+        const dcOn = b, DC = '#a855f7', x2 = [xb - DX, xb + DX];
+        [0, 1].forEach((i) => { g += seg([[xs(xa, 3)[i], 80 + i * 5], [x2[i], 80 + i * 5], [x2[i], 96]], PHC[i], ok) + `<circle cx="${xs(xa, 3)[i]}" cy="${80 + i * 5}" r="2" fill="${ok ? PHC[i] : DEAD}" stroke="none"/>`; });
+        g += `<rect x="${xb - 30}" y="96" width="60" height="34" rx="7" fill="${dcOn ? 'var(--power-soft)' : 'var(--surface-2)'}" stroke="${dcOn ? GRN : 'var(--line)'}" stroke-width="1.15"/>` + T(xb, 111, 'T1 + V1', { z: 9.5, b: 1, a: 'middle', m: 1 }) + T(xb, 123, 'rectifier · DC', { z: 8, a: 'middle', f: 'var(--muted)' });
+        g += run(xb, 130, 142, ok, dcOn, [DC, DC]) + dev(xb, 142, 'k', b, 'KM2', 'brake', [DC, DC], ok);
+        [0, 1].forEach((i) => { g += seg([[x2[i], 176], [x2[i], 184 + i * 6], [xs(xa, 3)[i], 184 + i * 6]], DC, b, b) + `<circle cx="${xs(xa, 3)[i]}" cy="${184 + i * 6}" r="2" fill="${b ? DC : DEAD}" stroke="none"/>`; });
+      }
+      const mc = b ? (pl ? [PHC[2], PHC[1], PHC[0]] : ['#a855f7', '#a855f7', 'var(--line)']) : PHC;   // what the motor wires carry now
+      g += ovl(xa, 196, 'F2', out, mc) + run(xa, 222, 232, out, out, mc) + motor(xa, 273, st.n, ang[0], pl ? 'conveyor motor' : 'saw motor', '3~', out, mc);
+      read = ['speed ' + st.pct + ' %', b ? (pl ? 'plugging: reverse field' : 'DC brake on') : a ? 'runs' : Math.abs(st.n) > 0.03 ? 'coasting' : 'stopped'];
+    } else if (scn === 'cap1r') {
+      // single-phase motor, two directions: KM1 and KM2 side by side, the motor opened up below
+      const LN = [PHC[0], BLUE], f = ok && v('K1'), r = ok && v('K2'), sw = pw.swap || '', xq = 150, xa = 90, xb = 210, out = f || (r && !!sw), cs = !!st.cs, turning = Math.abs(st.n) > 0.02, VIO = '#a855f7', rev = r && sw === 'aux';
+      vb = [330, 330];
+      g = bus(LN, ['L', 'N'], 26, 300) + tap(xq, 36, LN) + dev(xq, 36, 'q', ok, 'Q1', '2-pole breaker', LN, true);
+      [xa, xb].forEach((x) => xs(x, 2).forEach((p, i) => { g += seg([[xs(xq, 2)[i], 70], [xs(xq, 2)[i], 78 + i * 6], [p, 78 + i * 6], [p, 92]], LN[i], ok, x === xa ? f : r); }));
+      g += dev(xa, 92, 'k', f, 'KM1', 'forward', LN, ok) + dev(xb, 92, 'k', r, 'KM2', 'reverse', LN, ok);
+      xs(xa, 2).forEach((p, i) => { g += seg([[p, 126], [p, 136 + i * 6], [xs(xq, 2)[i], 136 + i * 6], [xs(xq, 2)[i], 150]], LN[i], f, f); });
+      if (sw) xs(xb, 2).forEach((p, i) => { g += seg([[p, 126], [p, 136 + i * 6], [xs(xq, 2)[i], 136 + i * 6], [xs(xq, 2)[i], 150]], LN[i], r, r); });
+      else g += xs(xb, 2).map((p) => `<path d="M${p} 126 V142" stroke="var(--danger)" stroke-width="1.25" stroke-dasharray="3 3"/>`).join('');
+      g += T(xb + 28, 131, sw === 'aux' ? 'swaps Z1 and Z2' : sw === 'ln' ? 'swaps L and N' : sw === 'both' ? 'swaps both windings' : 'not wired yet', { z: 8.5, a: 'start', f: sw ? 'var(--muted)' : 'var(--danger)', b: !sw });
+      g += ovl(xq, 150, 'F2', out, LN) + run(xq, 176, 196, out, out, LN);
+      g += `<rect x="40" y="196" width="250" height="100" rx="12" fill="var(--surface)" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="5 4"/>` + T(52, 210, 'inside the motor', { z: 8, f: 'var(--muted)' });
+      const pill = (y, lab, col, on, arrow) => `<rect x="70" y="${y - 10}" width="140" height="20" rx="10" fill="${on ? 'var(--power-soft)' : 'var(--surface-2)'}" stroke="${on ? col : 'var(--line)'}" stroke-width="1.2"/>` + T(140, y + 3.5, lab, { z: 8.5, a: 'middle', b: 1 }) + T(222, y + 4, arrow, { z: 12, b: 1, f: on ? col : 'var(--muted)' });
+      g += pill(232, 'main winding U1 – U2', LN[0], out, '→') + pill(268, 'start winding Z1 – Z2 · C · S', VIO, out && cs, rev ? '←' : '→');
+      g += `<circle cx="262" cy="250" r="14" fill="var(--surface)" stroke="${turning ? GRN : 'currentColor'}" stroke-width="${turning ? 2 : 1.3}"/><g transform="rotate(${Math.round(ang[0]) % 360} 262 250)"><circle cx="262" cy="240" r="2.6" fill="${turning ? GRN : 'var(--muted)'}" stroke="none"/><circle cx="262" cy="260" r="2.6" fill="${turning ? GRN : 'var(--muted)'}" stroke="none"/></g>`;
+      g += T(165, 314, st.n > 0.02 ? 'forward ↻' : st.n < -0.02 ? 'reverse ↺' : 'the arrows show the current direction in each winding', { z: 9.5, a: 'middle', f: 'var(--muted)' });
+      read = ['speed ' + st.rpm + ' rpm', turning && (f || r) && Math.sign(st.n) !== (f ? 1 : sw === 'aux' ? -1 : 1) ? 'still turning the old way' : cs ? 'switch S closed' : 'switch S open'];
     } else if (scn === 'res') {
       const a = ok && v('K1'), b = ok && v('K2'), x = 110, hot = Math.min(100, Math.round(st.heat / 80));
       g = B3() + tap(x, 40, PHC) + dev(x, 40, 'q', ok, 'Q1', 'main breaker', PHC, true) + run(x, 74, 88, ok, a) + dev(x, 88, 'k', a, 'KM1', 'line', PHC, ok) + run(x, 122, 144, a, a && !b);
@@ -445,14 +505,14 @@
     function hints() { $('.ec-hints').innerHTML = task.hints.slice(0, hint).map((t, k) => `<div class="hint"><b>Hint ${k + 1}.</b> ${esc(t)}</div>`).join(''); const b = $('[data-a="hint"]'); if (b) { b.textContent = hint < task.hints.length ? 'Hint ' + (hint + 1) + '/' + task.hints.length : 'No more hints'; b.disabled = hint >= task.hints.length; } }
     function pwq() {
       const pp = $('.ec-ppal'); pp.hidden = !task.pbuild || !!sim;
-      if (task.pbuild && !sim) pp.innerHTML = `<div><b>Build the power circuit: pick a part, then tap a place</b><div class="o">${[['Q1', 'Q1 main breaker'], ['K1', 'KM1 contactor'], ['F2', 'F2 overload relay'], ['X', 'Erase']].map(([k, l]) => `<button type="button" data-pt="${k}" class="${ptool === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>`;
+      if (task.pbuild && !sim) pp.innerHTML = `<div><b>Build the power circuit: pick a part, then tap a place</b><div class="o">${(task.pparts || [['Q1', 'Q1 main breaker'], ['K1', 'KM1 contactor'], ['F2', 'F2 overload relay']]).concat([['X', 'Erase']]).map(([k, l]) => `<button type="button" data-pt="${k}" class="${ptool === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>`;
       const q = task.power || [], box = $('.ec-pwc'); box.hidden = !q.length || !!sim; if (!q.length) return;
       box.innerHTML = q.map((x) => `<div class="${circ.pw[x.k] ? '' : 'need'}"><b>${esc(x.q)}</b><div class="o">${x.o.map(([val, lab]) => `<button type="button" data-pk="${x.k}" data-pv="${val}" class="${circ.pw[x.k] === val ? 'on' : ''}">${esc(lab)}</button>`).join('')}</div></div>`).join('');
       box.classList.toggle('need', q.some((x) => !circ.pw[x.k]));
     }
     function machine() {
       if (!hasPow) return;
-      const st = sim ? sim.st : EC.SCN[task.scn].init(), r = powerSvg(task.scn, st, sim ? sim.D : {}, circ.pw || {}, ang, { build: !!task.pbuild, edit: !sim, need: (task.power || []).map((q) => q.k) });
+      const st = sim ? sim.st : EC.SCN[task.scn].init(), r = powerSvg(task.scn, st, sim ? sim.D : {}, circ.pw || {}, ang, { build: !!task.pbuild, edit: !sim, need: (task.power || []).map((q) => q.k), task });
       $('.ec-m').innerHTML = r.svg; $('.ec-read').innerHTML = r.read.map((x) => `<span>${esc(x)}</span>`).join('') || '<span style="color:var(--muted)">Power on to see it work</span>';
       const f = $('.ec-fault'); f.hidden = !st.fault; f.textContent = st.fault ? '⚠ ' + st.fault : '';
     }
@@ -505,11 +565,11 @@
       if (a === 'clear') { if (!EC.isEmpty(circ)) { push(); circ = EC.empty(); keep(); draw(); lint(); pwq(); machine(); status('Cleared. Undo brings it back.'); } return; }
       if (t.dataset.pt && !sim) { ptool = t.dataset.pt; pwq(); if (ptool) status(ptool === 'X' ? 'Erase: tap a part in the power circuit to remove it.' : 'Now tap a place in the power circuit, between the supply and the motor.'); return; }
       if (t.dataset.ps && !sim) {
-        if (!ptool) return status('First pick a part under the power circuit (Q1, KM1 or F2), then tap a place.');
+        if (!ptool) return status('First pick a part under the power circuit, then tap a place.');
         push(); const key = 'p' + (+t.dataset.ps + 1);
         if (ptool === 'X') circ.pw[key] = '';
-        else { ['p1', 'p2', 'p3'].forEach((k) => { if (circ.pw[k] === ptool) circ.pw[k] = ''; }); circ.pw[key] = ptool; }
-        keep(); lint(); machine(); const why = EC.powerCheck(circ.pw); status(why || 'The power circuit is complete: breaker, contactor, overload relay, motor.'); return;
+        else { ['p1', 'p2', 'p3', 'p4'].forEach((k) => { if (circ.pw[k] === ptool) circ.pw[k] = ''; }); circ.pw[key] = ptool; }
+        keep(); lint(); machine(); const why = EC.powerCheck(circ.pw, task); status(why || 'The power circuit is complete: every part is in its place.'); return;
       }
       if (t.dataset.pk && !sim) { push(); circ.pw[t.dataset.pk] = circ.pw[t.dataset.pk] === t.dataset.pv ? '' : t.dataset.pv; keep(); pwq(); lint(); machine(); return; }
       if (t.dataset.t && !sim) { tool = { t: t.dataset.t, d: t.dataset.d }; palette(); draw(); if (tool) status(tool.t === 'X' ? 'Erase: tap a part to remove it.' : tool.t === 'W' ? 'Wire: tap a cell to draw a wire straight down through it.' : 'Now tap a cell to place ' + tool.d + (tool.t === 'NO' || tool.t === 'NC' ? ' ' + tool.t : '') + '.'); return; }

@@ -117,7 +117,15 @@
   };
   // A power circuit the learner builds: three places between the supply and the motor (pw.p1 … pw.p3).
   // Returns '' when it is right, or the reason why it is not.
-  EC.powerCheck = function (pw) {
+  EC.powerCheck = function (pw, task) {
+    if (task && task.scn === 'rev') {
+      // four places: one above (p1), two side by side (p2, p3), one below (p4)
+      const b = [pw.p1, pw.p2, pw.p3, pw.p4];
+      if (b.some((x) => !x)) return 'The power circuit is not complete: a place between the supply and the motor is still empty.';
+      if (b[0] !== 'Q1') return 'The main breaker Q1 must come first: it protects and isolates everything after it.';
+      if (b[3] !== 'F2') return 'The overload relay F2 is the last part before the motor: both directions must go through it. The two places side by side are for the two contactors.';
+      return '';
+    }
     const a = [pw.p1, pw.p2, pw.p3];
     if (a.some((x) => !x)) return 'The power circuit is not complete: a place between the supply and the motor is still empty.';
     if (a[0] !== 'Q1') return 'The main breaker Q1 must come first: it protects and isolates everything after it.';
@@ -129,12 +137,13 @@
     free: { init: () => ({ fault: '', n1: 0, n2: 0, n3: 0 }), step(st, D, dt) { ['K1', 'K2', 'K3'].forEach((k, i) => spin(st, 'n' + (i + 1), V(D, k), dt)); } },
     dol: {
       init: () => ({ fault: '', n: 0, rpm: 0, run: 0 }),
-      step(st, D, dt, pw, task) { st.note = task && task.pbuild ? EC.powerCheck(pw) : ''; const run = V(D, 'K1') && !st.note ? 1 : 0; spin(st, 'n', run, dt); st.run = run; st.rpm = Math.round(st.n * 1480); burn(st, D, 'F2', run, dt, 'KM1'); },
+      step(st, D, dt, pw, task) { st.note = task && task.pbuild ? EC.powerCheck(pw, task) : ''; const run = V(D, 'K1') && !st.note ? 1 : 0; spin(st, 'n', run, dt); st.run = run; st.rpm = Math.round(st.n * 1480); burn(st, D, 'F2', run, dt, 'KM1'); },
     },
     rev: {
       init: () => ({ fault: '', n: 0, rpm: 0, dir: 0 }),
-      step(st, D, dt, pw) {
-        const f = V(D, 'K1'), r = V(D, 'K2'), sw = pw.swap || '';
+      step(st, D, dt, pw, task) {
+        st.note = task && task.pbuild ? EC.powerCheck(pw, task) : '';
+        const f = st.note ? 0 : V(D, 'K1'), r = st.note ? 0 : V(D, 'K2'), sw = pw.swap || '';
         if (f && r && sw !== 'same' && !st.fault) st.fault = 'KM1 and KM2 closed together: a short circuit between two phases. The main breaker tripped with a bang.';
         const dir = st.fault ? 0 : f ? 1 : r ? (sw === 'l13' ? -1 : sw ? 1 : 0) : 0; spin(st, 'n', dir, dt); st.dir = dir; st.rpm = Math.round(st.n * 1480); burn(st, D, 'F2', f || r, dt, 'the contactor');
       },
@@ -304,6 +313,46 @@
         burn(st, D, 'F2', run, dt, 'KM1');
       },
     },
+    // single-phase motor in two directions: KM1 forward, KM2 reverse (it must swap the ends of the start winding only)
+    cap1r: {
+      init: () => ({ fault: '', n: 0, rpm: 0, dir: 0, cs: 1 }),
+      step(st, D, dt, pw) {
+        pw = pw || {};
+        const f = V(D, 'K1'), r = V(D, 'K2');
+        if (f && r && !st.fault) st.fault = 'KM1 and KM2 closed together: L and N are joined through the two contactors. A short circuit.';
+        st.cs = Math.abs(st.n) < 0.75 ? 1 : 0;
+        const want = st.fault ? 0 : f ? 1 : r ? (pw.swap === 'aux' ? -1 : pw.swap ? 1 : 0) : 0;
+        // a motor that still turns keeps its direction: its main winding alone pulls the rotor the way it already goes
+        const dir = want && Math.abs(st.n) > 0.3 ? Math.sign(st.n) : want;
+        spin(st, 'n', dir * 0.97, dt, 600); st.dir = dir; st.rpm = Math.round(st.n * 1480);
+        burn(st, D, 'F2', f || r, dt, 'the contactor');
+      },
+    },
+    // DC injection braking: KM1 runs the motor, KM2 puts DC from a rectifier on two motor wires for a few seconds
+    brake: {
+      init: () => ({ fault: '', n: 0, pct: 0, hot: 0, dc: 0 }),
+      step(st, D, dt) {
+        const k1 = V(D, 'K1'), k2 = V(D, 'K2');
+        if (k1 && k2 && !st.fault) st.fault = 'KM1 and the brake contactor KM2 closed together: mains voltage on the DC supply. The rectifier is destroyed. They need an interlock.';
+        const ok = !st.fault; st.dc = ok && k2 && !k1 ? 1 : 0;
+        if (ok && k1) spin(st, 'n', 1, dt, 500); else if (st.dc) spin(st, 'n', 0, dt, 450); else spin(st, 'n', 0, dt, 5000);
+        if (st.dc && st.n < 0.05) { st.hot += dt; if (st.hot > 5000 && !st.fault) st.fault = 'DC stayed on the stopped motor: the winding overheats. A timer must switch the brake off after a few seconds.'; } else if (!st.dc) st.hot = 0;
+        st.pct = Math.round(st.n * 100); burn(st, D, 'F2', k1, dt, 'KM1');
+      },
+    },
+    // plugging: KM2 reverses the field to brake; the zero-speed switch B1 (closed while the shaft turns forward) ends it
+    plug: {
+      init: () => ({ fault: '', n: 0, pct: 0 }),
+      step(st, D, dt) {
+        const k1 = V(D, 'K1'), k2 = V(D, 'K2');
+        if (k1 && k2 && !st.fault) st.fault = 'KM1 and KM2 closed together: a short circuit between two phases. They need an interlock.';
+        const ok = !st.fault;
+        if (ok && k1) spin(st, 'n', 1, dt, 500); else if (ok && k2) spin(st, 'n', -1, dt, 900); else spin(st, 'n', 0, dt, 5000);
+        if (st.n < -0.3 && !st.fault) st.fault = 'The motor ran backwards: plugging must end when the motor stops. The zero-speed switch B1 must drop KM2.';
+        if (D.B1) D.B1.v = st.n > 0.1 ? 1 : 0;
+        st.pct = Math.round(st.n * 100); burn(st, D, 'F2', k1 || k2, dt, 'the contactor');
+      },
+    },
     // a drive: no contactors, only signals on its inputs DI1 (forward) and DI2 (reverse)
     vfd: {
       init: () => ({ fault: '', n: 0, hz: 0 }),
@@ -333,7 +382,7 @@
   EC.lint = function (circ, task) {
     const out = [], kind = {}; task.parts.forEach((p) => (kind[p.d] = p.k));
     (task.power || []).forEach((q) => { if (!(circ.pw || {})[q.k]) out.push('The power circuit is not finished: ' + q.q); });
-    if (task.pbuild && EC.powerCheck(circ.pw || {})) out.push(EC.powerCheck(circ.pw || {}));
+    if (task.pbuild && EC.powerCheck(circ.pw || {}, task)) out.push(EC.powerCheck(circ.pw || {}, task));
     const coils = {}, contacts = {};
     circ.cells.forEach((row) => row.forEach((x) => { if (!x || !x.d) return; if (isLoad(x)) coils[x.d] = (coils[x.d] || 0) + 1; else contacts[x.d] = 1; }));
     Object.keys(coils).forEach((d) => { if (coils[d] > 1) out.push(d + ' is placed ' + coils[d] + ' times as a load. A device has one coil (or one lamp).'); });
@@ -358,7 +407,7 @@
           stepNo++; cur = step; const p = step.split(/\s+/), d = sim.D[p[1]];
           if (['press', 'release', 'tap', 'on', 'off', 'trip', 'reset', 'jam', 'weld'].includes(p[0]) && !d) throw new Error('unknown device ' + p[1]);
           switch (p[0]) {
-            case 'press': case 'on': case 'trip': d.v = 1; run(30); break;
+            case 'press': case 'on': case 'trip': d.v = 1; run(+(p[2] || 30)); break;   // press X 10 = the next step comes only 10 ms later
             case 'release': case 'off': case 'reset': d.v = 0; run(30); break;
             case 'tap': d.v = 1; run(+(p[2] || 200)); d.v = 0; run(100); break;
             case 'both': sim.D[p[1]].v = 1; sim.D[p[2]].v = 1; run(30); break;
@@ -466,6 +515,14 @@
       hints: ['Power circuit: a motor turns the other way when two of its three phases change places. Moving all three one place keeps the direction.', 'Two seal-in circuits side by side, below the same F2 and S0: S1 with K1, S2 with K2.', 'Below each pair, before the coil: the NC contact of the other contactor.', 'Link the four paths above the buttons, and each pair below.'],
       solution: '@ swap=l13\nNC:F2\nNC:S0\n~ 0 1 2\nNO:S1 NO:K1 NO:S2 NO:K2\n~ 0 2\nNC:K2 . NC:K1\nCOIL:K1 . COIL:K2',
       tests: [{ name: 'FWD runs forward and stays on', steps: ['tap S1', 'wait 300', 'expect K1=1 K2=0', 'wait 2500', 'scn rpm>=1300'] }, { name: 'REV runs in reverse', steps: ['tap S2', 'wait 300', 'expect K2=1 K1=0', 'wait 2500', 'scn rpm<=-1300'] }, { name: 'REV while running forward does nothing (interlock)', steps: ['tap S1', 'wait 500', 'tap S2', 'wait 200', 'expect K1=1 K2=0'] }, { name: 'STOP, then the other direction', steps: ['tap S1', 'wait 500', 'tap S0', 'wait 200', 'expect K1=0', 'tap S2', 'wait 300', 'expect K2=1 K1=0'] }, { name: 'Overload stops it', steps: ['tap S2', 'wait 500', 'trip F2', 'wait 200', 'expect K1=0 K2=0', 'wait 2500'] }] },
+    { id: 'c-revp', level: 3, scn: 'rev', pbuild: true, title: 'Build the reversing power circuit',
+      brief: 'The control circuit of this forward / reverse starter is ready. <b>Build the power circuit</b> yourself. There are four places: one at the top, two side by side, and one at the bottom, directly above the motor.<ul><li>Put <b>Q1</b>, <b>KM1</b>, <b>KM2</b> and <b>F2</b> in the right places.</li><li>Then choose how the three wires go through KM2, so the motor turns the other way.</li></ul>Think: which part must both directions share, and which parts work side by side?',
+      parts: [S0, P('S1', 'pb', 'FWD', { c: 'green' }), P('S2', 'pb', 'REV', { c: 'green' }), K1, P('K2', 'k', 'KM2'), F2], scnNames: { rpm: 'Motor speed (rpm)' },
+      pparts: [['Q1', 'Q1 main breaker'], ['K1', 'KM1 forward'], ['K2', 'KM2 reverse'], ['F2', 'F2 overload relay']], pslots: 4,
+      power: [{ k: 'swap', q: 'How do the wires go through KM2?', o: [['same', 'Same order as KM1'], ['rot', 'All three move one place'], ['l13', 'L1 and L3 change places']] }],
+      hints: ['The breaker is always first. The overload relay is always last, directly before the motor.', 'The two contactors do the same job for two directions: they sit side by side, in parallel.', 'A motor turns the other way when two of its three phases change places.'],
+      starter: 'NC:F2\nNC:S0\n~ 0 1 2\nNO:S1 NO:K1 NO:S2 NO:K2\n~ 0 2\nNC:K2 . NC:K1\nCOIL:K1 . COIL:K2', solution: '@ p1=Q1\n@ p2=K1\n@ p3=K2\n@ p4=F2\n@ swap=l13\nNC:F2\nNC:S0\n~ 0 1 2\nNO:S1 NO:K1 NO:S2 NO:K2\n~ 0 2\nNC:K2 . NC:K1\nCOIL:K1 . COIL:K2',
+      tests: [{ name: 'FWD runs forward', steps: ['tap S1', 'wait 300', 'expect K1=1 K2=0', 'wait 2500', 'scn rpm>=1300'] }, { name: 'REV runs in reverse', steps: ['tap S2', 'wait 300', 'expect K2=1 K1=0', 'wait 2500', 'scn rpm<=-1300'] }, { name: 'Overload stops it', steps: ['tap S2', 'wait 500', 'trip F2', 'wait 200', 'expect K1=0 K2=0', 'wait 2500'] }] },
     { id: 'c-warn', level: 3, scn: 'dol', title: 'Start warning: horn first, then the conveyor',
       brief: 'People work near this conveyor. After <b>START</b> a horn (<b>H3</b>) must sound for <b>3 s</b>. Only then the contactor KM1 pulls in, and the horn stops. STOP during the warning cancels the start.<br>Parts: helper relay <b>KA1</b> (it remembers the start) and an <b>on-delay timer KT1</b>.',
       parts: [S0, S1, K1, P('K2', 'k', 'KA1'), P('KT1', 'kt', 'Timer', { s: 3 }), P('H3', 'horn', 'Horn'), F2], scnNames: { rpm: 'Motor speed (rpm)' },
@@ -541,6 +598,12 @@
       hints: ['It is the forward / reverse circuit with other names: two seal-in circuits side by side, and the NC contact of the other contactor before each coil.', 'Three contacts in series at the top: F2 NC, F3 NC, S0 NC. Then link all four paths below S0.'],
       solution: 'NC:F2\nNC:F3\nNC:S0\n~ 0 1 2\nNO:S1 NO:K1 NO:S2 NO:K2\n~ 0 2\nNC:K2 . NC:K1\nCOIL:K1 . COIL:K2',
       tests: [{ name: 'LOW: low speed, and it stays on', steps: ['tap S1', 'wait 300', 'expect K1=1 K2=0', 'wait 3000', 'scn rpm>=1300 rpm<=1600'] }, { name: 'HIGH: high speed', steps: ['tap S2', 'wait 300', 'expect K2=1 K1=0', 'wait 3500', 'scn rpm>=2700'] }, { name: 'HIGH while running LOW does nothing (interlock)', steps: ['tap S1', 'wait 500', 'tap S2', 'wait 200', 'expect K1=1 K2=0'] }, { name: 'LOW while running HIGH does nothing (interlock)', steps: ['tap S2', 'wait 500', 'tap S1', 'wait 200', 'expect K2=1 K1=0'] }, { name: 'STOP, then the other speed', steps: ['tap S1', 'wait 500', 'tap S0', 'wait 200', 'expect K1=0', 'tap S2', 'wait 300', 'expect K2=1 K1=0'] }, { name: 'The overload of each winding stops the motor', steps: ['tap S1', 'wait 500', 'trip F2', 'wait 200', 'expect K1=0', 'wait 2500', 'reset F2', 'tap S2', 'wait 500', 'trip F3', 'wait 200', 'expect K2=0', 'wait 2500'] }] },
+    { id: 'c-brake', level: 4, scn: 'brake', title: 'Real project: stop a saw fast with DC braking',
+      brief: 'A circular saw runs on for a long time after STOP. That is dangerous. <b>DC injection braking</b> stops it in about two seconds: after STOP, the contactor <b>KM2</b> puts DC from a small rectifier on two motor wires for 3 s.<ul><li>START with seal-in on <b>KM1</b>, as always.</li><li>STOP (S0) has two contacts: its <b>NC</b> contact drops KM1, its <b>NO</b> contact starts <b>KM2</b>, which holds itself.</li><li>The timer <b>KT1</b> (3 s) runs with KM2 and drops it again: DC on a stopped motor overheats the winding.</li><li>KM1 and KM2 must <b>never</b> be closed together: interlock both ways.</li></ul>',
+      parts: [S0, S1, K1, P('K2', 'k', 'KM2 brake'), P('KT1', 'kt', 'Timer', { s: 3 }), F2], scnNames: { pct: 'Motor speed (%)' },
+      hints: ['Left: the normal starter, with one more contact before the K1 coil: K2 NC.', 'Right, a second circuit from L: S0 NO with K2 NO beside it (seal-in), then K1 NC.', 'Below K1 NC, two paths on one wire: KT1 NC then the K2 coil, and the timer coil.', 'The timer coil must not be behind its own NC contact, or it resets itself and the brake never switches off.'],
+      solution: 'NC:F2 . NO:S0 NO:K2\n~ 2\nNC:S0 . NC:K1\n~ 0 2\nNO:S1 NO:K1 NC:KT1 TON:KT1:3\n~ 0\nNC:K2 . COIL:K2\nCOIL:K1',
+      tests: [{ name: 'START: the saw runs, the brake is off', steps: ['tap S1', 'wait 300', 'expect K1=1 K2=0', 'wait 2500', 'scn pct>=95'] }, { name: 'STOP: KM2 brakes, the saw stands still in 2 s', steps: ['tap S1', 'wait 2500', 'tap S0', 'wait 100', 'expect K1=0 K2=1', 'wait 2000', 'scn pct<=5'] }, { name: 'The brake switches off by itself after 3 s', steps: ['tap S1', 'wait 2500', 'tap S0', 'wait 3500', 'expect K2=0 K1=0', 'wait 6000', 'expect K2=0'] }, { name: 'START during braking does nothing', steps: ['tap S1', 'wait 2500', 'tap S0', 'wait 300', 'tap S1', 'wait 200', 'expect K1=0 K2=1'] }, { name: 'Overload drops the motor', steps: ['tap S1', 'wait 500', 'trip F2', 'wait 200', 'expect K1=0', 'wait 2500'] }] },
     { id: 'c-stein', level: 4, scn: 'stein', title: 'Real project: a 3-phase motor on a single-phase supply (capacitor)',
       brief: 'A workshop has only <b>230 V single-phase</b> (L and N), but the machine has a small <b>3-phase motor</b> (230 / 400 V). The classic trick is the <b>Steinmetz connection</b>: two motor terminals go to L and N, and a <b>run capacitor</b> feeds the third terminal with a shifted current, so the field turns.<ul><li>Finish the <b>power circuit</b>: how are the windings linked, and where does the capacitor go? The motor must turn <b>forward</b>.</li><li>Build the control: START, STOP, seal-in, overload contact.</li></ul>Rule of thumb: about 70 µF for each kW, and the motor gives about 70 % of its power.',
       parts: [S0, S1, K1, F2], scnNames: { rpm: 'Motor speed (rpm)' },
@@ -554,6 +617,19 @@
       hints: ['Top: F2 NC, F3 NC, S0 NC. Then two seal-in pairs: S1 with K1, and S2 with K2. Seal the high speed with KM2, the last contactor of the chain: it is only closed when everything before it worked.', 'Low path below its pair: K2 NC, K3 NC, K1 coil.', 'High path below its pair: K1 NC, then two paths on one wire: the K3 coil, and K3 NO followed by the K2 coil.', 'K3 NO before the K2 coil makes sure the star point is closed first.', 'Think of faults: if KM3 welds closed, the motor must not restart after STOP and LOW must stay blocked. A seal-in on K3 would restart it.'],
       solution: 'NC:F2\nNC:F3\nNC:S0\n~ 0 1 2\nNO:S1 NO:K1 NO:S2 NO:K2\n~ 0 2\nNC:K2 . NC:K1\n~ 2\nNC:K3 . W NO:K3\nCOIL:K1 . COIL:K3 COIL:K2',
       tests: [{ name: 'LOW: only KM1, low speed', steps: ['tap S1', 'wait 300', 'expect K1=1 K2=0 K3=0', 'wait 3000', 'scn rpm>=1300 rpm<=1600'] }, { name: 'HIGH: star point KM3 and KM2, high speed', steps: ['tap S2', 'wait 300', 'expect K3=1 K2=1 K1=0', 'wait 3500', 'scn rpm>=2700'] }, { name: 'HIGH while running LOW does nothing', steps: ['tap S1', 'wait 500', 'tap S2', 'wait 200', 'expect K1=1 K2=0 K3=0'] }, { name: 'LOW while running HIGH does nothing', steps: ['tap S2', 'wait 500', 'tap S1', 'wait 200', 'expect K1=0 K2=1 K3=1'] }, { name: 'STOP drops all; then the other speed', steps: ['tap S2', 'wait 500', 'tap S0', 'wait 200', 'expect K1=0 K2=0 K3=0', 'tap S1', 'wait 300', 'expect K1=1 K2=0 K3=0'] }, { name: 'The overload of each speed stops the motor', steps: ['tap S1', 'wait 500', 'trip F2', 'wait 200', 'expect K1=0', 'wait 2500', 'reset F2', 'tap S2', 'wait 500', 'trip F3', 'wait 200', 'expect K2=0 K3=0', 'wait 2500'] }, { name: 'Fault: KM3 cannot close, so KM2 must stay open', steps: ['jam K3', 'tap S2', 'wait 400', 'expect K2=0 K3=0'] }, { name: 'Fault: KM3 welds closed. No restart after STOP, and LOW stays blocked', steps: ['tap S2', 'wait 500', 'weld K3', 'tap S0', 'wait 300', 'expect K2=0', 'tap S1', 'wait 300', 'expect K1=0'] }] },
+    { id: 'c-plug', level: 5, scn: 'plug', title: 'Master: plugging, braking with a zero-speed switch',
+      brief: '<b>Plugging</b> brakes a motor with its own reverse contactor: after STOP, <b>KM2</b> closes and the field pulls backwards. The moment the shaft stands still, KM2 must drop, or the motor runs backwards. A <b>zero-speed switch B1</b> on the shaft does this: its NO contact is closed while the motor turns forward.<ul><li>START with seal-in on KM1.</li><li>When KM1 has dropped and the shaft still turns (B1 closed): KM2 on. At standstill B1 opens: KM2 off.</li><li>KM1 and KM2 interlocked both ways.</li><li>An overload trip stops everything and must <b>not</b> plug: braking draws even more current.</li></ul>',
+      parts: [S0, S1, K1, P('K2', 'k', 'KM2 brake'), P('B1', 'ls', 'Speed switch'), F2], scnNames: { pct: 'Motor speed (%)' },
+      hints: ['F2 NC at the very top, for both circuits: link the paths just below it.', 'Left: S0 NC, the seal-in (S1 NO with K1 NO), K2 NC, K1 coil.', 'Right, from below F2: K1 NC, B1 NO, K2 coil. No button is needed: the speed switch does the work.'],
+      solution: 'NC:F2\n~ 0 1\nNC:S0 . NC:K1\n~ 0\nNO:S1 NO:K1 NO:B1\n~ 0\nNC:K2 . COIL:K2\nCOIL:K1',
+      tests: [{ name: 'START: the motor runs, KM2 is off', steps: ['tap S1', 'wait 300', 'expect K1=1 K2=0', 'wait 2500', 'scn pct>=95'] }, { name: 'STOP: KM2 brakes and drops at standstill', steps: ['tap S1', 'wait 2500', 'tap S0', 'expect K1=0 K2=1', 'wait 1500', 'expect K2=0', 'scn pct<=10 pct>=-10', 'wait 3000', 'expect K2=0'] }, { name: 'At standstill nothing closes', steps: ['wait 500', 'expect K1=0 K2=0'] }, { name: 'START during braking does nothing', steps: ['tap S1', 'wait 2500', 'tap S0 100', 'tap S1 100', 'wait 1500', 'expect K1=0'] }, { name: 'Overload: everything off, no plugging', steps: ['tap S1', 'wait 2500', 'trip F2', 'wait 300', 'expect K1=0 K2=0', 'wait 2500'] }] },
+    { id: 'c-1phrev', level: 5, scn: 'cap1r', title: 'Master: reverse a single-phase motor',
+      brief: 'A single-phase motor for a door or a small hoist must turn both ways. Its direction is set at the start, by the way the <b>start winding</b> is connected against the main winding.<ul><li>Power circuit: what must <b>KM2</b> swap, so the motor starts the other way?</li><li>Control: FWD (S1) and REV (S2) with seal-in and interlock, STOP, overload.</li><li>A single-phase motor that still turns <b>keeps its direction</b>, whatever you switch. So after a stop, a new start must be <b>blocked for 3 s</b>: use the timer <b>KT1 as an off-delay</b> (TOF). It is on while a contactor is on and stays on 3 s longer; its NC contact sits in series with each start button.</li></ul>',
+      parts: [S0, P('S1', 'pb', 'FWD', { c: 'green' }), P('S2', 'pb', 'REV', { c: 'green' }), P('K1', 'k', 'KM1 fwd'), P('K2', 'k', 'KM2 rev'), P('KT1', 'kt', 'Timer', { s: 3 }), F2], scnNames: { rpm: 'Motor speed (rpm)' },
+      power: [{ k: 'swap', q: 'What does KM2 swap?', o: [['ln', 'L and N of the whole motor'], ['aux', 'The two ends of the start winding'], ['both', 'The ends of both windings']] }],
+      hints: ['Swapping L and N, or both windings, changes nothing: both fields flip together. Only one winding may be turned around.', 'Start from the forward / reverse circuit: two seal-in pairs, an NC interlock before each coil.', 'Put KT1 NC directly below each start button, with a plain wire below each seal-in contact. Link the pairs below these, not above.', 'The timer needs its own circuit from L: K1 NO and K2 NO side by side, linked below, then the off-delay coil of KT1.'],
+      solution: '@ swap=aux\nNC:F2 . . . NO:K1 NO:K2\n~ 4\nNC:S0 . . . TOF:KT1:3\n~ 0 1 2\nNO:S1 NO:K1 NO:S2 NO:K2\nNC:KT1 W NC:KT1 W\n~ 0 2\nNC:K2 . NC:K1\nCOIL:K1 . COIL:K2',
+      tests: [{ name: 'FWD runs forward and stays on', steps: ['tap S1', 'wait 300', 'expect K1=1 K2=0', 'wait 2500', 'scn rpm>=1300'] }, { name: 'REV runs in reverse', steps: ['tap S2', 'wait 300', 'expect K2=1 K1=0', 'wait 2500', 'scn rpm<=-1300'] }, { name: 'REV while running forward does nothing', steps: ['tap S1', 'wait 500', 'tap S2', 'wait 200', 'expect K1=1 K2=0'] }, { name: 'REV pressed a moment after FWD: only one contactor closes (interlock)', steps: ['press S1 10', 'press S2 10', 'wait 200', 'expect K1=1 K2=0', 'free S1 S2'] }, { name: 'After STOP a start is blocked for 3 s, then REV really reverses', steps: ['tap S1', 'wait 1500', 'tap S0', 'wait 300', 'tap S2', 'wait 200', 'expect K1=0 K2=0', 'wait 3200', 'tap S2', 'wait 300', 'expect K2=1', 'wait 2500', 'scn rpm<=-1300'] }, { name: 'Overload stops it', steps: ['tap S2', 'wait 500', 'trip F2', 'wait 200', 'expect K1=0 K2=0', 'wait 2500'] }] },
     { id: 'c-stein2', level: 5, scn: 'steinh', title: 'Master: start capacitor for a heavy start',
       brief: 'The same 3-phase motor on single-phase, now on a loaded compressor. The run capacitor alone cannot start it: the motor only hums. A second, bigger <b>start capacitor</b> is switched in parallel by <b>KM2</b> for the first seconds.<ul><li>START: KM1 (motor with the run capacitor) <b>and</b> KM2 (start capacitor).</li><li>After <b>2 s</b> the timer drops KM2. KM1 stays.</li><li>A start capacitor left in at full speed bursts. STOP and the overload drop everything.</li></ul>',
       parts: [S0, S1, K1, P('K2', 'k', 'KM2 start'), P('KT1', 'kt', 'Timer', { s: 2 }), F2], scnNames: { rpm: 'Motor speed (rpm)' },
