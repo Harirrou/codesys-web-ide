@@ -3174,6 +3174,73 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
       challenges: ["enc-1", "pid-1"],
     },
     {
+      id: 'flow-data', level: 5, title: "Jumps, MCR zones, FIFO and sequencers", min: 11,
+      summary: "Four instructions you meet in older programs and in interviews: what a jump really skips, what an MCR zone does to coils, latches and timers, how FIFO and LIFO queues track parts, and what a sequencer is. With a simulator for all four, the names in each brand, and what to write today.",
+      body: `
+<h3>Four instructions you will meet in other people's programs</h3>
+<p>You can build every machine with contacts, coils, timers, counters and blocks. But sooner or later you open a program that somebody else wrote, often 20 years ago, and it is full of <b>jumps</b>, <b>MCR zones</b>, <b>FIFO</b> queues and <b>sequencers</b>. You must be able to read them, find faults in them, and know what to use instead today. They are also classic interview questions.</p>
+
+<h3>Try it first</h3>
+[[hw:flow]]
+
+<h3>1. Jump: skip a part of the program</h3>
+<p>A jump (JMP) goes straight to a label (LBL) further down. The rungs in between are <b>not scanned at all</b>.</p>
+<ul>
+<li>Everything in the skipped part <b>keeps its last state</b>. A motor that was on stays on. This is the trap.</li>
+<li>Timers in the skipped part are not updated.</li>
+<li>A jump <b>backwards</b> makes a loop. If the loop never ends, the watchdog stops the CPU.</li>
+</ul>
+<p><b>Use it for:</b> skipping code that is not needed now, for example the code of a machine option that is not fitted. <b>Never</b> use a jump to switch something off.</p>
+
+<h3>2. Zone (MCR): switch a group of rungs off</h3>
+<p>A zone has a start and an end. When the zone is <b>off</b>, the rungs inside are still scanned, but each one is solved as <b>false</b>.</p>
+<ul>
+<li>Normal coils inside go <b>off</b>.</li>
+<li>On-delay timers reset.</li>
+<li><b>Latched bits (SET) keep their state</b>, because a false rung does not run the SET and does not run the RESET.</li>
+</ul>
+<div class="callout warn"><b>An MCR zone is not a safety function.</b> The name "master control relay" comes from the hard-wired relay that cuts the power to the outputs. The instruction only changes how software rungs are solved. Emergency stop stays hard-wired or goes through a safety relay or safety PLC.</div>
+
+<h3>Jump or zone: the difference in one table</h3>
+<div class="tbl"><table>
+<tr><th>Inside the part that is switched off</th><th>Jump over it</th><th>MCR zone off</th></tr>
+<tr><td>Are the rungs scanned?</td><td>No</td><td>Yes, as false</td></tr>
+<tr><td>Normal coil ( )</td><td>keeps its last state</td><td>goes off</td></tr>
+<tr><td>Latched bit (S)</td><td>keeps its state</td><td>keeps its state</td></tr>
+<tr><td>On-delay timer</td><td>not updated</td><td>resets</td></tr>
+<tr><td>Scan time</td><td>shorter</td><td>the same</td></tr>
+</table></div>
+
+<h3>3. Queue: FIFO and LIFO</h3>
+<p>A queue is a small table with two instructions: <b>load</b> puts a value in, <b>unload</b> takes one out.</p>
+<ul>
+<li><b>FIFO</b> (first in, first out): the oldest value comes out first, like people waiting in a line. Use it to track parts on a line: the camera stores "good" or "bad", and the reject arm further down takes the results out in the same order.</li>
+<li><b>LIFO</b> (last in, first out): the newest value comes out first, like a stack of plates. Use it for a stacker, where the last pallet in is the first one out.</li>
+</ul>
+<p>Always look at two bits: <b>EMPTY</b> before you unload, and <b>FULL</b> before you load. A load into a full queue is lost, and from then on every result belongs to the wrong part.</p>
+<p>Parts that move one place with every machine cycle are easier with a <a href="#lesson-shift-registers">shift register</a>. A queue is better when parts come at random times.</p>
+
+<h3>4. Sequencer: a table of output patterns</h3>
+<p>A sequencer (drum) holds a table. Each row is one step: which outputs are on. A pulse moves it to the next row, and it copies that row to the outputs. It is the software copy of the old mechanical drum with cams.</p>
+<p><b>Good:</b> short, and easy to change the pattern. <b>Bad:</b> hard to read when you look for a fault, because the rung does not show <i>why</i> the machine waits. Today most people write a <a href="#lesson-sfc">step sequence</a> with one bit or one number per step, or CASE in Structured Text.</p>
+
+<h3>The names in each software</h3>
+<div class="tbl"><table>
+<tr><th></th><th>Studio 5000</th><th>Siemens TIA</th><th>CODESYS / TwinCAT</th><th>Schneider</th><th>Omron</th></tr>
+<tr><td>Jump</td><td>JMP, LBL</td><td>JMP, JMPN, LABEL</td><td>jump and label in LD; JMP in ST</td><td>jump to %Li</td><td>JMP, JME</td></tr>
+<tr><td>Zone</td><td>MCR</td><td>only in S7-300/400 (MCR&lt; MCR&gt;); not in S7-1200/1500</td><td>none: use IF or the EN input</td><td>MCS, MCR (small controllers)</td><td>IL, ILC (interlock)</td></tr>
+<tr><td>Queue</td><td>FFL, FFU and LFL, LFU</td><td>library blocks (LGF FIFO / LIFO) or an array with an index</td><td>your own block with an array</td><td>register %Ri (FIFO or LIFO)</td><td>stack instructions (push, FIFO, LIFO)</td></tr>
+<tr><td>Sequencer</td><td>SQO, SQI, SQL</td><td>array with a step index</td><td>array with a step index, or CASE</td><td>drum controller %DRi</td><td>array with a step index</td></tr>
+</table></div>
+<div class="callout tip"><b>What to write today:</b> blocks with an enable input in place of jumps and zones, an array with an index for a queue, and a step sequence in place of a sequencer. Read the old instructions, do not copy them into new programs without a reason.</div>
+<div class="callout where"><b>Where:</b> older Allen-Bradley and Omron machines are full of JMP, MCR / IL, FIFO and SQO. In interviews: "What is the difference between a jump and an MCR zone?" and "How do you track a bad part to the reject station?"</div>
+`,
+      sims: {},
+      takeaways: ["A jump does not scan the rungs: everything in there keeps its last state.", "An MCR zone solves its rungs as false: coils drop, timers reset, latched bits stay.", "An MCR zone is not a safety function.", "FIFO gives the oldest value, LIFO the newest. Check EMPTY and FULL.", "A sequencer is a table of output patterns with a step pointer."],
+      mistakes: ["Jumping over a rung to switch its output off: the output stays on.", "Thinking an MCR zone resets latched bits.", "Using MCR in place of a hard-wired emergency stop.", "Loading a full queue: every later result belongs to the wrong part.", "A backward jump with no way out: the watchdog stops the CPU."],
+      challenges: ["db-recipe", "iv-seqstop"],
+    },
+    {
       id: 'iec', level: 5, title: 'Beyond ladder: IEC 61131-3 & CODESYS', min: 8,
       summary: 'LD, FBD, ST, SFC and IL: the same logic in five languages, and when to pick each.',
       body: `
@@ -3958,6 +4025,12 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     ["Interference zone", "A space two machines share, like the inside of a machine and a robot arm. A signal says who is in it."],
     ["Machine tending", "A robot loads raw parts into a machine and unloads the finished ones."],
     ["Robot controller", "The robot's own computer. It holds the robot programs and moves the arm."],
+    ["Jump (JMP)", "An instruction that goes straight to a label. The rungs in between are not scanned and keep their state."],
+    ["Label (LBL)", "The place in the program where a jump lands."],
+    ["MCR zone", "A group of rungs between two MCR instructions. When the zone is off, the rungs are solved as false. Not a safety function."],
+    ["FIFO", "First in, first out: a queue where the oldest value comes out first. Used to track parts on a line."],
+    ["LIFO", "Last in, first out: a stack where the newest value comes out first."],
+    ["Sequencer (SQO, drum)", "A table of output patterns with a pointer. Every pulse moves to the next row."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -4244,6 +4317,11 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { l: 6, q: "In a PLC to robot handshake, what does the PLC do when it sees DONE?", a: ["It takes START away", "It sets START again", "It changes the job number", "It switches the robot off"], c: 0, why: "START off tells the robot that DONE was seen. The robot then drops DONE and is ready for the next job." },
     { l: 6, q: "When may the machine door close in a robot cell?", a: ["When the robot reports CLEAR", "When the robot reports BUSY", "As soon as START is given", "When the part is at the infeed"], c: 0, why: "CLEAR means the arm is outside the machine. Without it the door would hit the arm." },
     { l: 6, q: "Why set the job number before START, and not at the same time?", a: ["The robot reads the number when START comes", "The robot needs the number just to switch on", "The PLC can only write one bit per scan", "The job number is a safety signal"], c: 0, why: "If both change together the robot may read an old or half-changed number and run the wrong job." },
+    { l: 5, q: "A motor coil is ON. Then the program jumps over that rung on every scan. What does the motor do?", a: ["It stays ON", "It goes OFF at once", "It blinks with the scan", "It goes OFF after one scan"], c: 0, why: "Rungs that are jumped over are not scanned, so their outputs keep the last state." },
+    { l: 5, q: "An MCR zone is switched off. Inside it are a normal coil and a latched (SET) bit, both ON. What happens?", a: ["The coil goes off, the latched bit stays", "Both of them go off at exactly the same time", "Both of them stay on, just like they were before", "The latched bit goes off, the normal coil stays on"], c: 0, why: "The rungs are solved as false. A false rung drops a normal coil but does not run a SET or a RESET." },
+    { l: 5, q: "Three parts are loaded into a FIFO: 1, 2, 3. Which one comes out first?", a: ["Part 1", "Part 3", "Part 2", "None: it is full"], c: 0, why: "First in, first out: the oldest value leaves first. A LIFO would give part 3." },
+    { l: 5, q: "What should the program check before it loads a value into a queue?", a: ["That the queue is not FULL", "That the queue is completely EMPTY", "That the last value was a good part", "That the PLC is in the first scan"], c: 0, why: "A load into a full queue is lost, and all later results are shifted to the wrong part." },
+    { l: 5, q: "What is a sequencer (SQO, drum)?", a: ["A table of output patterns with a pointer", "A timer block that counts all the machine cycles", "A list that holds the last twenty alarms of a line", "A block that sorts a table of numbers by their size"], c: 0, why: "Each pulse moves the pointer one row and copies that row to the outputs." },
   ];
   LL.QUIZ_IV = [
     { t: "Basics", q: "Explain the PLC scan cycle.", a: ["Read all inputs into the image, run the program top to bottom, write the outputs", "React to each input the moment it changes, one rung at a time, with no fixed order", "Write the outputs first, then read the inputs, then run the program from the bottom", "Run every rung at the same time, and update an output as soon as its rung is done"], c: 0, why: "Inputs are frozen for the whole scan; outputs change only at the end. That is why the order of rungs matters." },
@@ -4406,6 +4484,10 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { t: "Drives & motion", q: "How does a PLC control an industrial robot in a cell?", a: ["It selects a job and starts it with a handshake", "It sends every axis position to the robot arm", "It loads a new program into the robot each cycle", "It switches the robot motors with contactors"], c: 0, why: "The robot controller moves the arm. The PLC gives job number and START, and waits for BUSY, DONE and zone signals." },
     { t: "Drives & motion", q: "What is an interference zone signal between a robot and a machine?", a: ["A signal that says the robot is outside the machine", "A signal that says the robot has an internal fault now", "A signal that counts the parts the robot has moved", "A signal that sets the speed of the robot's arm"], c: 0, why: "Door moves and machine starts are interlocked with it, so robot and machine are never in the same space." },
     { t: "Troubleshooting", q: "A robot cell stops and nothing moves. The PLC is in step 20 'robot job'. What do you check?", a: ["Which handshake signal is missing: BUSY or DONE", "Whether the HMI screen shows the right colours", "Whether the PLC battery was changed earlier this year", "Whether the cell lights are switched on inside"], c: 0, why: "The step tells you what the PLC waits for. Look at READY, BUSY, DONE on both sides, then at the robot's own message." },
+    { t: "Programming", q: "What is the difference between a jump and an MCR zone?", a: ["Jump: rungs are not scanned. MCR: scanned as false", "Jump: for safety circuits. MCR: for normal logic only", "Jump: only goes backwards. MCR: only goes forwards", "Jump: resets all timers. MCR: keeps all the timers"], c: 0, why: "After a jump the outputs keep their last state. In an MCR zone that is off, normal coils drop and TON timers reset." },
+    { t: "Programming", q: "Can an MCR instruction replace the emergency stop circuit?", a: ["No, it only changes how rungs are solved", "Yes, when the zone covers all of the outputs", "Yes, when the CPU is a fast modern type", "Yes, but only on machines with one motor"], c: 0, why: "Emergency stop must be hard-wired or go through safety-rated hardware. Software in a normal PLC is not a safety function." },
+    { t: "Programming", q: "A camera checks parts, and a reject arm sits four parts further down. Parts come at random times. How do you track the result?", a: ["Store each result in a FIFO, unload it at the arm", "Use one memory bit and overwrite it with every new part", "Start a timer at the camera and reject when the time ends", "Reject every fourth part that passes in front of the arm"], c: 0, why: "A FIFO keeps the results in the order of the parts. With a fixed machine cycle a shift register does the same." },
+    { t: "Programming", q: "Why do many engineers avoid jumps in new programs?", a: ["Skipped outputs keep their state; hard to follow", "Jumps make the scan time of the PLC very much longer", "Jumps are not allowed in ladder by the IEC standard", "Jumps wear out the memory of the CPU faster than coils"], c: 0, why: "A block with an enable input does the same and is easy to read online." },
   ];
   LL.QUIZ_NET = [
     { t: "Basics", q: "Fieldbus or industrial Ethernet: what is the main difference?", a: ["Fieldbuses use serial cables (RS-485, CAN); industrial Ethernet uses Ethernet cables and switches", "Fieldbuses use Ethernet cables and switches; industrial Ethernet uses serial RS-485 or CAN cables", "Fieldbuses carry only digital on/off signals; industrial Ethernet carries only analog sensor values", "Fieldbuses need no device file at all; industrial Ethernet needs a GSD or EDS file for each device"], c: 0, why: "Classic fieldbuses: PROFIBUS, CANopen, DeviceNet. Industrial Ethernet: PROFINET, EtherNet/IP, EtherCAT, Modbus TCP. New machines almost always use Ethernet." },

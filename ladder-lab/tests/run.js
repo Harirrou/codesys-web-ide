@@ -1,6 +1,6 @@
 // node ladder-lab/tests/run.js — verifies engine + every challenge solution
 const path = require('path');
-['engine', 'st', 'plants', 'plants-robot', 'plants-starters', 'challenges', 'lessons', 'topics', 'quiz-read', 'fbdview'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
+['engine', 'st', 'plants', 'plants-robot', 'plants-starters', 'challenges', 'lessons', 'topics', 'quiz-read', 'fbdview', 'hw-flow'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
 const LL = globalThis.LL;
 let fail = 0, pass = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL', m); } };
@@ -43,6 +43,28 @@ LL.CHALLENGES.filter((c) => c.lang !== 'st').forEach((ch) => {
   }
   ok(!bad, 'FBD tree = ladder in ' + ch.id + ' ' + bad);
 });
+
+// jump / MCR zone / queue demo logic (lesson flow-data)
+{
+  const F = LL.FlowSim; let z = F.newZone();
+  const run = (inp, mode, ms) => { for (let t = 0; t < ms; t += 100) F.zone(z, inp, mode, 100); };
+  run({ z: 0, b: 1, c: 1 }, 'jmp', 3200);
+  ok(z.motor === 1 && z.valve === 1 && z.t1 === 1, 'jump demo: normal scan runs motor, latch and timer');
+  run({ z: 1, b: 0 }, 'jmp', 500);
+  ok(z.motor === 1 && z.t1 === 1 && z.tr[1] === 'skip', 'jump: skipped rungs keep their last state');
+  run({ z: 0, b: 0 }, 'jmp', 100);
+  ok(z.motor === 0 && z.et === 0 && z.valve === 1, 'jump off: the rungs are solved again');
+  z = F.newZone(); run({ z: 1, b: 1, c: 1 }, 'mcr', 3200);
+  ok(z.motor === 1 && z.valve === 1 && z.t1 === 1, 'MCR zone on: like normal rungs');
+  run({ z: 0, b: 1, c: 1 }, 'mcr', 100);
+  ok(z.motor === 0 && z.valve === 1 && z.et === 0 && z.t1 === 0 && z.tr[2] === 'off', 'MCR zone off: coil drops, timer resets, latch stays');
+  run({ z: 0, r: 1 }, 'mcr', 100);
+  ok(z.valve === 0, 'the reset rung outside the zone unlatches');
+  const q = []; [1, 2, 3].forEach((v) => F.load(q, v, 3));
+  ok(F.load(q, 4, 3) === false && q.length === 3, 'a full queue refuses a load');
+  ok(F.unload(q, 'fifo') === 1 && F.unload(q, 'lifo') === 3 && F.unload(q, 'fifo') === 2 && F.unload(q, 'fifo') === undefined, 'FIFO gives the oldest, LIFO the newest, empty gives nothing');
+  ok(F.next(5, 6) === 0 && F.next(0, 6) === 1 && F.SEQ.rows.every((r) => r.length === F.SEQ.outs.length), 'sequencer wraps and its table is square');
+}
 
 // roundtrip parse/serialize
 LL.CHALLENGES.forEach((ch) => {
