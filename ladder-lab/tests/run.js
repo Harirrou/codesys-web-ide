@@ -1,6 +1,6 @@
 // node ladder-lab/tests/run.js — verifies engine + every challenge solution
 const path = require('path');
-['engine', 'st', 'plants', 'plants-robot', 'challenges', 'lessons', 'topics'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
+['engine', 'st', 'plants', 'plants-robot', 'plants-starters', 'challenges', 'lessons', 'topics'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
 const LL = globalThis.LL;
 let fail = 0, pass = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL', m); } };
@@ -77,7 +77,7 @@ console.log('ST sample:\n' + LL.toST(LL.parseProgram(LL.CH_BY_ID['permissive'].s
 // topics (js/topics.js): every id exists, every lesson and every challenge is in at least one topic, every topic has an icon
 {
   const T = LL.TOPICS || [];
-  ok(T.length === 23, 'there are 23 topics, found ' + T.length);
+  ok(T.length === 24, 'there are 24 topics, found ' + T.length);
   ok(new Set(T.map((t) => t.id)).size === T.length, 'topic ids are unique');
   const hasL = (id) => LL.LESSONS.some((l) => l.id === id);
   const qBank = { concept: [LL.QUIZ, 'l'], iv: [LL.QUIZ_IV || [], 't'], net: [LL.QUIZ_NET || [], 't'] };

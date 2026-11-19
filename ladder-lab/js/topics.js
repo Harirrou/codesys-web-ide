@@ -1,4 +1,4 @@
-/* Ladder Lab — topics: 22 subjects. Each one collects every lesson, task,
+/* Ladder Lab — topics: 24 subjects. Each one collects every lesson, task,
  * Lab machine and quiz about one thing, so a learner can find them in one place
  * (Home "Explore by topic", #topic-<id> pages, chips on Learn and lesson pages).
  * Topic: id, title, blurb (one line for the Home card), intro, color, icon
@@ -179,6 +179,21 @@
       ],
       // the motor symbol of electrical drawings: a circle with M, and its shaft
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="12" r="8"/><path d="M6.8 15.5v-7l3.7 4.4 3.7-4.4v7"/><path d="M18.5 12h3.5"/></svg>',
+    },
+    {
+      id: 'starting', title: 'Motor starting circuits', color: '#c2410c',
+      blurb: 'DOL, star-delta, autotransformer, resistors, soft starter, VFD: circuit and ladder.',
+      intro: 'What you learn here: the seven ways to start a 3-phase motor. For each one: the power circuit, why it lowers the starting current, the ladder program, and what stays hard-wired even with a PLC. With a circuit simulator where you can also close the contactors by hand.',
+      start: 'starting-methods',
+      lessons: ['starting-methods', 'motor-starters', 'drives', 'electrical-basics', 'interlock', 'timed-sequences'],
+      tasks: ['start-stop', 'star-delta', 'res-1', 'rotor-1', 'at-1', 'res-2', 'soft-1', 'drive-1', 'el-ol-trip'],
+      machines: ['motor', 'stardelta', 'resstart', 'autotrafo', 'rotorres', 'softstart', 'vfdline'],
+      quiz: [
+        { mode: 'iv', sel: 'Motor starting', label: 'Interview: Motor starting' },
+        { mode: 'iv', sel: 'Electrical & wiring', label: 'Interview: Electrical & wiring' },
+        { mode: 'concept', sel: 4, label: 'Level 4 quiz' },
+      ],
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4l3.5 4.5L10 4M6.5 8.5V14"/><path d="M13.5 20.5l3.75-7 3.75 7z"/><path d="M13 5h7M17.5 2.5L20 5l-2.5 2.5"/></svg>',
     },
     {
       id: 'motion', title: 'Motion & servos', color: '#db2777',
@@ -417,7 +432,7 @@
     },
   ];
   // ── added by later content waves (generated) ──
-  const ADD = {"commissioning": {"lessons": ["cpu-diagnostics", "electrical-basics"], "tasks": ["diag-el-ol"], "machines": []}, "setup": {"lessons": ["cpu-diagnostics"], "tasks": [], "machines": []}, "electrical": {"lessons": ["electrical-basics", "field-vs-program", "field-devices", "drawings", "motor-starters"], "tasks": ["el-ol-trip", "diag-el-ol", "stop-nc", "fix-stop", "diag-stop", "star-delta"], "machines": ["motor", "stardelta", "panel"]}, "motors": {"lessons": ["electrical-basics"], "tasks": ["el-ol-trip"], "machines": []}};
+  const ADD = {"commissioning": {"lessons": ["cpu-diagnostics", "electrical-basics"], "tasks": ["diag-el-ol"], "machines": []}, "setup": {"lessons": ["cpu-diagnostics"], "tasks": [], "machines": []}, "electrical": {"lessons": ["electrical-basics", "field-vs-program", "field-devices", "drawings", "motor-starters", "starting-methods"], "tasks": ["el-ol-trip", "diag-el-ol", "stop-nc", "fix-stop", "diag-stop", "star-delta"], "machines": ["motor", "stardelta", "panel", "resstart", "autotrafo", "rotorres"]}, "motors": {"lessons": ["electrical-basics", "starting-methods"], "tasks": ["el-ol-trip", "res-1", "rotor-1", "at-1", "res-2"], "machines": ["resstart", "autotrafo", "rotorres"]}, "interview": {"lessons": ["starting-methods"], "tasks": ["res-1", "rotor-1"], "machines": []}};
   Object.keys(ADD).forEach((id) => {
     const t = LL.TOPICS.find((x) => x.id === id); if (!t) return;
     ['lessons', 'tasks', 'machines'].forEach((k) => { t[k] = t[k] || []; ADD[id][k].forEach((x) => { if (!t[k].includes(x)) t[k].push(x); }); });

@@ -1234,11 +1234,100 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
 <li>Fault relay from the starter: everything off, latch, reset.</li>
 </ol>
 <p>Many modern soft starters have the bypass built in; then the PLC only gives RUN and reads ready, top of ramp and fault.</p>
+<p>The older methods (autotransformer, stator resistance, rotor resistance), a circuit simulator for all of them, and the question "ladder or hardware?" are in the next lesson: <a href="#lesson-starting-methods">Seven ways to start a motor</a>.</p>
 <div class="callout where"><b>Where:</b> pump stations, fans, compressors, crushers, long conveyors. A VFD where the speed must change; a soft starter where it only has to start and stop gently.</div>`,
       sims: {},
       takeaways: ["DOL is simple but draws 6–8 × In.", "Star-delta cuts the current but also the torque to a third.", "Soft starter: gentle start and stop, bypass at the top of the ramp.", "VFD: the only one with speed control."],
       mistakes: ["Closing the bypass before the top of ramp.", "Removing RUN with the bypass still closed: no stop ramp.", "Opening the line contactor during the stop ramp.", "Using a soft starter where speed control is needed."],
       challenges: ["soft-1"],
+    },
+    {
+      id: 'starting-methods', level: 4, title: "Seven ways to start a motor: the circuit, the ladder, and who does what", min: 15,
+      summary: "Direct on line, star-delta, autotransformer, stator resistance, rotor resistance, soft starter and drive: how each one lowers the starting current, what stays hardware, what the ladder does, and how both work together. With a circuit simulator.",
+      body: `
+<h3>The problem: a motor at standstill is almost a short circuit</h3>
+<p>A 3-phase motor that stands still and gets full voltage takes <b>6 to 8 times</b> its rated current, until it is near full speed. Two things suffer:</p>
+<ul>
+<li><b>The supply:</b> the voltage dips, lights flicker, other machines trip.</li>
+<li><b>The machine:</b> the torque comes as a hit. Belts, couplings and gearboxes wear out, and pipes get water hammer.</li>
+</ul>
+<p>Every starting method does the same trick: <b>give the motor less at the start, then give it everything</b>. They differ in what they reduce, and in what that costs.</p>
+<div class="callout tip"><b>One rule to remember:</b> torque falls with the <b>square</b> of the voltage. Half the voltage gives only a quarter of the torque. So every method that lowers the voltage also makes the motor weak at the start.</div>
+
+<h3>Try all seven</h3>
+<p>Same motor, same load, seven starters. Press START and compare the blue current line with the grey line (the direct start). Then change the load to the loaded conveyor and see which methods cannot move it. With <b>By hand</b> you close the contactors yourself.</p>
+[[hw:starters]]
+
+<h3>The seven methods in one table</h3>
+<div class="tbl"><table>
+<tr><th>Method</th><th>The trick</th><th>Start current</th><th>Start torque</th><th>Hardware</th><th>Good for</th></tr>
+<tr><td><b>1. Direct on line (DOL)</b></td><td>None: full voltage at once</td><td>6–8 ×</td><td>full</td><td>1 contactor</td><td>Small motors, to about 5–7 kW</td></tr>
+<tr><td><b>2. Star-delta</b></td><td>Windings in star first: each one gets 58 % voltage</td><td>about 2 ×, and a peak at the changeover</td><td>one third</td><td>3 contactors, a motor with 6 terminals</td><td>Fans and pumps: light starts</td></tr>
+<tr><td><b>3. Autotransformer</b></td><td>A transformer gives 50, 65 or 80 % voltage</td><td>tap² : 65 % tap = 42 % of DOL</td><td>tap² : 42 % of DOL</td><td>3 contactors and a big transformer</td><td>Big motors on a weak supply</td></tr>
+<tr><td><b>4. Stator resistance</b></td><td>Resistors in series take part of the voltage</td><td>about 4 ×</td><td>about 40 %</td><td>2 contactors and hot resistors</td><td>Small, smooth starts. Old machines</td></tr>
+<tr><td><b>5. Rotor resistance</b></td><td>Resistors in the <b>rotor</b> circuit of a slip-ring motor</td><td>about 2 ×</td><td><b>high</b>, up to 2 ×</td><td>Slip-ring motor, 3–5 step contactors, resistors</td><td>Heavy starts: crushers, mills, cranes</td></tr>
+<tr><td><b>6. Soft starter</b></td><td>Electronics raise the voltage smoothly</td><td>2–4 ×, adjustable</td><td>reduced</td><td>One electronic unit with a bypass</td><td>Pumps, fans, compressors</td></tr>
+<tr><td><b>7. Drive (VFD)</b></td><td>Frequency and voltage rise together</td><td>about 1–1.5 ×</td><td>full, controlled</td><td>One drive</td><td>Speed control, saving energy, very soft starts</td></tr>
+</table></div>
+<p>Look at number 5: it is the only old method with a low current <b>and</b> a high torque. That is why crushers and cranes used slip-ring motors. Today a normal motor with a drive does the same job.</p>
+
+<h3>Can ladder do this instead of the hardware?</h3>
+<p><b>No for the power, yes for the brain.</b> Split every starter into three layers:</p>
+<div class="tbl"><table>
+<tr><th>Layer</th><th>Its job</th><th>Who does it</th></tr>
+<tr><td><b>Power circuit</b></td><td>Carries the motor current and lowers it at the start</td><td><b>Always hardware:</b> breaker, contactors, resistors, transformer, soft starter, drive. A PLC output gives 24 V and half an amp: it can only switch a contactor coil.</td></tr>
+<tr><td><b>Protection and interlock</b></td><td>Stops a fire or a short circuit</td><td><b>Hardware, even with a PLC:</b> the overload contact and the E-stop are in the coil circuit. NC contacts (and a mechanical lock) sit between star and delta. They work when the PLC is in STOP or has a bug, and they catch a welded contact.</td></tr>
+<tr><td><b>Sequence and timing</b></td><td>Decides <b>when</b> each contactor closes</td><td><b>Timer relays or the PLC program.</b> This is the part that ladder replaces.</td></tr>
+</table></div>
+<p>So the ladder does not lower the current. The star connection, the resistor or the drive does that. The ladder is the <b>conductor of the orchestra</b>: it only says who plays when.</p>
+
+<h3>Relay control or PLC: what changes?</h3>
+<div class="tbl"><table>
+<tr><th></th><th>Hard-wired (relays, timer relays)</th><th>PLC ladder</th></tr>
+<tr><td>Change the star time</td><td>Turn a knob inside the panel</td><td>Type a number on the HMI</td></tr>
+<tr><td>Change the sequence</td><td>Rewire</td><td>Edit a rung</td></tr>
+<tr><td>Find a fault</td><td>Measure with a meter</td><td>See every contact online, alarm text on the HMI</td></tr>
+<tr><td>Extra checks</td><td>Each one costs a relay</td><td>Free: feedback, start too long, starts per hour</td></tr>
+<tr><td>Cost</td><td>Cheap for one motor alone</td><td>Better when the machine has a PLC anyway</td></tr>
+</table></div>
+
+<h3>Both together: the normal way today</h3>
+<ol>
+<li><b>Hardware keeps it safe.</b> Overload contact and E-stop in series with the coils. NC interlock contacts between contactors that must never close together.</li>
+<li><b>The PLC runs the sequence.</b> A run latch, timers, one output for each contactor. The same interlock again as NC contacts in the rungs, so the program never even asks for a wrong state.</li>
+<li><b>The PLC watches the hardware.</b> One auxiliary contact of each contactor goes back to an input. Command on but no feedback after 1 s: stop, alarm "KM2 did not close". Feedback on without a command: "contact welded", do not start.</li>
+<li><b>The PLC protects the starter.</b> The start takes too long: stop. Too many starts in an hour: wait. Resistors, transformers and soft starters need time to cool down.</li>
+</ol>
+<div class="callout tip"><b>With a soft starter or a drive</b> the sequence lives inside the unit. The PLC only says run, stop and how fast, and reads ready, running and fault. That is why new panels have so few contactors.</div>
+
+<h3>The ladder for each method</h3>
+<p>All of them begin with the same first rung, the <b>run latch</b>: START, seal-in, and STOP and the overload contact in series. After it:</p>
+<div class="tbl"><table>
+<tr><th>Method</th><th>Outputs</th><th>The rungs after the run latch</th><th>Practise</th></tr>
+<tr><td>DOL</td><td>1</td><td>Line contactor = run</td><td><a href="#ch-start-stop">Start / stop</a></td></tr>
+<tr><td>Star-delta</td><td>3</td><td>Timer. Star = run AND NOT timer AND NOT delta. Delta = run AND timer AND NOT star</td><td><a href="#ch-star-delta">Star-delta starter</a></td></tr>
+<tr><td>Stator resistance</td><td>2</td><td>Line = run. Timer. Bypass = line AND timer</td><td><a href="#ch-res-1">Resistance starter</a>, then <a href="#ch-res-2">with feedback</a></td></tr>
+<tr><td>Autotransformer</td><td>3</td><td>Star point and transformer at the start. Timer. Star point off, run contactor on (interlocked). Transformer off</td><td><a href="#ch-at-1">Autotransformer starter</a></td></tr>
+<tr><td>Rotor resistance</td><td>4</td><td>Line = run. A chain of timers: each one bridges the next resistor step</td><td><a href="#ch-rotor-1">Slip-ring motor</a></td></tr>
+<tr><td>Soft starter</td><td>2–3</td><td>Line and RUN. Bypass at "top of ramp". Stop ramp</td><td><a href="#ch-soft-1">Soft starter</a></td></tr>
+<tr><td>Drive (VFD)</td><td>1 + speed</td><td>Run command and speed setpoint. Read ready and fault</td><td><a href="#ch-drive-1">Drive</a></td></tr>
+</table></div>
+<p>The soft starter and the drive have their own lessons: <a href="#lesson-motor-starters">Motor starters</a> and <a href="#lesson-drives">Drives</a>.</p>
+
+<h3>Which one do I choose?</h3>
+<ul>
+<li>The speed must change, or energy matters: <b>drive (VFD)</b>.</li>
+<li>Only a gentle start and stop, like a pump: <b>soft starter</b>.</li>
+<li>Small motor on a strong supply: <b>direct on line</b>.</li>
+<li>Light start, low budget, motor with 6 terminals: <b>star-delta</b>.</li>
+<li>Very heavy start: <b>slip-ring motor with rotor resistance</b>, or today a drive.</li>
+<li>Autotransformer and stator resistance: you meet them in <b>old plants</b>. You must be able to read and repair them.</li>
+</ul>
+<div class="callout where"><b>Where:</b> every plant with motors above a few kW: pump stations, fans, compressors, conveyors, crushers, cranes. In interviews you are often asked to draw star-delta and to say why it cannot start a loaded conveyor.</div>`,
+      sims: {},
+      takeaways: ["A direct start takes 6–8 × the rated current.", "Torque falls with the square of the voltage: less voltage, much less torque.", "The power circuit and the interlocks are hardware. The ladder does the sequence and the timing.", "Hardware interlock and PLC together: the PLC also watches the contactor feedback.", "Only rotor resistance and a drive start a heavy load with a low current."],
+      mistakes: ["Thinking the PLC lowers the current. It only decides when each contactor closes.", "Star-delta interlock only in the program: a welded contact makes a short circuit.", "Star-delta or a soft starter on a load that starts heavy: the motor does not turn.", "Changing over too early: the current peak is as high as a direct start.", "Leaving start resistors or the autotransformer in the circuit: they burn."],
+      challenges: ["res-1", "rotor-1", "at-1", "res-2"],
     },
     {
       id: 'safety', level: 5, title: 'Safety, E-stops, alarms & first scan', min: 10,
@@ -3065,6 +3154,15 @@ END_REPEAT</pre>
     ["Slip", "The difference between the synchronous speed (1500 rpm for 4 poles at 50 Hz) and the real speed."],
     ["Inrush current", "The high current (6–8 × In) a motor takes for a moment when it starts."],
     ["Clamp meter", "A meter that measures the current in a wire by clamping around it, without opening the circuit."],
+    ["Reduced-voltage starter", "A starter that gives the motor less voltage at the start: star-delta, autotransformer, stator resistance, soft starter."],
+    ["Autotransformer starter", "A starter that feeds the motor from a transformer tap (50, 65 or 80 %) during the start."],
+    ["Stator resistance starter", "A starter with resistors in series with the motor that a bypass contactor bridges after the start."],
+    ["Slip-ring motor", "A motor whose rotor winding is brought out on three rings, so resistors can be added to the rotor circuit."],
+    ["Rotor resistance starter", "A starter for a slip-ring motor: rotor resistors are bridged step by step. Low current and high torque."],
+    ["Closed transition", "A changeover where the motor is never without voltage, so there is no second current peak."],
+    ["Contactor feedback", "An auxiliary contact of a contactor wired to a PLC input, so the PLC knows if it really closed."],
+    ["Starts per hour", "The number of starts a motor or starter may do in one hour without overheating."],
+    ["Welded contact", "A contact that has melted together and stays closed when its coil is off."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -3304,6 +3402,14 @@ END_REPEAT</pre>
     { l: 3, q: "\"Minute = 0 and hour = 6\" is true for a whole minute. To ring a bell for 3 s you use…", a: ["a TP (or an edge) started by the condition", "a coil driven directly by the condition", "a 3 s TON timer with the condition on its input", "a counter that counts the condition up"], c: 0, why: "One pulse per event." },
     { l: 4, q: "A soft starter: when do you close the bypass contactor?", a: ["at \"top of ramp\", when the motor is at full speed", "at START, so the soft starter can begin its ramp up", "right after STOP, to brake the motor quickly", "never, it is only used for maintenance work"], c: 0, why: "Closing it earlier is a direct-on-line start." },
     { l: 4, q: "Which starter can change the motor speed during operation?", a: ["VFD (inverter drive)", "soft starter", "star-delta starter", "direct-on-line starter"], c: 0, why: "Only a drive changes the frequency, and so the speed." },
+    { l: 4, q: "A motor is started direct on line. About how much current does it take at the first moment?", a: ["6 to 8 times its rated current", "1 to 2 times its rated current", "Exactly its rated current, 1 ×", "Half of its rated current"], c: 0, why: "At standstill the motor is almost a short circuit. The current falls only when it is near full speed." },
+    { l: 4, q: "The voltage at the motor is cut to half during the start. What happens to the torque?", a: ["It falls to one quarter", "It falls to about one half", "It stays almost the same", "It doubles for a short time"], c: 0, why: "Torque goes with the square of the voltage. This is why reduced-voltage starters are weak at the start." },
+    { l: 4, q: "In a star-delta starter with a PLC, what does the ladder program do?", a: ["It decides when each contactor closes", "It lowers the motor current by itself", "It carries the motor current in star", "It replaces the overload relay fully"], c: 0, why: "The star connection lowers the current. The program only does the sequence and the timing." },
+    { l: 4, q: "Why is the star / delta interlock also wired with NC contacts, when the PLC already has it in the program?", a: ["A welded contact or PLC fault can still close both", "The PLC outputs are too weak to drive the two coils alone", "The wiring makes the changeover a little bit faster", "A program interlock is not allowed by the PLC standard"], c: 0, why: "The hardware interlock works without the program and reacts to the real contactor, not to the command." },
+    { l: 4, q: "Which old starting method gives a HIGH torque with a LOW current?", a: ["Rotor resistance on a slip-ring motor", "Stator resistance in the three line wires", "Star-delta with a long star time set", "Autotransformer on the 50 % tap"], c: 0, why: "Resistance in the rotor moves the torque peak to standstill. All stator-side methods lose torque with the voltage." },
+    { l: 4, q: "A stator resistance starter: KM1 closes, the timer runs, but the bypass KM2 never closes. What happens?", a: ["The start resistors overheat", "The motor runs faster than rated", "The breaker trips at once", "The motor changes its direction"], c: 0, why: "The resistors are made for a few seconds only. Feedback monitoring in the PLC stops the motor in time." },
+    { l: 4, q: "In a rotor resistance starter, what is the right order?", a: ["Line contactor first, then step by step", "All step contactors first, then the line", "Line and all steps closed together", "The last step first, then back to the first"], c: 0, why: "The motor must start with all resistance in. Each step is bridged only after the speed has risen." },
+    { l: 4, q: "The PLC commands a contactor, but its auxiliary contact does not come back within 1 s. What should the program do?", a: ["Stop the starter and raise an alarm", "Wait one more minute, then try again", "Ignore it and go on with the start", "Switch the PLC itself to STOP"], c: 0, why: "Command without feedback means a broken coil, wire or contactor. Going on can burn resistors or a transformer." },
   ];
   LL.QUIZ_IV = [
     { t: "Basics", q: "Explain the PLC scan cycle.", a: ["Read all inputs into the image, run the program top to bottom, write the outputs", "React to each input the moment it changes, one rung at a time, with no fixed order", "Write the outputs first, then read the inputs, then run the program from the bottom", "Run every rung at the same time, and update an output as soon as its rung is done"], c: 0, why: "Inputs are frozen for the whole scan; outputs change only at the end. That is why the order of rungs matters." },
@@ -3416,6 +3522,18 @@ END_REPEAT</pre>
     { t: "Electrical & wiring", q: "What is the job of the flyback diode across a DC relay coil?", a: ["It absorbs the voltage spike when the coil switches off", "It stops the coil from pulling in with the wrong polarity", "It makes the relay switch faster when it turns on", "It limits the coil current to protect the PLC output"], c: 0, why: "A coil that switches off makes a spike of hundreds of volts. The diode lets that energy die away in the coil and protects the contact or PLC output." },
     { t: "Electrical & wiring", q: "Why is the 0 V (M) of a 24 V control circuit often connected to PE?", a: ["An earth fault then blows the fuse instead of hiding", "The PLC needs the earth to read its inputs correctly", "It halves the voltage, so the circuit is safer to touch", "So the PE wire can be used as the 0 V return wire"], c: 0, why: "If a 24 V wire touches the earthed cabinet, the fuse blows at once. Without the link the fault stays hidden until a second fault starts something by itself." },
     { t: "Electrical & wiring", q: "A motor on 400 V mains is connected in star. What voltage does each winding get?", a: ["About 230 V (400 / √3)", "400 V, the full line voltage", "About 690 V (400 × √3)", "200 V (half of the 400 V)"], c: 0, why: "In star each winding sits between one phase and the star point: 400 V / 1.73 ≈ 230 V. In delta it gets the full 400 V." },
+    { t: "Motor starting", q: "Why are big motors not started direct on line?", a: ["The high current dips the supply and the torque hits the machine", "The motor would turn in the wrong direction at the very first start", "A direct start needs a more costly contactor than a starter", "The motor cannot reach its full speed without a starter"], c: 0, why: "6–8 × current for seconds, and a hard torque step. Starters reduce one or both." },
+    { t: "Motor starting", q: "Why can a star-delta starter not start a loaded conveyor?", a: ["In star the motor has only one third of its torque", "In star the motor turns at only one third of its speed", "The star contactor is too small for a loaded belt", "The changeover time is too short for a heavy load"], c: 0, why: "Each winding gets 58 % voltage in star, and torque goes with voltage squared: one third." },
+    { t: "Motor starting", q: "What makes the current peak when star-delta changes over?", a: ["The motor is switched to full voltage below full speed", "The timer relay sends a short pulse into the motor windings", "Star and delta are closed together for a moment", "The overload relay resets during the changeover"], c: 0, why: "If the motor has not reached speed in star, delta starts almost like a direct start." },
+    { t: "Motor starting", q: "Soft starter or VFD: what is the main difference?", a: ["Only the VFD can change the running speed", "Only the soft starter lowers the start current", "Only the soft starter needs a motor cable", "Only the VFD needs an overload protection"], c: 0, why: "A soft starter only changes the voltage during start and stop. A VFD changes the frequency, so it controls speed." },
+    { t: "Motor starting", q: "Which parts of a starter stay hardware when a PLC controls it?", a: ["Power circuit, overload contact and interlocks", "Only the timers and the sequence relays of the panel", "Only the start and the stop push button", "Nothing: the PLC replaces all of them"], c: 0, why: "The PLC replaces the sequence and timing relays. Power and protection must work without the program." },
+    { t: "Motor starting", q: "An autotransformer starter uses the 65 % tap. How much current does the supply see, compared to a direct start?", a: ["About 42 % (0.65 × 0.65)", "About 65 % (same as the tap)", "About 80 % (a little less)", "About 35 % (100 − 65)"], c: 0, why: "The motor current falls to 65 %, and the transformer reduces it again on the line side: tap squared." },
+    { t: "Motor starting", q: "What is a slip-ring motor?", a: ["A motor whose rotor winding is brought out on rings", "A motor with two stator windings for two fixed speeds", "A motor with a brake on the rotor shaft end", "A motor that needs DC on its stator winding"], c: 0, why: "Through the rings you add resistance to the rotor: high starting torque with a low current." },
+    { t: "Motor starting", q: "Why does a soft starter usually have a bypass contactor?", a: ["So the thyristors do not heat up while running", "So the motor can also run in the reverse direction", "So the start current becomes even lower", "So the PLC can measure the motor speed"], c: 0, why: "At full speed the bypass carries the current. The electronics are only needed for start and stop." },
+    { t: "Motor starting", q: "What does 'closed transition' mean in a starter?", a: ["The motor is never without voltage at the changeover", "Both contactors stay closed for the whole running time", "The panel door must be closed for a start", "The star point stays closed after the start"], c: 0, why: "An open transition leaves the motor for a moment without voltage, and the reconnection makes a peak." },
+    { t: "Motor starting", q: "The star contactor is welded closed. The program asks for delta. What saves the panel?", a: ["The NC interlock contact in the delta coil circuit", "The star time that runs in the PLC program rung", "The seal-in contact in the first rung of the run latch", "The green start push button on the panel door"], c: 0, why: "The NC contact follows the real contactor. The program only knows its own command, not a welded contact." },
+    { t: "Motor starting", q: "Why does a PLC limit the number of starts per hour?", a: ["Every start heats the motor and the starter", "Every start wears out the PLC output card", "The supply company counts and bills each start", "The timers in the PLC need time to reset"], c: 0, why: "Windings, start resistors, transformers and soft starters need time to cool between starts." },
+    { t: "Motor starting", q: "Which method starts a motor with about rated current and full torque?", a: ["A variable frequency drive", "A star-delta starter", "A stator resistance starter", "An autotransformer starter"], c: 0, why: "The drive raises frequency and voltage together, so the motor always works near its normal slip." },
   ];
   LL.QUIZ_NET = [
     { t: "Basics", q: "Fieldbus or industrial Ethernet: what is the main difference?", a: ["Fieldbuses use serial cables (RS-485, CAN); industrial Ethernet uses Ethernet cables and switches", "Fieldbuses use Ethernet cables and switches; industrial Ethernet uses serial RS-485 or CAN cables", "Fieldbuses carry only digital on/off signals; industrial Ethernet carries only analog sensor values", "Fieldbuses need no device file at all; industrial Ethernet needs a GSD or EDS file for each device"], c: 0, why: "Classic fieldbuses: PROFIBUS, CANopen, DeviceNet. Industrial Ethernet: PROFINET, EtherNet/IP, EtherCAT, Modbus TCP. New machines almost always use Ethernet." },
