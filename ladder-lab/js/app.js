@@ -623,6 +623,7 @@
     const add = (o) => { o.n = out.length; o.lt = o.title.toLowerCase(); o.ls = (o.sub || '').toLowerCase(); o.lb = (o.body || '').toLowerCase(); out.push(o); };
     TOPICS.forEach((T) => add({ type: 'topic', href: '#topic-' + T.id, title: T.title, sub: plainText(T.blurb), body: plainText(T.intro), T, meta: topicCounts(T).replace(/<[^>]+>/g, '') }));
     LL.LESSONS.forEach((l) => add({ type: 'lesson', href: '#lesson-' + l.id, title: l.title, sub: plainText(l.summary), body: plainText(l.body) + ' ' + (l.takeaways || []).join(' '), meta: 'Lesson ' + lessonNo(l) + ' · ' + l.min + ' min', done: !!S.lessons[l.id] }));
+    ((LL.EC && LL.EC.TASKS) || []).forEach((c) => add({ type: 'task', href: '#circuit-' + c.id, title: c.title, sub: plainText(c.brief), meta: 'Circuit Lab · Level ' + c.level, id: c.id }));
     LL.CHALLENGES.forEach((c) => add({ type: 'task', href: '#ch-' + c.id, title: c.title, sub: plainText(c.brief), meta: 'Level ' + c.level + (c.lang === 'st' ? ' · ST' : '') + ' · ' + plantName(c.plant), id: c.id }));
     LL.PLANT_ORDER.forEach((p) => { const M = LL.Plants[p]; if (M) add({ type: 'machine', href: '#lab', title: M.name, sub: plainText(M.blurb), plant: p, meta: 'Machine in the Lab' }); });
     (LL.GLOSSARY || []).forEach(([t, d]) => add({ type: 'term', href: '#glossary', title: t, sub: d, term: t, meta: 'Glossary' }));
@@ -762,6 +763,7 @@
           <div class="row">
             <a class="btn primary" href="#lesson-${next.id}">${d.l ? 'Continue: ' + esc(next.title) : 'Start lesson 1'} ${I.arrow}</a>
             <a class="btn" href="#lab">${I.lab} Open the Lab</a>
+            <a class="btn" href="#circuits">Circuit Lab: wire real starters</a>
           </div>
         </div>
         <div class="card hero-demo"><div class="demo-cap"><span class="eyebrow">Try it now: tap START, then STOP</span></div><div class="demo"></div></div>
@@ -2277,6 +2279,7 @@
     let tab = 'home'; // topic pages live on Home ("Explore by topic"): their "All topics" link goes there too
     if (hsh === 'learn' || hsh.startsWith('lesson-') || hsh === 'glossary') tab = 'learn';
     else if (hsh === 'lab') tab = 'lab';
+    else if (hsh === 'circuits' || hsh.startsWith('circuit-')) tab = 'circuits';
     else if (hsh === 'challenges' || chId) tab = 'challenges';
     else if (hsh === 'path' || hsh.startsWith('path-')) tab = 'path';
     else if (hsh === 'quiz' || hsh.startsWith('quiz-')) tab = 'quiz';
@@ -2285,6 +2288,7 @@
     if (hsh === 'learn') pageLearn();
     else if (hsh.startsWith('lesson-')) { const [lid, tid] = hsh.slice(7).split('~'); pageLesson(lid, tid); }
     else if (hsh === 'lab') new Lab({});
+    else if (tab === 'circuits' && LL.CircuitUI) { if (hsh === 'circuits') LL.CircuitUI.list(m); else LL.CircuitUI.bench(m, hsh.slice(8)); }
     else if (hsh === 'challenges') pageChallenges();
     else if (hsh === 'path' || hsh.startsWith('path-')) pagePath(hsh.slice(5) || S.path || 'ladder');
     else if (chId) new Lab({ challenge: LL.CH_BY_ID[chId] });
@@ -2311,14 +2315,14 @@
     document.body.insertAdjacentHTML('afterbegin', `
       <header class="top"><div class="wrap">
         <a class="brand" href="#home" aria-label="Ladder Lab home">${BRAND_SVG}<span>Ladder <b>Lab</b></span></a>
-        <nav class="nav"><a data-tab="learn" href="#learn">Learn</a><a data-tab="lab" href="#lab">Lab</a><a data-tab="path" href="#path">Path</a><a data-tab="challenges" href="#challenges">Challenges</a><a data-tab="quiz" href="#quiz">Quiz</a><a href="#glossary">Glossary</a></nav>
+        <nav class="nav"><a data-tab="learn" href="#learn">Learn</a><a data-tab="lab" href="#lab">Lab</a><a data-tab="circuits" href="#circuits">Circuits</a><a data-tab="path" href="#path">Path</a><a data-tab="challenges" href="#challenges">Challenges</a><a data-tab="quiz" href="#quiz">Quiz</a><a href="#glossary">Glossary</a></nav>
         <span class="spacer"></span><span class="xp"></span>
         <a class="iconbtn srch-btn" data-tab="search" href="#search" aria-label="Search" title="Search (key /)">${I.search}</a>
         <button class="iconbtn" id="theme-btn" aria-label="Switch light or dark theme"></button>
       </div></header>
       <main id="main"></main>
       <nav class="tabs" aria-label="Sections">
-        <a data-tab="home" href="#home">${I.home}Home</a><a data-tab="learn" href="#learn">${I.learn}Learn</a><a data-tab="lab" href="#lab">${I.lab}Lab</a><a data-tab="challenges" href="#challenges">${I.target}Tasks</a><a data-tab="quiz" href="#quiz">${I.quiz}Quiz</a>
+        <a data-tab="home" href="#home">${I.home}Home</a><a data-tab="learn" href="#learn">${I.learn}Learn</a><a data-tab="lab" href="#lab">${I.lab}Lab</a><a data-tab="circuits" href="#circuits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h16M4 21h16M8 3v5M8 13v8M8 13L4.5 8.5M16 3v6M16 16v5"/><rect x="12.5" y="9" width="7" height="7" rx="1"/></svg>Circuits</a><a data-tab="challenges" href="#challenges">${I.target}Tasks</a><a data-tab="quiz" href="#quiz">${I.quiz}Quiz</a>
       </nav>`);
     const tb = $('#theme-btn');
     const setIcon = () => { tb.innerHTML = isDark() ? I.sun : I.moon; };

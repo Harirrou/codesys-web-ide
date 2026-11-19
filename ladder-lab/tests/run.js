@@ -207,5 +207,27 @@ console.log('ST sample:\n' + LL.toST(LL.parseProgram(LL.CH_BY_ID['permissive'].s
   const longest = b.filter((q) => { const L = q.a.map((x) => x.length); return L[q.c] === Math.max(...L); }).length;
   ok(longest / b.length <= 0.3, n + ': the right answer is the longest in ' + longest + ' of ' + b.length + ' questions (guessable)');
 });
+// Circuit Lab (js/circuit.js): every reference circuit passes its tests, an empty panel and every broken starter fail,
+// the text format round-trips, and the reference circuits have no lint warnings
+require(path.join(__dirname, '../js/circuit.js'));
+{
+  const EC = LL.EC;
+  ok(EC.TASKS.length >= 15 && new Set(EC.TASKS.map((t) => t.id)).size === EC.TASKS.length, 'circuit tasks: at least 15, unique ids');
+  EC.TASKS.forEach((t) => {
+    const c = EC.parse(t.solution);
+    ok(EC.toText(EC.parse(EC.toText(c))) === EC.toText(c), 'circuit ' + t.id + ': text format round-trips');
+    ok(EC.lint(c, t).length === 0, 'circuit ' + t.id + ': reference circuit has no lint warnings: ' + EC.lint(c, t).join(' | '));
+    const r = EC.run(t, c).filter((x) => !x.ok);
+    ok(r.length === 0, 'circuit ' + t.id + ': reference circuit passes' + (r[0] ? ': ' + r[0].name + ' → ' + r[0].msg : ''));
+    ok(EC.run(t, EC.empty()).some((x) => !x.ok), 'circuit ' + t.id + ': an empty panel fails');
+    if (t.starter) ok(EC.run(t, EC.parse(t.starter)).some((x) => !x.ok), 'circuit ' + t.id + ': the broken starter fails');
+    c.cells.forEach((row) => row.forEach((x) => { if (x && x.d) ok(t.parts.some((p) => p.d === x.d), 'circuit ' + t.id + ': ' + x.d + ' is in the parts box'); }));
+    ok(t.hints.length >= 2 && t.tests.length >= 2 && t.level >= 1 && t.level <= 5, 'circuit ' + t.id + ': has hints, tests and a level');
+  });
+  // a path from L to N without a load is a short circuit
+  const sh = new EC.Sim(EC.parse('W\nW\nW\nW\nW\nW\nW'), EC.BY_ID['c-lamp']); sh.tick();
+  ok(!!sh.short && !sh.mcb, 'circuit: L wired straight to N trips the control breaker');
+  ok(EC.lint(EC.parse('LAMP:H1\nLAMP:H1'), EC.BY_ID['c-lamp']).length > 0, 'circuit: two loads in series are reported');
+}
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

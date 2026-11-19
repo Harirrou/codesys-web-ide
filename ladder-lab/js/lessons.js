@@ -503,6 +503,68 @@
       challenges: ["el-ol-trip", "diag-el-ol", "stop-nc", "star-delta"],
     },
     {
+      id: 'control-circuits', level: 2, title: "Hard-wired control circuits: read them, then build them", min: 10,
+      summary: "Power circuit and control circuit, how to read current paths from L to N, the parts and their terminal numbers, the five patterns behind every circuit, and how a circuit turns into ladder. With the Circuit Lab to build and test them.",
+      body: `
+<h3>Two circuits in every starter</h3>
+<p>Open any motor starter and you find two circuits:</p>
+<div class="tbl"><table>
+<tr><th></th><th>Power circuit</th><th>Control circuit</th></tr>
+<tr><td>Carries</td><td>The motor current (thick wires, 400 V)</td><td>Only the current of coils and lamps (thin wires, 24 V or 230 V)</td></tr>
+<tr><td>Parts</td><td>Main breaker, contactor main contacts, overload relay, motor</td><td>Push buttons, contactor coils, auxiliary contacts, timers, lamps</td></tr>
+<tr><td>Its job</td><td>Give the motor power</td><td>Decide <b>when</b> each contactor closes</td></tr>
+</table></div>
+<p>The control circuit is the brain. Before PLCs it was the whole brain. Today a PLC often does the deciding, but every safety function and every simple starter is still wired like this, and you must be able to read it.</p>
+<div class="callout tip"><b>Build them yourself:</b> the <a href="#circuits">Circuit Lab</a> gives you the parts, a live circuit with green wires where there is voltage, the motor behind it and tests. Start with <a href="#circuit-c-lamp">a switch and a lamp</a>.</div>
+
+<h3>How to read a control circuit</h3>
+<ol>
+<li><b>Top to bottom.</b> The supply line <b>L</b> is on top, <b>N</b> at the bottom. Each vertical line is one <b>current path</b>.</li>
+<li><b>The load is last.</b> Each path ends in one load just above N: a coil, a lamp, a timer. Everything above it is contacts.</li>
+<li><b>Contacts are drawn at rest:</b> no voltage, nothing pressed. A NO contact is drawn open, an NC contact closed.</li>
+<li><b>One device, several places.</b> The coil of K1 is in one path, its contacts in others. The same tag (K1) tells you they belong together.</li>
+<li><b>No load, no path.</b> A path from L to N with only contacts is a short circuit.</li>
+</ol>
+
+<h3>The parts and their tags</h3>
+<div class="tbl"><table>
+<tr><th>Tag</th><th>Part</th><th>Terminals</th><th>Remember</th></tr>
+<tr><td><b>S</b></td><td>Push button, selector switch, E-stop</td><td>NO 13-14, NC 11-12</td><td>STOP and E-stop are NC: a broken wire stops the machine</td></tr>
+<tr><td><b>K</b> (KM, KA)</td><td>Contactor or relay</td><td>Coil A1-A2, NO 13-14, NC 21-22</td><td>One coil moves all its contacts</td></tr>
+<tr><td><b>F</b></td><td>Overload relay, breaker, fuse</td><td>NC 95-96, NO 97-98</td><td>95-96 goes in the coil path, 97-98 to the TRIP lamp</td></tr>
+<tr><td><b>KT</b></td><td>Timer relay</td><td>NO 17-18, NC 15-16</td><td>On-delay: the contacts switch after the time</td></tr>
+<tr><td><b>B</b></td><td>Switch moved by the machine: limit, float, pressure</td><td>NO 13-14, NC 11-12</td><td>"Actuated" means the machine pushes it</td></tr>
+<tr><td><b>H</b></td><td>Lamp, horn</td><td>X1-X2</td><td>A load, like a coil</td></tr>
+</table></div>
+
+<h3>Five patterns make every circuit</h3>
+<div class="tbl"><table>
+<tr><th>Pattern</th><th>How it is drawn</th><th>Try it</th></tr>
+<tr><td><b>Series = AND</b></td><td>Contacts one below the other. All must be closed</td><td><a href="#circuit-c-series">Series and parallel</a></td></tr>
+<tr><td><b>Parallel = OR</b></td><td>Contacts side by side, linked above and below. One is enough</td><td><a href="#circuit-c-two">Two stations</a></td></tr>
+<tr><td><b>Seal-in</b></td><td>A NO contact of the contactor beside its own START button</td><td><a href="#circuit-c-seal">Direct-on-line starter</a></td></tr>
+<tr><td><b>Interlock</b></td><td>An NC contact of the other contactor above each coil</td><td><a href="#circuit-c-rev">Forward / reverse</a></td></tr>
+<tr><td><b>Timer</b></td><td>A timer coil beside the contactor, its contacts in other paths</td><td><a href="#circuit-c-sd">Star-delta</a></td></tr>
+</table></div>
+
+<h3>From the circuit to ladder</h3>
+<p>Turn the drawing a quarter turn and you have ladder: L becomes the left rail, N the right rail, each current path becomes a rung, the load becomes the coil at the end. That is where ladder logic comes from: it was made so electricians could read PLC programs.</p>
+<div class="tbl"><table>
+<tr><th>Hard-wired</th><th>Ladder</th></tr>
+<tr><td>Push button contact</td><td>Contact with an input address (I0.0)</td></tr>
+<tr><td>Contactor coil</td><td>Coil with an output address (Q0.0)</td></tr>
+<tr><td>Helper relay (KA)</td><td>Memory bit (M0.0)</td></tr>
+<tr><td>Timer relay</td><td>TON / TOF</td></tr>
+<tr><td>Changing the logic</td><td>Rewire the panel → edit a rung</td></tr>
+</table></div>
+<p>One trap when you move a circuit into a PLC: a STOP button wired NC gives the input a <b>1</b> while it is not pressed. In the program you then use a normal (NO) contact for it. See <a href="#lesson-field-vs-program">field wiring and the program</a>.</p>
+<div class="callout where"><b>Where:</b> every motor starter, every safety circuit, every old machine. In interviews: "Draw a direct-on-line starter" and "Draw star-delta with its interlock" are standard questions. Practise both in the <a href="#circuits">Circuit Lab</a> until you can draw them from memory.</div>`,
+      sims: {},
+      takeaways: ["Power circuit: motor current. Control circuit: decides when the contactors close.", "Read from L (top) to N (bottom). The load is the last part of each path.", "Contacts are drawn at rest: NO open, NC closed.", "Series is AND, parallel is OR, a NO contact beside START is the seal-in.", "Ladder is the same drawing turned a quarter turn."],
+      mistakes: ["Seal-in contact beside the STOP button and not beside START.", "Two coils or lamps in series: each gets half the voltage.", "The overload contact left out of the coil path: the motor burns after a trip.", "Interlock forgotten between two contactors that must never close together.", "A path from L to N without a load: a short circuit."],
+      challenges: ["start-stop", "interlock", "star-delta"],
+    },
+    {
       id: 'ton', level: 3, title: 'On-delay timer (TON)', min: 8,
       summary: 'Output comes on after the input has been on continuously for the preset time.',
       body: `
@@ -3410,6 +3472,11 @@ END_REPEAT</pre>
     ["SCALE_X", "Scaling step 2: stretch a value from 0.0 to 1.0 into a new range."],
     ["TRUNC", "Cuts the decimals of a REAL off: 2.9 becomes 2."],
     ["Bit of a word", "One of the 16 bits of a word, used like a normal bit: MW100.2."],
+    ["Control circuit", "The thin-wire circuit with buttons, coils and contacts that decides when a contactor closes."],
+    ["Power circuit", "The thick-wire circuit that carries the motor current: breaker, contactor, overload relay, motor."],
+    ["Current path", "One vertical line of a control circuit, from L through contacts to a load and to N."],
+    ["Auxiliary contact", "A small extra contact of a contactor (13-14, 21-22) used in the control circuit, for seal-in and interlock."],
+    ["Hold-to-run", "A control with no seal-in: the machine moves only while the button is held."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -3808,6 +3875,12 @@ END_REPEAT</pre>
     { t: "Programming", q: "How do you check whether any of the low four alarm bits of a word is on?", a: ["AND with 16#000F, compare with 0", "OR with 16#000F, compare with 0", "XOR with 16#FFFF, compare with 0", "Shift the word left by four bits"], c: 0, why: "The mask removes the bits you do not care about. If the rest is not zero, at least one alarm is on." },
     { t: "Programming", q: "A status word shows −32768 in the watch table. What happened?", a: ["Only bit 15 is on: view it in hex", "The word has overflowed and is lost", "The device sends a negative speed", "The network cable is plugged wrong"], c: 0, why: "In a signed word bit 15 is the sign. 16#8000 reads as −32768. Bit patterns belong in hex or binary." },
     { t: "Analog & PID", q: "What is the scaling formula from a raw value to engineering units?", a: ["(in − inMin) × outSpan / inSpan + outMin", "(in + inMin) × inSpan / outSpan − outMin", "in × outMax × inMax, then minus outMin", "(in − outMin) / outSpan × inSpan + inMin"], c: 0, why: "First find where the value is in its range, then stretch it to the new range. NORM_X and SCALE_X do these two steps." },
+    { t: "Electrical drawings", q: "In a control circuit, where is the seal-in contact of a contactor drawn?", a: ["In parallel with the START button", "In parallel with the STOP button", "In series below the contactor coil", "In series with the overload contact"], c: 0, why: "It bridges START, so the coil stays fed when START is released. STOP stays in series above and can still open the path." },
+    { t: "Electrical drawings", q: "Which terminals of the overload relay go in the coil circuit of the contactor?", a: ["95-96, the NC contact", "97-98, the NO contact", "13-14, the NO contact", "A1-A2, the coil ends"], c: 0, why: "95-96 opens when the relay trips and drops the contactor. 97-98 closes and can light a TRIP lamp." },
+    { t: "Electrical drawings", q: "How are contacts drawn in a circuit diagram?", a: ["At rest: no voltage, nothing pressed", "As they are while the motor is running", "Always open, to keep it simple", "As they were at the last fault"], c: 0, why: "The diagram shows the de-energized state. NO contacts are drawn open, NC contacts closed." },
+    { t: "Electrical & wiring", q: "Two lamps are wired in series between L and N. What happens?", a: ["Each gets about half the voltage", "Both light at full brightness", "The control breaker trips at once", "Only the first lamp lights up"], c: 0, why: "Loads in series share the voltage. Loads belong side by side, each on its own path to N." },
+    { t: "Electrical & wiring", q: "Why is a hoist button usually wired without a seal-in?", a: ["It must stop when the button is let go", "A seal-in would make the hoist too fast", "Hoist contactors have no extra contacts", "The limit switches do the seal-in job"], c: 0, why: "This is hold-to-run: the operator's hand is the stop. Used for hoists, jog and setup movements." },
+    { t: "Electrical & wiring", q: "A tank pump controlled by one float switch clicks on and off every second. What is missing?", a: ["A second level and a seal-in", "A bigger contactor for the pump", "A flyback diode on the float", "A faster overload relay"], c: 0, why: "Start at the low level, stop at the high level, and hold in between. That gap (hysteresis) gives long, calm runs." },
   ];
   LL.QUIZ_NET = [
     { t: "Basics", q: "Fieldbus or industrial Ethernet: what is the main difference?", a: ["Fieldbuses use serial cables (RS-485, CAN); industrial Ethernet uses Ethernet cables and switches", "Fieldbuses use Ethernet cables and switches; industrial Ethernet uses serial RS-485 or CAN cables", "Fieldbuses carry only digital on/off signals; industrial Ethernet carries only analog sensor values", "Fieldbuses need no device file at all; industrial Ethernet needs a GSD or EDS file for each device"], c: 0, why: "Classic fieldbuses: PROFIBUS, CANopen, DeviceNet. Industrial Ethernet: PROFINET, EtherNet/IP, EtherCAT, Modbus TCP. New machines almost always use Ethernet." },
