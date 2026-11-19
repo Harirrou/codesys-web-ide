@@ -780,7 +780,7 @@
         <a class="card path" href="#path-interview"><span class="ic">${I.arrow}</span><h3>Interview path</h3><p>The classic PLC interview tasks, in the order to prepare them.</p></a>
         <a class="card path" href="#challenges"><span class="ic">${I.target}</span><h3>Challenges</h3><p>Real tasks with automatic tests, hints and bug hunts.</p></a>
         <a class="card path" href="#quiz"><span class="ic">${I.quiz}</span><h3>Quiz</h3><p>Concept questions plus endless "predict the output" drills.</p></a>
-        <a class="card path" href="#calc"><span class="ic">${I.target}</span><h3>Calculators</h3><p>The formulas for a project: motor current, cable size, 24 V supply, analog scaling, hex, encoder and more.</p></a>
+        <a class="card path" href="#calc"><span class="ic">${I.target}</span><h3>Calculators</h3><p>The numbers for a project: fill a tank, pump, pipe, cable, 24 V supply, analog scaling and more, with moving pictures.</p></a>
       </div>
       <section class="card mp-home" aria-labelledby="mp-home-h">
         <span class="mp-home-ic" aria-hidden="true">${I.folder}</span>

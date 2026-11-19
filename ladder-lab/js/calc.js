@@ -79,12 +79,12 @@
   }
 
   const GROUPS = [
-    ['elec', 'Electricity basics'], ['motor', 'Motors and drives'], ['size', 'Sizing the cabinet'], ['sig', 'Analog signals and sensors'],
+    ['proj', 'Projects: tanks, pumps, air, lines'], ['elec', 'Electricity basics'], ['motor', 'Motors and drives'], ['size', 'Sizing the cabinet'], ['sig', 'Analog signals and sensors'],
     ['num', 'Numbers, addresses and units'], ['time', 'Scan, counting and motion'], ['mech', 'Machines and process'], ['ctrl', 'Control, networks and safety'],
   ];
   const LEVELS = { 1: 'Basic', 2: 'Everyday', 3: 'Advanced' };
-  const LIST = [];
-  const add = (o) => LIST.push(o);
+  const LIST = [], BY = Object.create(null);
+  const add = (o) => { LIST.push(o); BY[o.id] = o; };
 
   // ═════════════ Electricity basics ═════════════
   add({
@@ -254,7 +254,7 @@
       const n = Math.max(ia, id), a = CSA[n], d = drop(a);
       return { r: [['Cable size', F(a), 'mm²', 'big'], ['Voltage drop', F(d) + ' V = ' + F(d / v.u * 100), '%'], ['This size may carry', F(amp[n], 1), 'A'], ['Needed for the current alone', F(CSA[ia]), 'mm²'], ['Needed for the drop alone', F(CSA[id]), 'mm²']],
         how: [`ΔU = ${v.sys === '3' ? '√3' : '2'} × L × I${v.sys === 'dc' ? '' : ' × cos φ'} ÷ (56 × A)`, `ΔU = ${v.sys === '3' ? '1.732' : '2'} × ${F(v.l)} × ${F(v.i)}${v.sys === 'dc' ? '' : ' × ' + F(c)} ÷ (56 × ${F(a)}) = ${F(d)} V`, `In percent: ${F(d)} ÷ ${F(v.u)} × 100 = ${F(d / v.u * 100)} %`],
-        warn: v.sys === 'dc' && v.u <= 30 && d / v.u > 0.1 ? ['More than 10 % drop on 24 V: sensors and valves at the end may not work.'] : [] };
+        warn: v.sys === 'dc' && v.u <= 30 && d / v.u > 0.1 ? ['More than 10 % drop on 24 V: sensors and valves at the end may not work.'] : [], x: { a, d } };
     },
     tips: ['Current values: copper with PVC, air at 40 °C, as in the machine standard IEC 60204-1. Many cables together or more heat: take a bigger size.', 'The fuse or breaker must not be bigger than what the cable may carry.', 'A long 24 V cable is almost always chosen by the drop, not by the current.', 'Always check the rules of your country before you order.'],
   });
@@ -345,7 +345,7 @@
       else { out = (v.x - b) / k; pct = (v.x - v.e0) / (v.e1 - v.e0) * 100; how = `Raw = (value − ${F(v.e0)}) × (${F(r1)} − ${F(r0)}) ÷ (${F(v.e1)} − ${F(v.e0)}) + ${F(r0)} = ${F(out, 0)}`; }
       if (pct < 0 || pct > 100) w.push('The value is outside the range. In the PLC, limit it and raise an alarm.');
       return { r: [[v.dir === 'r' ? 'Real value' : 'Raw number', F(out, v.dir === 'r' ? 3 : 0), '', 'big'], ['Position in the range', F(pct, 1), '%'], ['One raw step is', F(Math.abs(k), 5), 'units']],
-        how: [how, `Short form: value = ${F(k, 6)} × raw ${b < 0 ? '−' : '+'} ${F(Math.abs(b), 4)}`, `In ST: Value := (INT_TO_REAL(Raw) - ${F(r0)}.0) * ${F(v.e1 - v.e0)} / ${F(r1 - r0)}.0 + ${F(v.e0)};`], warn: w };
+        how: [how, `Short form: value = ${F(k, 6)} × raw ${b < 0 ? '−' : '+'} ${F(Math.abs(b), 4)}`, `In ST: Value := (INT_TO_REAL(Raw) - ${F(r0)}.0) * ${F(v.e1 - v.e0)} / ${F(r1 - r0)}.0 + ${F(v.e0)};`], warn: w, x: { pct, r0, r1, raw: v.dir === 'r' ? v.x : out, val: v.dir === 'r' ? out : v.x } };
     },
     tips: ['Do the maths in REAL. In whole numbers, multiply first and divide last, or the result loses its decimals.', 'A reversed signal is no problem: give the bigger real value at the low end.', 'The raw range is in the manual of the card. It is not the same for every card.'],
   });
@@ -889,7 +889,6 @@
   });
 
   // ───────────── run with defaults filled in (also used by the tests) ─────────────
-  const BY = Object.create(null); LIST.forEach((c) => { BY[c.id] = c; });
   const defaults = (c) => { const o = {}; c.f.forEach((x) => { o[x.k] = x.d; }); return o; };
   function run(id, vals) {
     const c = BY[id]; if (!c) return null;
@@ -919,7 +918,7 @@
 .cx-lv.l1{background:var(--power-soft);color:var(--power)}
 .cx-none{color:var(--muted);margin:18px 0}
 .cx-one{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:14px;align-items:start}
-@media(max-width:860px){.cx-one{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:860px){.cx-one{display:flex;flex-direction:column;align-items:stretch}.cx-stack{display:contents}.cx-picbox{order:-1}}
 .cx-box{border:1px solid var(--line);border-radius:16px;background:var(--surface);padding:14px 16px;min-width:0}
 .cx-box h2{font-family:var(--f-display);font-size:.9rem;letter-spacing:.08em;text-transform:uppercase;margin:0 0 10px;color:var(--muted)}
 .cx-f{display:grid;gap:10px}
@@ -949,7 +948,28 @@
 .cx-tips{margin:0;padding-left:18px;font-size:.9rem;line-height:1.5}
 .cx-tips li{margin:0 0 5px}
 .cx-nav{display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;margin-top:16px}
-.cx-stack{display:grid;gap:14px;min-width:0}`;
+.cx-stack{display:grid;gap:14px;min-width:0}
+.cx-pic svg{display:block;width:100%;height:auto}
+.cx-cap{font-size:.84rem;color:var(--muted);margin:8px 0 0;line-height:1.4}
+.cx-svg text{font-family:var(--f-mono);font-size:11px;fill:currentColor}
+.cx-svg .t2{font-size:13px;font-weight:700}
+.cx-svg .tm{fill:var(--muted)}
+.cx-svg .s{fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.cx-svg .s1{fill:none;stroke:currentColor;stroke-width:1;opacity:.45;stroke-dasharray:3 3}
+.cx-svg .bd{fill:var(--surface-2);stroke:currentColor;stroke-width:2;stroke-linejoin:round}
+.cx-svg .wa{fill:#3b82f6;opacity:.6}
+.cx-svg .wb{fill:#f5a524;opacity:.75}
+.cx-svg .pp{fill:none;stroke:currentColor;stroke-width:9;opacity:.16;stroke-linecap:round;stroke-linejoin:round}
+.cx-svg .fl{fill:none;stroke:#3b82f6;stroke-width:4;stroke-dasharray:9 7;stroke-linejoin:round}
+.cx-svg .fl.hot{stroke:#e2553b}
+.cx-svg .fl.am{stroke:#f5a524}
+.cx-svg .fl.el{stroke:var(--power-bright)}
+.cx-svg .gn{fill:var(--power-bright)}
+.cx-svg .rd{fill:var(--danger)}
+.cx-svg .mu{fill:var(--muted)}
+.cx-svg .hl{fill:var(--power-soft);stroke:var(--power);stroke-width:1.5}
+.cx-svg .bz{fill:var(--danger-soft)}
+.cx-svg .ac{fill:none;stroke:var(--power-bright);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}`;
   let cssIn = false;
   function css() { if (cssIn) return; cssIn = true; const s = document.createElement('style'); s.textContent = CSS; document.head.appendChild(s); }
   const load = () => { try { return JSON.parse(localStorage.getItem(STORE) || '{}') || {}; } catch (e) { return {}; } };
@@ -958,7 +978,7 @@
 
   function list(main) {
     const wrap = el(`<div class="wrap cx-head"><span class="plate">Tools</span><h1 style="margin:10px 0 8px">Calculators</h1>
-      <p class="muted">${LIST.length} calculators for the numbers you need on a project: from Ohm’s law to the size of a cable, a power supply or a cabinet fan. Each one shows the formula with your numbers in it.</p>
+      <p class="muted">${LIST.length} calculators for the numbers you need on a project: fill a tank, size a pump, a pipe, a cable or a power supply, scale an analog value. Each one shows the formula with your numbers in it, and many have a moving picture.</p>
       <div class="cx-find"><input type="search" id="cx-q" placeholder="Search: cable, 4–20 mA, hex, encoder…" aria-label="Search the calculators" autocomplete="off"></div>
       <div class="cx-chips" role="group" aria-label="Group"></div><div class="cx-list"></div></div>`);
     const q = wrap.querySelector('#cx-q'), chips = wrap.querySelector('.cx-chips'), out = wrap.querySelector('.cx-list');
@@ -969,7 +989,7 @@
       const hit = (c) => { const t = (c.t + ' ' + c.d + ' ' + (c.key || '')).toLowerCase(); return words.every((w) => t.includes(w)); };
       const html = GROUPS.filter(([k]) => !listState.g || listState.g === k).map(([k, n]) => {
         const cs = LIST.filter((c) => c.g === k && hit(c));
-        return cs.length ? `<section class="cx-grp"><h2>${esc(n)}</h2><div class="cx-grid">${cs.map((c) => `<a class="cx-card" href="#calc-${c.id}"><b>${esc(c.t)}</b><span class="cx-d">${esc(c.d)}</span><span class="cx-lv l${c.lv}">${LEVELS[c.lv]}</span></a>`).join('')}</div></section>` : '';
+        return cs.length ? `<section class="cx-grp"><h2>${esc(n)}</h2><div class="cx-grid">${cs.map((c) => `<a class="cx-card" href="#calc-${c.id}"><b>${esc(c.t)}</b><span class="cx-d">${esc(c.d)}</span><span class="cx-lv l${c.lv}">${LEVELS[c.lv]}</span>${c.pic ? '<span class="cx-lv" style="margin-left:6px">▶ picture</span>' : ''}</a>`).join('')}</div></section>` : '';
       }).join('');
       out.innerHTML = html || '<p class="cx-none">No calculator found. Try a shorter word.</p>';
     };
@@ -986,7 +1006,7 @@
     const wrap = el(`<div class="wrap"><a class="btn small ghost" href="#calc">← All calculators</a>
       <h1 style="margin:10px 0 6px">${esc(c.t)}</h1><p class="muted" style="margin:0;max-width:68ch">${esc(c.d)} <span class="cx-lv l${c.lv}" style="margin:0 0 0 6px">${LEVELS[c.lv]}</span></p>
       <div class="cx-one"><div class="cx-box"><h2>Your numbers</h2><div class="cx-f"></div><p style="margin:12px 0 0"><button type="button" class="btn small" id="cx-reset">Back to the example</button></p></div>
-      <div class="cx-stack"><div class="cx-box"><h2>Result</h2><div class="cx-out" aria-live="polite"></div></div>
+      <div class="cx-stack"><div class="cx-box cx-picbox" hidden><h2 style="display:flex;justify-content:space-between;align-items:center;gap:8px">See it <button type="button" class="btn small" id="cx-pause"></button></h2><div class="cx-pic"></div><p class="cx-cap"></p></div><div class="cx-box"><h2>Result</h2><div class="cx-out" aria-live="polite"></div></div>
       <div class="cx-box cx-howbox"><h2>How it is calculated</h2><div class="cx-how"></div></div>
       <div class="cx-box"><h2>Good to know</h2><ul class="cx-tips">${(c.tips || []).map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div></div></div>
       <div class="cx-nav">${prev ? `<a class="btn small" href="#calc-${prev.id}">← ${esc(prev.t)}</a>` : '<span></span>'}${next ? `<a class="btn small" href="#calc-${next.id}">${esc(next.t)} →</a>` : '<span></span>'}</div>
@@ -1003,9 +1023,31 @@
         return `<label for="${id}">${esc(x.l)}<span class="cx-in">${inp}${x.u ? `<i>${esc(x.u)}</i>` : ''}</span></label>`;
       }).join('');
     };
+    const picBox = wrap.querySelector('.cx-picbox'), picEl = wrap.querySelector('.cx-pic'), capEl = wrap.querySelector('.cx-cap'), pauseBtn = wrap.querySelector('#cx-pause');
+    let still = false; try { still = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* old browser */ }
+    const an = { t: 0, last: 0, paused: still, p: null, els: null };
+    const paint = () => { if (an.p && an.p.run) an.p.run(an.els, an.t); };
+    const setPause = () => { pauseBtn.textContent = an.paused ? 'Play' : 'Pause'; pauseBtn.setAttribute('aria-pressed', String(an.paused)); };
+    pauseBtn.onclick = () => { an.paused = !an.paused; setPause(); };
+    const drawPic = (r) => {
+      const p = c.pic && r ? c.pic(vals, r.x || {}, r) : null;
+      an.p = p; picBox.hidden = !p;
+      if (!p) return;
+      picEl.innerHTML = p.svg; capEl.textContent = p.cap || ''; capEl.hidden = !p.cap; pauseBtn.hidden = !p.run;
+      an.els = {}; picEl.querySelectorAll('[data-i]').forEach((n) => { an.els[n.getAttribute('data-i')] = n; });
+      if (an.paused && an.t === 0 && p.still) an.t = p.still;
+      paint();
+    };
+    const frame = (now) => {
+      if (!wrap.isConnected) return;
+      if (!an.paused && an.last) { an.t += Math.min(0.1, (now - an.last) / 1000); paint(); }
+      an.last = now;
+      requestAnimationFrame(frame);
+    };
     const calc = () => {
       const r = run(c.id, vals);
-      if (!r || r.err) { out.innerHTML = `<div class="cx-err">${esc(r ? r.err : 'Not found.')}</div>`; howBox.hidden = true; return; }
+      if (!r || r.err) { out.innerHTML = `<div class="cx-err">${esc(r ? r.err : 'Not found.')}</div>`; howBox.hidden = true; drawPic(null); return; }
+      drawPic(r);
       out.innerHTML = '<div class="cx-res">' + r.r.map((x) => `<div class="cx-row ${esc(x[3] || '')}"><span>${esc(x[0])}</span><b>${esc(x[1])}${x[2] ? `<small>${esc(x[2])}</small>` : ''}</b></div>`).join('') + '</div>'
         + (r.warn || []).map((w) => `<div class="cx-warn">${esc(w)}</div>`).join('');
       howBox.hidden = !(r.how && r.how.length);
@@ -1020,8 +1062,9 @@
     };
     form.addEventListener('input', (e) => { const t = e.target; if (!t.dataset || !t.dataset.k) return; read(t); if (t.tagName === 'SELECT') { drawForm(); const s = form.querySelector('#cx-' + t.dataset.k); if (s) s.focus(); } calc(); });
     wrap.querySelector('#cx-reset').onclick = () => { Object.assign(vals, defaults(c)); const a = load(); delete a[c.id]; save(a); drawForm(); calc(); };
-    drawForm(); calc();
+    setPause(); drawForm(); calc();
     main.appendChild(wrap);
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(frame);
   }
 
   function page(main, id) {
@@ -1029,5 +1072,6 @@
     if (id && BY[id]) one(main, BY[id]); else list(main);
   }
 
-  LL.Calc = { LIST, GROUPS, LEVELS, run, page, _f: F };
+  LL.Calc = { LIST, GROUPS, LEVELS, run, page, add, pic: (id, fn) => { if (BY[id]) BY[id].pic = fn; }, defaults,
+    _h: { F, N, S, X, E, esc, nextStd, span, STD_MOTOR, AMP, CSA } };
 })();

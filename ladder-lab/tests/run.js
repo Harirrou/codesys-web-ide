@@ -371,9 +371,10 @@ require(path.join(__dirname, '../js/circuit.js'));
 
 // calculators: every one runs with its example, and known results are right
 require(path.join(__dirname, '../js/calc.js'));
+require(path.join(__dirname, '../js/calc-proj.js'));
 {
   const C = LL.Calc, ids = new Set(), groups = new Set(C.GROUPS.map((g) => g[0]));
-  ok(C.LIST.length >= 50, 'calculators: at least 50');
+  ok(C.LIST.length >= 70 && C.LIST.filter((c) => c.g === 'proj').length >= 15 && C.LIST.filter((c) => c.pic).length >= 20, 'calculators: at least 70, with a project group and pictures');
   C.LIST.forEach((c) => {
     ok(!ids.has(c.id) && /^[a-z0-9]+$/.test(c.id), 'calc ' + c.id + ': unique simple id'); ids.add(c.id);
     ok(groups.has(c.g) && C.LEVELS[c.lv] && c.t && c.d && (c.tips || []).length > 0, 'calc ' + c.id + ': group, level, title, text and tips');
@@ -440,6 +441,47 @@ require(path.join(__dirname, '../js/calc.js'));
   eq(val('ip'), '192.168.0.0 /24', 'network'); ok(/^No/.test(val('ip', {}, 1)), 'calc ip: other network'); ok(/^Yes/.test(val('ip', { mask: '/16' }, 1)), 'calc ip: same network with /16'); ok(/not a valid subnet/.test(val('ip', { mask: '255.0.255.0' })), 'calc ip: bad mask');
   eq(find('ip', { ip: '10.1.2.200', mask: '/26', ip2: '' }, 'Addresses'), '10.1.2.193 to 10.1.2.254', 'host range');
   ok(/^263/.test(val('datalog')), 'calc datalog: days'); eq(val('safedist'), '300', 'safety distance'); eq(val('safedist', { t1: 300, t2: 50, d: '30' }), '688', 'safety distance above 500');
+  // project calculators
+  eq(val('fill'), '500', 'fill: pump flow'); eq(find('fill', {}, 'Pipe size'), 'DN 80', 'fill: pipe'); eq(find('fill', {}, 'Pump motor'), '1.5', 'fill: motor');
+  eq(val('fill', { m: 't', q: 300, out: 50 }), '20 min', 'fill: time with an outflow'); ok(/never fills/.test(val('fill', { m: 't', q: 100, out: 100 })), 'calc fill: outflow as big as the pump');
+  eq(find('fill', { sh: 'r', d: 2, h: 1.6 }, 'Volume to fill'), '5027', 'fill: round tank volume'); eq(find('fill', { sh: 'r', d: 2, h: 1.6 }, 'The level rises'), '2.7', 'fill: level speed');
+  eq(val('drain'), '28.4 min', 'drain time'); eq(val('drain', {}, 1), '443', 'drain start flow'); ok(/lower than at the start/.test(val('drain', { h2: 3 })), 'calc drain: end above start');
+  eq(val('sump'), '450', 'pit volume'); eq(val('sump', {}, 1), '225', 'pit distance'); eq(val('sump', {}, 2), '9.6', 'pit starts'); eq(val('sump', { qin: 150 }, 2), '10', 'pit worst case'); eq(val('sump', { qin: 400 }, 2), 'never stops', 'pit: pump too small');
+  eq(val('pipe'), 'DN 65', 'pipe size'); eq(val('pipe', {}, 2), '0.229', 'pipe loss'); eq(val('pipe', { pick: '25' }, 1), '11.32', 'pipe speed in DN 25');
+  eq(val('kv'), '10', 'Kv'); eq(val('kv', {}, 2), '16', 'Kvs'); eq(val('kv', { q: 20, dp: 4 }), '10', 'Kv with 4 bar');
+  eq(val('dilute'), '66.7', 'concentrate'); eq(val('dilute', {}, 3), '33.3 min', 'dosing time'); ok(/stronger/.test(val('dilute', { cf: 40 })), 'calc dilute: too strong');
+  eq(val('ratio'), '1', 'dosing flow'); eq(val('ratio', {}, 2), '12', 'dosing mA'); eq(val('ratio', { u: 'pct', dose: 0.01, cap: 10 }), '2', 'dosing in %');
+  eq(val('batchw'), '24.919', 'stop weight'); eq(val('batchw', {}, 1), '22.19', 'change to slow'); eq(val('batchw', {}, 3), '17.2', 'fill time');
+  eq(val('air'), '773', 'compressor'); eq(val('air', {}, 3), '1000', 'receiver'); eq(val('air', {}, 2), '5.5', 'compressor motor'); ok(/higher than the start/.test(val('air', { poff: 6 })), 'calc air: stop below start');
+  eq(val('line'), '30', 'belt speed'); eq(val('line', {}, 4), '400', 'gap time'); eq(val('roll'), '4963', 'roll length'); eq(val('roll', {}, 3), '353.7', 'rpm empty');
+  eq(val('cool'), '28.8', 'cooling water'); eq(val('cool', { m: 'a', p: 1, dt: 10 }), '299', 'cooling air'); eq(val('tmix'), '11.1', 'hot water');
+  eq(val('levelp'), '0 … 400 mbar', 'level sensor range'); eq(val('levelp', {}, 1), '4.077', 'level at 20 mA'); eq(val('levelp', {}, 4), '8.71', 'mA now'); eq(val('levelp', { ht: 12 }), '0 … 1.6 bar', 'range in bar');
+  eq(val('mains'), '43.3', 'main current'); eq(val('mains', {}, 1), '50', 'main switch'); eq(val('mains', {}, 2), '10', 'incoming cable');
+  eq(val('brake'), '5', 'brake power'); eq(val('brake', {}, 3), '112', 'brake ohms'); eq(val('brake', { tf: 100 }), 'not needed', 'no resistor');
+  eq(val('feeder'), '40', 'feeder Hz'); eq(val('takt'), '2', 'machines'); eq(val('takt', {}, 1), '13.05', 'takt');
+  // pictures: every one draws and moves without a broken number, at any time and with zeros
+  {
+    const mk = () => { const log = []; const node = { style: {}, setAttribute: (k, val) => log.push(String(val)), set textContent(val) { log.push(String(val)); } }; return { log, els: new Proxy({}, { get: () => node }) }; };
+    C.LIST.filter((c) => c.pic).forEach((c) => {
+      const tryIt = (vals, name) => {
+        const v = Object.assign(C.defaults(c), vals), r = C.run(c.id, v);
+        if (!r || r.err) return;
+        let bad = '';
+        try {
+          const p = c.pic(v, r.x || {}, r);
+          if (!/^<svg[^>]*role="img"[^>]*aria-label="[^"]+"/.test(p.svg) || /NaN|undefined|Infinity/.test(p.svg)) bad = 'svg ' + (p.svg.match(/.{20}(NaN|undefined|Infinity).{20}/) || [p.svg.slice(0, 60)])[0];
+          if (!p.cap) bad = 'no caption';
+          const need = (p.svg.match(/data-i="([^"]+)"/g) || []).map((m) => m.slice(8, -1)), src = String(p.run);
+          (src.match(/\be\.([a-z0-9]+)\b/gi) || []).forEach((m) => { const k = m.slice(2); if (need.indexOf(k) < 0 && !/^b$/.test(k) && !new RegExp('if \\(e\\.' + k + '\\)').test(src)) bad = 'run uses e.' + k + ' but the svg has no data-i="' + k + '"'; });
+          [0, 0.4, 1.3, 2.9, 4.4, 6.2, 7.4, 33.3, 1000.7].forEach((t) => { const f = mk(); p.run(f.els, t); const x = f.log.find((s) => /NaN|undefined|Infinity/.test(s)); if (x) bad = 't=' + t + ' ' + x; });
+        } catch (e) { bad = String(e.message); }
+        ok(!bad, 'calc picture ' + c.id + ' (' + name + '): ' + bad);
+      };
+      tryIt({}, 'example');
+      c.f.filter((x) => x.ty === 's').forEach((x) => x.opts.forEach((o) => tryIt({ [x.k]: o[0] }, x.k + '=' + o[0])));
+      c.f.filter((x) => x.ty === 'n').forEach((x) => { tryIt({ [x.k]: 0 }, x.k + '=0'); tryIt({ [x.k]: x.d * 40 }, x.k + ' × 40'); });
+    });
+  }
   ok(C.run('constructor') === null && C.run('nothing') === null, 'calc: unknown id');
 }
 console.log(pass + ' passed, ' + fail + ' failed');
