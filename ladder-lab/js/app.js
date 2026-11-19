@@ -374,6 +374,8 @@
   // "downloads" capability (the viewer confirms). Everywhere else (installed app, file, web) a normal download link.
   let dlNs = null;
   function download(name, text, type) {
+    // the Android app: a WebView cannot download, the app shows the "save as" screen of the phone
+    if (window.LLAndroid && typeof window.LLAndroid.save === 'function') { window.LLAndroid.save(name, text, type || 'text/plain'); return; }
     const plain = () => {
       const url = URL.createObjectURL(new Blob([text], { type: (type || 'text/plain') + ';charset=utf-8' }));
       const a = document.createElement('a'); a.href = url; a.download = name; a.hidden = true;
@@ -2422,7 +2424,7 @@
   shell();
   window.addEventListener('hashchange', route);
   route();
-  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && !/claude|anthropic|usercontent/.test(location.host)) {
+  if ('serviceWorker' in navigator && !window.LLAndroid && /^https?:$/.test(location.protocol) && !/claude|anthropic|usercontent/.test(location.host)) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 })();

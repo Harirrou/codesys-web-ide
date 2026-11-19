@@ -95,6 +95,33 @@ js/topics.js      the 24 topics: lessons, tasks, machines, quiz links and icon o
 js/app.js         routing, pages, Lab editor, mini simulators, quizzes
 ```
 
+## Android app (APK)
+
+The APK is the app for Android 8 and newer: the same web app in a WebView, with its files and fonts inside the APK.
+APK files are not kept in git (`*.apk` is ignored): build it, or take it from the release. It asks for no permission and never uses the network.
+"Export my work" opens the save screen of the phone, "Import" opens the file picker, the cheat sheet can be printed.
+
+Build it without Android Studio and without Gradle:
+
+```
+LL_VERSION_NAME=1.1 LL_VERSION_CODE=2 bash tools/build-apk.sh ../dist/ladder-lab-1.1.apk
+```
+
+The script downloads the Android platform and build tools from dl.google.com once (checked by SHA-1), packs the web
+files as assets, compiles `android/java`, and signs the APK. Raise `LL_VERSION_CODE` for every update.
+
+**The signing key.** An update installs over the old app only when it is signed with the same key. The key is not in
+the repository. Give your own with `LL_KEYSTORE` and `LL_KS_PASS`; without them the script makes one in its cache
+folder. With another key the phone refuses the update: export your work, uninstall, install, import.
+
+```
+android/AndroidManifest.xml   one activity, no permissions
+android/java/…/MainActivity.java  the WebView: serves the assets, save / pick a file / print for the page
+android/res                   icon, colours, theme (follows the dark mode of the phone on Android 10+)
+android/fonts, fonts.css      the three font families (Latin), so the app needs no network
+tools/build-apk.sh            the build
+```
+
 ### Program text format
 
 ```
