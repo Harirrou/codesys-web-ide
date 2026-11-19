@@ -1,6 +1,6 @@
 /* Ladder Lab — "A safety relay on the rail". Mounted in lessons through [[hw:safetyrelay]].
  * One safety relay with its sensor (E-stop, guard door, light curtain), its reset button, the feedback loop
- * and two contactors. Pick a brand: the terminal names and LEDs change, the behaviour is the same.
+ * and two contactors. Pick a layout: the terminal names and LEDs change, the behaviour is the same.
  * Operate it, make faults, and read the LEDs like in front of a real cabinet.
  * The behaviour is in LL.SafetySim (pure, tested in node); the rest is the drawing. Our own drawing, no maker's logo. */
 (function (G) {
@@ -47,17 +47,17 @@
   LL.SafetySim = SafetySim;
   if (typeof document === 'undefined') return;
 
-  // ───────────── brands: terminal names and LEDs as on the common types (always check your own datasheet) ─────────────
+  // ───────────── five common layouts of terminal names and LEDs (no maker names; always check your own datasheet) ─────────────
   const BR = {
-    pilz: { n: 'Pilz PNOZ s4', kind: 'like a PNOZ s4', fill: '#f5c400', ink: '#1b1b1b', ch1: ['S11', 'S12'], ch2: ['S21', 'S22'], start: 'S34', outs: ['13-14', '23-24'], aux: 'Y32',
+    a: { n: 'Layout A · 6 LEDs', kind: 'S11 / S12 · start S34', fill: '#f5c400', ink: '#1b1b1b', ch1: ['S11', 'S12'], ch2: ['S21', 'S22'], start: 'S34', outs: ['13-14', '23-24'], aux: 'Y32',
       top: ['A1', '13', '23', '33', 'S12', 'S22', 'S34', '41'], bot: ['S11', 'S21', 'Y32', '42', 'A2', '14', '24', '34'], leds: [['Power', 'power'], ['In1', 'in1'], ['In2', 'in2'], ['Out', 'out'], ['Reset', 'start'], ['Fault', 'fault']] },
-    siemens: { n: 'Siemens 3SK1', kind: 'like a SIRIUS 3SK1', fill: '#3f4a55', ink: '#ffffff', band: '#f5c400', ch1: ['T1', 'IN1'], ch2: ['T2', 'IN2'], start: 'INS', outs: ['13-14', '23-24'], aux: '41-42',
+    b: { n: 'Layout B · 4 LEDs', kind: 'T1 / IN1 · start INS', fill: '#3f4a55', ink: '#ffffff', band: '#f5c400', ch1: ['T1', 'IN1'], ch2: ['T2', 'IN2'], start: 'INS', outs: ['13-14', '23-24'], aux: '41-42',
       top: ['A1', 'T1', 'IN1', 'INS', '13', '23', '33', '41'], bot: ['A2', 'T2', 'IN2', 'INF', '14', '24', '34', '42'], leds: [['DEVICE', 'power'], ['OUT', 'out'], ['IN', 'in'], ['SF', 'fault']] },
-    schneider: { n: 'Schneider XPS-AF', kind: 'like a Preventa XPS-AF', fill: '#dfe3e8', ink: '#1b1b1b', band: '#d6001c', ch1: ['S11', 'S12'], ch2: ['S21', 'S22'], start: 'S33-S34', outs: ['13-14', '23-24'], aux: '33-34',
+    c: { n: 'Layout C · 3 LEDs', kind: 'S11 / S12 · start S33-S34', fill: '#dfe3e8', ink: '#1b1b1b', band: '#d6001c', ch1: ['S11', 'S12'], ch2: ['S21', 'S22'], start: 'S33-S34', outs: ['13-14', '23-24'], aux: '33-34',
       top: ['A1', 'S11', 'S12', 'S33', '13', '23', '33', ''], bot: ['A2', 'S21', 'S22', 'S34', '14', '24', '34', ''], leds: [['A1/A2', 'power'], ['K1', 'out'], ['K2', 'out']] },
-    omron: { n: 'Omron G9SE', kind: 'like a G9SE-401', fill: '#f2c100', ink: '#1b1b1b', ch1: ['T11', 'T12'], ch2: ['T21', 'T22'], start: 'T31-T32', outs: ['13-14', '23-24'], aux: 'X1',
+    d: { n: 'Layout D · 4 LEDs', kind: 'T11 / T12 · start T31-T32', fill: '#f2c100', ink: '#1b1b1b', ch1: ['T11', 'T12'], ch2: ['T21', 'T22'], start: 'T31-T32', outs: ['13-14', '23-24'], aux: 'X1',
       top: ['A1', 'T11', 'T12', 'T31', '13', '23', '33', '43'], bot: ['A2', 'T21', 'T22', 'T32', '14', '24', '34', '44'], leds: [['PWR', 'power'], ['IN1', 'in1'], ['IN2', 'in2'], ['OUT', 'out']] },
-    ab: { n: 'Allen-Bradley GSR SI', kind: 'like a Guardmaster SI', fill: '#c62828', ink: '#ffffff', ch1: ['S11', 'S12'], ch2: ['S21', 'S22'], start: 'S34', outs: ['13-14', '23-24'], aux: 'Y32',
+    e: { n: 'Layout E · 3 LEDs', kind: 'S11 / S12 · start S34', fill: '#c62828', ink: '#ffffff', ch1: ['S11', 'S12'], ch2: ['S21', 'S22'], start: 'S34', outs: ['13-14', '23-24'], aux: 'Y32',
       top: ['A1', 'S11', 'S12', 'S34', '13', '23', '', ''], bot: ['A2', 'S21', 'S22', 'Y32', '14', '24', '', ''], leds: [['PWR/Fault', 'pwrf'], ['IN', 'in'], ['OUT', 'out']] },
   };
   const APPS = { estop2: ['E-stop, 2 channels', 'E-stop', 'Press the E-stop', 'Release the E-stop'], estop1: ['E-stop, 1 channel', 'E-stop', 'Press the E-stop', 'Release the E-stop'], door: ['Guard door, 2 switches', 'door', 'Open the door', 'Close the door'], curtain: ['Light curtain', 'curtain', 'Break the beam', 'Clear the beam'] };
@@ -93,9 +93,9 @@
     if (!document.getElementById('hw-sr-css')) { const s = document.createElement('style'); s.id = 'hw-sr-css'; s.textContent = CSS; document.head.appendChild(s); }
     let done = {}; try { done = JSON.parse(localStorage.getItem(STORE) || '{}') || {}; } catch (e) { done = {}; }
     const cfg = { app: 'estop2', auto: false, fb: true, delay: false, faults: {} };
-    let brand = 'pilz', st = SafetySim.init(cfg), inp = { act: false, reset: false, power: true }, sawTrip = false, blink = 0, lastSig = '';
+    let brand = 'a', st = SafetySim.init(cfg), inp = { act: false, reset: false, power: true }, sawTrip = false, blink = 0, lastSig = '';
     const box = document.createElement('div'); box.className = 'hw-box hw-sr';
-    box.innerHTML = `<div class="hsr-row" data-g="brand"><span>Relay</span>${Object.keys(BR).map((k) => `<button data-b="${k}">${esc(BR[k].n)}</button>`).join('')}</div>
+    box.innerHTML = `<div class="hsr-row" data-g="brand"><span>Relay layout</span>${Object.keys(BR).map((k) => `<button data-b="${k}">${esc(BR[k].n)}</button>`).join('')}</div>
       <div class="hsr-row" data-g="app"><span>Used for</span>${Object.keys(APPS).map((k) => `<button data-app="${k}">${esc(APPS[k][0])}</button>`).join('')}</div>
       <div class="hsr-row"><span>Start</span><button data-o="auto" data-v="0">reset button (monitored)</button><button data-o="auto" data-v="1">automatic</button><span style="margin-left:8px">Feedback loop</span><button data-o="fb" data-v="1">wired</button><button data-o="fb" data-v="0">not wired</button><span style="margin-left:8px">Outputs</span><button data-o="delay" data-v="0">at once</button><button data-o="delay" data-v="1">delayed 1.5 s</button></div>
       <div class="hsr-svg"></div>
@@ -143,7 +143,7 @@
       const block = (y, names) => `<rect x="298" y="${y}" width="124" height="46" rx="5" fill="#16191c"/>` + names.map((n, i) => { const x = 313 + (i % 4) * 31, yy = y + 18 + Math.floor(i / 4) * 20; return n ? `<rect x="${x - 11}" y="${yy - 11}" width="22" height="15" rx="2.5" fill="#f5c400"/>` + T(x, yy, n, { z: n.length > 3 ? 6.5 : 8, a: 'middle', m: 1, b: 1, f: '#16191c' }) : ''; }).join('');
       g += block(20, B.top) + block(292, B.bot) + T(360, 116, 'SAFETY RELAY', { z: 10, a: 'middle', b: 1, f: B.ink }) + T(360, 129, B.kind, { z: 8.5, a: 'middle', f: B.ink }) + `<rect x="316" y="138" width="88" height="20" rx="3" fill="#fff" stroke="rgba(0,0,0,.3)"/>` + T(360, 152, '-KF50', { z: 11, a: 'middle', m: 1, b: 1, f: '#16191c' });
       const val = { power: p, in1: p && st.in1, in2: p && st.in2, in: p && st.in1 && st.in2, out: p && st.out, start: p && st.startC, fault: p && (st.fault || (st.why === 'needopen' && blink)), pwrf: p };
-      B.leds.forEach(([name, k], i) => { const y = 176 + i * 18, on = !!val[k], red = k === 'fault' || (k === 'pwrf' && st.fault) || (k === 'power' && brand === 'siemens' && st.fault); g += `<rect x="304" y="${y - 6}" width="12" height="9" rx="2" fill="${on ? (red ? '#ff3b30' : '#35e06f') : 'rgba(0,0,0,.28)'}" stroke="rgba(0,0,0,.35)" stroke-width=".8"/>` + T(322, y + 2, name, { z: 9.5, f: B.ink, m: 1 }); });
+      B.leds.forEach(([name, k], i) => { const y = 176 + i * 18, on = !!val[k], red = k === 'fault' || (k === 'pwrf' && st.fault) || (k === 'power' && brand === 'b' && st.fault); g += `<rect x="304" y="${y - 6}" width="12" height="9" rx="2" fill="${on ? (red ? '#ff3b30' : '#35e06f') : 'rgba(0,0,0,.28)'}" stroke="rgba(0,0,0,.35)" stroke-width=".8"/>` + T(322, y + 2, name, { z: 9.5, f: B.ink, m: 1 }); });
       // ── outputs: two contactors in series in the motor circuit
       const o = p && st.out, kbox = (y, nm, on, weld) => `<rect x="520" y="${y - 16}" width="62" height="32" rx="6" fill="${on ? 'var(--power-soft)' : 'var(--surface)'}" stroke="${weld ? 'var(--danger)' : on ? ON : 'var(--line)'}" stroke-width="1.6"/>` + T(551, y + 4, nm, { a: 'middle', b: 1, m: 1, z: 12, f: weld ? 'var(--danger)' : INK }) + (weld ? T(551, y + 30, 'welded', { z: 9, a: 'middle', f: 'var(--danger)', b: 1 }) : '');
       g += w('M430 140 H520', o || (st.ramp && p)) + T(438, 134, B.outs[0], { z: 9, m: 1 }) + kbox(140, 'K1', st.k1, F.weldK1 && st.k1) + w('M430 205 H520', o || (st.ramp && p)) + T(438, 199, B.outs[1], { z: 9, m: 1 }) + kbox(205, 'K2', st.k2, false);
@@ -181,7 +181,7 @@
       box.querySelectorAll('[data-f]').forEach((b) => b.classList.toggle('on', b.dataset.f ? !!cfg.faults[b.dataset.f] : !Object.keys(cfg.faults).some((k) => cfg.faults[k])));
       const a = $('[data-a="act"]'); a.textContent = inp.act ? APPS[cfg.app][3] : APPS[cfg.app][2]; a.classList.toggle('hot', inp.act);
       $('[data-a="power"]').textContent = inp.power ? 'Supply off' : 'Supply on'; $('[data-a="reset"]').hidden = cfg.auto;
-      $('.hsr-note').textContent = 'Terminal names and LEDs: ' + BR[brand].n + ' and types like it. Makers change names between types: always check the datasheet of your relay. This is our own drawing, not the maker’s.';
+      $('.hsr-note').textContent = 'Five common terminal and LED layouts. Makers use different names, and change them between types: always check the datasheet of your relay.';
     }
     function tick(dt) {
       const before = st.out;
