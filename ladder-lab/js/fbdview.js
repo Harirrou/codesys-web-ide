@@ -153,6 +153,8 @@
       const groups = trees(rung);
       let svg = '', H = 8, W = 0; const reg = [];
       const wire = (d, fn) => { reg.push(fn); return `<path class="fbd-w" data-l="${reg.length - 1}" d="${d}"/>`; };
+      // a rung inside an MCR zone that is off, or a rung that a jump skips, has no power: the ladder trace knows (left rail = 0)
+      const rail = (M) => { const tr = M.trace && M.trace[ri]; return !tr || !tr.node || !tr.node[0] || tr.node[0][0] ? 1 : 0; };
       const draw = (m, xr, yt, valFn) => {                   // returns the y of the output; the output is at (xr, y)
         const y = yt + ROW / 2;
         if (m.kind === 'label') { svg += `<text class="fbd-n fbd-dim" x="${xr - 6}" y="${y + 4}" text-anchor="end">${esc(m.txt.a)}</text>`; return y; }
@@ -164,7 +166,7 @@
         const xb = xr - GW;
         m.kids.forEach((k) => {
           const xc = xb - m.gap;
-          const raw = k.kind === 'leaf' ? (M) => leafRaw(k.x, M, ri) : k.kind === 'label' ? () => (k.x.t === 'true' ? 1 : 0) : (M) => value(k.x, M, ri);   // before the circle
+          const raw = k.kind === 'leaf' ? (M) => leafRaw(k.x, M, ri) : k.kind === 'label' ? () => (k.x.t === 'true' ? 1 : 0) : (M) => rail(M) && value(k.x, M, ri);   // before the circle
           const yc = draw(k, xc, yt + k.off * ROW);
           svg += wire(`M${xc} ${yc}H${k.neg ? xb - 9 : xb}`, raw);
           if (k.neg) svg += `<circle class="fbd-neg" cx="${xb - 4.5}" cy="${yc}" r="4"/>`;
@@ -174,7 +176,7 @@
       };
       groups.forEach((g) => {
         const m = measure(g.expr, tags), top = H;
-        const rootRaw = (M) => (m.kind === 'leaf' ? leafRaw(m.x, M, ri) : value(m.x, M, ri));   // the signal before any circle
+        const rootRaw = (M) => rail(M) && (m.kind === 'leaf' ? leafRaw(m.x, M, ri) : value(m.x, M, ri));   // the signal before any circle; none without rung power
         const x0 = m.w + 6;                                  // right edge of the logic tree
         const y0 = draw(m, x0, top);
         // output boxes, stacked; the first one is level with the tree output

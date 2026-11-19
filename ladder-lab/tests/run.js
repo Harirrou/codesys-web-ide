@@ -35,7 +35,8 @@ LL.CHALLENGES.filter((c) => c.lang !== 'st').forEach((ch) => {
     if (k % 3 === 0) ins.forEach((a) => { if (Math.random() < 0.3) I[a] = I[a] ? 0 : 1; });
     m.setInputs(I); m.beginScan();
     for (let ri = 0; ri < prog.rungs.length && !m.error; ri++) {
-      const r = prog.rungs[ri], pre = groups[ri].map((g) => (hasEdge(g.expr) ? null : LL.FBD.value(g.expr, m, ri)));
+      const dead = m.mcrOff || m.jmp != null;   // inside an MCR zone that is off, or jumped over: the rung has no power whatever its contacts say
+      const r = prog.rungs[ri], pre = groups[ri].map((g) => (dead || hasEdge(g.expr) ? null : LL.FBD.value(g.expr, m, ri)));
       m.evalRung(ri, 10);
       groups[ri].forEach((g, gi) => { if (pre[gi] == null || m.error) return; const row = r.cells.findIndex((cells) => cells[r.cols - 1] === g.outs[0]); if (pre[gi] !== (m.trace[ri].pin[row][r.cols - 1] ? 1 : 0)) bad = 'rung ' + (ri + 1) + ' ' + LL.FBD.key(g.expr); });
     }

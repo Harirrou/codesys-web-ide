@@ -4466,6 +4466,14 @@
       [prog.rungs || []].concat((prog.blocks || []).map((b) => b.rungs)).forEach((rs) => rs.forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && ch.forbid.includes(c.type)) found.add(c.type); }))));
       if (found.size) return ch.tests.map((t, i) => ({ name: t.name, ok: false, msg: i === 0 ? 'This task is about building it yourself: do it without ' + ch.forbid.join(' / ') + ' elements (found ' + [...found].join(', ') + ').' : 'Not run.' }));
     }
+    if (ch.needTypes && prog.lang !== 'st') {
+      // a task about one instruction: it must really be used (in the main program)
+      const have = new Set();
+      (prog.rungs || []).forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c) have.add(c.type); })));
+      const miss = ch.needTypes.filter((t) => !have.has(t));
+      const nice = (t) => ({ FFL: 'FIFO in (FFL)', FFU: 'FIFO out (FFU)', LFU: 'LIFO out (LFU)', LBL: 'LBL (label)', JMP: 'JMP (jump)' }[t] || t);
+      if (miss.length) return ch.tests.map((t, i) => ({ name: t.name, ok: false, msg: i === 0 ? 'This task is about ' + ch.needTypes.map(nice).join(' and ') + ': build it with ' + (ch.needTypes.length > 1 ? 'these instructions' : 'this instruction') + ' (not used yet: ' + miss.map(nice).join(', ') + ').' : 'Not run.' }));
+    }
     if (ch.needKind && prog.lang !== 'st') {
       const cnt = {};
       (prog.rungs || []).forEach((r) => r.cells.forEach((row) => row.forEach((c) => { if (c && c.type === 'CALL') cnt[c.block] = (cnt[c.block] || 0) + 1; })));
