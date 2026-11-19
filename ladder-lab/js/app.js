@@ -370,11 +370,24 @@
   }
 
   // ── files ──
+  // Inside the Claude artifact viewer a page may not download by itself: it offers the file through the
+  // "downloads" capability (the viewer confirms). Everywhere else (installed app, file, web) a normal download link.
+  let dlNs = null;
   function download(name, text, type) {
-    const url = URL.createObjectURL(new Blob([text], { type: (type || 'text/plain') + ';charset=utf-8' }));
-    const a = document.createElement('a'); a.href = url; a.download = name; a.hidden = true;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    const plain = () => {
+      const url = URL.createObjectURL(new Blob([text], { type: (type || 'text/plain') + ';charset=utf-8' }));
+      const a = document.createElement('a'); a.href = url; a.download = name; a.hidden = true;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    };
+    const C = window.claude;
+    if (!C || typeof C.use !== 'function') return plain();
+    (dlNs = dlNs || C.use('downloads')).then((d) => {
+      if (!d) return plain();
+      return d.save({ filename: name, data: text }).then(
+        () => toast('Saved: ' + name),
+        (e) => { const c = e && e.code; if (c === 'declined') toast('Not saved.'); else if (c === 'rate_limited') toast('A save is already waiting for your answer.'); else toast('Saving files is not possible in this view.'); });
+    }, plain);
   }
   function pickFile(accept, cb) {
     const inp = document.createElement('input'); inp.type = 'file'; inp.accept = accept; inp.hidden = true;
