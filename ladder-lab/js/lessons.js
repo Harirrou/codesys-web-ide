@@ -744,6 +744,60 @@
     },
 
     {
+      id: 'io-wiring', level: 4, title: "Wiring inputs and outputs: PNP, NPN, relays and transistors", min: 14,
+      summary: "Where the current flows in an input and an output circuit: sinking and sourcing, 2-wire sensors, the four kinds of output card, flyback diodes and interposing relays. With a wiring simulator where every mistake is free.",
+      body: `
+<h3>Why wiring matters to a programmer</h3>
+<p>Your program can be perfect and the machine still does nothing, because a sensor is wired to the wrong kind of card. In an interview, and on your first commissioning, you must be able to say <b>where the current flows</b> for every input and every output.</p>
+<div class="callout tip"><b>The one idea:</b> current needs a closed loop: from +24 V, through the devices, back to 0 V. No loop, no signal. In each loop one device <b>gives</b> current (it sources) and the other <b>takes</b> it (it sinks).</div>
+
+<h3>Try it: wire, power on, see the current</h3>
+<p>Pick a card and a device, then press <b>Power on</b>. The green dashes show the current. Every wrong choice is safe here, and the simulator tells you what would burn on a real machine. The eight missions take you through the classic mistakes.</p>
+[[hw:wiring]]
+
+<h3>Inputs: PNP and NPN, sinking and sourcing</h3>
+<div class="tbl"><table>
+<tr><th>Sensor</th><th>What it switches</th><th>Card it needs</th><th>Common of the card goes to</th><th>Where you meet it</th></tr>
+<tr><td><b>PNP</b> (sourcing)</td><td>+24 V to the input</td><td><b>Sinking</b> input</td><td>0 V</td><td>Europe: Siemens, Schneider, Beckhoff</td></tr>
+<tr><td><b>NPN</b> (sinking)</td><td>0 V to the input</td><td><b>Sourcing</b> input</td><td>+24 V</td><td>Asia: Omron, Mitsubishi, older machines</td></tr>
+</table></div>
+<p>Remember it like this: <b>one gives, one takes</b>. A PNP sensor gives, so the card must take. Two that give, or two that take, make no current.</p>
+<p>Wire colours of a 3-wire sensor: <b>brown</b> = +24 V, <b>blue</b> = 0 V, <b>black</b> = signal.</p>
+
+<h3>The 2-wire sensor and its leakage current</h3>
+<p>A 2-wire sensor has no own supply wire. It takes a little current <b>through the input</b>, also when it is off: about 1.5 mA. Some input cards read that as a 1. Then the input never goes off.</p>
+<p>The fix is a <b>bleeder resistor</b> from the input to 0 V. The small current flows through the resistor and not through the input.</p>
+
+<h3>Outputs: four kinds of card</h3>
+<div class="tbl"><table>
+<tr><th>Output</th><th>Switches</th><th>Good</th><th>Bad</th><th>Use it for</th></tr>
+<tr><td><b>Relay</b></td><td>AC or DC, about 2 A</td><td>Any voltage, mixed loads</td><td>Slow (10 ms), wears out</td><td>Lamps, small contactors, mixed voltages</td></tr>
+<tr><td><b>Transistor PNP</b></td><td>+24 V DC, 0.5 A</td><td>Fast, no wear</td><td>DC only, dies from a coil spike</td><td>Valves, lamps, pulses. The standard in Europe</td></tr>
+<tr><td><b>Transistor NPN</b></td><td>0 V (24 V DC), 0.5 A</td><td>Fast, no wear</td><td>The load must go to +24 V</td><td>Asian machines, drive inputs</td></tr>
+<tr><td><b>Triac</b></td><td>AC only, 0.5 A</td><td>No wear</td><td>Leaks a little when off</td><td>AC valves and AC lamps that switch often</td></tr>
+</table></div>
+<p>The other end of the load: a <b>PNP</b> output gives +24 V, so the load goes to <b>0 V</b>. An <b>NPN</b> output gives 0 V, so the load goes to <b>+24 V</b>. If the LED on the card is on but the load is dead, check this first.</p>
+
+<h3>Three protections you must know</h3>
+<ul>
+<li><b>Flyback diode</b> across every DC coil (valve, relay, contactor). A coil makes a voltage spike of hundreds of volts when it is switched off. The diode gives that current a safe way round. Without it the transistor dies, today or in a month.</li>
+<li><b>Interposing relay or contactor</b> when the load needs more current or another voltage than the card can switch. The PLC switches only the small coil. The contact switches the heater or the motor from its own supply and fuse.</li>
+<li><b>A fuse for each group</b> of outputs, and the commons wired as the drawing says. A missing common is the most frequent wiring fault on a new panel.</li>
+</ul>
+
+<h3>Fault finding with a multimeter</h3>
+<ol>
+<li><b>Input does not come on:</b> measure between the input terminal and the common. PNP sensor on: 24 V. If it is 0 V, go back to the sensor: supply (brown to blue = 24 V?), then the signal wire.</li>
+<li><b>Output LED on, load dead:</b> measure across the load. 24 V across it and it does nothing: the load is broken. 0 V across it: a wire, the fuse, or the wrong return (0 V / +24 V).</li>
+<li><b>Input never goes off:</b> a 2-wire sensor without a bleeder, or a triac output wired to an input.</li>
+</ol>
+<div class="callout where"><b>Where:</b> every panel. The electrician wires it, but the programmer is the one called when "the PLC does not see the sensor". The I/O check in <a href="#lesson-commissioning">Commissioning</a> finds these faults one by one.</div>`,
+      sims: {},
+      takeaways: ["Current needs a closed loop from +24 V back to 0 V.", "One gives, one takes: a PNP sensor needs a sinking input, an NPN sensor a sourcing input.", "PNP output: load to 0 V. NPN output: load to +24 V.", "A flyback diode across every DC coil.", "Big or AC loads: the PLC switches a relay, the relay switches the load."],
+      mistakes: ["An NPN sensor on a sinking card: the sensor LED is on, the input stays off.", "A valve coil on a transistor output without a diode.", "230 V AC on a transistor output.", "A 10 A heater directly on a 2 A relay output: the contact welds.", "A relay output for fast pulses."],
+      challenges: ["cio-1", "diag-stop", "diag-el-ol"],
+    },
+    {
       id: 'analog', level: 4, title: 'Analog signals & scaling (4–20 mA)', min: 11,
       summary: 'Levels, pressures and temperatures arrive as numbers. Turn raw counts into engineering units.',
       body: `
@@ -1922,6 +1976,62 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
       takeaways: ['Filter, latch, acknowledge: never miss a short fault, never cry wolf.', 'Flashing = new, steady = acknowledged but still there.', 'The horn sounds for any unacknowledged alarm, so a new one sounds it again.', 'First-out shows the cause of a trip.', 'One alarm block, called once per alarm.'],
       mistakes: ['Lamp wired straight to the sensor: a short fault leaves no trace.', 'ACK clears the alarm while the cause is still there.', 'No filter: splashes and dips stop the plant.', 'One "general fault" lamp for everything.'],
       challenges: ['alarm-1', 'alarm-2', 'alarm-3'],
+    },
+    {
+      id: 'hmi-design', level: 6, title: "Build an HMI screen: tags, buttons, limits and design rules", min: 15,
+      summary: "What an HMI is and is not, which tag sits behind each element, why START is a momentary button, five design rules, user levels, and the names in WinCC, FactoryTalk View, Vijeo Designer, CODESYS and Sysmac. With a screen builder you can run.",
+      body: `
+<h3>What an HMI really is</h3>
+<p>The HMI is the touch screen of the machine. It does <b>not control anything</b>. It only does two things: it <b>writes</b> values into PLC tags (a button writes a bit, an input field writes a number), and it <b>reads</b> PLC tags and shows them (lamps, numbers, bars, alarms).</p>
+<div class="callout tip"><b>Rule:</b> all logic stays in the PLC. If the screen freezes or is unplugged, the machine must stay safe and keep its rules. The HMI is a window, not the brain.</div>
+
+<h3>Try it: build the screen for a pump, then run it</h3>
+<p>You get an empty screen and the tags of a small pump program. Add a START and a STOP button, a lamp, a bar graph, an input for the setpoint and an alarm banner. Then press <b>Run</b> and use your screen like an operator. The checklist shows what is missing, and the five design rules show what a good screen needs.</p>
+[[hw:hmi]]
+
+<h3>The elements and the tag behind each one</h3>
+<div class="tbl"><table>
+<tr><th>Element</th><th>Reads or writes</th><th>Tag type</th><th>Watch out for</th></tr>
+<tr><td>Push button</td><td>Writes a bit</td><td>BOOL (an M bit, never an input I)</td><td>Use <b>momentary</b>: 1 only while pressed</td></tr>
+<tr><td>Switch</td><td>Writes a bit that stays</td><td>BOOL</td><td>Good for auto / manual, not for start</td></tr>
+<tr><td>Lamp</td><td>Reads a bit</td><td>BOOL</td><td>Show the real output, not the button bit</td></tr>
+<tr><td>Number display</td><td>Reads a number</td><td>INT, REAL</td><td>Always show the unit</td></tr>
+<tr><td>Number input</td><td>Writes a number</td><td>INT, REAL</td><td>Min and Max, and check again in the PLC</td></tr>
+<tr><td>Bar graph, trend</td><td>Reads a number</td><td>INT, REAL</td><td>Scale it in real units</td></tr>
+<tr><td>Alarm banner</td><td>Reads alarm bits</td><td>BOOL or a word of bits</td><td>One clear text for each alarm</td></tr>
+<tr><td>Screen button</td><td>Nothing in the PLC</td><td>none</td><td>Lock settings with a user level</td></tr>
+</table></div>
+
+<h3>Why START must be a momentary button</h3>
+<p>A "set" button writes 1 and leaves it there. Then the PLC sees START pressed for ever. After a stop or a power cut the machine <b>starts again by itself</b>. With a momentary button the bit is 1 only while the finger is on the screen, like a real push button. The seal-in in the PLC keeps the pump running.</p>
+<p>One more trap: the screen can lose its connection <b>while the finger is on the button</b>. Then the bit stays 1 in the PLC. Good programs reset HMI command bits in the PLC after they have used them.</p>
+
+<h3>Five design rules (short version of ISA-101)</h3>
+<ol>
+<li><b>Momentary buttons</b> for start and stop commands.</li>
+<li><b>No E-stop on the screen.</b> A screen can freeze. An emergency stop is a real, hard-wired button.</li>
+<li><b>Grey background, colour only for abnormal states.</b> If everything is colourful, the red alarm does not stand out. Normal = grey, alarm = red, warning = yellow.</li>
+<li><b>A unit on every number.</b> 60 what? Percent, litres, bar?</li>
+<li><b>Limits on every input</b>, and the same limits again in the PLC. The HMI is not the only way a wrong number can arrive.</li>
+</ol>
+
+<h3>Users and locked screens</h3>
+<p>The operator may start, stop and change the setpoint. Only a technician may change alarm limits and timers. So settings screens get a <b>user level</b>, and the HMI asks for a login before it opens them.</p>
+
+<h3>The same things in each brand</h3>
+<div class="tbl"><table>
+<tr><th>Brand</th><th>HMI software</th><th>A screen is called</th><th>A tag link is called</th></tr>
+<tr><td>Siemens</td><td>WinCC in TIA Portal (Basic, Comfort, Unified)</td><td>Screen</td><td>HMI tag connected to a PLC tag</td></tr>
+<tr><td>Rockwell</td><td>FactoryTalk View ME / SE (PanelView)</td><td>Display</td><td>Tag through a shortcut to the controller</td></tr>
+<tr><td>Schneider</td><td>Vijeo Designer / EcoStruxure Operator Terminal Expert</td><td>Panel</td><td>Variable</td></tr>
+<tr><td>CODESYS, TwinCAT</td><td>Built-in visualisation (TwinCAT HMI)</td><td>Visualisation</td><td>The program variable itself</td></tr>
+<tr><td>Omron</td><td>Sysmac Studio with an NA panel</td><td>Page</td><td>Variable mapping</td></tr>
+</table></div>
+<div class="callout where"><b>Where:</b> almost every machine has at least one panel. In an interview you are often asked: "Why not put the E-stop on the HMI?" and "What happens when the HMI loses its connection?" Next step: <a href="#lesson-alarm-handling">alarms the professional way</a> and <a href="#lesson-hmi-texts">HMI text lists</a>.</div>`,
+      sims: {},
+      takeaways: ["The HMI only reads and writes PLC tags. The logic stays in the PLC.", "Start and stop are momentary buttons.", "A lamp shows the real output, not the command.", "Grey screens, colour only for abnormal states.", "Units and limits on every number, and the limits again in the PLC."],
+      mistakes: ["A set or toggle button for START: the machine restarts by itself.", "An E-stop button drawn on the screen.", "A lamp linked to the button bit: it lights when the pump does not run.", "An input without limits: the operator types 9999.", "Settings open to every user."],
+      challenges: ["sv-1", "fixture-man", "enc-2"],
     },
     {
       id: 'dint-real', level: 6, title: 'Bigger numbers: 32-bit DINT and REAL', min: 12,
@@ -3163,6 +3273,16 @@ END_REPEAT</pre>
     ["Contactor feedback", "An auxiliary contact of a contactor wired to a PLC input, so the PLC knows if it really closed."],
     ["Starts per hour", "The number of starts a motor or starter may do in one hour without overheating."],
     ["Welded contact", "A contact that has melted together and stays closed when its coil is off."],
+    ["Bleeder resistor", "A resistor from an input to 0 V that takes the leakage current of a 2-wire sensor, so the input really goes off."],
+    ["Leakage current", "A small current that flows through a 2-wire sensor or a triac output even when it is off."],
+    ["Interposing relay", "A small relay or contactor between a PLC output and a load that needs more current or another voltage."],
+    ["Triac output", "A PLC output that switches AC with an electronic switch, without moving contacts."],
+    ["Relay output", "A PLC output with a real contact: it switches AC or DC, but it is slow and wears out."],
+    ["Transistor output", "A fast PLC output for 24 V DC without moving parts. PNP gives +24 V, NPN gives 0 V."],
+    ["Momentary button", "An HMI button that writes 1 only while it is pressed, like a real push button."],
+    ["User level", "A right on the HMI (operator, technician, engineer) that decides which screens and inputs a person may use."],
+    ["ISA-101", "A standard for HMI design: grey screens, colour only for abnormal states, clear hierarchy."],
+    ["HMI tag", "A value in the HMI that is linked to a PLC tag, so the screen can read or write it."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -3410,6 +3530,14 @@ END_REPEAT</pre>
     { l: 4, q: "A stator resistance starter: KM1 closes, the timer runs, but the bypass KM2 never closes. What happens?", a: ["The start resistors overheat", "The motor runs faster than rated", "The breaker trips at once", "The motor changes its direction"], c: 0, why: "The resistors are made for a few seconds only. Feedback monitoring in the PLC stops the motor in time." },
     { l: 4, q: "In a rotor resistance starter, what is the right order?", a: ["Line contactor first, then step by step", "All step contactors first, then the line", "Line and all steps closed together", "The last step first, then back to the first"], c: 0, why: "The motor must start with all resistance in. Each step is bridged only after the speed has risen." },
     { l: 4, q: "The PLC commands a contactor, but its auxiliary contact does not come back within 1 s. What should the program do?", a: ["Stop the starter and raise an alarm", "Wait one more minute, then try again", "Ignore it and go on with the start", "Switch the PLC itself to STOP"], c: 0, why: "Command without feedback means a broken coil, wire or contactor. Going on can burn resistors or a transformer." },
+    { l: 4, q: "An NPN sensor is wired to a sinking input card. The sensor LED lights, but the input stays 0. Why?", a: ["0 V is on both sides of the input", "The sensor gives too much current", "The input card is in STOP mode", "+24 V is on both sides of the input"], c: 0, why: "An NPN sensor switches 0 V, and the common of a sinking card is 0 V too. No voltage difference, no current." },
+    { l: 4, q: "A PNP transistor output drives a lamp. Where does the other end of the lamp go?", a: ["To 0 V", "To +24 V", "To the next output", "To the input common"], c: 0, why: "A PNP output gives +24 V. The loop closes through the load to 0 V." },
+    { l: 4, q: "Which output card can switch a 230 V AC lamp?", a: ["A relay output or a triac output", "A PNP transistor output only", "An NPN transistor output only", "Any card: the voltage does not matter"], c: 0, why: "Transistor outputs are for 24 V DC. Relay contacts and triacs can switch AC." },
+    { l: 4, q: "A 2-wire sensor is off, but the input still reads 1. What helps?", a: ["A bleeder resistor from input to 0 V", "A flyback diode across the sensor wires", "A bigger fuse in the sensor supply", "A longer cable to the input card"], c: 0, why: "The sensor leaks about 1.5 mA when off. The resistor takes this current around the input." },
+    { l: 4, q: "The PLC must switch a 10 A heater. The output card gives 2 A at most. What do you do?", a: ["Let the output switch a contactor", "Wire two outputs in parallel instead", "Use a thicker wire to the heater", "Pulse the output very quickly"], c: 0, why: "An interposing contactor: the PLC switches 0.1 A, the contactor switches the 10 A from its own fuse." },
+    { l: 6, q: "On an HMI, which button type is right for START?", a: ["Momentary: 1 only while pressed", "Set: becomes 1 and then stays 1", "Toggle: flips at each new touch", "Any type: the PLC sorts it out"], c: 0, why: "A bit that stays 1 can restart the machine by itself after a stop or a power cut." },
+    { l: 6, q: "The \"pump running\" lamp on the HMI should be linked to which tag?", a: ["The pump output of the PLC", "The START button bit of the HMI", "The STOP button bit", "The alarm bit of the pump"], c: 0, why: "The lamp must show what the pump really does, not what the operator asked for." },
+    { l: 6, q: "Why do good HMI screens use a grey background?", a: ["So alarms in colour stand out", "So the screen uses less power", "So the panel is cheaper to make", "So the screen refreshes faster"], c: 0, why: "If everything is colourful, the eye does not find the one red alarm. Colour is kept for abnormal states." },
   ];
   LL.QUIZ_IV = [
     { t: "Basics", q: "Explain the PLC scan cycle.", a: ["Read all inputs into the image, run the program top to bottom, write the outputs", "React to each input the moment it changes, one rung at a time, with no fixed order", "Write the outputs first, then read the inputs, then run the program from the bottom", "Run every rung at the same time, and update an output as soon as its rung is done"], c: 0, why: "Inputs are frozen for the whole scan; outputs change only at the end. That is why the order of rungs matters." },
@@ -3534,6 +3662,12 @@ END_REPEAT</pre>
     { t: "Motor starting", q: "The star contactor is welded closed. The program asks for delta. What saves the panel?", a: ["The NC interlock contact in the delta coil circuit", "The star time that runs in the PLC program rung", "The seal-in contact in the first rung of the run latch", "The green start push button on the panel door"], c: 0, why: "The NC contact follows the real contactor. The program only knows its own command, not a welded contact." },
     { t: "Motor starting", q: "Why does a PLC limit the number of starts per hour?", a: ["Every start heats the motor and the starter", "Every start wears out the PLC output card", "The supply company counts and bills each start", "The timers in the PLC need time to reset"], c: 0, why: "Windings, start resistors, transformers and soft starters need time to cool between starts." },
     { t: "Motor starting", q: "Which method starts a motor with about rated current and full torque?", a: ["A variable frequency drive", "A star-delta starter", "A stator resistance starter", "An autotransformer starter"], c: 0, why: "The drive raises frequency and voltage together, so the motor always works near its normal slip." },
+    { t: "Electrical & wiring", q: "Explain sinking and sourcing in one sentence.", a: ["A sourcing device gives current, a sinking device takes it", "A sourcing device uses AC power, a sinking device uses DC only", "A sourcing device is an input, a sinking one an output", "A sourcing device is faster, a sinking one more robust"], c: 0, why: "In every loop one side gives current from +24 V and the other takes it to 0 V. PNP sources, NPN sinks." },
+    { t: "Electrical & wiring", q: "The LED of a transistor output is on, but the valve does not switch. What do you measure first?", a: ["The voltage across the valve coil", "The resistance of the output card", "The current in the PLC supply", "The voltage at a spare output"], c: 0, why: "24 V across the coil and no action: the coil is broken. 0 V: a wire, a fuse or the wrong return." },
+    { t: "Electrical & wiring", q: "Why not use a relay output for 5000 pulses per second?", a: ["A relay is too slow and wears out fast", "A relay output gives too much current for it", "A relay cannot switch 24 V DC at all", "A relay output needs an AC supply"], c: 0, why: "A relay needs about 10 ms to move and has a limited number of switchings. A transistor switches in microseconds." },
+    { t: "Projects & practice", q: "Why should an E-stop never be only a button on the HMI?", a: ["A screen can freeze or lose its connection", "A screen button is too small to find in a hurry", "HMI buttons are slower than real ones", "The HMI cannot write bits to the PLC"], c: 0, why: "Emergency stop must be a hard-wired device in a safety circuit. The HMI may only show its state." },
+    { t: "Projects & practice", q: "The HMI loses its connection while the operator holds a jog button. What must the PLC program do?", a: ["Stop the jog when the HMI heartbeat is lost", "Keep the jog running until the HMI comes back", "Switch the CPU to STOP at once", "Ignore it: the bit resets by itself"], c: 0, why: "The last written value stays in the PLC. A heartbeat or a reset of command bits in the PLC prevents a stuck command." },
+    { t: "Projects & practice", q: "An operator can type a setpoint on the HMI. Where do you check its limits?", a: ["On the HMI and again in the PLC", "On the HMI only, that is enough", "In the PLC only, never on the HMI", "Nowhere: the operator knows the range"], c: 0, why: "The HMI gives a friendly message. The PLC check protects the machine when the value comes from somewhere else." },
   ];
   LL.QUIZ_NET = [
     { t: "Basics", q: "Fieldbus or industrial Ethernet: what is the main difference?", a: ["Fieldbuses use serial cables (RS-485, CAN); industrial Ethernet uses Ethernet cables and switches", "Fieldbuses use Ethernet cables and switches; industrial Ethernet uses serial RS-485 or CAN cables", "Fieldbuses carry only digital on/off signals; industrial Ethernet carries only analog sensor values", "Fieldbuses need no device file at all; industrial Ethernet needs a GSD or EDS file for each device"], c: 0, why: "Classic fieldbuses: PROFIBUS, CANopen, DeviceNet. Industrial Ethernet: PROFINET, EtherNet/IP, EtherCAT, Modbus TCP. New machines almost always use Ethernet." },
