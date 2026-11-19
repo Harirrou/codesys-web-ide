@@ -1065,7 +1065,7 @@
   }
 
   function pageGlossary() {
-    const el = h(`<div class="wrap"><span class="plate">Reference</span><h1 style="margin:10px 0 14px">Glossary</h1><input class="gl-search" id="gl-q" type="search" placeholder="Search ${LL.GLOSSARY.length} terms: seal-in, TON, PNP…" aria-label="Search glossary"><div class="gl-list"></div></div>`);
+    const el = h(`<div class="wrap"><span class="plate">Reference</span><h1 style="margin:10px 0 8px">Glossary</h1><p style="margin:0 0 12px"><a class="btn small" href="#cheat">Cheat sheet: everything on one page</a></p><input class="gl-search" id="gl-q" type="search" placeholder="Search ${LL.GLOSSARY.length} terms: seal-in, TON, PNP…" aria-label="Search glossary"><div class="gl-list"></div></div>`);
     const list = $('.gl-list', el);
     const draw = (q) => {
       q = (q || '').toLowerCase();
@@ -1092,6 +1092,7 @@
       b.onclick = () => (k === 'predict' ? predict(area) : k === 'drill' ? drill(area) : concept(area, k));
       modes.appendChild(b);
     });
+    [['#oral', 'Answer out loud', 'The interview questions without the four choices: say your answer, then compare with the model answer.', 'Interview practice'], ['#cheat', 'Cheat sheet', 'One page with the rungs, tables and rules to remember. Made to be printed.', 'Reference']].forEach(([href, t, d, s]) => modes.appendChild(h(`<a class="card path" href="${href}" style="text-align:left;text-decoration:none"><span class="ic">${I.quiz}</span><h3>${t}</h3><p>${d}</p><span class="chip">${s}</span></a>`)));
     main().appendChild(el);
     if (start === 'iv' || start === 'net' || start === 'concept') concept(area, start); else predict(area);
   }
@@ -2277,12 +2278,12 @@
     const isTopic = hsh.startsWith('topic-') && own(LL.TOPIC_BY_ID, hsh.slice(6));
     const chId = hsh.startsWith('ch-') && own(LL.CH_BY_ID, hsh.slice(3)) ? hsh.slice(3) : '';
     let tab = 'home'; // topic pages live on Home ("Explore by topic"): their "All topics" link goes there too
-    if (hsh === 'learn' || hsh.startsWith('lesson-') || hsh === 'glossary') tab = 'learn';
+    if (hsh === 'learn' || hsh.startsWith('lesson-') || hsh === 'glossary' || hsh === 'cheat') tab = 'learn';
     else if (hsh === 'lab') tab = 'lab';
     else if (hsh === 'circuits' || hsh.startsWith('circuit-')) tab = 'circuits';
     else if (hsh === 'challenges' || chId) tab = 'challenges';
     else if (hsh === 'path' || hsh.startsWith('path-')) tab = 'path';
-    else if (hsh === 'quiz' || hsh.startsWith('quiz-')) tab = 'quiz';
+    else if (hsh === 'quiz' || hsh.startsWith('quiz-') || hsh === 'oral') tab = 'quiz';
     else if (hsh === 'search' || hsh.startsWith('search-')) tab = 'search';
     $$('[data-tab]').forEach((a) => a.classList.toggle('on', a.dataset.tab === tab));
     if (hsh === 'learn') pageLearn();
@@ -2294,6 +2295,8 @@
     else if (chId) new Lab({ challenge: LL.CH_BY_ID[chId] });
     else if (hsh === 'quiz' || hsh.startsWith('quiz-')) pageQuiz(hsh.slice(5));
     else if (hsh === 'glossary') pageGlossary();
+    else if (hsh === 'oral' && LL.Extra) LL.Extra.oral(m);
+    else if (hsh === 'cheat' && LL.Extra) LL.Extra.cheat(m);
     else if (tab === 'search') { let q = hsh.slice(7); try { q = decodeURIComponent(q); } catch (e) { /* keep it raw */ } pageSearch(q); }
     else if (isTopic) pageTopic(hsh.slice(6));
     else pageHome();
