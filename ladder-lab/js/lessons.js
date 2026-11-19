@@ -3250,6 +3250,70 @@ IF Tool = 0 THEN HmiAlarm := 2; Step := 90; END_IF   (* unknown tool *)</pre>
       challenges: ['fixture-id', 'fixture', 'fixture-man', 'fixture-c', 'fixture-orders', 'st-fixture'],
     },
     {
+      id: 'robot-interface', level: 6, title: "PLC and robot: the handshake", min: 11,
+      summary: "How a PLC works with an industrial robot: job number, START, BUSY, DONE and the handshake between them, the CLEAR signal that keeps robot and machine apart, the step sequence for a machine-tending cell, fault handling and where safety sits.",
+      body: `
+<h3>The PLC does not move the robot</h3>
+<p>An industrial robot has its own controller and its own programs, written by a robot programmer. Your PLC is the <b>boss of the cell</b>: it knows when the machine door is open, when a part waits, when the machine is finished. It tells the robot <b>which job</b> to do and <b>when</b>, and it waits for the answer. The two talk with a handful of signals, hard-wired or over PROFINET / EtherNet/IP.</p>
+
+<h3>The handshake</h3>
+<div class="tbl"><table>
+<tr><th>Step</th><th>PLC → robot</th><th>Robot → PLC</th></tr>
+<tr><td>1</td><td>Checks: robot READY and at HOME</td><td>READY = 1, HOME = 1</td></tr>
+<tr><td>2</td><td>Sets the <b>job number</b>, then <b>START</b> = 1</td><td></td></tr>
+<tr><td>3</td><td></td><td><b>BUSY</b> = 1, HOME = 0. The robot works</td></tr>
+<tr><td>4</td><td></td><td>Finished: <b>DONE</b> = 1, BUSY = 0</td></tr>
+<tr><td>5</td><td>Sees DONE: <b>START</b> = 0</td><td></td></tr>
+<tr><td>6</td><td></td><td>Sees START = 0: <b>DONE</b> = 0. Ready for the next job</td></tr>
+</table></div>
+<p>Why so many steps? Because each side <b>confirms</b> what it saw. If the PLC only gave a short pulse, the robot could miss it. If the robot only gave a short DONE, the PLC could miss it. With a handshake nothing is lost, even when one side is slow.</p>
+<div class="callout tip"><b>Rule:</b> set the job number first, START after it, and do not change the job number while START is on.</div>
+
+<h3>Zones: who may be where</h3>
+<p>The robot and the machine share a space: the inside of the machine. One more signal keeps them apart: <b>CLEAR</b> ("I am outside the machine"). The PLC uses it in two interlocks:</p>
+<ul>
+<li>The door may close only when the robot is CLEAR.</li>
+<li>The machine may start only when the door is closed <b>and</b> the robot is CLEAR.</li>
+</ul>
+<p>And the other way: the robot gets START only when the door is fully <b>open</b>. Big cells have several such zones, between two robots or between a robot and a press.</p>
+
+<h3>As a step sequence</h3>
+<pre class="code">10  open the door            → door open
+20  robot START, job LOAD    → DONE
+30  START off                → DONE off, robot CLEAR
+40  close the door           → door closed
+50  machine cycle start      → part finished
+60  open the door            → door open
+70  robot START, job UNLOAD  → DONE
+80  START off                → DONE off, robot CLEAR
+90  close the door           → door closed, back to 0</pre>
+<p>Every step waits for a real signal. The outputs only read the step number. Add a time limit to each step: if the robot does not answer in 20 s, stop and show which step is waiting. That one line of alarm text saves hours.</p>
+
+<h3>When the robot has a fault</h3>
+<ul>
+<li>READY goes off, FAULT comes on. Take START away and freeze the sequence.</li>
+<li>Do not move the door or the machine while the arm may be inside.</li>
+<li>After the fault is fixed at the robot: RESET, bring the robot HOME, and only then restart the cycle from a known step.</li>
+</ul>
+
+<h3>Safety is separate</h3>
+<p>The fence door, the E-stop and the enabling switch of the robot go through the <b>safety system</b> (safety relay or safety PLC) to the robot's safety inputs. Your normal program only reads their state. A robot cell is usually PL d: see <a href="#lesson-safety-design">Safety design</a>.</p>
+
+<h3>The names you will meet</h3>
+<div class="tbl"><table>
+<tr><th>Robot</th><th>How the PLC starts programs</th></tr>
+<tr><td>FANUC</td><td>UOP signals (UI / UO), program select with RSR or PNS numbers</td></tr>
+<tr><td>KUKA</td><td>"Automatic External" interface with a program number</td></tr>
+<tr><td>ABB</td><td>System inputs and outputs (Start, Motors On…), often with a main routine that reads a job number</td></tr>
+<tr><td>Universal Robots, Yaskawa, others</td><td>Digital I/O or a fieldbus, with the same idea</td></tr>
+</table></div>
+<div class="callout where"><b>Where:</b> machine tending, palletizing, welding cells, press lines. In interviews: "How does a PLC talk to a robot?" Answer with the handshake and the zone signal. Try it on the <b>Robot cell</b> machine in the Lab.</div>`,
+      sims: {},
+      takeaways: ["The PLC tells the robot which job and when. The robot moves by itself.", "Handshake: START, wait for DONE, START off, wait for DONE off.", "Job number first, then START. Do not change it while START is on.", "CLEAR is the zone signal: no door move and no machine start without it.", "Every step waits for a real signal and has a time limit."],
+      mistakes: ["A short START pulse the robot can miss.", "Closing the door or starting the machine without the CLEAR signal.", "Changing the job number while the robot reads it.", "Restarting in the middle of a cycle after a robot fault.", "Safety signals wired through the normal PLC."],
+      challenges: ["robot-1", "robot-2", "bug-robot"],
+    },
+    {
       id: 'project-method', level: 6, title: 'How to plan a real project', min: 10,
       summary: 'From a machine description to a working, tested program in seven steps.',
       body: `
@@ -3890,6 +3954,10 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     ["UDT (STRUCT)", "Your own data type: several values of one device kept together under one name."],
     ["ENUM", "A data type with named values, used to give step numbers readable names."],
     ["Method", "A named action that belongs to a function block, called like Valve.Open()."],
+    ["Job number", "A number the PLC gives to a robot (or a drive, a printer) to say which program to run."],
+    ["Interference zone", "A space two machines share, like the inside of a machine and a robot arm. A signal says who is in it."],
+    ["Machine tending", "A robot loads raw parts into a machine and unloads the finished ones."],
+    ["Robot controller", "The robot's own computer. It holds the robot programs and moves the arm."],
   ];
 
   // ───────────────────────── concept quiz ─────────────────────────
@@ -4173,6 +4241,9 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { l: 5, q: "Why is an E-stop not enough for repair work?", a: ["It stops the machine but does not isolate energy", "It only works while the PLC is still in RUN mode", "It is too far away from most machine parts", "It wears out when it is pressed too often"], c: 0, why: "Someone can release it, and stored air, oil or a raised load are still there. Only isolation with a padlock is safe." },
     { l: 7, q: "What is a STRUCT (UDT) for?", a: ["To keep the data of one device together", "To make a program run a great deal faster", "To give a step number a clear name", "To call a block at a fixed time"], c: 0, why: "Start, feedback, fault and hours of a motor under one name, and the same type for every motor." },
     { l: 7, q: "What is the difference between a function and a function block?", a: ["A function block keeps its values between calls", "A function block can only be called one time", "A function can use timers, a block cannot", "A function is written in ladder, a block only in ST"], c: 0, why: "A function has no memory: same inputs, same result. A function block has an instance with its own data." },
+    { l: 6, q: "In a PLC to robot handshake, what does the PLC do when it sees DONE?", a: ["It takes START away", "It sets START again", "It changes the job number", "It switches the robot off"], c: 0, why: "START off tells the robot that DONE was seen. The robot then drops DONE and is ready for the next job." },
+    { l: 6, q: "When may the machine door close in a robot cell?", a: ["When the robot reports CLEAR", "When the robot reports BUSY", "As soon as START is given", "When the part is at the infeed"], c: 0, why: "CLEAR means the arm is outside the machine. Without it the door would hit the arm." },
+    { l: 6, q: "Why set the job number before START, and not at the same time?", a: ["The robot reads the number when START comes", "The robot needs the number just to switch on", "The PLC can only write one bit per scan", "The job number is a safety signal"], c: 0, why: "If both change together the robot may read an old or half-changed number and run the wrong job." },
   ];
   LL.QUIZ_IV = [
     { t: "Basics", q: "Explain the PLC scan cycle.", a: ["Read all inputs into the image, run the program top to bottom, write the outputs", "React to each input the moment it changes, one rung at a time, with no fixed order", "Write the outputs first, then read the inputs, then run the program from the bottom", "Run every rung at the same time, and update an output as soon as its rung is done"], c: 0, why: "Inputs are frozen for the whole scan; outputs change only at the end. That is why the order of rungs matters." },
@@ -4332,6 +4403,9 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { t: "Projects & practice", q: "What is the difference between FAT and SAT?", a: ["FAT is at the builder, SAT is at the customer's site", "FAT is for safety, SAT is for the software only", "FAT is done by operators, SAT by programmers", "FAT is a quick test, SAT a long test with a full load"], c: 0, why: "Factory acceptance test before shipping, site acceptance test after installation. Both follow a written test list." },
     { t: "Safety", q: "Name the key steps of lock-out, tag-out.", a: ["Isolate, lock, release stored energy, verify", "Press E-stop, put up a sign, then start work", "Stop the PLC, force outputs off, start work", "Call the operator, open the guard, reach in"], c: 0, why: "Each person locks with an own padlock, and the dead state is proven before any work." },
     { t: "Programming", q: "Why use an ENUM for the steps of a sequence?", a: ["Readable names, checked by the compiler", "The sequence then runs in a shorter time", "The steps then need no memory in the CPU", "The sequence can then skip a broken step"], c: 0, why: "State = Heating is clear in the code and in the watch table. A typing mistake becomes a compile error." },
+    { t: "Drives & motion", q: "How does a PLC control an industrial robot in a cell?", a: ["It selects a job and starts it with a handshake", "It sends every axis position to the robot arm", "It loads a new program into the robot each cycle", "It switches the robot motors with contactors"], c: 0, why: "The robot controller moves the arm. The PLC gives job number and START, and waits for BUSY, DONE and zone signals." },
+    { t: "Drives & motion", q: "What is an interference zone signal between a robot and a machine?", a: ["A signal that says the robot is outside the machine", "A signal that says the robot has an internal fault now", "A signal that counts the parts the robot has moved", "A signal that sets the speed of the robot's arm"], c: 0, why: "Door moves and machine starts are interlocked with it, so robot and machine are never in the same space." },
+    { t: "Troubleshooting", q: "A robot cell stops and nothing moves. The PLC is in step 20 'robot job'. What do you check?", a: ["Which handshake signal is missing: BUSY or DONE", "Whether the HMI screen shows the right colours", "Whether the PLC battery was changed earlier this year", "Whether the cell lights are switched on inside"], c: 0, why: "The step tells you what the PLC waits for. Look at READY, BUSY, DONE on both sides, then at the robot's own message." },
   ];
   LL.QUIZ_NET = [
     { t: "Basics", q: "Fieldbus or industrial Ethernet: what is the main difference?", a: ["Fieldbuses use serial cables (RS-485, CAN); industrial Ethernet uses Ethernet cables and switches", "Fieldbuses use Ethernet cables and switches; industrial Ethernet uses serial RS-485 or CAN cables", "Fieldbuses carry only digital on/off signals; industrial Ethernet carries only analog sensor values", "Fieldbuses need no device file at all; industrial Ethernet needs a GSD or EDS file for each device"], c: 0, why: "Classic fieldbuses: PROFIBUS, CANopen, DeviceNet. Industrial Ethernet: PROFINET, EtherNet/IP, EtherCAT, Modbus TCP. New machines almost always use Ethernet." },

@@ -394,7 +394,8 @@ main { padding-block: 24px 48px; }
 .res .rm { color: var(--ink-2); font-size: .85rem; margin-top: 2px; }
 .steps-list { font-family: var(--f-mono); font-size: .78rem; color: var(--muted); margin: 4px 0 0; padding-left: 1.2em; }
 .passed-banner { background: var(--power); color: #fff; border-radius: 10px; padding: 12px 14px; font-weight: 600; display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
-.passed-banner .btn { background: #fff; color: #0b3b1d; border-color: #fff; }
+.passed-banner .btn { background: #fff; color: #0b3b1d; border-color: #fff; white-space: normal; text-align: left; max-width: 100%; height: auto; }
+.passed-banner > * { min-width: 0; }
 
 /* mobile lab: segmented view */
 .seg { display: none; }
