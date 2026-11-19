@@ -102,7 +102,10 @@
         else { if (on) { d.acc += DT; d.v = d.acc >= (d.s || 3) * 1000 ? 1 : 0; } else { d.acc = 0; d.v = 0; } }
       } else if (k === 'lamp' || k === 'horn' || k === 'valve') d.v = on ? 1 : 0;
     });
-    this.scn.step(this.st, this.D, DT, this.c.pw || {}, this.task);
+    // a power circuit with parts in the wrong places does nothing: the machine sees every contactor open
+    const why = this.task.pmap ? EC.powerCheck(this.c.pw || {}, this.task) : '';
+    this.scn.step(this.st, why ? {} : this.D, DT, this.c.pw || {}, this.task);
+    if (why) this.st.note = why;
     this.t += DT;
   };
   Sim.prototype.resetMcb = function () { this.mcb = true; this.short = ''; };
@@ -118,6 +121,13 @@
   // A power circuit the learner builds: three places between the supply and the motor (pw.p1 … pw.p3).
   // Returns '' when it is right, or the reason why it is not.
   EC.powerCheck = function (pw, task) {
+    if (task && task.pmap) {
+      // named places on a ready drawing: task.pmap = { part: place }; pw[place] holds the part the learner put there
+      const m = task.pmap, ids = Object.keys(m);
+      if (ids.some((id) => !pw[m[id]])) return 'The power circuit is not complete: a place is still empty.';
+      const bad = ids.find((id) => pw[m[id]] !== id);
+      return bad ? pw[m[bad]] + ' is not in the right place. ' + ((task.pwhy || {})[bad] || '') : '';
+    }
     if (task && task.scn === 'rev') {
       // four places: one above (p1), two side by side (p2, p3), one below (p4)
       const b = [pw.p1, pw.p2, pw.p3, pw.p4];
@@ -549,6 +559,14 @@
       starter: 'NC:F2\nNC:S0\n~ 0\nNO:S1 NO:K1\n~ 0 1 2\nW NC:KT1 NO:KT1 W\nW NC:K3 NC:K2 W\nCOIL:K1 COIL:K2 COIL:K3 TON:KT1:4',
       solution: '@ d=next\n@ ol=58\nNC:F2\nNC:S0\n~ 0\nNO:S1 NO:K1\n~ 0 1 2\nW NC:KT1 NO:KT1 W\nW NC:K3 NC:K2 W\nCOIL:K1 COIL:K2 COIL:K3 TON:KT1:4',
       tests: [{ name: 'START in star, then delta at full speed', steps: ['tap S1', 'wait 300', 'expect K1=1 K2=1 K3=0', 'wait 4200', 'expect K1=1 K2=0 K3=1', 'wait 4000', 'scn pct>=95'] }, { name: 'The overload relay is set for the current in the winding', steps: ['scn prot=1'] }, { name: 'Overload drops everything', steps: ['tap S1', 'wait 5000', 'trip F2', 'wait 200', 'expect K1=0 K2=0 K3=0', 'wait 2500'] }] },
+    { id: 'c-sdb', level: 4, scn: 'sd', pbuild: true, title: 'Build the star-delta power circuit',
+      brief: 'The wires of this star-delta starter are drawn, but the parts are missing. The control circuit is ready. <b>Put the five parts in their places</b>:<ul><li><b>Q1</b> main breaker and <b>F2</b> overload relay.</li><li><b>KM1 line</b>: feeds the winding starts U1 V1 W1.</li><li><b>KM3 delta</b>: joins each winding end to the next phase.</li><li><b>KM2 star</b>: bridges the three winding ends together.</li></ul>Follow the wires: where do they come from, and where do they go?',
+      parts: [S0, S1, K1, P('K2', 'k', 'KM2 Y'), P('K3', 'k', 'KM3 Δ'), P('KT1', 'kt', 'Timer', { s: 4 }), F2], scnNames: { pct: 'Motor speed (%)' },
+      pmap: { Q1: 'p1', KM1: 'p2', KM3: 'p3', F2: 'p4', KM2: 'p5' }, pparts: [['Q1', 'Q1 main breaker'], ['KM1', 'KM1 line'], ['KM2', 'KM2 star'], ['KM3', 'KM3 delta'], ['F2', 'F2 overload relay']],
+      pwhy: { Q1: 'The first part after the supply is the main breaker Q1.', KM1: 'The place straight below the breaker, on the way to U1 V1 W1, is for the line contactor KM1.', KM3: 'The place that gets the three phases from above and feeds the winding ends is for the delta contactor KM3.', F2: 'The place directly above the motor terminals U1 V1 W1 is for the overload relay F2.', KM2: 'The place with the bridge below it (the star point) is for the star contactor KM2.' },
+      hints: ['Left column, from the top: breaker, line contactor, overload relay, motor.', 'Right column: the upper place is fed from the three phases: that is the delta contactor. The lower place has a bridge under it: that is the star contactor.'],
+      starter: 'NC:F2\nNC:S0\n~ 0\nNO:S1 NO:K1\n~ 0 1 2\nW NC:KT1 NO:KT1 W\nW NC:K3 NC:K2 W\nCOIL:K1 COIL:K2 COIL:K3 TON:KT1:4', solution: '@ p1=Q1\n@ p2=KM1\n@ p3=KM3\n@ p4=F2\n@ p5=KM2\nNC:F2\nNC:S0\n~ 0\nNO:S1 NO:K1\n~ 0 1 2\nW NC:KT1 NO:KT1 W\nW NC:K3 NC:K2 W\nCOIL:K1 COIL:K2 COIL:K3 TON:KT1:4',
+      tests: [{ name: 'START in star, then delta at full speed', steps: ['tap S1', 'wait 300', 'expect K1=1 K2=1 K3=0', 'wait 4200', 'expect K1=1 K2=0 K3=1', 'wait 4000', 'scn pct>=95'] }, { name: 'Overload drops everything', steps: ['tap S1', 'wait 5000', 'trip F2', 'wait 200', 'expect K1=0 K2=0 K3=0', 'wait 2500'] }] },
     { id: 'c-tank', level: 4, scn: 'tank', title: 'Real project: fill a tank with two float switches',
       brief: 'Water is drawn from this tank all the time. A pump (KM1) fills it.<ul><li>Selector <b>AUTO</b> (S1) on: the pump starts when the level falls below the <b>low float</b> B1 (30 %) and runs until the <b>high float</b> B2 (80 %).</li><li>Between 30 % and 80 % it keeps doing what it was doing: you need a <b>seal-in</b>, or the pump clicks on and off every second.</li><li>AUTO off or an overload: pump off.</li></ul>A float switch contact is <b>actuated</b> (NO closed, NC open) while the water is above it.',
       parts: [P('S1', 'sel', 'AUTO'), P('B1', 'ls', 'Low 30%'), P('B2', 'ls', 'High 80%'), K1, F2], scnNames: { lv: 'Tank level (%)', starts: 'Pump starts' },
@@ -630,6 +648,14 @@
       hints: ['Swapping L and N, or both windings, changes nothing: both fields flip together. Only one winding may be turned around.', 'Start from the forward / reverse circuit: two seal-in pairs, an NC interlock before each coil.', 'Put KT1 NC directly below each start button, with a plain wire below each seal-in contact. Link the pairs below these, not above.', 'The timer needs its own circuit from L: K1 NO and K2 NO side by side, linked below, then the off-delay coil of KT1.'],
       solution: '@ swap=aux\nNC:F2 . . . NO:K1 NO:K2\n~ 4\nNC:S0 . . . TOF:KT1:3\n~ 0 1 2\nNO:S1 NO:K1 NO:S2 NO:K2\nNC:KT1 W NC:KT1 W\n~ 0 2\nNC:K2 . NC:K1\nCOIL:K1 . COIL:K2',
       tests: [{ name: 'FWD runs forward and stays on', steps: ['tap S1', 'wait 300', 'expect K1=1 K2=0', 'wait 2500', 'scn rpm>=1300'] }, { name: 'REV runs in reverse', steps: ['tap S2', 'wait 300', 'expect K2=1 K1=0', 'wait 2500', 'scn rpm<=-1300'] }, { name: 'REV while running forward does nothing', steps: ['tap S1', 'wait 500', 'tap S2', 'wait 200', 'expect K1=1 K2=0'] }, { name: 'REV pressed a moment after FWD: only one contactor closes (interlock)', steps: ['press S1 10', 'press S2 10', 'wait 200', 'expect K1=1 K2=0', 'free S1 S2'] }, { name: 'After STOP a start is blocked for 3 s, then REV really reverses', steps: ['tap S1', 'wait 1500', 'tap S0', 'wait 300', 'tap S2', 'wait 200', 'expect K1=0 K2=0', 'wait 3200', 'tap S2', 'wait 300', 'expect K2=1', 'wait 2500', 'scn rpm<=-1300'] }, { name: 'Overload stops it', steps: ['tap S2', 'wait 500', 'trip F2', 'wait 200', 'expect K1=0 K2=0', 'wait 2500'] }] },
+    { id: 'c-dahlb', level: 5, scn: 'dahl', pbuild: true, title: 'Master: build the Dahlander power circuit',
+      brief: 'The wires of this two-speed Dahlander starter are drawn, the control circuit is ready. <b>Put the six parts in their places</b>:<ul><li><b>Q1</b> main breaker.</li><li><b>KM1 low</b> with its overload relay <b>F2</b>: they feed U1 V1 W1.</li><li><b>KM2 high</b> with its overload relay <b>F3</b>: they feed U2 V2 W2.</li><li><b>KM3 star point</b>: bridges U1 V1 W1 together for the high speed.</li></ul>Read the terminal names at the motor and follow the wires back up.',
+      parts: [S0, P('S1', 'pb', 'LOW', { c: 'green' }), P('S2', 'pb', 'HIGH', { c: 'green' }), P('K1', 'k', 'KM1 low'), P('K2', 'k', 'KM2 high'), P('K3', 'k', 'KM3 star'), P('F2', 'ol', 'Overload low'), P('F3', 'ol', 'Overload high')], scnNames: { rpm: 'Motor speed (rpm)' },
+      pmap: { Q1: 'p1', KM1: 'p2', KM2: 'p3', F2: 'p4', F3: 'p5', KM3: 'p6' }, pparts: [['Q1', 'Q1 main breaker'], ['KM1', 'KM1 low'], ['KM2', 'KM2 high'], ['KM3', 'KM3 star point'], ['F2', 'F2 overload low'], ['F3', 'F3 overload high']],
+      pwhy: { Q1: 'The first part after the supply is the main breaker Q1.', KM1: 'The contactor on the wires to U1 V1 W1 is KM1 (low speed).', KM2: 'The contactor on the wires to U2 V2 W2 is KM2 (high speed).', F2: 'The overload relay below KM1, on the wires to U1 V1 W1, is F2.', F3: 'The overload relay below KM2, on the wires to U2 V2 W2, is F3.', KM3: 'The place with the bridge below it, joined to the U1 V1 W1 wires, is for the star point contactor KM3.' },
+      hints: ['The breaker is at the top, in the middle: both speeds share it.', 'Follow the wires up from U1 V1 W1: overload relay F2, then KM1. From U2 V2 W2: F3, then KM2.', 'The place on the left has a bridge under it: the star point, KM3.'],
+      starter: 'NC:F2\nNC:F3\nNC:S0\n~ 0 1 2\nNO:S1 NO:K1 NO:S2 NO:K2\n~ 0 2\nNC:K2 . NC:K1\n~ 2\nNC:K3 . W NO:K3\nCOIL:K1 . COIL:K3 COIL:K2', solution: '@ p1=Q1\n@ p2=KM1\n@ p3=KM2\n@ p4=F2\n@ p5=F3\n@ p6=KM3\nNC:F2\nNC:F3\nNC:S0\n~ 0 1 2\nNO:S1 NO:K1 NO:S2 NO:K2\n~ 0 2\nNC:K2 . NC:K1\n~ 2\nNC:K3 . W NO:K3\nCOIL:K1 . COIL:K3 COIL:K2',
+      tests: [{ name: 'LOW: low speed', steps: ['tap S1', 'wait 300', 'expect K1=1 K2=0 K3=0', 'wait 3000', 'scn rpm>=1300 rpm<=1600'] }, { name: 'HIGH: high speed', steps: ['tap S2', 'wait 300', 'expect K3=1 K2=1 K1=0', 'wait 3500', 'scn rpm>=2700'] }, { name: 'The overload of each speed stops the motor', steps: ['tap S1', 'wait 500', 'trip F2', 'wait 200', 'expect K1=0', 'wait 2500', 'reset F2', 'tap S2', 'wait 500', 'trip F3', 'wait 200', 'expect K2=0 K3=0', 'wait 2500'] }] },
     { id: 'c-stein2', level: 5, scn: 'steinh', title: 'Master: start capacitor for a heavy start',
       brief: 'The same 3-phase motor on single-phase, now on a loaded compressor. The run capacitor alone cannot start it: the motor only hums. A second, bigger <b>start capacitor</b> is switched in parallel by <b>KM2</b> for the first seconds.<ul><li>START: KM1 (motor with the run capacitor) <b>and</b> KM2 (start capacitor).</li><li>After <b>2 s</b> the timer drops KM2. KM1 stays.</li><li>A start capacitor left in at full speed bursts. STOP and the overload drop everything.</li></ul>',
       parts: [S0, S1, K1, P('K2', 'k', 'KM2 start'), P('KT1', 'kt', 'Timer', { s: 2 }), F2], scnNames: { rpm: 'Motor speed (rpm)' },

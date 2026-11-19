@@ -108,7 +108,8 @@
   const PHC = ['#b4632a', 'var(--ink)', '#8d97a6'], BLUE = '#2f6fed', DEAD = 'var(--line)', DX = 13, GRN = 'var(--power-bright)';
   function powerSvg(scn, st, D, pw, ang, opt) {
     opt = opt || {};
-    const v = (t) => (D[t] ? D[t].v : 0), ok = !st.fault, off = -((performance.now() / 30) % 16).toFixed(1);
+    const pmap = opt.build && opt.task && opt.task.pmap, blocked = pmap && !!EC.powerCheck(pw, opt.task);   // parts in the wrong places: nothing switches
+    const v = (t) => (blocked ? 0 : D[t] ? D[t].v : 0), ok = !st.fault, off = -((performance.now() / 30) % 16).toFixed(1);
     const seg = (pts, col, on, flow) => { const d = 'M' + pts.map((p) => p[0] + ' ' + p[1]).join(' L'); return `<path d="${d}" stroke="${on ? col : DEAD}" stroke-width="${on ? 1.9 : 1.1}" stroke-linejoin="round"/>` + (on && flow ? `<path class="fl" style="stroke-dashoffset:${off}" d="${d}"/>` : ''); };
     const T = (x, y, s, o) => { o = o || {}; return `<text x="${x}" y="${y}" font-size="${o.z || 10}" ${o.b ? 'font-weight="700" ' : ''}fill="${o.f || 'currentColor'}" stroke="none" text-anchor="${o.a || 'start'}"${o.m ? ' font-family="IBM Plex Mono, monospace"' : ''}>${esc(s)}</text>`; };
     const xs = (x, n) => (n === 2 ? [x - DX, x + DX] : [x - DX, x, x + DX]);
@@ -117,7 +118,16 @@
     const bus = (cols, labs, x1, x2) => cols.map((c, i) => seg([[x1, 13 + i * 9], [x2, 13 + i * 9]], c, true) + T(x1 - 4, 16.5 + i * 9, labs[i], { z: 8.5, a: 'end', m: 1, f: c })).join('');
     const tap = (x, y2, cols) => xs(x, cols.length).map((px, i) => seg([[px, 13 + i * 9], [px, y2]], cols[i], true) + `<circle cx="${px}" cy="${13 + i * 9}" r="2.3" fill="${cols[i]}" stroke="none"/>`).join('');
     // a switching device with n poles, 34 high: kind 'q' breaker, 'k' contactor
-    const dev = (x, y, kind, closed, id, sub, cols, live) => {
+    // build mode with named places: a part is drawn only where the learner put it
+    const place = (id, x, y, h, real) => {
+      const key = pmap && pmap[id]; if (!key) return real();
+      const put = pw[key] || '', hit = opt.edit ? `<rect class="ps" x="${x - 40}" y="${y}" width="112" height="${h}" rx="8" fill="transparent" stroke="none" data-ps="${+key.slice(1) - 1}" style="cursor:pointer"/>` : '';
+      if (put === id) return real() + hit;
+      return `<rect x="${x - 34}" y="${y + 2}" width="68" height="${h - 4}" rx="8" fill="var(--surface)" stroke="${put ? 'var(--danger)' : 'var(--info)'}" stroke-width="1.3" stroke-dasharray="${put ? '' : '5 4'}"/>` + T(x, y + h / 2 + 4, put || (opt.edit ? '+ part' : 'empty'), { z: put ? 11 : 9, a: 'middle', f: put ? 'var(--danger)' : 'var(--info)', b: 1, m: put ? 1 : 0 }) + hit;
+    };
+    const dev = (x, y, kind, closed, id, sub, cols, live) => place(id, x, y, 34, () => dev0(x, y, kind, closed, id, sub, cols, live));
+    const ovl = (x, y, id, live, cols) => place(id, x, y, 26, () => ovl0(x, y, id, live, cols));
+    const dev0 = (x, y, kind, closed, id, sub, cols, live) => {
       const px = xs(x, (cols || PHC).length), w = px[px.length - 1] - px[0] + 22;
       let g = `<rect x="${px[0] - 11}" y="${y + 1}" width="${w}" height="32" rx="6" fill="${kind === 'k' && closed ? 'var(--power-soft)' : 'var(--surface-2)'}" stroke="${kind === 'k' && closed ? GRN : 'var(--line)'}" stroke-width="${kind === 'k' && closed ? 1.5 : 1}"/>`;
       px.forEach((p, i) => {
@@ -129,7 +139,7 @@
       g += `<path d="M${px[0] - 5} ${y + 18} H${px[px.length - 1] - 3}" stroke="currentColor" stroke-width="1" stroke-dasharray="3 2"/>`;
       return g + T(px[px.length - 1] + 15, y + 16, id, { b: 1, z: 11, m: 1, f: kind === 'k' && closed ? 'var(--power)' : 'currentColor' }) + T(px[px.length - 1] + 15, y + 27, sub || '', { z: 8.5, f: 'var(--muted)' });
     };
-    const ovl = (x, y, id, live, cols) => {
+    const ovl0 = (x, y, id, live, cols) => {
       const px = xs(x, (cols || PHC).length), tr = v(id);
       let g = `<rect x="${px[0] - 11}" y="${y}" width="${px[px.length - 1] - px[0] + 22}" height="26" rx="6" fill="${tr ? 'var(--danger)' : 'var(--surface-2)'}" stroke="${tr ? 'var(--danger)' : 'var(--line)'}" stroke-width="1.2"/>`;
       px.forEach((p, i) => { g += seg([[p, y], [p, y + 7], [p - 4, y + 7], [p - 4, y + 19], [p, y + 19], [p, y + 26]], tr ? '#fff' : (cols || PHC)[i], live || tr); });
@@ -568,7 +578,7 @@
         if (!ptool) return status('First pick a part under the power circuit, then tap a place.');
         push(); const key = 'p' + (+t.dataset.ps + 1);
         if (ptool === 'X') circ.pw[key] = '';
-        else { ['p1', 'p2', 'p3', 'p4'].forEach((k) => { if (circ.pw[k] === ptool) circ.pw[k] = ''; }); circ.pw[key] = ptool; }
+        else { ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'].forEach((k) => { if (circ.pw[k] === ptool) circ.pw[k] = ''; }); circ.pw[key] = ptool; }
         keep(); lint(); machine(); const why = EC.powerCheck(circ.pw, task); status(why || 'The power circuit is complete: every part is in its place.'); return;
       }
       if (t.dataset.pk && !sim) { push(); circ.pw[t.dataset.pk] = circ.pw[t.dataset.pk] === t.dataset.pv ? '' : t.dataset.pv; keep(); pwq(); lint(); machine(); return; }
