@@ -6,13 +6,13 @@
   const LL = (G.LL = G.LL || {});
 
   LL.LEVELS = [
-    { n: 1, name: 'Foundations', sub: 'How a PLC thinks: contacts, coils, AND / OR' },
-    { n: 2, name: 'Memory & motor control', sub: 'Latching, set/reset, interlocks, edges' },
-    { n: 3, name: 'Timers', sub: 'On-delay, off-delay, pulse, retentive, timed sequences' },
-    { n: 4, name: 'Counters & data', sub: 'Counting, comparing, words, field devices' },
-    { n: 5, name: 'Sequences & pro practice', sub: 'Step logic, state machines, safety, structure' },
-    { n: 6, name: 'Real-world projects', sub: 'Whole machines: filling line, mixer, elevator, sorter, car wash, pump station, level control' },
-    { n: 7, name: 'Structured Text (ST)', sub: 'IF, CASE, FOR, WHILE, REPEAT, arrays and function blocks, as in CODESYS' },
+    { n: 1, color: '#16a34a', name: 'Foundations', sub: 'How a PLC thinks: contacts, coils, AND / OR' },
+    { n: 2, color: '#0d9488', name: 'Memory & motor control', sub: 'Latching, set/reset, interlocks, edges' },
+    { n: 3, color: '#d97706', name: 'Timers', sub: 'On-delay, off-delay, pulse, retentive, timed sequences' },
+    { n: 4, color: '#2563eb', name: 'Counters & data', sub: 'Counting, comparing, words, field devices' },
+    { n: 5, color: '#db2777', name: 'Sequences & pro practice', sub: 'Step logic, state machines, safety, structure' },
+    { n: 6, color: '#ea580c', name: 'Real-world projects', sub: 'Whole machines: filling line, mixer, elevator, sorter, car wash, pump station, level control' },
+    { n: 7, color: '#9333ea', name: 'Structured Text (ST)', sub: 'IF, CASE, FOR, WHILE, REPEAT, arrays and function blocks, as in CODESYS' },
   ];
 
   const pb = (name) => ({ name, kind: 'pb' });

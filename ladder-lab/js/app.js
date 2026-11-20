@@ -50,6 +50,8 @@
     xref: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v5M12 16.5v5M2.5 12h5M16.5 12h5"/></svg>',
     fbd: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="5" width="9" height="14" rx="1"/><path d="M3 9h5M3 15h5M17 12h4"/></svg>',
     trend: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16l5-6 4 3 4-8 5 6"/><path d="M3 21h18"/></svg>',
+    circ: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h16M4 21h16M8 3v5M8 13v8M8 13L4.5 8.5M16 3v6M16 16v5"/><rect x="12.5" y="9" width="7" height="7" rx="1"/></svg>',
+    calc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2.5" width="14" height="19" rx="2"/><path d="M8 6.5h8v3H8zM8.5 13.5h.01M12 13.5h.01M15.5 13.5h.01M8.5 17h.01M12 17h.01M15.5 17v.01"/></svg>',
     flask: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6L4.5 18.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3"/><path d="M7 15h10"/></svg>',
   };
   const BRAND_SVG = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="6" fill="var(--ink)"/><path d="M8 6.5v19M24 6.5v19" stroke="var(--surface)" stroke-width="2.3" stroke-linecap="round"/><path d="M8 12.2h6.2" stroke="var(--power-bright)" stroke-width="2.3" stroke-linecap="round"/><path d="M14.4 8.4v7.6" stroke="var(--power-bright)" stroke-width="2.2"/><path d="M17.6 8.4v7.6" stroke="var(--surface)" stroke-width="2.2"/><path d="M17.8 12.2H24" stroke="var(--wire)" stroke-width="1.9" stroke-linecap="round"/><path d="M8 20h16" stroke="var(--wire)" stroke-opacity=".6" stroke-width="1.9" stroke-linecap="round"/></svg>';
@@ -808,13 +810,13 @@
       <div class="levels-strip"></div>
       <div class="sec-head"><h2>Ways to practise</h2><span class="sec-n">7</span></div>
       <div class="paths">
-        <a class="path" href="#learn"><h3>Lessons</h3><p>What, why and where, each with live examples you can press.</p></a>
-        <a class="path" href="#lab"><h3>Lab</h3><p>Draw rungs and drive a motor, a tank, a conveyor, an elevator, a mixer, a sorter or a filling line.</p></a>
-        <a class="path" href="#circuits"><h3>Circuits</h3><p>Wire real motor starters with contactors, relays and push buttons, then power them on.</p></a>
-        <a class="path" href="#path"><h3>Guided path</h3><p>All tasks in the order to solve them, from your first contact to whole machines.</p></a>
-        <a class="path" href="#path-interview"><h3>Interview path</h3><p>The classic PLC interview tasks, in the order to prepare them.</p></a>
-        <a class="path" href="#quiz"><h3>Quiz</h3><p>Concept questions and endless drills: predict the output, read a program.</p></a>
-        <a class="path" href="#calc"><h3>Calculators</h3><p>The numbers for a project: fill a tank, pump, pipe, cable, 24 V supply, analog scaling and more.</p></a>
+        <a class="path" href="#learn" style="--tc:#16a34a"><span class="ic">${I.learn}</span><h3>Lessons</h3><p>What, why and where, each with live examples you can press.</p></a>
+        <a class="path" href="#lab" style="--tc:#2563eb"><span class="ic">${I.lab}</span><h3>Lab</h3><p>Draw rungs and drive a motor, a tank, a conveyor, an elevator, a mixer, a sorter or a filling line.</p></a>
+        <a class="path" href="#circuits" style="--tc:#d97706"><span class="ic">${I.circ}</span><h3>Circuits</h3><p>Wire real motor starters with contactors, relays and push buttons, then power them on.</p></a>
+        <a class="path" href="#path" style="--tc:#0d9488"><span class="ic">${I.target}</span><h3>Guided path</h3><p>All tasks in the order to solve them, from your first contact to whole machines.</p></a>
+        <a class="path" href="#path-interview" style="--tc:#be123c"><span class="ic">${I.book}</span><h3>Interview path</h3><p>The classic PLC interview tasks, in the order to prepare them.</p></a>
+        <a class="path" href="#quiz" style="--tc:#9333ea"><span class="ic">${I.quiz}</span><h3>Quiz</h3><p>Concept questions and endless drills: predict the output, read a program.</p></a>
+        <a class="path" href="#calc" style="--tc:#ea580c"><span class="ic">${I.calc}</span><h3>Calculators</h3><p>The numbers for a project: fill a tank, pump, pipe, cable, 24 V supply, analog scaling and more.</p></a>
       </div>
       <section class="card mp-home" aria-labelledby="mp-home-h">
         <span class="mp-home-ic" aria-hidden="true">${I.folder}</span>
@@ -828,17 +830,17 @@
     new MiniSim($('.demo', el), { program: 'RUNG Start/stop with seal-in\nNO(I0.3) | NO(I0.0) | COIL(Q0.0)\n. NO(Q0.0)', inputs: { 'I0.0': { name: 'START', kind: 'pb' }, 'I0.3': { name: 'STOP', kind: 'pbnc' } }, outputs: { 'Q0.0': 'Motor' } }, { label: 'Live rung', noOpen: true });
     const ti = $('.tp-index', el);
     if (ti) TOPIC_GROUPS.forEach(([name, ids]) => {
-      const g = h(`<section class="tp-group"><h3>${esc(name)}</h3></section>`);
+      const first = LL.TOPIC_BY_ID[ids[0]], g = h(`<section class="tp-group"${first ? ` style="--tc:${first.color}"` : ''}><h3>${esc(name)}</h3></section>`);
       ids.map((id) => LL.TOPIC_BY_ID[id]).filter(Boolean).forEach((T) => {
         const d = topicDone(T);
-        g.appendChild(h(`<a class="tp-row${d.n ? ' started' : ''}" href="#topic-${T.id}"><span class="tp-no">${topicNo(T)}</span>${topicIc(T)}<span class="tp-t"><b>${esc(T.title)}</b><span class="tp-b">${esc(T.blurb)}</span></span><span class="tp-pg" title="${d.n} of ${d.of} lessons and tasks done">${d.n}/${d.of}</span></a>`));
+        g.appendChild(h(`<a class="tp-row${d.n ? ' started' : ''}" href="#topic-${T.id}" style="--tc:${T.color}"><span class="tp-no">${topicNo(T)}</span>${topicIc(T)}<span class="tp-t"><b>${esc(T.title)}</b><span class="tp-b">${esc(T.blurb)}</span></span><span class="tp-pg" title="${d.n} of ${d.of} lessons and tasks done">${d.n}/${d.of}</span></a>`));
       });
       if (g.children.length > 1) ti.appendChild(g);
     });
     const strip = $('.levels-strip', el);
     LL.LEVELS.forEach((lv) => {
       const ls = LL.LESSONS.filter((l) => l.level === lv.n), dn = ls.filter((l) => S.lessons[l.id]).length;
-      strip.appendChild(h(`<a class="lvl" href="#learn"><span class="n">${lv.n}</span><h4>${esc(lv.name)}</h4><span class="meter"><i style="width:${Math.round((dn / ls.length) * 100)}%"></i></span><span class="ct">${dn}/${ls.length}</span></a>`));
+      strip.appendChild(h(`<a class="lvl" href="#learn" style="--tc:${lv.color}"><span class="n">${lv.n}</span><h4>${esc(lv.name)}</h4><span class="meter"><i style="width:${Math.round((dn / ls.length) * 100)}%"></i></span><span class="ct">${dn}/${ls.length}</span></a>`));
     });
   }
 
@@ -846,7 +848,7 @@
     const el = h(`<div class="wrap"><span class="plate">Course</span><h1 style="margin:10px 0 6px">Lessons</h1><p class="muted" style="margin:0 0 26px;max-width:62ch">Work through the levels in order. Every lesson explains <b>what</b> an instruction is, <b>why</b> it exists and <b>where</b> it is used, with live examples. Then practise in the linked challenges.</p><a class="srch-learn" href="#search">${I.search}<span>Search lessons, tasks, machines and terms</span></a>${TOPICS.length ?`<div class="tp-pick"><div class="tp-pick-h"><h2>Or pick a topic</h2><a class="tp-all" href="#topics">All ${TOPICS.length} topics ${I.arrow}</a></div><div class="tp-strip tp-swipe">${TOPICS.map((T) => topicChip(T)).join('')}</div><p class="tp-swipe-hint" aria-hidden="true">Swipe for more topics →</p></div>` : ''}<div class="levels"></div><div class="sec-head"><div><h2>Reference</h2><p>Terms you'll hear on site, in plain words.</p></div><span style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="#glossary">${I.book} Open glossary</a><a class="btn" href="#calc">Calculators</a></span></div></div>`);
     const lv = $('.levels', el);
     LL.LEVELS.forEach((L) => {
-      const b = h(`<section class="level-block"><div class="level-head"><span class="big">${L.n}</span><div><h2>${esc(L.name)}</h2><p>${esc(L.sub)}</p></div></div><div class="lessons"></div></section>`);
+      const b = h(`<section class="level-block" style="--tc:${L.color}"><div class="level-head"><span class="big">${L.n}</span><div><h2>${esc(L.name)}</h2><p>${esc(L.sub)}</p></div></div><div class="lessons"></div></section>`);
       LL.LESSONS.filter((l) => l.level === L.n).forEach((l) => {
         $('.lessons', b).appendChild(h(`<a class="card lesson-card" href="#lesson-${l.id}"><span class="no">${lessonNo(l)}</span><span class="body"><h4>${esc(l.title)}</h4><p>${esc(l.summary)}</p></span><span class="check ${S.lessons[l.id] ? 'done' : ''}">${S.lessons[l.id] ? I.check : ''}</span></a>`));
       });
@@ -1029,7 +1031,7 @@
     let n = 0;
     P.stages.forEach((stg, k) => {
       const sd = stg.ids.filter((id) => S.ch[id]).length;
-      const b = h(`<section class="level-block path-stage"><div class="level-head"><span class="big">${k + 1}</span><div><h2>${esc(stg.title)}</h2><p>${esc(stg.sub)} · ${sd}/${stg.ids.length} solved</p></div></div>
+      const b = h(`<section class="level-block path-stage" style="--tc:${(LL.LEVELS[k % LL.LEVELS.length] || {}).color}"><div class="level-head"><span class="big">${k + 1}</span><div><h2>${esc(stg.title)}</h2><p>${esc(stg.sub)} · ${sd}/${stg.ids.length} solved</p></div></div>
         <div class="read-first">${stg.lessons.filter((l) => lessonIdx(l) >= 0).map((l) => { const L = LL.LESSONS[lessonIdx(l)]; return `<a class="chip" href="#lesson-${l}">${I.learn} ${esc(L.title)}${S.lessons[l] ? ' ✓' : ''}</a>`; }).join('')}</div>
         <ol class="pathlist"></ol></section>`);
       stg.ids.forEach((id) => {
@@ -1087,7 +1089,7 @@
     LL.LEVELS.forEach((L) => {
       const list = LL.CHALLENGES.filter((c) => c.level === L.n && match(c, cur));
       if (!list.length) return;
-      const b = h(`<section class="level-block"><div class="level-head"><span class="big">${L.n}</span><div><h2>${esc(L.name)}</h2><p>${list.length} task${list.length > 1 ? 's' : ''}</p></div></div><div class="ch-grid"></div></section>`);
+      const b = h(`<section class="level-block" style="--tc:${L.color}"><div class="level-head"><span class="big">${L.n}</span><div><h2>${esc(L.name)}</h2><p>${list.length} task${list.length > 1 ? 's' : ''}</p></div></div><div class="ch-grid"></div></section>`);
       list.forEach((c) => {
         const plain = c.brief.replace(/<[^>]+>/g, '');
         const t = chKind(c);
