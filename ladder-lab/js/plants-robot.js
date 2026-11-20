@@ -16,7 +16,7 @@
   };
   const crash = (st, msg) => { if (!st.fault) { st.fault = msg; st.bad = 1; } };
   P.robotcell = {
-    id: 'robotcell', name: 'Robot cell: machine tending', blurb: 'A robot takes raw parts from the infeed, loads them into a machine and unloads the finished parts. The robot has its own controller and its own programs (jobs). Your PLC only <b>talks</b> to it: START and a job number out, READY, HOME, BUSY, DONE and CLEAR back. The PLC owns the machine door and the machine cycle. If the door closes while the arm is inside, or the machine starts with the robot in it, there is a crash.',
+    id: 'robotcell', name: 'Robot cell: machine tending', blurb: 'A robot takes raw parts from the infeed, loads them into a machine and unloads the finished parts. The robot has its own controller and its own programs (jobs). Your PLC only talks to it: START and a job number out, READY, HOME, BUSY, DONE and CLEAR back. The PLC owns the machine door and the machine cycle. If the door closes while the arm is inside, or the machine starts with the robot in it, there is a crash.',
     inputs: [
       { addr: 'I0.0', name: 'START', kind: 'pb', color: 'green' },
       { addr: 'I0.1', name: 'STOP', kind: 'pbnc', color: 'red' },

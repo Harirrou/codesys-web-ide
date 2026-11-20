@@ -5,7 +5,8 @@
 # It needs: java 17+, maven, zip, unzip, curl, node, and network access to dl.google.com for the first run
 # (the Android platform, the build tools and Google's bundletool are downloaded once into the cache folder).
 # Environment:
-#   LL_VERSION_NAME (default 1.0)   LL_VERSION_CODE (default 1: Google Play wants a higher number for every upload)
+#   LL_VERSION_NAME (default: the version in js/engine.js)   LL_VERSION_CODE (default 1: Google Play wants a higher
+#                                   number for every upload)
 #   LL_APP_ID                       the id of the app on the phone and on Google Play (default com.tryplc.app).
 #                                   It can never be changed after the first upload to Google Play.
 #   LL_KEYSTORE, LL_KS_PASS, LL_KEY_ALIAS   the signing key (for Google Play: your upload key). An update only installs
@@ -16,7 +17,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CACHE="${LL_ANDROID_CACHE:-$HOME/.cache/plcstart-android}"
 OUTDIR="${1:-$ROOT/dist}"
-VNAME="${LL_VERSION_NAME:-1.0}"; VCODE="${LL_VERSION_CODE:-1}"; APPID="${LL_APP_ID:-com.tryplc.app}"
+VNAME="${LL_VERSION_NAME:-$(sed -nE "s/.*LL\.APP = \{[^}]*version: '([^']+)'.*/\1/p" "$ROOT/js/engine.js")}"; VCODE="${LL_VERSION_CODE:-1}"; APPID="${LL_APP_ID:-com.tryplc.app}"
 MINSDK=26; TARGET=36
 B="$(mktemp -d)"; trap 'rm -rf "$B"' EXIT
 mkdir -p "$CACHE" "$OUTDIR"

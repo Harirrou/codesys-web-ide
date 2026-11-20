@@ -1,7 +1,8 @@
-# Ladder Lab
+# PLC Start
 
 Learn PLC ladder logic from beginner to advanced, by building and testing it, not memorising it.
-A zero-dependency web app (works offline, installable on phones as a PWA).
+A zero-dependency web app (works offline, installable on phones as a PWA) and an Android app for Google Play.
+The folder is still called `ladder-lab`, the working name of the project; the product name is **PLC Start**.
 
 | Section | What you get |
 |---|---|
@@ -42,7 +43,7 @@ Opening `index.html` directly also works. On a phone (served over https, e.g. Gi
 Single-file build (handy to copy to a phone):
 
 ```bash
-node ladder-lab/tools/build-single.js            # → ladder-lab/dist/ladder-lab.html
+node ladder-lab/tools/build-single.js            # → ladder-lab/dist/plc-start.html
 ```
 
 ## Content review
@@ -95,31 +96,54 @@ js/topics.js      the 24 topics: lessons, tasks, machines, quiz links and icon o
 js/app.js         routing, pages, Lab editor, mini simulators, quizzes
 ```
 
-## Android app (APK)
+## Design
 
-The APK is the app for Android 8 and newer: the same web app in a WebView, with its files and fonts inside the APK.
-APK files are not kept in git (`*.apk` is ignored): build it, or take it from the release. It asks for no permission and never uses the network.
-"Export my work" opens the save screen of the phone, "Import" opens the file picker, the cheat sheet can be printed.
+The look comes from the control cabinet and its drawings, and it lives in the tokens at the top of `css/app.css`
+(read the comment there before you add a colour).
+
+- Greys from cabinet paint (RAL 7035 light grey, RAL 7016 anthracite), for a light and a dark theme.
+- One type family, IBM Plex, shipped in `fonts/` (no network): Sans to read, Sans Condensed for titles of 22 px and
+  more, Mono only for what the PLC says (addresses, values, code).
+- Lists are ruled rows like the index of a drawing set. A box is only for something you operate.
+- Corners of 2 / 4 / 6 px. Round is for round things (lamps, push buttons).
+- Colour means something: green = energised, running or passed; red = stop or fault; amber = warning or forced;
+  blue = selection and focus. Brand, navigation and progress are ink. Lamp colours follow IEC 60073.
+- No emoji. Signs are inline SVG (`LL.SYM` in `js/engine.js`, `I` in `js/app.js`).
+
+## Android app and Google Play
+
+The Android app (Android 8 and newer, target Android 16 / API 36) is the same web app in a WebView, with its files
+and fonts inside the package. It asks for no permission and never uses the network. "Export my work" opens the save
+screen of the phone, "Import" opens the file picker, the cheat sheet can be printed.
+Built files are not kept in git (`*.apk` is ignored, `dist/` too).
 
 Build it without Android Studio and without Gradle:
 
 ```
-LL_VERSION_NAME=1.1 LL_VERSION_CODE=2 bash tools/build-apk.sh ../dist/ladder-lab-1.1.apk
+LL_VERSION_CODE=2 LL_KEYSTORE=/path/upload-key.jks LL_KS_PASS='…' LL_KEY_ALIAS=upload bash tools/build-apk.sh
+#   → dist/plc-start-<version>.aab   the file Google Play wants
+#   → dist/plc-start-<version>.apk   to install by hand
 ```
 
-The script downloads the Android platform and build tools from dl.google.com once (checked by SHA-1), packs the web
-files as assets, compiles `android/java`, and signs the APK. Raise `LL_VERSION_CODE` for every update.
+The script downloads the Android platform, the build tools and Google's bundletool from dl.google.com once (checked
+by SHA-1), packs the web files as assets, compiles `android/java`, builds and signs both files, and checks that the
+bundle turns into an installable APK. The version name comes from `LL.APP.version` in `js/engine.js`;
+raise `LL_VERSION_CODE` for every upload. The application id is `com.tryplc.app` (`LL_APP_ID` changes it; after
+the first upload to Google Play it can never change).
 
-**The signing key.** An update installs over the old app only when it is signed with the same key. The key is not in
-the repository. Give your own with `LL_KEYSTORE` and `LL_KS_PASS`; without them the script makes one in its cache
-folder. With another key the phone refuses the update: export your work, uninstall, install, import.
+**The signing key.** Google Play takes updates only when they are signed with the same upload key, and a phone
+installs an APK over the old one only with the same key. The key is not in the repository. Give your own with
+`LL_KEYSTORE` and `LL_KS_PASS`; without them the script makes one in its cache folder.
 
 ```
-android/AndroidManifest.xml   one activity, no permissions
-android/java/…/MainActivity.java  the WebView: serves the assets, save / pick a file / print for the page
-android/res                   icon, colours, theme (follows the dark mode of the phone on Android 10+)
-android/fonts, fonts.css      the three font families (Latin), so the app needs no network
-tools/build-apk.sh            the build
+android/AndroidManifest.xml       one activity, no permissions
+android/java/…/MainActivity.java  the WebView: serves the assets, save / pick a file / print, system bars, back gesture
+android/res                       adaptive icon (with a monochrome layer), colours, theme
+fonts/, fonts.css                 IBM Plex (SIL Open Font License, see fonts/OFL.txt); tools/get-fonts.sh fetches them again
+tools/build-apk.sh                the build
+store/                            Google Play listing: icon, feature graphic, screenshots, texts (listing.md),
+                                  the steps and the answers for the forms (play-console.md)
+privacy.html                      the privacy policy page to put online (fill in the three [ ] places)
 ```
 
 ### Program text format
