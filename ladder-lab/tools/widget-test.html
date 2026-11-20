@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Widget test</title><link rel="stylesheet" href="../css/app.css"></head>
+<body><main class="wrap" style="padding:20px 16px"><div class="prose" id="host"><h3 id="title"></h3></div></main>
+<!-- Dev tool: tools/widget-test.html?file=js/hw-diag.js&key=diag&theme=dark mounts one [[hw:key]] widget alone. -->
+<script src="../js/engine.js"></script><script src="../js/st.js"></script><script src="../js/plants.js"></script><script src="../js/plants-robot.js"></script><script src="../js/plants-starters.js"></script><script src="../js/ladderview.js"></script>
+<script>
+  const q = new URLSearchParams(location.search);
+  if (q.get('theme')) document.documentElement.setAttribute('data-theme', q.get('theme'));
+  document.getElementById('title').textContent = q.get('key') || '(no key)';
+  const s = document.createElement('script'); s.src = '../' + q.get('file');
+  s.onload = () => { const ph = document.createElement('div'); document.getElementById('host').appendChild(ph); LL.HW[q.get('key')](ph); };
+  document.body.appendChild(s);
+</script></body></html>

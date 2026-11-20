@@ -1,0 +1,160 @@
+# PLC Start
+
+Learn PLC ladder logic from beginner to advanced, by building and testing it, not memorising it.
+A zero-dependency web app (works offline, installable on phones as a PWA) and an Android app for Google Play.
+The folder is still called `ladder-lab`, the working name of the project; the product name is **PLC Start**.
+
+| Section | What you get |
+|---|---|
+| **Explore by topic** | On Home, 24 topic cards, each with its own icon: ladder basics, latches & memory, timers, counters & maths, blocks & structure, sequences & modes, pneumatic cylinders, hydraulics, motors & drives, motor starting circuits, motion & servos, analog & PID, machine safety, alarms & HMI, data / recipes / strings, networks & communication, hardware & going online, commissioning & fault finding, production data & clock, Structured Text, whole machines, real software & brands, interview preparation. Each opens a topic page with everything about it in one place: lessons in order (with simulator / animation marks), practice tasks, machines to open in the Lab, and quiz buttons with that topic selected. Topic chips also on the Learn page and on every lesson. |
+| **Learn** | 84 lessons in 7 levels (Foundations → Memory & motor control → Timers → Counters & data → Sequences & pro practice → Real-world projects → Structured Text). Each covers *what / why / where*, with live examples you can press, common mistakes and takeaways. |
+| **Lab** | A ladder editor + PLC simulator (real scan cycle, step-by-step scan mode, power-flow monitoring, lint for double coils, etc.) driving 56 animated machines: trainer panel, a worn operator panel (bouncing buttons, noisy knob), reversing motor, conveyor, tank, traffic crossing, 3 pneumatic cylinders, a hydraulic press with its power unit (pump started unloaded, oil level / temperature / filter, 4/3 closed-centre valve, fast / slow / press on pressure, decompression, two-hand control), a hydraulic accumulator charging station with clamps (140 / 160 bar hysteresis, dump valve), a pick & place station (ejector, 5/3 X axis stopped by station sensors, bistable Z valve, vacuum gripper, metal/plastic sorting), garage door, parking lot, star-delta starter, a stator resistance starter (start resistors that burn if the bypass does not close, bypass feedback, welded contacts), an autotransformer starter (65 % tap, closed transition), a slip-ring motor with rotor resistance in three steps (each machine with a live ammeter and current trend), a pump with a soft starter and bypass contactor, a robot cell for machine tending (the PLC talks to the robot with a handshake: job number, START, BUSY, DONE and the CLEAR zone signal; it owns the machine door and the machine cycle, and a door that closes on the arm is a crash), a conveyor drive on a fieldbus (control word and status word shown bit by bit, simplified PROFIdrive: 16#047E ready, 16#047F run, acknowledge on bit 7, setpoint 16384 = 100 %), a hydraulic axis with a proportional valve and position transducer, a Modbus RTU line on RS-485 (master module with REQ / DONE / ERROR, temperature controller and energy meter, every frame shown in hex with its CRC), a production cell with andon light (counters, downtime, OEE), a factory building on the PLC clock (shift bell, heating and light schedules), bottle filling line, batch mixer, 3-floor elevator, a 5-floor building elevator (car and hall calls with lamps, collective selective control, two-speed hoist with slow-down vanes, door operator with photo-eye, overload, inspection, fire service), box sorter, an inspection conveyor with part tracking (pitch cam, camera, label printer, reject jet), car wash, two-pump station, analog level tank (4–20 mA in, control valve out), a heat-treatment furnace (PT100, setpoint knob, safety trip, blower on a drive), a bag-filling scale (load cell, coarse/fine, in-flight), a conveyor line with 3 variable-speed drives, a booster pump station for PID control, a two-axis servo gantry (motion control: homing, positioning, pick and place, drive faults), a safety cell (with a safety relay, or with a safety PLC: two-channel E-stop and guard door, contactor feedback), a palletizer exit with a safety light curtain (OSSD1/OSSD2, restart interlock, sequential muting with a muting lamp), a labelling line (barcode reader → print-and-apply printer with a running serial → check scanner, HMI text list), a servo axis station with a touch HMI (manual jog, set home, teach-in, parameters, auto cycle), a pump station alarm panel (horn, ACK, first-out), a cut-to-length line with an encoder and a high-speed counter, two machines handing over parts over a network (heartbeat, handshake, data), drilling station, industrial oven, washing machine, overhead crane, rotary indexing table, greenhouse climate, sliding gate, air compressor station, filling & capping line, palletizer, and a flexible fixture station with 3 barcode-identified tools (3, 6 and 4 clamps), an OFF / MAN / AUTO mode selector and a small touch HMI. The cylinders also have a mode selector and jog buttons. Every machine has a **How it works** page with its I/O list and one-click loading of a working, commented ladder (and ST) program. An **Other brands** window shows the program for Siemens TIA Portal (SCL), Rockwell Studio 5000 (rung text), Schneider Machine Expert, Beckhoff TwinCAT 3, Omron Sysmac Studio, Omron CX-Programmer (mnemonics) and IEC Structured Text, with a cross-brand instruction table. |
+| **Circuit Lab** | Hard-wired motor control, built by you (`#circuits`). Two drawing sheets side by side, like a real diagram. **Power circuit**: the three phases in their wire colours (L1 brown, L2 black, L3 grey), 3-pole breaker, contactors, overload relay, motor with PE, drawn live with moving current. **Control circuit**: a grid of current paths between L and N where you place push buttons, E-stop, selector, contactor coils and their NO / NC contacts, overload contacts (95-96, 97-98), timer relays, lamps and a horn, and link paths for parallel branches, all in IEC symbols with terminal numbers. **Power on** colours live wires green, opens a panel door with round push buttons and pilot lamps, and runs the machine behind it. A short circuit trips the control breaker; contactors that must not close together really short the phases. In some tasks you also build or finish the power circuit: place the main breaker, the contactor and the overload relay in the right order between the supply and the motor; choose which phases the reversing contactor swaps; choose delta or star and where the capacitor goes. 37 tasks in 5 levels with automated tests, hints and reference circuits: switch and lamp, series / parallel, relay, the power circuit of a starter, direct-on-line starter with seal-in, the full panel with E-stop and RUN / TRIP lamps, two stations, jog / run, a fault-finding task, forward / reverse with interlock, start warning with a timer, two conveyors in sequence, a drive that needs only run signals, star-delta, stator resistance, soft starter with bypass, duty and standby pump, air compressor with a pressure switch and unloaded start, a 3-phase motor on a single-phase supply with a run capacitor (Steinmetz), tank filling with float switches, hoist with limit switches, and at master level a start capacitor on a timer, rotor resistance in steps, an autotransformer starter with six current paths, and direct reversing with push-button interlock. Plus free play. New in the last round: **star-delta power circuit** (you choose how the delta contactor links the winding ends and how the overload relay is set: 0.58 × In), a **two-speed motor with two windings**, a **Dahlander motor** (three contactors, star point first), and a **single-phase motor with start capacitor and centrifugal switch**. Tests can now also break a coil wire (`jam`) or weld a contactor (`weld`) to check that a circuit stays safe. Latest round: **build the reversing power circuit part by part** (four places: breaker, two contactors side by side, overload relay), **DC injection braking** for a saw (brake contactor, timer, interlock), **plugging** with a zero-speed switch, and **reversing a single-phase motor** (swap the start winding, block a restart for 3 s with an off-delay timer). The power circuit can also be built **part by part on a ready drawing** (a task lists its places in `pmap`): star-delta (`c-sdb`) and Dahlander (`c-dahlb`); a part in the wrong place is shown in red and the tests say why. Also built that way: the two-speed (`c-2spdb`) and DC brake (`c-brakeb`) power circuits. **Free play** now works on any of the 22 machines (`#circuit-free-<machine>`, picked from a list): all the parts of that machine plus spare ones, the power circuit ready, no tests, and a working circuit to start from. |
+| **Structured Text** | A real IEC 61131-3 ST runner in the Lab (switch Ladder ↔ ST): VAR/AT, IF, CASE, FOR, WHILE, REPEAT, EXIT, arrays, TON/TOF/TP/CTU/CTD/R_TRIG/F_TRIG/RS/SR, SHL/SHR/ROL/ROR, a watchdog for runaway loops, compile errors as you type. |
+| **Guided path** | Four ordered paths: **Interview preparation** (65 tasks: the classic PLC interview tasks and questions: quiz buzzer, reversing with a pause, sequential start / reverse stop, test bench, 24-hour clock, people counter, hydraulic accumulator charging and press, plus warm-ups, bug fixing, whole machines and senior topics), **Ladder beginner → advanced** (all 195 ladder tasks in 29 stages, each with the lessons to read first), **Sequence mastery** (one cylinder → complete pick & place station) and **Structured Text**. Progress, "continue" button and "next in the path" after every passed task. |
+| **Pro tools** | Reusable blocks: FB (with instances) and FC (no memory), block tabs, interface editor, monitoring per instance, and a **Names as** selector that shows blocks, parameters and calls in the words of TIA Portal, Studio 5000, CODESYS, Schneider Machine Expert, TwinCAT 3 or Omron Sysmac. Motion control with PLCopen-style instructions (MC_Power, MC_Home, MC_MoveAbsolute, MC_MoveRelative, MC_Jog, MC_Stop, MC_Reset) on servo axes, PID instruction, data blocks (DB sections with fields, arrays and an index word, edited in a DB tab), strings (STR / ISTR / QSTR with SMOV, CONCAT, ITOS, SMID and string compare), 32-bit double words (MD) and MOD, a high-speed counter (HC0), network data words, forcing of inputs/outputs in the I/O table, and fault-finding exercises with injected field faults (broken sensor, dead valve, swapped wires, dirty photo-eye, NO/NC mix-up). |
+| **Challenges** | 218 tasks with filters (Ladder / ST / bug hunts / projects / not passed): whole-machine projects, operating modes (manual / auto / homing), production orders with automatic changeover, cylinder sequences, ST exercises and 🐞 bug hunts checked by automated tests that press buttons, wait and verify outputs like a commissioning engineer. Hints, bug hunts, reference solutions. |
+| **Setup simulators** | Three interactive simulators in the lesson "From a new project to a running PLC": **the rack** (put the power supply, CPU and I/O cards into slots, power budget, spare channels, the addresses each card gets in Siemens, Rockwell and CODESYS style, and a signal followed hop by hop from the sensor to the program contact), **the network** (IP addresses and subnets shown as colours, duplicate IP, ping, PROFINET device names with "Assign name", missing GSDML / EDS files, EtherNet/IP mode) and **going online** (compile, download with STOP, go online, compare, upload, force with the MAINT / FORCE LED, online change in RUN, and the trap of downloading over a change made in the PLC), each with a mission checklist, in the words of TIA Portal, Studio 5000 or CODESYS. |
+| **Motor starting simulator** | In the lesson "Seven ways to start a motor": one motor, seven starters (direct on line, star-delta, autotransformer, stator resistance, rotor resistance, soft starter, drive). The power circuit is drawn live, the line current and speed are plotted against the direct-start curve, and the control is shown as a relay circuit or as PLC ladder with the same live states, plus a panel that says what stays hardware and what the PLC does. Two loads (fan, loaded conveyor), fault demos (welded star contactor with and without the hard-wired interlock, overload trip), a side-by-side table of your starts, a mission checklist, and a **By hand** mode where you close the contactors yourself. |
+| **Word calculator** | In the lesson "Words as bits": two 16-bit words with clickable bits, shown as hex, decimal (signed) and BCD, and the result of AND / OR / XOR / NOT with the reason for each. Presets (drive ready → run, mask the low byte, what changed, BCD) and six small missions. The lesson "REAL numbers" covers NORM_X / SCALE_X scaling, ROUND / TRUNC and the traps of floating point. |
+| **Four more lesson simulators** | **PLC tasks** (a millisecond time line of main program, periodic task and hardware interrupt: missed pulses, PID call jitter, the watchdog), **drive setup** (commission a VFD from the motor nameplate: ten parameters with the codes of SINAMICS, Altivar and PowerFlex, ramps, limits, command and setpoint source, with real faults: overcurrent, overvoltage on a fast stop, nuisance overload), **PackML** (the 17 machine states as a map you drive with commands and line events: Hold against Suspend against Abort) and **safety design** (the ISO 13849-1 risk graph: five hazards to rate, the required performance level and the typical structure for it). |
+| **I/O wiring simulator** | In the lesson "Wiring inputs and outputs": choose an input card (sinking / sourcing) and a device (push button, PNP, NPN, 2-wire, 4-wire sensor), or an output card (relay, PNP, NPN, triac) and a load (lamp, valve, stepper drive, 230 V lamp, 10 A heater), press Power on and see where the current flows. Wrong choices show what would burn on a real machine. Eight missions: NPN on a sinking card, 2-wire leakage and the bleeder resistor, the load return of an NPN output, the flyback diode, AC on a transistor, the interposing contactor, relays and fast pulses. Card examples for six brands. |
+| **HMI screen builder** | In the lesson "Build an HMI screen": an empty panel and the tags of a pump program. Add push buttons, switches, lamps, number displays and inputs, bar graphs, an alarm banner and screen buttons, link each one to a tag, lock the settings screen with a user level, then press Run and use the screen against a simulated pump and tank. A mission checklist and five design rules (momentary start, no E-stop on the screen, grey background, units, limits), with the names of WinCC, FactoryTalk View, Vijeo Designer, CODESYS / TwinCAT and Sysmac. |
+| **Your work** | The Lab never replaces your program without asking. **My programs** keeps up to 50 named programs; **Export my work** saves progress, programs and quiz stats to one file (Import restores it); programs can be downloaded / opened as .txt. A **Search** page (magnifier in the header) finds lessons, tasks, machines, glossary terms and topics. |
+| **Quiz** | Endless "predict the output" rungs, **Read a program** (endless: several rungs and a short story of buttons and time, you say what is ON at the end; 12 patterns such as seal-in, rung order and the scan, two coils, set/reset, interlock, TON/TOF/TP, counter, step sequence, alarm latch; every answer is checked against the real PLC engine in the tests), an endless timer & counter drill (TON/TOF/TP/RTO/CTU/CTD), a 282-question concept bank with a level filter, **Interview questions** (160, by topic: basics, programming, timers & counters, analog & PID, drives & motion, safety, troubleshooting, electrical drawings, hardware & online, diagnostics, electrical & wiring, motor starting, fluid power, projects & practice) and **Industrial networks** (97, by topic: basics, how it works, RS-232 / RS-485, Modbus, PROFIBUS, CAN / CANopen / DeviceNet, LIN, AS-i & HART, IO-Link, PROFINET, EtherNet/IP, EtherCAT, OPC UA & MQTT, safety networks, troubleshooting). The wrong answers are written to the same length as the right one, so you cannot guess by length (checked by the tests). Every answer comes with a short explanation, and **My mistakes** brings back every wrongly answered question until it is answered right. Direct links: `#quiz-iv`, `#quiz-net`. |
+| **Interview practice out loud** | `#oral`: a question from the interview bank without the four choices. You answer aloud with a timer, then see the model answer and rate yourself; questions you did not know come back first. Topic filter, progress bar, and the question can be read to you. |
+| **Cheat sheet** | `#cheat`: one printable page with contacts and coils, the four rungs to know by heart, timers and counters, scan traps, the step sequence, analog scaling, I/O wiring, motor starting, safety, networks, fault finding and brand words. |
+| **Calculators** | `#calc`: 73 calculators in 9 groups, from basic to advanced, each with the formula shown with your own numbers and a few "good to know" notes; 24 have a moving picture that follows the numbers (pause button, respects reduced motion). **Projects**: fill a tank (pump, pipe, motor, time), empty a tank by gravity, pump pit levels and starts per hour, pipe size and pressure loss, control valve Kv, mix a batch, dosing pump for a flow, filling by weight (fast / slow / stop), compressed air (compressor and receiver), conveyor line speed, winder roll, cooling flow, hot and cold mixing, level sensor range and scaling, main supply of a machine, braking resistor, feeder calibration, takt time. Electricity (Ohm, three-phase power, energy cost, power factor, transformer), motors and drives (current from kW, speed and slip, torque, star-delta values, gearbox and belt speed, acceleration torque), sizing the cabinet (cable size and voltage drop, parts for a DOL starter, 24 V supply, cabinet fan or cooler, UPS time, I/O cards), analog signals (scaling, 4–20 mA, resolution, loop voltage, Pt100, load cell, pulse flow, square-root flow), numbers and addresses (hex / binary / BCD, REAL as Modbus words, masks, byte.bit, address overlap, Modbus addresses, CRC-16, timer presets, counter overflow, units), scan and motion (reaction time, encoder, move time, pulses per mm, conveyor tracking), machines and process (conveyor or lift motor, pump, fan savings, pneumatic and hydraulic cylinders, tank volume, heater, OEE), control and networks (PID start values, filter factor, Modbus RTU timing, IP subnet, data log size, light curtain distance). Search and group filter; the last numbers are kept on the device. |
+| **Safety relay simulator** | In the lesson `safety-practice` (`[[hw:safetyrelay]]`): a safety relay drawn like the real unit, with its sensor, reset button, feedback loop and two contactors. Five common layouts of terminal names and LEDs (A to E, no maker names in the simulator): the names change with the layout, the behaviour is the same. Uses: E-stop with one or two channels, guard door, light curtain; monitored or automatic start; with or without feedback loop; instant or delayed outputs. Faults to make: welded contact, broken wire, short between the channels, welded contactor, stuck reset button. Nine practice goals, plus tables for reading the LEDs, which relay for which job, and the names per brand. |
+| **Jumps, zones, queues, sequencer** | Lesson `flow-data` with a four-tab simulator: a jump that skips rungs (outputs keep their state), an MCR zone (coils drop, timers reset, latches stay), a FIFO / LIFO queue that tracks good and bad parts, and a sequencer table. With the instruction names in Studio 5000, TIA, CODESYS / TwinCAT, Schneider and Omron, and what to write today. The same instructions also exist **in the Lab editor**: `JMP(L1)` / `LBL(L1)` (rungs in between are not scanned and are shown pale; backward jumps are refused), `MCR()` in pairs (a zone that is off solves its rungs as false), and `FFL(value,MW100,8)` / `FFU(MW100,8,MW12)` / `LFU(…)` on a word table (first word = count). They round-trip in the text format, lint, and export to every brand. Three challenges use them (`jmp-1`, `mcr-1`, `fifo-1`, path stage "Program flow and queues"); a challenge can demand an instruction with `needTypes`. |
+| **Lab debug tools** | In the Lab toolbar. **Cross-ref** lists every address with the rungs that write it and read it, warns about two coils on one address, bits written but never read, and bits read but never written; tap a rung number to jump there. **Trend** records up to 8 signals for the last 20 s under the machine, like a trace in real software. **Watch this test** (a button on every test result of a challenge) plays the steps of that test live on the machine at 1×, 4× or 16×: the buttons press themselves, a step counter shows where it is, and at the moment the test fails the PLC is paused so you can read the ladder. It runs the very same step code as the test runner, so the result is always the same. **FBD** shows the same program as a function block diagram under the ladder, live: contacts in series become an AND box (&), parallel branches an OR box (≥1), an NC contact a small circle, and the coil, timer or maths box sits on the right. It is read-only and follows every edit; the tests check that every tree gives the same value as its rung. |
+| **Glossary** | 328 terms in plain words. |
+
+Addresses follow the Siemens S7-200 style (I0.0, Q0.0, M0.0, T0, C0, MW0, 32-bit MD0, high-speed counter HC0, SM0.5, analog AIW0 / AQW0); lessons map them to Allen-Bradley and IEC/CODESYS names.
+
+## Run it
+
+```bash
+cd ladder-lab && python3 -m http.server 8080   # then open http://localhost:8080
+```
+
+Opening `index.html` directly also works. On a phone (served over https, e.g. GitHub Pages), use *Add to Home Screen* to install it as an app.
+
+Single-file build (handy to copy to a phone):
+
+```bash
+node ladder-lab/tools/build-single.js            # → ladder-lab/dist/plc-start.html
+```
+
+## Content review
+
+The lessons, quiz banks, glossary, cheat sheet, Circuit Lab texts and brand exports were read by five independent reviewers (electrical and motors, safety and commissioning, networks and hardware, PLC programming, quiz / analog / motion). About 115 corrections came out of it: for example the safety-relay drawing (each channel is a loop on the relay's own terminals), the P&ID interlock (very high level closes the inlet valve), the order of commissioning (prove the E-stop before anything moves), Dahlander terminal names (1U / 2U), drive parameter codes (PowerFlex P034, Altivar ItH), PROFIdrive status bits, Omron jump (CJP, not JMP), Rockwell scaling (CPT, not SCP), and several quiz explanations. Points the reviewers could not confirm against a manual are listed for the user to check in their own software.
+
+The export to other brands was repaired in the same round: timers and counters are printed as valid calls (`T0(IN := …, PT := T#3s);`, TIA `"T0".TON(…)`), a counter that counts up and down becomes one CTUD, retentive timers use the block each brand really has, Studio 5000 scales with CPT, Omron uses `&` for decimal constants and CJP … JME for a jump, and a rung that holds only a label or the end of an MCR zone is no longer dropped. Tests cover all seven exports.
+
+## Tests
+
+```bash
+node ladder-lab/tests/run.js
+```
+
+Checks that every challenge's reference solution passes all its tests (ladder, ST and Circuit Lab), every empty/buggy starter fails, the text format round-trips, lint is clean, and every lesson example runs.
+
+## Layout
+
+```
+js/engine.js      parser, text format, PLC scan engine, lint, ladder → ST translation
+js/st.js          Structured Text compiler + runtime (CASE, FOR, WHILE, arrays, FBs, watchdog)
+js/plants.js      virtual machines (physics + canvas drawing) and the test runner
+js/ladderview.js  SVG ladder renderer with live power flow
+js/circuit.js     Circuit Lab engine: current paths, contactors, timers, short circuits, machines, tasks and test runner
+js/circuit-ui.js  Circuit Lab pages: task list, schematic editor with IEC symbols, live view, machine drawings
+js/pages-extra.js interview practice out loud (#oral) and the cheat sheet (#cheat)
+js/calc.js        calculators (#calc): one entry per calculator (fields, run, notes), one page draws them all
+js/calc-proj.js   the Projects group (whole jobs: tanks, pumps, pipes, air, lines) and the moving pictures of the calculators
+js/lab-tools.js   Lab debug tools: cross-reference list, trend chart, watch a test live
+js/fbdview.js     FBD view: ladder rung → logic tree → function block diagram (live)
+js/quiz-read.js   the patterns of the "Read a program" quiz
+js/hw-rack.js     rack simulator: modules, slots, addresses, signal path
+js/hw-net.js      network simulator: IP, subnets, device names, device files
+js/hw-online.js   online simulator: compile, download, compare, upload, force, online change
+js/hw-bits.js     word calculator: bits, hex, BCD, masks
+js/hw-tasks.js    PLC tasks time line: cyclic, periodic, interrupt, watchdog
+js/hw-drive.js    drive quick commissioning at the keypad
+js/hw-packml.js   PackML state model
+js/hw-flow.js     jump, MCR zone, FIFO / LIFO queue and sequencer simulator (lesson flow-data)
+js/hw-safety.js   safety relay on the rail: behaviour (LL.SafetySim), five layouts, faults and LEDs
+js/hw-risk.js     risk graph: from the hazard to the required performance level
+js/hw-wiring.js   I/O wiring simulator: cards, devices, current paths, 8 missions
+js/hw-hmi.js      HMI screen builder with a runtime and a simulated pump
+js/hw-starters.js motor starting simulator: seven methods, circuit, current curve, relay / ladder / by hand
+js/plants-starters.js  Lab machines: stator resistance, autotransformer and rotor resistance starters, drive on a fieldbus
+js/comm.js        step-by-step animations of how networks move data (serial bits, polling, token, CAN arbitration, LIN, EtherCAT, cyclic Ethernet, MQTT)
+js/lessons.js     curriculum, glossary, quiz banks
+js/challenges.js  challenges with tests and solutions
+js/topics.js      the 24 topics: lessons, tasks, machines, quiz links and icon of each
+js/app.js         routing, pages, Lab editor, mini simulators, quizzes
+```
+
+## Design
+
+The look comes from the control cabinet and its drawings, and it lives in the tokens at the top of `css/app.css`
+(read the comment there before you add a colour).
+
+- Greys from cabinet paint (RAL 7035 light grey, RAL 7016 anthracite), for a light and a dark theme.
+- One type family, IBM Plex, shipped in `fonts/` (no network): Sans to read, Sans Condensed for titles of 22 px and
+  more, Mono only for what the PLC says (addresses, values, code).
+- Lists are ruled rows like the index of a drawing set. A box is only for something you operate.
+- Corners of 2 / 4 / 6 px. Round is for round things (lamps, push buttons).
+- Colour means something: green = energised, running or passed; red = stop or fault; amber = warning or forced;
+  blue = selection and focus. Brand, navigation and progress are ink. Lamp colours follow IEC 60073.
+- No emoji. Signs are inline SVG (`LL.SYM` in `js/engine.js`, `I` in `js/app.js`).
+
+## Android app and Google Play
+
+The Android app (Android 8 and newer, target Android 16 / API 36) is the same web app in a WebView, with its files
+and fonts inside the package. It asks for no permission and never uses the network. "Export my work" opens the save
+screen of the phone, "Import" opens the file picker, the cheat sheet can be printed.
+Built files are not kept in git (`*.apk` is ignored, `dist/` too).
+
+Build it without Android Studio and without Gradle:
+
+```
+LL_VERSION_CODE=2 LL_KEYSTORE=/path/upload-key.jks LL_KS_PASS='…' LL_KEY_ALIAS=upload bash tools/build-apk.sh
+#   → dist/plc-start-<version>.aab   the file Google Play wants
+#   → dist/plc-start-<version>.apk   to install by hand
+```
+
+The script downloads the Android platform, the build tools and Google's bundletool from dl.google.com once (checked
+by SHA-1), packs the web files as assets, compiles `android/java`, builds and signs both files, and checks that the
+bundle turns into an installable APK. The version name comes from `LL.APP.version` in `js/engine.js`;
+raise `LL_VERSION_CODE` for every upload. The application id is `com.tryplc.app` (`LL_APP_ID` changes it; after
+the first upload to Google Play it can never change).
+
+**The signing key.** Google Play takes updates only when they are signed with the same upload key, and a phone
+installs an APK over the old one only with the same key. The key is not in the repository. Give your own with
+`LL_KEYSTORE` and `LL_KS_PASS`; without them the script makes one in its cache folder.
+
+```
+android/AndroidManifest.xml       one activity, no permissions
+android/java/…/MainActivity.java  the WebView: serves the assets, save / pick a file / print, system bars, back gesture
+android/res                       adaptive icon (with a monochrome layer), colours, theme
+fonts/, fonts.css                 IBM Plex (SIL Open Font License, see fonts/OFL.txt); tools/get-fonts.sh fetches them again
+tools/build-apk.sh                the build
+store/                            Google Play listing: icon, feature graphic, screenshots, texts (listing.md),
+                                  the steps and the answers for the forms (play-console.md)
+privacy.html                      the privacy policy page to put online (fill in the three [ ] places)
+```
+
+### Program text format
+
+```
+NAME Motor start/stop
+TAG I0.0 Start
+RUNG Start/stop latch
+NO(I0.0) | NO(I0.2) NO(I0.3) COIL(Q0.0)
+NO(Q0.0)
+```
+
+`|` drops a branch to the next row at that point, `-` is a wire, `.` an empty cell, `~` wires up to the output column.
+Elements: `NO NC P N NOT CMP(a>=b)` · `COIL NCOIL SET RST` · `TON TOF TP RTO(T0,3s)` · `CTU CTD(C0,5)` · `MOV(src,dst) ADD SUB MUL DIV MOD(a,b,dst)` · `SHL SHR(in,n,out)` · `SHRB(data,start,n)` (bit shift register, negative n shifts the other way) · word bits `MW100.2`, literals `16#047F` `2#0101` `12.5`, `LIM(lo,x,hi)`, `WAND WOR WXOR(a,b,dst)` `WNOT(a,dst)`, `I_BCD BCD_I(src,dst)`, REAL memory `MR0`…`MR99` with `NORM_X SCALE_X(min,value,max,dst)` `CONV ROUND TRUNC(src,dst)`. · `PID(PV,SP,OUT,Kp,Ti,Td)` · `CALL(Block,Instance,Param=addr,…)` with `BLOCK name` (an FB) or `FC name` sections and `PARAM IN|OUT|INOUT name BOOL|INT`; an FC is called without an instance: `CALL(FC_x,,Param=addr)`; inside a block `#Name` is a parameter or the instance's own memory (temporary in an FC). · Motion: `MC_POWER(AX0)` `MC_HOME(MC0,AX0,I0.0)` `MC_ABS(MC1,AX0,pos,vel)` `MC_REL(MC2,AX0,dist,vel)` `MC_JOG(AX0,vel)` `MC_STOP(MC3,AX0)` `MC_RESET(MC4,AX0)` `MC_SETPOS(MC5,AX0,value)` (set home here); status `MC1.DONE/.BUSY/.ERR/.ABORT`, `AX0.POS/.VEL/.ON/.HOMED/.MOVING/.ERR`.
