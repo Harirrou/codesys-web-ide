@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
-# Build the Android app of Ladder Lab without Android Studio and without Gradle:
+# Build the Android app of PLC Start without Android Studio and without Gradle:
 #   an APK (to install by hand) and an AAB (the file Google Play wants).
-#   bash tools/build-apk.sh [output folder]        → <folder>/ladder-lab-<version>.apk and .aab
+#   bash tools/build-apk.sh [output folder]        → <folder>/plc-start-<version>.apk and .aab
 # It needs: java 17+, maven, zip, unzip, curl, node, and network access to dl.google.com for the first run
 # (the Android platform, the build tools and Google's bundletool are downloaded once into the cache folder).
 # Environment:
 #   LL_VERSION_NAME (default 1.0)   LL_VERSION_CODE (default 1: Google Play wants a higher number for every upload)
-#   LL_APP_ID                       the id of the app on the phone and on Google Play (default com.ladderlab.app).
+#   LL_APP_ID                       the id of the app on the phone and on Google Play (default com.tryplc.app).
 #                                   It can never be changed after the first upload to Google Play.
 #   LL_KEYSTORE, LL_KS_PASS, LL_KEY_ALIAS   the signing key (for Google Play: your upload key). An update only installs
 #                                   over the old app when it is signed with the SAME key. Without LL_KEYSTORE a key is
 #                                   made once in the cache folder.
-#   LL_ANDROID_CACHE                where the Android tools and the default key are kept (default ~/.cache/ladderlab-android)
+#   LL_ANDROID_CACHE                where the Android tools and the default key are kept (default ~/.cache/plcstart-android)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CACHE="${LL_ANDROID_CACHE:-$HOME/.cache/ladderlab-android}"
+CACHE="${LL_ANDROID_CACHE:-$HOME/.cache/plcstart-android}"
 OUTDIR="${1:-$ROOT/dist}"
-VNAME="${LL_VERSION_NAME:-1.0}"; VCODE="${LL_VERSION_CODE:-1}"; APPID="${LL_APP_ID:-com.ladderlab.app}"
+VNAME="${LL_VERSION_NAME:-1.0}"; VCODE="${LL_VERSION_CODE:-1}"; APPID="${LL_APP_ID:-com.tryplc.app}"
 MINSDK=26; TARGET=36
 B="$(mktemp -d)"; trap 'rm -rf "$B"' EXIT
 mkdir -p "$CACHE" "$OUTDIR"
-APK="$OUTDIR/ladder-lab-$VNAME.apk"; AAB="$OUTDIR/ladder-lab-$VNAME.aab"
+APK="$OUTDIR/plc-start-$VNAME.apk"; AAB="$OUTDIR/plc-start-$VNAME.aab"
 
 # 1. Android platform 36 (android.jar) and build tools 36 (aapt2, d8, zipalign, apksigner), checked by SHA-1
 fetch() { # name sha1 folder-in-zip
@@ -77,10 +77,10 @@ javac -nowarn --release 11 -cp "$JAR" -d "$B/classes" $(find "$ROOT/android/java
 "$BT/d8" --release --lib "$JAR" --min-api "$MINSDK" --output "$B/dex" $(find "$B/classes" -name '*.class')
 
 # 4. the signing key
-KS="${LL_KEYSTORE:-$CACHE/ladderlab.keystore}"; KP="${LL_KS_PASS:-ladderlab}"; KA="${LL_KEY_ALIAS:-ladderlab}"
+KS="${LL_KEYSTORE:-$CACHE/plcstart.keystore}"; KP="${LL_KS_PASS:-plcstart}"; KA="${LL_KEY_ALIAS:-upload}"
 if [ ! -f "$KS" ]; then
   echo "making a new signing key: $KS (keep this file: updates must be signed with it)"
-  keytool -genkeypair -keystore "$KS" -storepass "$KP" -keypass "$KP" -alias "$KA" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Ladder Lab" >/dev/null 2>&1
+  keytool -genkeypair -keystore "$KS" -storepass "$KP" -keypass "$KP" -alias "$KA" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=PLC Start" >/dev/null 2>&1
 fi
 
 # 5. the APK: add the code, align, sign (APK signature v2 and v3), check

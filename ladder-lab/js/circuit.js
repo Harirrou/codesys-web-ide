@@ -1,4 +1,4 @@
-/* Ladder Lab — Circuit Lab engine: hard-wired control circuits (contactors, buttons, relays, timers), no PLC.
+/* PLC Start — Circuits engine: hard-wired control circuits (contactors, buttons, relays, timers), no PLC.
  * A control circuit is a grid of COLS current paths between the L rail (top) and the N rail (bottom).
  * A cell holds a wire, a contact of a device, or a load (coil, timer, lamp…). Neighbouring paths can be linked
  * at the boundary between two rows. Every 10 ms the engine finds which points are connected to L and to N:

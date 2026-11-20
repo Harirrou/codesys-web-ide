@@ -1,4 +1,4 @@
-/* Ladder Lab — "How safe must it be?": the risk graph of ISO 13849-1. Mounted in lessons through [[hw:risk]].
+/* PLC Start — "How safe must it be?": the risk graph of ISO 13849-1. Mounted in lessons through [[hw:risk]].
  * Pick a hazard, answer three questions (how bad, how often, can you avoid it) and follow the path through the
  * graph to the required performance level PLr a … e. Then see what that level usually means for the hardware:
  * one or two channels, monitoring, typical category. A simplification for learning, not a design tool. */
@@ -28,18 +28,18 @@
     { id: 'press', n: 'Hand-fed press', d: 'A hydraulic press. The operator puts every part in by hand, every few seconds, with the hands between the tools.', a: '222', why: 'Lost hands (S2), every cycle (F2), no chance to react (P2). The highest level.' },
   ];
   const CSS = `
-.hw-risk{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:14px;margin:16px 0}
-.hwr-h{font-size:1.05rem;font-weight:700;margin-bottom:8px}
-.hwr-ex{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.hwr-ex button,.hwr-q button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:7px 12px;font:inherit;font-size:.86rem;font-weight:600;cursor:pointer;min-height:38px;text-align:left}
+.hw-risk{border:1px solid var(--line);border-radius:var(--r-panel);background:var(--surface);padding:14px;margin:16px 0}
+.hwr-h{font-size:var(--t-16);font-weight:700;margin-bottom:8px}
+.hwr-ex{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.hwr-ex button,.hwr-q button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:7px 12px;font:inherit;font-size:var(--t-14);font-weight:600;cursor:pointer;min-height:38px;text-align:left}
 .hwr-ex button.on,.hwr-q button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}.hwr-ex button.done::after{content:" ✓";color:var(--power-bright)}
-.hwr-d{background:var(--surface-2);border-radius:10px;padding:9px 12px;font-size:.95rem;line-height:1.45;margin-bottom:10px}
+.hwr-d{background:var(--surface-2);border-radius:var(--r-ctl);padding:9px 12px;font-size:var(--t-16);line-height:1.45;margin-bottom:10px}
 .hwr-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}@media(max-width:780px){.hwr-grid{grid-template-columns:1fr}}
-.hwr-q{display:grid;gap:10px}.hwr-q b{display:block;font-size:.9rem;margin-bottom:5px}.hwr-q .o{display:grid;gap:5px}
-.hwr-g{background:var(--surface-2);border-radius:10px;padding:6px}.hwr-g svg{display:block;width:100%;height:auto}
-.hwr-res{border-left:4px solid var(--info);background:var(--surface-2);border-radius:8px;padding:9px 12px;margin:10px 0;font-size:.94rem;line-height:1.45}.hwr-res.ok{border-color:var(--power-bright);background:var(--power-soft)}.hwr-res.bad{border-color:var(--danger);background:var(--danger-soft)}
-.hwr-hw{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);gap:12px;align-items:center;background:var(--surface-2);border-radius:10px;padding:10px}@media(max-width:560px){.hwr-hw{grid-template-columns:1fr}}
-.hwr-hw svg{display:block;width:100%;height:auto}.hwr-hw p{margin:0;font-size:.9rem;line-height:1.45}.hwr-hw b{font-size:1rem}
-.hwr-note{font-size:.8rem;color:var(--muted);margin-top:8px}`;
+.hwr-q{display:grid;gap:10px}.hwr-q b{display:block;font-size:var(--t-14);margin-bottom:5px}.hwr-q .o{display:grid;gap:5px}
+.hwr-g{background:var(--surface-2);border-radius:var(--r-ctl);padding:6px}.hwr-g svg{display:block;width:100%;height:auto}
+.hwr-res{border-left:4px solid var(--info);background:var(--surface-2);border-radius:var(--r-ctl);padding:9px 12px;margin:10px 0;font-size:var(--t-16);line-height:1.45}.hwr-res.ok{border-color:var(--power-bright);background:var(--power-soft)}.hwr-res.bad{border-color:var(--danger);background:var(--danger-soft)}
+.hwr-hw{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);gap:12px;align-items:center;background:var(--surface-2);border-radius:var(--r-ctl);padding:10px}@media(max-width:560px){.hwr-hw{grid-template-columns:1fr}}
+.hwr-hw svg{display:block;width:100%;height:auto}.hwr-hw p{margin:0;font-size:var(--t-14);line-height:1.45}.hwr-hw b{font-size:var(--t-16)}
+.hwr-note{font-size:var(--t-13);color:var(--muted);margin-top:8px}`;
 
   LL.HW.risk = function (ph) {
     if (!document.getElementById('hw-risk-css')) { const st = document.createElement('style'); st.id = 'hw-risk-css'; st.textContent = CSS; document.head.appendChild(st); }

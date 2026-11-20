@@ -1,4 +1,4 @@
-/* Ladder Lab — curriculum. Each lesson: what / why / where / how, live
+/* PLC Start — curriculum. Each lesson: what / why / where / how, live
  * examples ([[sim:key]] placeholders), common mistakes, takeaways and the
  * challenges that practise it. */
 (function (G) {
@@ -33,7 +33,7 @@
 <li>Two vertical lines are the <b>power rails</b>. Imagine the left one is live and the right one is neutral.</li>
 <li>Each horizontal line between them is a <b>rung</b>. A rung is one rule: <i>"if these conditions, then this output"</i>.</li>
 <li>Conditions on the left are <b>contacts</b> <code>-| |-</code>. The result on the right is a <b>coil</b> <code>-( )-</code>.</li>
-<li>If a continuous path of "closed" contacts connects the left rail to the coil, the coil is <b>energised</b>. In Ladder Lab, powered wires glow green.</li>
+<li>If a continuous path of "closed" contacts connects the left rail to the coil, the coil is <b>energised</b>. In PLC Start, powered wires glow green.</li>
 </ul>
 [[sim:first]]
 <div class="callout where"><b>Where you'll meet PLCs:</b> packaging lines, water treatment, car factories, elevators, HVAC, cranes, food & beverage, conveyors at airports and warehouses, oil & gas skids. Anything with motors, valves and sensors that must run 24/7.</div>
@@ -82,7 +82,7 @@
       summary: 'I0.0 is input 0, bit 0. Q is outputs, M is memory. Give everything a name.',
       body: `
 <h3>Addresses</h3>
-<p>Every signal lives at an <b>address</b> in PLC memory. Ladder Lab uses Siemens-style addresses, like the video you watched:</p>
+<p>Every signal lives at an <b>address</b> in PLC memory. PLC Start uses Siemens-style addresses, like the video you watched:</p>
 <div class="tbl"><table>
 <tr><th>Address</th><th>Meaning</th><th>Example</th></tr>
 <tr><td><code>I0.0 … I1.7</code></td><td>Digital <b>inputs</b> (byte.bit)</td><td>I0.1 = Start button</td></tr>
@@ -103,7 +103,7 @@
 <tr><td>On-delay timer</td><td>TON / S_ODT</td><td>TON (.DN .TT .EN)</td><td>TON (Q, ET)</td></tr>
 </table></div>
 <h3>Symbols (tags)</h3>
-<p>Nobody remembers that I0.5 is "Sensor 4". Real projects give every address a <b>symbol</b>, like the I/O table at the bottom of your video. Ladder Lab shows the symbol above each contact and the address below it. Modern PLCs (CODESYS, TIA Portal, Studio 5000) let you program almost entirely with symbol names.</p>
+<p>Nobody remembers that I0.5 is "Sensor 4". Real projects give every address a <b>symbol</b>, like the I/O table at the bottom of your video. PLC Start shows the symbol above each contact and the address below it. Modern PLCs (CODESYS, TIA Portal, Studio 5000) let you program almost entirely with symbol names.</p>
 <div class="callout tip"><b>Habit to build now:</b> make the I/O list before you draw a single rung. Address, symbol, description, and for inputs whether the device is wired NO or NC.</div>`,
       sims: {},
       takeaways: ['I = inputs, Q = outputs, M = memory, T = timers, C = counters, MW = words.', 'Always work from a named I/O list.'],
@@ -140,7 +140,7 @@
 [[mem:explorer]]
 <h3>The trap on real PLCs: addresses overlap</h3>
 <p>On a Siemens PLC the areas sit on top of each other: <b>MW10 is MB10 and MB11</b>, which are <b>M10.0 … M11.7</b>. Writing M10.0 changes MW10! And <b>MW10 and MW11 share MB11</b>, so two words next to each other destroy each other. That is why real programs use <b>even</b> word numbers: MW10, MW12, MW14 (and MD10, MD14 for double words). In Siemens the <b>first</b> byte is the <b>high</b> byte of the word (shown above).</p>
-<div class="callout tip"><b>In Ladder Lab</b> the bits (M10.0) and the words (MW10) are kept apart, so a beginner cannot break a counter by writing a bit, and the projects sometimes use MW20, MW21, MW22 next to each other. On a real S7 PLC you would number them MW20, MW22, MW24. CODESYS numbers %MW by words (%MW1 = bytes 2 and 3) and Rockwell uses named tags, so there the overlap looks different, but the idea is the same.</div>
+<div class="callout tip"><b>In PLC Start</b> the bits (M10.0) and the words (MW10) are kept apart, so a beginner cannot break a counter by writing a bit, and the projects sometimes use MW20, MW21, MW22 next to each other. On a real S7 PLC you would number them MW20, MW22, MW24. CODESYS numbers %MW by words (%MW1 = bytes 2 and 3) and Rockwell uses named tags, so there the overlap looks different, but the idea is the same.</div>
 <div class="callout where"><b>Where you meet this:</b> every I/O list (byte.bit addresses), every analog value (a word), every HMI tag (BOOL, INT, REAL), and every time you read a PLC manual's "memory map".</div>`,
       sims: {},
       takeaways: ['Bit = 0/1; byte = 8 bits; word = 16 bits; double word = 32 bits.', 'Bit memory (M, Merker) = the PLC\'s internal relays for your own flags and values.', 'I0.3 = byte 0, bit 3. After bit 7 comes the next byte.', 'Bits have weights 1, 2, 4, 8 …; a number is the sum.', 'On real Siemens PLCs MW10 = MB10 + MB11 = M10.0 … M11.7: use even word numbers.'],
@@ -343,7 +343,7 @@
 <li><code>-|P|-</code> <b>rising edge</b>: the scan where the bit goes 0 → 1 (the moment you press).</li>
 <li><code>-|N|-</code> <b>falling edge</b>: the scan where the bit goes 1 → 0 (the moment you let go).</li>
 </ul>
-<div class="sfc-wrap"><svg class="sfc" viewBox="0 0 560 250" width="560" style="max-width:100%;height:auto" role="img" aria-label="Timing diagram of NO, P and N contacts"><g font-family="IBM Plex Mono, monospace" font-size="11" fill="currentColor"><line x1="120.0" y1="14" x2="120.0" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="146.2" y1="14" x2="146.2" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="172.5" y1="14" x2="172.5" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="198.8" y1="14" x2="198.8" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="225.0" y1="14" x2="225.0" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="251.2" y1="14" x2="251.2" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="277.5" y1="14" x2="277.5" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="303.8" y1="14" x2="303.8" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="330.0" y1="14" x2="330.0" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="356.2" y1="14" x2="356.2" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="382.5" y1="14" x2="382.5" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="408.8" y1="14" x2="408.8" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="435.0" y1="14" x2="435.0" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="461.2" y1="14" x2="461.2" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="487.5" y1="14" x2="487.5" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="513.8" y1="14" x2="513.8" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="540.0" y1="14" x2="540.0" y2="216" stroke="currentColor" stroke-opacity=".15"/><text x="120" y="236" font-size="10" fill-opacity=".7">each column = one scan (10 ms)</text><text x="8" y="48" font-weight="700">Button I0.0</text><path d="M120.0 56.0 L146.2 56.0 L146.2 56.0 L172.5 56.0 L172.5 56.0 L198.8 56.0 L198.8 56.0 L198.8 30.0 L225.0 30.0 L225.0 30.0 L251.2 30.0 L251.2 30.0 L277.5 30.0 L277.5 30.0 L303.8 30.0 L303.8 30.0 L330.0 30.0 L330.0 30.0 L356.2 30.0 L356.2 30.0 L382.5 30.0 L382.5 30.0 L408.8 30.0 L408.8 30.0 L408.8 56.0 L435.0 56.0 L435.0 56.0 L461.2 56.0 L461.2 56.0 L487.5 56.0 L487.5 56.0 L513.8 56.0 L513.8 56.0 L540.0 56.0" fill="none" stroke="#22c55e" stroke-width="2.5"/><text x="8" y="98" font-weight="700">NO(I0.0)</text><path d="M120.0 106.0 L146.2 106.0 L146.2 106.0 L172.5 106.0 L172.5 106.0 L198.8 106.0 L198.8 106.0 L198.8 80.0 L225.0 80.0 L225.0 80.0 L251.2 80.0 L251.2 80.0 L277.5 80.0 L277.5 80.0 L303.8 80.0 L303.8 80.0 L330.0 80.0 L330.0 80.0 L356.2 80.0 L356.2 80.0 L382.5 80.0 L382.5 80.0 L408.8 80.0 L408.8 80.0 L408.8 106.0 L435.0 106.0 L435.0 106.0 L461.2 106.0 L461.2 106.0 L487.5 106.0 L487.5 106.0 L513.8 106.0 L513.8 106.0 L540.0 106.0" fill="none" stroke="#22c55e" stroke-width="2.5"/><text x="8" y="148" font-weight="700">P(I0.0)</text><path d="M120.0 156.0 L146.2 156.0 L146.2 156.0 L172.5 156.0 L172.5 156.0 L198.8 156.0 L198.8 156.0 L198.8 130.0 L225.0 130.0 L225.0 130.0 L225.0 156.0 L251.2 156.0 L251.2 156.0 L277.5 156.0 L277.5 156.0 L303.8 156.0 L303.8 156.0 L330.0 156.0 L330.0 156.0 L356.2 156.0 L356.2 156.0 L382.5 156.0 L382.5 156.0 L408.8 156.0 L408.8 156.0 L435.0 156.0 L435.0 156.0 L461.2 156.0 L461.2 156.0 L487.5 156.0 L487.5 156.0 L513.8 156.0 L513.8 156.0 L540.0 156.0" fill="none" stroke="#f5a524" stroke-width="2.5"/><text x="8" y="198" font-weight="700">N(I0.0)</text><path d="M120.0 206.0 L146.2 206.0 L146.2 206.0 L172.5 206.0 L172.5 206.0 L198.8 206.0 L198.8 206.0 L225.0 206.0 L225.0 206.0 L251.2 206.0 L251.2 206.0 L277.5 206.0 L277.5 206.0 L303.8 206.0 L303.8 206.0 L330.0 206.0 L330.0 206.0 L356.2 206.0 L356.2 206.0 L382.5 206.0 L382.5 206.0 L408.8 206.0 L408.8 206.0 L408.8 180.0 L435.0 180.0 L435.0 180.0 L435.0 206.0 L461.2 206.0 L461.2 206.0 L487.5 206.0 L487.5 206.0 L513.8 206.0 L513.8 206.0 L540.0 206.0" fill="none" stroke="#3b82f6" stroke-width="2.5"/><text x="229.0" y="142" font-size="10">one scan at 0 → 1</text><text x="439.0" y="192" font-size="10">one scan at 1 → 0</text></g></svg></div>
+<div class="sfc-wrap"><svg class="sfc" viewBox="0 0 560 250" width="560" style="max-width:100%;height:auto" role="img" aria-label="Timing diagram of NO, P and N contacts"><g font-family="IBM Plex Mono, monospace" font-size="11" fill="currentColor"><line x1="120.0" y1="14" x2="120.0" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="146.2" y1="14" x2="146.2" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="172.5" y1="14" x2="172.5" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="198.8" y1="14" x2="198.8" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="225.0" y1="14" x2="225.0" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="251.2" y1="14" x2="251.2" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="277.5" y1="14" x2="277.5" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="303.8" y1="14" x2="303.8" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="330.0" y1="14" x2="330.0" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="356.2" y1="14" x2="356.2" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="382.5" y1="14" x2="382.5" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="408.8" y1="14" x2="408.8" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="435.0" y1="14" x2="435.0" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="461.2" y1="14" x2="461.2" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="487.5" y1="14" x2="487.5" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="513.8" y1="14" x2="513.8" y2="216" stroke="currentColor" stroke-opacity=".15"/><line x1="540.0" y1="14" x2="540.0" y2="216" stroke="currentColor" stroke-opacity=".15"/><text x="120" y="236" font-size="10" fill-opacity=".7">each column = one scan (10 ms)</text><text x="8" y="48" font-weight="700">Button I0.0</text><path d="M120.0 56.0 L146.2 56.0 L146.2 56.0 L172.5 56.0 L172.5 56.0 L198.8 56.0 L198.8 56.0 L198.8 30.0 L225.0 30.0 L225.0 30.0 L251.2 30.0 L251.2 30.0 L277.5 30.0 L277.5 30.0 L303.8 30.0 L303.8 30.0 L330.0 30.0 L330.0 30.0 L356.2 30.0 L356.2 30.0 L382.5 30.0 L382.5 30.0 L408.8 30.0 L408.8 30.0 L408.8 56.0 L435.0 56.0 L435.0 56.0 L461.2 56.0 L461.2 56.0 L487.5 56.0 L487.5 56.0 L513.8 56.0 L513.8 56.0 L540.0 56.0" fill="none" stroke="#1a9b4b" stroke-width="2.5"/><text x="8" y="98" font-weight="700">NO(I0.0)</text><path d="M120.0 106.0 L146.2 106.0 L146.2 106.0 L172.5 106.0 L172.5 106.0 L198.8 106.0 L198.8 106.0 L198.8 80.0 L225.0 80.0 L225.0 80.0 L251.2 80.0 L251.2 80.0 L277.5 80.0 L277.5 80.0 L303.8 80.0 L303.8 80.0 L330.0 80.0 L330.0 80.0 L356.2 80.0 L356.2 80.0 L382.5 80.0 L382.5 80.0 L408.8 80.0 L408.8 80.0 L408.8 106.0 L435.0 106.0 L435.0 106.0 L461.2 106.0 L461.2 106.0 L487.5 106.0 L487.5 106.0 L513.8 106.0 L513.8 106.0 L540.0 106.0" fill="none" stroke="#1a9b4b" stroke-width="2.5"/><text x="8" y="148" font-weight="700">P(I0.0)</text><path d="M120.0 156.0 L146.2 156.0 L146.2 156.0 L172.5 156.0 L172.5 156.0 L198.8 156.0 L198.8 156.0 L198.8 130.0 L225.0 130.0 L225.0 130.0 L225.0 156.0 L251.2 156.0 L251.2 156.0 L277.5 156.0 L277.5 156.0 L303.8 156.0 L303.8 156.0 L330.0 156.0 L330.0 156.0 L356.2 156.0 L356.2 156.0 L382.5 156.0 L382.5 156.0 L408.8 156.0 L408.8 156.0 L435.0 156.0 L435.0 156.0 L461.2 156.0 L461.2 156.0 L487.5 156.0 L487.5 156.0 L513.8 156.0 L513.8 156.0 L540.0 156.0" fill="none" stroke="#e9a100" stroke-width="2.5"/><text x="8" y="198" font-weight="700">N(I0.0)</text><path d="M120.0 206.0 L146.2 206.0 L146.2 206.0 L172.5 206.0 L172.5 206.0 L198.8 206.0 L198.8 206.0 L225.0 206.0 L225.0 206.0 L251.2 206.0 L251.2 206.0 L277.5 206.0 L277.5 206.0 L303.8 206.0 L303.8 206.0 L330.0 206.0 L330.0 206.0 L356.2 206.0 L356.2 206.0 L382.5 206.0 L382.5 206.0 L408.8 206.0 L408.8 206.0 L408.8 180.0 L435.0 180.0 L435.0 180.0 L435.0 206.0 L461.2 206.0 L461.2 206.0 L487.5 206.0 L487.5 206.0 L513.8 206.0 L513.8 206.0 L540.0 206.0" fill="none" stroke="#2c6cc4" stroke-width="2.5"/><text x="229.0" y="142" font-size="10">one scan at 0 → 1</text><text x="439.0" y="192" font-size="10">one scan at 1 → 0</text></g></svg></div>
 <h3>Why it matters</h3>
 <p>A button press lasts about 200 ms: 20 scans. Anything that <i>adds</i>, <i>toggles</i>, <i>shifts</i> or <i>moves to the next step</i> would happen 20 times. Edges make it happen once.</p>
 [[sim:edge]]
@@ -364,14 +364,14 @@
 [[sim:toggle]]
 <h3>The same thing in every brand</h3>
 <div class="tbl"><table>
-<tr><th>Ladder Lab</th><th>TIA Portal</th><th>Studio 5000</th><th>CODESYS</th></tr>
+<tr><th>PLC Start</th><th>TIA Portal</th><th>Studio 5000</th><th>CODESYS</th></tr>
 <tr><td>P(I0.0)</td><td>-|P|- with its own edge memory bit (written below the contact), or R_TRIG</td><td>XIC(I0.0)ONS(storage bit), or OSR</td><td>-|P|- or an R_TRIG instance</td></tr>
 <tr><td>N(I0.0)</td><td>-|N|- with its own edge memory bit, or F_TRIG</td><td>XIO(I0.0)ONS(storage bit), or OSF</td><td>-|N|- or an F_TRIG instance</td></tr>
 </table></div>
 <h3>Traps</h3>
 <ul>
 <li><b>No edge</b>: ADD, MOV, SHRB or a toggle on a level contact runs every scan while the button is held.</li>
-<li><b>Shared edge memory</b>: in TIA Portal and Studio 5000 each edge has its own memory (storage) bit. Using the same one for two edges makes one of them never fire. Ladder Lab gives each edge its own automatically.</li>
+<li><b>Shared edge memory</b>: in TIA Portal and Studio 5000 each edge has its own memory (storage) bit. Using the same one for two edges makes one of them never fire. PLC Start gives each edge its own automatically.</li>
 <li><b>A one-scan pulse on a lamp</b>: on for 10 ms, nobody sees it. Use the pulse to SET, toggle, count or start a timer.</li>
 <li><b>Bouncing contacts and noisy signals</b>: several edges for one press. Filter first, then take the edge (see "Triggers in practice").</li>
 </ul>
@@ -393,7 +393,7 @@
 <p>Two normal coils with the same address in two rungs: rung 1 sets Q0.0 = 1, rung 2 sets it straight back to 0, and only the <b>last</b> rung's answer reaches the terminal. Pressing PB1 seems to do nothing.</p>
 [[sim:dbl]]
 <p>The fix: <b>one coil per output</b>. Combine every condition into a single rung with branches, or compute parts in M bits and OR them.</p>
-<p>Ladder Lab's checker flags this as <b>"Double coil"</b>. Many real tools do not warn (TIA Portal and Studio 5000 normally allow it silently): use the cross-reference list.</p>
+<p>PLC Start's checker flags this as <b>"Double coil"</b>. Many real tools do not warn (TIA Portal and Studio 5000 normally allow it silently): use the cross-reference list.</p>
 <h3>Rung order</h3>
 <p>Because rungs are solved top to bottom, a bit written in rung 5 is seen by rung 6 in the <i>same</i> scan, but by rung 4 only in the <i>next</i> scan. Usually harmless, but it matters for:</p>
 <ul>
@@ -504,7 +504,7 @@
     },
     {
       id: 'control-circuits', level: 2, title: "Hard-wired control circuits: read them, then build them", min: 10,
-      summary: "Power circuit and control circuit, how to read current paths from L to N, the parts and their terminal numbers, the five patterns behind every circuit, and how a circuit turns into ladder. With the Circuit Lab to build and test them.",
+      summary: "Power circuit and control circuit, how to read current paths from L to N, the parts and their terminal numbers, the five patterns behind every circuit, and how a circuit turns into ladder. With the Circuits section to build and test them.",
       body: `
 <h3>Two circuits in every starter</h3>
 <p>Open any motor starter and you find two circuits:</p>
@@ -515,7 +515,7 @@
 <tr><td>Its job</td><td>Give the motor power</td><td>Decide <b>when</b> each contactor closes</td></tr>
 </table></div>
 <p>The control circuit is the brain. Before PLCs it was the whole brain. Today a PLC often does the deciding, but every safety function and every simple starter is still wired like this, and you must be able to read it.</p>
-<div class="callout tip"><b>Build them yourself:</b> the <a href="#circuits">Circuit Lab</a> gives you the parts, a live circuit with green wires where there is voltage, the motor behind it and tests. Start with <a href="#circuit-c-lamp">a switch and a lamp</a>.</div>
+<div class="callout tip"><b>Build them yourself:</b> the <a href="#circuits">Circuits</a> gives you the parts, a live circuit with green wires where there is voltage, the motor behind it and tests. Start with <a href="#circuit-c-lamp">a switch and a lamp</a>.</div>
 
 <h3>How to read a control circuit</h3>
 <ol>
@@ -558,7 +558,7 @@
 <tr><td>Changing the logic</td><td>Rewire the panel → edit a rung</td></tr>
 </table></div>
 <p>One trap when you move a circuit into a PLC: a STOP button wired NC gives the input a <b>1</b> while it is not pressed. In the program you then use a normal (NO) contact for it. See <a href="#lesson-field-vs-program">field wiring and the program</a>.</p>
-<div class="callout where"><b>Where:</b> every motor starter, every safety circuit, every old machine. In interviews: "Draw a direct-on-line starter" and "Draw star-delta with its interlock" are standard questions. Practise both in the <a href="#circuits">Circuit Lab</a> until you can draw them from memory.</div>`,
+<div class="callout where"><b>Where:</b> every motor starter, every safety circuit, every old machine. In interviews: "Draw a direct-on-line starter" and "Draw star-delta with its interlock" are standard questions. Practise both in the <a href="#circuits">Circuits</a> until you can draw them from memory.</div>`,
       sims: {},
       takeaways: ["Power circuit: motor current. Control circuit: decides when the contactors close.", "Read from L (top) to N (bottom). The load is the last part of each path.", "Contacts are drawn at rest: NO open, NC closed.", "Series is AND, parallel is OR, a NO contact beside START is the seal-in.", "Ladder is the same drawing turned a quarter turn."],
       mistakes: ["Seal-in contact beside the STOP button and not beside START.", "Two coils or lamps in series: each gets half the voltage.", "The overload contact left out of the coil path: the motor burns after a trip.", "Interlock forgotten between two contactors that must never close together.", "A path from L to N without a load: a short circuit."],
@@ -572,7 +572,7 @@
 <p>A <b>TON</b> times while its rung is powered. When the elapsed time (<b>ET</b>) reaches the preset (<b>PT</b>), its <b>done bit</b> (T0, called Q or .DN) turns on. If the rung loses power, ET resets to 0 instantly.</p>
 [[sim:ton]]
 <div class="tbl"><table>
-<tr><th>Signal</th><th>Ladder Lab</th><th>Allen-Bradley</th><th>CODESYS</th></tr>
+<tr><th>Signal</th><th>PLC Start</th><th>Allen-Bradley</th><th>CODESYS</th></tr>
 <tr><td>Done</td><td>T0 (= T0.Q)</td><td>T0.DN</td><td>T0.Q</td></tr>
 <tr><td>Timing</td><td>T0.TT</td><td>T0.TT</td><td>T0.IN AND NOT T0.Q</td></tr>
 <tr><td>Elapsed</td><td>T0.ET (ms)</td><td>T0.ACC</td><td>T0.ET</td></tr>
@@ -962,7 +962,7 @@ level % = (AIW0 − 6400) × 100 ÷ 25600
       id: 'video-circuit', level: 5, title: 'Your video, decoded: 3-cylinder sequence', min: 12,
       summary: 'The circuit from the short you shared, rebuilt rung by rung, plus what it doesn\'t tell you.',
       body: `
-<p>This is the ladder from the "3 Cylinder Sequential" video, rebuilt on Ladder Lab's cylinder machine. Their names map to ours like this:</p>
+<p>This is the ladder from the "3 Cylinder Sequential" video, rebuilt on PLC Start's cylinder machine. Their names map to ours like this:</p>
 <div class="tbl"><table>
 <tr><th>Video</th><th>Here</th><th>Meaning</th></tr>
 <tr><td>Stop I0.0, Start I0.1</td><td>STOP I0.1 (NC), START I0.0</td><td>Operator buttons</td></tr>
@@ -1407,7 +1407,7 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
 <tr><td>Rockwell Studio 5000</td><td>GSV WallClockTime LocalDateTime → DINT[7] (year … microsecond)</td></tr>
 <tr><td>CODESYS / Schneider / TwinCAT</td><td>SysTimeRtcGet + SysTimeRtcConvertUtcToDate, or DTU / F_GetSystemTime (TwinCAT)</td></tr>
 <tr><td>Omron Sysmac</td><td>GetTime() or the system variable _CurrentTime</td></tr>
-<tr><td>Ladder Lab</td><td>already read into AIW10 = hour, AIW11 = minute, AIW12 = weekday (1 = Monday)</td></tr>
+<tr><td>PLC Start</td><td>already read into AIW10 = hour, AIW11 = minute, AIW12 = weekday (1 = Monday)</td></tr>
 </table></div>
 <p>Watch the weekday numbering: it is different between brands.</p>
 <h3>Minutes since midnight</h3>
@@ -1529,7 +1529,7 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
 <tr><td>Drive (VFD)</td><td>1 + speed</td><td>Run command and speed setpoint. Read ready and fault</td><td><a href="#ch-drive-1">Drive</a></td></tr>
 </table></div>
 <p>The soft starter and the drive have their own lessons: <a href="#lesson-motor-starters">Motor starters</a> and <a href="#lesson-drives">Drives</a>.</p>
-<p><b>Wire them by hand too.</b> In the <a href="#circuits">Circuit Lab</a> you build the hard-wired control circuit beside the 3-phase power circuit: <a href="#circuit-c-seal">direct on line</a>, <a href="#circuit-c-sd">star-delta</a>, <a href="#circuit-c-res">stator resistance</a>, <a href="#circuit-c-at">autotransformer</a>, <a href="#circuit-c-rotor">rotor resistance</a>, <a href="#circuit-c-soft">soft starter</a>, <a href="#circuit-c-vfd">drive</a>, and a <a href="#circuit-c-stein">3-phase motor on a single-phase supply with a capacitor</a>.</p>
+<p><b>Wire them by hand too.</b> In the <a href="#circuits">Circuits</a> you build the hard-wired control circuit beside the 3-phase power circuit: <a href="#circuit-c-seal">direct on line</a>, <a href="#circuit-c-sd">star-delta</a>, <a href="#circuit-c-res">stator resistance</a>, <a href="#circuit-c-at">autotransformer</a>, <a href="#circuit-c-rotor">rotor resistance</a>, <a href="#circuit-c-soft">soft starter</a>, <a href="#circuit-c-vfd">drive</a>, and a <a href="#circuit-c-stein">3-phase motor on a single-phase supply with a capacitor</a>.</p>
 
 <h3>Which one do I choose?</h3>
 <ul>
@@ -1660,7 +1660,7 @@ Valve B = (AUTO AND step wants B) OR (MANUAL AND Jog B AND A is out)   ← inter
 <p>A line has twenty identical motors. Copying the same five rungs twenty times works, until you find a bug: now you fix it twenty times and miss one. A <b>block</b> holds the logic <b>once</b>. The main program <b>calls</b> it twenty times, each time connected to different inputs and outputs.</p>
 <h3>The words, in every brand</h3>
 <div class="tbl"><table>
-<tr><th>Idea</th><th>Siemens TIA Portal</th><th>Rockwell Studio 5000</th><th>CODESYS</th><th>Ladder Lab</th></tr>
+<tr><th>Idea</th><th>Siemens TIA Portal</th><th>Rockwell Studio 5000</th><th>CODESYS</th><th>PLC Start</th></tr>
 <tr><td>Main program</td><td>OB1</td><td>MainRoutine</td><td>PLC_PRG</td><td>Main program tab</td></tr>
 <tr><td>Block without memory</td><td>FC</td><td>Routine called with JSR (parameters with SBR / RET)</td><td>FUNCTION</td><td>Kind FC</td></tr>
 <tr><td>Block with memory</td><td>FB + instance DB</td><td>Add-On Instruction (AOI) + backing tag</td><td>FUNCTION_BLOCK + instance in VAR</td><td>Kind FB + CALL with an instance name</td></tr>
@@ -1681,12 +1681,12 @@ Valve B = (AUTO AND step wants B) OR (MANUAL AND Jog B AND A is out)   ← inter
 <tr><td>Cylinder with a move timeout</td><td>FB</td><td>a timer is memory</td></tr>
 <tr><td>Alarm with acknowledge, drive with a watchdog, PID</td><td>FB</td><td>state, timers, integral</td></tr>
 </table></div>
-<p>Ladder Lab checks it for you: a timer, counter, edge or PID inside an FC is an error, just as the real tools refuse it or make you pass the memory in from outside. In the Lab, the <b>Names as</b> selector above the ladder shows every block, parameter and call in the words of TIA Portal, Studio 5000 or CODESYS.</p>
+<p>PLC Start checks it for you: a timer, counter, edge or PID inside an FC is an error, just as the real tools refuse it or make you pass the memory in from outside. In the Lab, the <b>Names as</b> selector above the ladder shows every block, parameter and call in the words of TIA Portal, Studio 5000 or CODESYS.</p>
 <h3>Parameters and memory</h3>
 <ul>
 <li><b>Parameters</b> are the block's "terminals": <code>IN Start</code>, <code>OUT Run</code>. Inside the block you write <b>#Start</b>, never I0.0. At the call you connect <code>Start=I0.0</code>.</li>
 <li><b>Static memory</b>: any other #name you use inside (a seal-in bit #Req, a timer #Delay, a counter) belongs to the block. Every <b>instance</b> (every call with its own name) gets its own copy. Motor1's timer and Motor2's timer run independently.</li>
-<li><b>Reading a timer inside a block:</b> a contact on <code>#Delay.Q</code> (or just <code>#Delay</code>, the same thing) is the timer's done output; <code>#Delay.ET</code> is its elapsed time in ms. Outside a block it is the same: <code>T0</code> = <code>T0.Q</code>. Rockwell calls the same bit <code>.DN</code> and the elapsed time <code>.ACC</code>; Ladder Lab accepts <code>.DN</code>, <code>.TT</code> and <code>.EN</code> too.</li>
+<li><b>Reading a timer inside a block:</b> a contact on <code>#Delay.Q</code> (or just <code>#Delay</code>, the same thing) is the timer's done output; <code>#Delay.ET</code> is its elapsed time in ms. Outside a block it is the same: <code>T0</code> = <code>T0.Q</code>. Rockwell calls the same bit <code>.DN</code> and the elapsed time <code>.ACC</code>; PLC Start accepts <code>.DN</code>, <code>.TT</code> and <code>.EN</code> too.</li>
 <li>The <b>instance name</b> is the memory. Two calls with the same instance name would share and fight over the same memory: always give each call its own instance.</li>
 </ul>
 <h3>How it runs</h3>
@@ -1785,7 +1785,7 @@ Valve B = (AUTO AND step wants B) OR (MANUAL AND Jog B AND A is out)   ← inter
 <li><b>Save</b> the parameters, and keep a copy with the machine documents.</li>
 <li><b>Safe Torque Off</b> wiring, if the machine uses it, belongs to the safety circuit, not to the PLC program.</li>
 </ul>
-<div class="callout where"><b>Where:</b> every conveyor, pump and fan with a drive. In interviews: "The drive trips on overvoltage when it stops. Why?" and "The PLC gives a run signal but the motor does not start. What do you check?" Wire the control signals yourself in the <a href="#circuit-c-vfd">Circuit Lab drive task</a>, and control one from ladder in <a href="#lesson-drives">Drives in practice</a>.</div>`,
+<div class="callout where"><b>Where:</b> every conveyor, pump and fan with a drive. In interviews: "The drive trips on overvoltage when it stops. Why?" and "The PLC gives a run signal but the motor does not start. What do you check?" Wire the control signals yourself in the <a href="#circuit-c-vfd">Circuits drive task</a>, and control one from ladder in <a href="#lesson-drives">Drives in practice</a>.</div>`,
       sims: {},
       takeaways: ["Type in the motor nameplate first: voltage, current, frequency, speed.", "Ramp-up too short gives overcurrent. Ramp-down too short gives overvoltage.", "The rated current in the drive is the motor protection.", "Command source and setpoint source decide who controls the drive.", "The ideas are the same in every brand. Only the numbers differ."],
       mistakes: ["Starting with factory values.", "Rated current left too high: the motor is not protected.", "A short ramp-down on a heavy fan without a braking resistor.", "Command source still on keypad when the PLC should start it.", "Not saving the parameters after commissioning."],
@@ -2040,7 +2040,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
       challenges: ["furn-3", "bug-db-index", "cio-plaus"],
     },
     {
-      id: 'real-software', level: 5, title: 'From Ladder Lab to TIA Portal, Studio 5000, Schneider, TwinCAT, Omron and CODESYS', min: 16,
+      id: 'real-software', level: 5, title: 'From PLC Start to TIA Portal, Studio 5000, Schneider, TwinCAT, Omron and CODESYS', min: 16,
       summary: 'Everything you built here exists in the real tools, with different names. How to start a project in each, the instruction-by-instruction translation, and the traps when you change brand.',
       body: `
 <h3>The three big tools</h3>
@@ -2058,7 +2058,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 <li><b>Make the I/O list as tags</b>: Start = I0.0, Motor = Q0.0 … (In Studio 5000 you create tags and alias them to the module, e.g. Local:1:I.Data.0.)</li>
 <li><b>Write the ladder</b> in OB1 / MainRoutine / PLC_PRG, with the same rungs you wrote here.</li>
 <li><b>Compile</b>, fix the errors, <b>download</b> to the PLC (or the simulator: PLCSIM, Logix Emulate, CODESYS Control Win).</li>
-<li><b>Go online</b>: the same green power flow you see in Ladder Lab. Watch tables and force tables are the I/O table of the Lab.</li>
+<li><b>Go online</b>: the same green power flow you see in PLC Start. Watch tables and force tables are the I/O table of the Lab.</li>
 </ol>
 <h3>Schneider, Beckhoff and Omron</h3>
 <ul>
@@ -2075,7 +2075,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 <p>In the Lab, the <b>Other brands</b> button shows your own program this way (tab Studio 5000), and in all the other brands.</p>
 <h3>Traps when you change brand</h3>
 <ul>
-<li><b>Siemens memory overlaps</b>: MW10 is the bytes MB10 and MB11, MD10 is MW10 + MW12, and M10.0 is a bit inside MB10. Writing MD10 changes MW12! Ladder Lab keeps them separate; in TIA, use tags in data blocks and the problem disappears.</li>
+<li><b>Siemens memory overlaps</b>: MW10 is the bytes MB10 and MB11, MD10 is MW10 + MW12, and M10.0 is a bit inside MB10. Writing MD10 changes MW12! PLC Start keeps them separate; in TIA, use tags in data blocks and the problem disappears.</li>
 <li><b>Rockwell timers are in ms</b> and counters keep counting past the preset (.ACC goes on, .DN stays on).</li>
 <li><b>NC STOP buttons</b> are the same everywhere: the contact in the program is NO, because the wire already does the inverting.</li>
 <li><b>Old Siemens timers</b> (S_ODT, T0 on S7-300) still exist in old machines; new projects use IEC timers (TON) with instance data.</li>
@@ -2091,7 +2091,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
     {
       id: 'project-setup', level: 5, title: "From a new project to a running PLC: hardware, network, going online", min: 20,
       summary: "How a real PLC project starts. Choose the cards and read their addresses. Put the PLC, the laptop and the devices on one network. Then compile, download, go online, compare and force safely. Last, meet the real tools and their simulators.",
-      body: `<p>In Ladder Lab the PLC is already there: you write a rung and it runs. On a real job you start with an empty project and a box of hardware. Before the first rung can run, you do three jobs:</p>
+      body: `<p>In PLC Start the PLC is already there: you write a rung and it runs. On a real job you start with an empty project and a box of hardware. Before the first rung can run, you do three jobs:</p>
 <ol>
 <li><b>Hardware</b>: tell the tool which cards are in the rack. The tool then gives every signal its address.</li>
 <li><b>Network</b>: give the PLC, the laptop and every device an address, so they can find each other.</li>
@@ -2158,7 +2158,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 <div class="callout where"><b>Where:</b> every machine with a network. To see how the data really travels, read <a href="#lesson-networks">Networks: PLCs that talk to each other</a> and <a href="#lesson-protocols">Industrial communication</a>.</div>
 
 <h3>3. Going online: download, upload, compare, force</h3>
-<p><b>Offline and online.</b> Offline means the project on your PC. Online means the tool is connected to the PLC and shows live values: the green power flow you know from Ladder Lab. The project on the PC and the program in the PLC are two copies, and they can be different.</p>
+<p><b>Offline and online.</b> Offline means the project on your PC. Online means the tool is connected to the PLC and shows live values: the green power flow you know from PLC Start. The project on the PC and the program in the PLC are two copies, and they can be different.</p>
 <div class="tbl"><table>
 <tr><th>Action</th><th>Direction</th><th>What it does</th></tr>
 <tr><td><b>Compile</b></td><td>on the PC</td><td>Checks the program and translates it for the CPU. Fix every error and read the warnings.</td></tr>
@@ -2232,7 +2232,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 </table></div>
 <p><b>Free for a beginner</b> (check the conditions on the vendor's site):</p>
 <ul>
-<li><b>Ladder Lab</b>: logic, scan, timers, addresses and networks, right here.</li>
+<li><b>PLC Start</b>: logic, scan, timers, addresses and networks, right here.</li>
 <li><b>CODESYS</b> with its simulation mode or Control Win (2-hour demo): a full IEC 61131-3 tool, free.</li>
 <li><b>TwinCAT 3</b>: free engineering and a renewable 7-day trial runtime.</li>
 <li><b>Machine Expert Basic</b> with its simulator: simple ladder for the M221.</li>
@@ -2370,14 +2370,14 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
       body: `
 <h3>The data types</h3>
 <div class="tbl"><table>
-<tr><th>Type</th><th>Size</th><th>Range</th><th>Ladder Lab</th><th>Use for</th></tr>
+<tr><th>Type</th><th>Size</th><th>Range</th><th>PLC Start</th><th>Use for</th></tr>
 <tr><td>BOOL</td><td>1 bit</td><td>0 / 1</td><td>I, Q, M bits</td><td>signals</td></tr>
 <tr><td>INT</td><td>16 bit</td><td>−32 768 … 32 767</td><td>MW, AIW, AQW</td><td>analog values, small counts, steps</td></tr>
 <tr><td>DINT</td><td>32 bit</td><td>−2 147 483 648 … 2 147 483 647</td><td><b>MD</b>, HC</td><td>totals, encoder positions, big intermediate results</td></tr>
 <tr><td>REAL</td><td>32 bit</td><td>±3.4·10<sup>38</sup>, about 7 digits</td><td>MR0 … MR99</td><td>physics, PID, flow totals</td></tr>
 </table></div>
 <h3>Overflow: the silent killer</h3>
-<p>(AIW0 − 6400) × 5000 is up to 128 000 000. In a 16-bit word that does not fit. Depending on the brand the result <b>wraps around</b> (32 767 + 1 = −32 768) and sets an overflow flag, or it is clamped; Ladder Lab clamps at the limit. Either way the number is garbage, and the program keeps running with it.</p>
+<p>(AIW0 − 6400) × 5000 is up to 128 000 000. In a 16-bit word that does not fit. Depending on the brand the result <b>wraps around</b> (32 767 + 1 = −32 768) and sets an overflow flag, or it is clamped; PLC Start clamps at the limit. Either way the number is garbage, and the program keeps running with it.</p>
 [[sim:dint]]
 <h3>Three rules for integer maths</h3>
 <ol>
@@ -2393,7 +2393,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 <li><b>Never compare REALs with =</b>: 0.1 added ten times is not exactly 1.0. Use ≥ / ≤ or a band.</li>
 <li><b>REAL totals stop counting</b>: with about 7 digits, 16 777 216 + 1 is still 16 777 216. Keep totals in DINT (or LREAL).</li>
 </ul>
-<div class="callout tip"><b>Siemens memory:</b> MD20 is MW20 + MW22. If you use MD20, keep MW20 and MW22 free. In Ladder Lab MD and MW are separate.</div>
+<div class="callout tip"><b>Siemens memory:</b> MD20 is MW20 + MW22. If you use MD20, keep MW20 and MW22 free. In PLC Start MD and MW are separate.</div>
 <div class="callout where"><b>Where:</b> production totals, energy counters, encoder positions, recipe maths with big factors, flow totals. Every time a number can pass 32 767, use DINT.</div>`,
       sims: { dint: { program: 'NAME 16 bit vs 32 bit\nRUNG Counts above 4 mA: 0 … 25600\nNO(SM0.0) SUB(AIW0,6400,MW0)\nRUNG WRONG: the 16-bit product overflows\nNO(SM0.0) MUL(MW0,5000,MW2)\nRUNG\nNO(SM0.0) DIV(MW2,25600,MW12)\nRUNG RIGHT: 32-bit product, then divide\nNO(SM0.0) MUL(MW0,5000,MD100)\nRUNG\nNO(SM0.0) DIV(MD100,25600,MW10)', inputs: { 'AIW0': { name: 'Level transmitter', kind: 'ana', min: 6400, max: 32000, value: 11648 } }, outputs: {}, note: 'MW10 = litres (0 … 5000), right. MW12 = the same formula in 16 bits: wrong almost everywhere. Move the slider and compare.' } },
       takeaways: ['INT stops at 32 767; DINT goes to 2.1 billion.', 'Multiply first, divide last, with a DINT in between.', 'MOD gives the remainder.', 'Fixed point (0.1 °C, 0.01 bar) gives decimals with integers.', 'Never compare REALs with =; keep totals in DINT.'],
@@ -2694,7 +2694,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 <ol>
 <li><b>Pulse train (PTO)</b>: the PLC sends step pulses and a direction signal to a stepper or a simple servo drive (S7-1200, many compact PLCs). Each pulse = a small step.</li>
 <li><b>A drive that positions by itself</b>: the PLC sends a target and a start bit over the network (for example SINAMICS with EPOS); the drive does the rest.</li>
-<li><b>Motion instructions on an axis</b>: the PLC runs the axis (a <b>technology object</b> in TIA Portal, an <b>axis tag</b> in Studio 5000, a SoftMotion axis in CODESYS) and talks to the drive over PROFINET, EtherNet/IP or EtherCAT. This is what Ladder Lab simulates.</li>
+<li><b>Motion instructions on an axis</b>: the PLC runs the axis (a <b>technology object</b> in TIA Portal, an <b>axis tag</b> in Studio 5000, a SoftMotion axis in CODESYS) and talks to the drive over PROFINET, EtherNet/IP or EtherCAT. This is what PLC Start simulates.</li>
 </ol>
 <h3>The axis</h3>
 <p>You configure the axis once: units (mm), how many encoder counts are one mm, maximum speed and acceleration, <b>software limits</b> (here 0 … 600 mm). After that your program only speaks mm and mm/s. The axis also tells you its state: <code>AX0.POS</code> (mm), <code>AX0.VEL</code>, <code>AX0.ON</code>, <code>AX0.HOMED</code>, <code>AX0.MOVING</code>, <code>AX0.ERR</code>.</p>
@@ -2702,7 +2702,7 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 <p>An incremental encoder only counts: after power-up the axis does not know where it is. <b>Homing</b> moves slowly to a reference switch and calls that point 0. Until the axis is homed, the software limits are not active. In TIA Portal an absolute move is then refused; in other systems it may run and go to a wrong place, so always check the homed bit in your own rung. With several axes, home them in a <b>safe order</b> (the gripper up first, then the horizontal axis).</p>
 <h3>The instructions, in every brand</h3>
 <div class="tbl"><table>
-<tr><th>Job</th><th>Ladder Lab</th><th>TIA Portal / CODESYS (PLCopen)</th><th>Studio 5000</th></tr>
+<tr><th>Job</th><th>PLC Start</th><th>TIA Portal / CODESYS (PLCopen)</th><th>Studio 5000</th></tr>
 <tr><td>Switch the drive on</td><td>MC_POWER(AX0)</td><td>MC_Power</td><td>MSO (off: MSF)</td></tr>
 <tr><td>Homing</td><td>MC_HOME(MC0,AX0,switch)</td><td>MC_Home</td><td>MAH</td></tr>
 <tr><td>Go to a position</td><td>MC_ABS(MC1,AX0,pos,vel)</td><td>MC_MoveAbsolute</td><td>MAM (absolute)</td></tr>
@@ -2809,7 +2809,7 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
     },
     {
       id: 'interview-prep', level: 6, title: 'Preparing for a PLC programming interview', min: 15,
-      summary: 'What PLC interviews look like, how to attack a practical programming task, the questions that come up again and again, and where to practise each one in Ladder Lab.',
+      summary: 'What PLC interviews look like, how to attack a practical programming task, the questions that come up again and again, and where to practise each one in PLC Start.',
       body: `
 <h3>What to expect</h3>
 <ul>
@@ -2950,7 +2950,7 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 <tr><td>Reset / acknowledge</td><td>inputs of the blocks</td><td>ACK_GL, ACK_REI</td><td>reset inputs, DCSRT</td></tr>
 <tr><td>Two-hand control</td><td>SF_TwoHandControlTypeII / III</td><td>TWO_HAND</td><td>THRSe</td></tr>
 </table></div>
-<div class="callout tip"><b>About the exercises:</b> in Ladder Lab you write this logic in normal ladder to understand how it works. On a real machine you use the certified blocks of a safety controller, or a safety relay, and the machine is validated by a competent person.</div>
+<div class="callout tip"><b>About the exercises:</b> in PLC Start you write this logic in normal ladder to understand how it works. On a real machine you use the certified blocks of a safety controller, or a safety relay, and the machine is validated by a competent person.</div>
 <div class="callout where"><b>Where:</b> every machine with a moving hazard: presses, saws, robots cells, palletisers, conveyors with access points.</div>`,
       sims: {},
       takeaways: ['Safety functions run in safety-rated hardware, never only in a normal PLC.', 'Safety relay for a few functions, safety PLC for many or for networks.', 'Two channels, discrepancy, manual reset and contactor feedback are in every safety function.', 'The normal program drops its run commands and shows what happened, so nothing restarts by itself.', 'Same ideas in every brand: SF_EmergencyStop / ESTOP1 / DCS, SF_EDM / FDBACK / CROUT.'],
@@ -3033,7 +3033,7 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 </ul>
 <h3>Strings in the PLC</h3>
 <div class="tbl"><table>
-<tr><th>Job</th><th>Ladder Lab</th><th>TIA Portal</th><th>Studio 5000</th><th>CODESYS / TwinCAT / Machine Expert</th><th>Omron</th></tr>
+<tr><th>Job</th><th>PLC Start</th><th>TIA Portal</th><th>Studio 5000</th><th>CODESYS / TwinCAT / Machine Expert</th><th>Omron</th></tr>
 <tr><td>String variable</td><td>STR0 … STR31</td><td>STRING[n] in a DB</td><td>STRING tag (.LEN, .DATA)</td><td>STRING(n)</td><td>STRING</td></tr>
 <tr><td>Copy</td><td>SMOV</td><td>S_MOVE / :=</td><td>COP</td><td>:=</td><td>MOV$ / :=</td></tr>
 <tr><td>Join</td><td>CONCAT</td><td>CONCAT</td><td>CONCAT</td><td>CONCAT</td><td>+$ / CONCAT</td></tr>
@@ -3115,7 +3115,7 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 <h3>The same idea in every brand</h3>
 <div class="tbl"><table>
 <tr><th>Brand</th><th>Where the data lives</th><th>Layout</th><th>Example</th></tr>
-<tr><td>Ladder Lab</td><td>DB sections</td><td>fields, arrays</td><td>DB10.LENGTH[MW30]</td></tr>
+<tr><td>PLC Start</td><td>DB sections</td><td>fields, arrays</td><td>DB10.LENGTH[MW30]</td></tr>
 <tr><td>Siemens TIA Portal</td><td>global DB, instance DB</td><td>PLC data type (UDT)</td><td>"Recipes".Length["RecipeNo"]</td></tr>
 <tr><td>Rockwell Studio 5000</td><td>controller / program tags (no DBs)</td><td>user-defined data type (UDT), arrays</td><td>Recipes.Length[RecipeNo]</td></tr>
 <tr><td>CODESYS, TwinCAT 3, Schneider Machine Expert</td><td>GVL (global variable list)</td><td>DUT: STRUCT, ARRAY</td><td>Recipes.Length[nRecipe]</td></tr>
@@ -3156,7 +3156,7 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 <li><b>Check the field device:</b> sensor LED, wiring, 24 V, PNP/NPN.</li>
 <li><b>Force with caution:</b> forcing overrides I/O and can move machinery unexpectedly. Use it only with the area safe, and always remove forces.</li>
 </ol>
-<div class="callout tip">Ladder Lab's monitor view works exactly like step 1: green contacts are closed, grey ones are open, and the rung shows how far the power gets.</div>`,
+<div class="callout tip">PLC Start's monitor view works exactly like step 1: green contacts are closed, grey ones are open, and the rung shows how far the power gets.</div>`,
       sims: {},
       takeaways: ['Inputs → modes → sequences → alarms → outputs.', 'Troubleshoot from the output backwards.'],
       mistakes: ['Forcing outputs with people near the machine.'],
@@ -3294,13 +3294,13 @@ NO(M10.5) MC_ABS(MC5,AX0,350,500)       step 5: X to the box</pre>
 </table></div>
 <p>In CODESYS, TIA Portal and Studio 5000 you can mix them: ladder for interlocks, ST for calculations, SFC for the sequence.</p>
 <h3>Your ladder as Structured Text</h3>
-<p>Press the <b>ST</b> button in the simulator: Ladder Lab translates every rung. Example:</p>
+<p>Press the <b>ST</b> button in the simulator: PLC Start translates every rung. Example:</p>
 <pre class="code">(* Start/stop latch *)
 Motor := (Start OR Motor) AND Stop AND OL;
 (* 3 s on-delay *)
 T0(IN := Switch, PT := T#3s);
 Lamp := T0.Q;</pre>
-<div class="callout where"><b>Next steps after Ladder Lab:</b> install CODESYS (free) and try its built-in simulator, or Siemens TIA Portal with PLCSIM. Recreate the challenges you solved here: same logic, real tools.</div>`,
+<div class="callout where"><b>Next steps after PLC Start:</b> install CODESYS (free) and try its built-in simulator, or Siemens TIA Portal with PLCSIM. Recreate the challenges you solved here: same logic, real tools.</div>`,
       sims: {},
       takeaways: ['LD for logic, ST for math, SFC for sequences.', 'Every rung has a Boolean equivalent.'],
       mistakes: ['Forcing everything into ladder when ST would be clearer, or the other way round.'],
@@ -3513,7 +3513,7 @@ Motor := (Start OR Motor) AND StopOK;   (* the seal-in rung! *)
 END_PROGRAM</pre>
 <ul>
 <li><code>VAR … END_VAR</code> declares every variable with a <b>type</b>: BOOL, INT, DINT, REAL, TIME, BYTE, WORD, ARRAY, or a function block like TON.</li>
-<li><code>AT %IX0.0</code> binds a variable to an address. <code>%IX</code> = input bit, <code>%QX</code> = output bit, <code>%MX</code> = memory bit, <code>%IW/%QW/%MW</code> = words, <code>%IB/%QB</code> = bytes. (Ladder Lab also accepts I0.0 / Q0.0.)</li>
+<li><code>AT %IX0.0</code> binds a variable to an address. <code>%IX</code> = input bit, <code>%QX</code> = output bit, <code>%MX</code> = memory bit, <code>%IW/%QW/%MW</code> = words, <code>%IB/%QB</code> = bytes. (PLC Start also accepts I0.0 / Q0.0.)</li>
 <li><code>:=</code> assigns. <code>=</code> only compares. Every statement ends with <code>;</code></li>
 <li>Comments: <code>(* … *)</code> or <code>// …</code></li>
 </ul>
@@ -3605,7 +3605,7 @@ END_CASE</pre>
   Occ    : ARRAY[0..3] OF BOOL := [FALSE, TRUE, FALSE, FALSE];
 END_VAR
 Levels[3] := 42;</pre>
-<p>An index outside the bounds is a <b>runtime fault</b>. Some PLCs stop (S7-1500, Studio 5000), and Ladder Lab shows it that way. Others (CODESYS, TwinCAT without bounds checking) keep running and silently overwrite other data, which is worse.</p>
+<p>An index outside the bounds is a <b>runtime fault</b>. Some PLCs stop (S7-1500, Studio 5000), and PLC Start shows it that way. Others (CODESYS, TwinCAT without bounds checking) keep running and silently overwrite other data, which is worse.</p>
 <h3>FOR: a known number of times</h3>
 <pre class="code">Sum := 0;
 FOR i := 1 TO 10 DO
@@ -4182,7 +4182,7 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { l: 3, q: "Delay a motor start by 10 s after START: use…", a: ["TON", "TOF", "TP", "CTU"], c: 0, why: "On-delay." },
     { l: 3, q: "A flasher made of two 0.5 s timers has a period of about…", a: ["1 s", "0.5 s", "2 s", "0.25 s"], c: 0, why: "0.5 s off + 0.5 s on = 1 s." },
     { l: 3, q: "Staircase light that restarts its 5 s at every press: best timer?", a: ["a TOF fed by the buttons", "a TON fed by the buttons", "a TP pulse from the buttons", "an RTO fed by the buttons"], c: 0, why: "A TOF restarts whenever its input comes on again." },
-    { l: 3, q: "In Ladder Lab, T0.ET is measured in…", a: ["milliseconds", "microseconds", "whole seconds", "number of scans"], c: 0, why: "3 s = 3000." },
+    { l: 3, q: "In PLC Start, T0.ET is measured in…", a: ["milliseconds", "microseconds", "whole seconds", "number of scans"], c: 0, why: "3 s = 3000." },
     { l: 3, q: "Starting three conveyors 2 s apart mainly avoids…", a: ["adding up the inrush currents", "boxes falling off the belt", "scan time problems in the PLC", "double coils in the program"], c: 0, why: "Big motors draw 6–8× current when starting." },
     { l: 3, q: "A single timer that resets itself (NC of its own done bit) gives…", a: ["a one-scan pulse every PT", "a 50 % duty flasher signal", "a latch that stays on forever", "a timer that runs only once"], c: 0, why: "Done for one scan, then reset." },
     { l: 4, q: "CTD with PV = 4 after 4 pulses: CV and done bit?", a: ["CV 0, done ON", "CV 4, done OFF", "CV −4, done ON", "CV 0, done OFF"], c: 0, why: "Counts down from PV, done at ≤ 0." },

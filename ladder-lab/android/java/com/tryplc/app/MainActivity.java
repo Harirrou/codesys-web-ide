@@ -1,4 +1,4 @@
-package com.ladderlab.app;
+package com.tryplc.app;
 
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
@@ -40,7 +40,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Ladder Lab in a WebView. The web app is in the APK (assets) and is shown under a private https address,
+ * PLC Start in a WebView. The web app is in the APK (assets) and is shown under a private https address,
  * so it behaves like on a web server (local storage, clipboard) but never uses the network.
  * The page can ask this class for the things it cannot do alone in a WebView: save a file, pick a file, print,
  * and it tells this class its colour (for the area behind the system bars) and when it moved to another page.
@@ -221,7 +221,7 @@ public class MainActivity extends Activity {
                     Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
                     i.addCategory(Intent.CATEGORY_OPENABLE);
                     i.setType(type == null || type.isEmpty() ? "text/plain" : type);
-                    i.putExtra(Intent.EXTRA_TITLE, name == null || name.isEmpty() ? "ladder-lab.txt" : name);
+                    i.putExtra(Intent.EXTRA_TITLE, name == null || name.isEmpty() ? "plc-start.txt" : name);
                     try { startActivityForResult(i, REQ_SAVE); }
                     catch (ActivityNotFoundException e) { saveText = null; toast(R.string.no_file_app); }
                 }
@@ -262,7 +262,7 @@ public class MainActivity extends Activity {
                 @Override
                 public void run() {
                     PrintManager pm = (PrintManager) getSystemService(Context.PRINT_SERVICE);
-                    if (pm != null) pm.print("Ladder Lab", web.createPrintDocumentAdapter("Ladder Lab"), new PrintAttributes.Builder().build());
+                    if (pm != null) pm.print("PLC Start", web.createPrintDocumentAdapter("PLC Start"), new PrintAttributes.Builder().build());
                 }
             });
         }

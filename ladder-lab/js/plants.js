@@ -1,4 +1,4 @@
-/* Ladder Lab — virtual machines ("plants") that the ladder program controls.
+/* PLC Start — virtual machines ("plants") that the ladder program controls.
  * Each plant: inputs (operator devices + sensors), outputs (actuators),
  * actions (things that happen in the world), init(), step() physics, draw().
  * Input kinds: pb = push button wired NO, pbnc = push button wired NC
@@ -975,10 +975,10 @@
       if (st.over) D.text(c, 'OVERLOAD', sx + sw / 2, cy + fh / 2, { size: 10, mono: true, weight: 700, color: th.red });
       // car operating panel
       c.fillStyle = th.panel2; D.rr(c, 380, 20, 96, 240, 10); c.fill(); c.strokeStyle = th.line; c.stroke();
-      c.fillStyle = '#0b1220'; D.rr(c, 392, 32, 72, 62, 6); c.fill();
+      c.fillStyle = '#16191b'; D.rr(c, 392, 32, 72, 62, 6); c.fill();
       const fl = Q['MW20'];
-      D.text(c, fl >= 0 && fl <= 4 ? LIFT_NAMES[fl] : '–', 440, 64, { size: 34, weight: 800, mono: true, color: '#ffb02e' });
-      D.text(c, Q['Q1.0'] ? '▲' : Q['Q1.1'] ? '▼' : '', 408, 64, { size: 14, weight: 800, color: '#ffb02e' });
+      D.text(c, fl >= 0 && fl <= 4 ? LIFT_NAMES[fl] : '–', 440, 64, { size: 34, weight: 800, mono: true, color: '#e9a100' });
+      D.text(c, Q['Q1.0'] ? '▲' : Q['Q1.1'] ? '▼' : '', 408, 64, { size: 14, weight: 800, color: '#e9a100' });
       D.text(c, 'MW20', 428, 102, { size: 8, mono: true, color: th.muted });
       LIFT_NAMES.forEach((n, k) => {
         const x = 392 + (k % 2) * 40, y = 110 + Math.floor(k / 2) * 36;
@@ -1182,8 +1182,8 @@
       if (bl) { c.strokeStyle = 'rgba(120,180,255,.7)'; c.lineWidth = 2; for (let i = 0; i < 3; i++) { c.beginPath(); c.moveTo(x - 40, y + 160 + i * 12); c.lineTo(x - 4, y + 160 + i * 12); c.stroke(); } }
       // instruments
       const raw = I['AIW4'];
-      c.fillStyle = '#0b1220'; D.rr(c, 420, 30, 200, 92, 8); c.fill();
-      D.text(c, raw === 32767 ? 'WIRE BREAK' : raw === -32768 ? 'SHORT' : (raw / 10).toFixed(1) + ' °C', 520, 62, { size: 24, weight: 800, mono: true, color: raw === 32767 || raw === -32768 ? '#ff6b6b' : '#ffb02e' });
+      c.fillStyle = '#16191b'; D.rr(c, 420, 30, 200, 92, 8); c.fill();
+      D.text(c, raw === 32767 ? 'WIRE BREAK' : raw === -32768 ? 'SHORT' : (raw / 10).toFixed(1) + ' °C', 520, 62, { size: 24, weight: 800, mono: true, color: raw === 32767 || raw === -32768 ? '#ff6b6b' : '#e9a100' });
       D.text(c, 'AIW4 = ' + raw, 520, 92, { size: 11, mono: true, color: '#9fb0c4' });
       D.text(c, 'real ' + st.T.toFixed(0) + ' °C · max ' + st.maxT.toFixed(0), 520, 110, { size: 9, mono: true, color: '#6c7f95' });
       const sp = +I['AIW6'] || 0;
@@ -1258,7 +1258,7 @@
       D.text(c, 'load cell', 240, 296, { size: 9, mono: true, color: th.muted });
       if (Q['Q0.2']) D.text(c, '→ release', 340, 240, { size: 12, weight: 700, color: th.blue, align: 'left' });
       // indicator
-      c.fillStyle = '#0b1220'; D.rr(c, 400, 30, 220, 96, 8); c.fill();
+      c.fillStyle = '#16191b'; D.rr(c, 400, 30, 220, 96, 8); c.fill();
       const raw = I['AIW8'] || 0;
       D.text(c, (raw / 100).toFixed(2) + ' kg', 510, 64, { size: 26, weight: 800, mono: true, color: '#7CFC9A' });
       D.text(c, 'AIW8 = ' + raw + '  (gross)', 510, 96, { size: 11, mono: true, color: '#9fb0c4' });
@@ -1348,7 +1348,7 @@
         const dx = x + W / 2 - 50, dy = 210;
         c.fillStyle = th.panel2; D.rr(c, dx, dy, 100, 92, 8); c.fill(); c.strokeStyle = d.fault ? th.red : th.line; c.lineWidth = d.fault ? 2.5 : 1; c.stroke();
         D.text(c, 'DRIVE ' + k, dx + 50, dy + 13, { size: 10, weight: 800, color: th.ink });
-        c.fillStyle = '#0b1220'; D.rr(c, dx + 10, dy + 22, 80, 22, 4); c.fill();
+        c.fillStyle = '#16191b'; D.rr(c, dx + 10, dy + 22, 80, 22, 4); c.fill();
         D.text(c, d.fault ? 'FAULT' : (d.v * 50).toFixed(1) + ' Hz', dx + 50, dy + 33.5, { size: 12, weight: 800, mono: true, color: d.fault ? '#ff6b6b' : '#7CFC9A' });
         D.sensorDot(c, th, dx + 14, dy + 56, !!I['I' + k + '.0'], 'rdy'); D.sensorDot(c, th, dx + 14, dy + 72, !!I['I' + k + '.1'], 'run');
         D.sensorDot(c, th, dx + 60, dy + 56, !!I['I' + k + '.2'], 'flt');
@@ -1415,7 +1415,7 @@
       for (let k = 0; k < 6; k++) { const x = 260 + k * 22, on = k < st.taps; c.fillStyle = on ? th.water : th.metalDark; c.fillRect(x, 234, 8, 18); if (on) { c.fillStyle = th.water; c.fillRect(x + 2, 252, 4, 20 + Math.min(20, st.P * 4)); } }
       D.text(c, st.taps + ' taps open', 315, 300, { size: 11, mono: true, color: th.muted });
       // gauge
-      c.fillStyle = '#0b1220'; D.rr(c, 430, 30, 190, 80, 8); c.fill();
+      c.fillStyle = '#16191b'; D.rr(c, 430, 30, 190, 80, 8); c.fill();
       D.text(c, (I['AIW0'] / 100).toFixed(2) + ' bar', 525, 62, { size: 24, weight: 800, mono: true, color: '#7CFC9A' });
       D.text(c, 'AIW0 = ' + I['AIW0'], 525, 92, { size: 11, mono: true, color: '#9fb0c4' });
       // trend
@@ -1489,7 +1489,7 @@
       });
       // first-out display
       const fo = Q['MW20'] | 0;
-      c.fillStyle = '#0b1220'; D.rr(c, 36, 140, 330, 22, 4); c.fill();
+      c.fillStyle = '#16191b'; D.rr(c, 36, 140, 330, 22, 4); c.fill();
       D.text(c, 'FIRST OUT (MW20 = ' + fo + '): ' + (ALARM_NAMES[fo] || '?'), 46, 151, { size: 10, mono: true, weight: 700, color: fo ? '#ffb4b4' : '#7d8b9c', align: 'left' });
       // horn
       const hx = 450, hy = 80, on = !!Q['Q0.5'];
@@ -1589,7 +1589,7 @@
       c.strokeStyle = th.amber; c.setLineDash([4, 3]); c.beginPath(); c.moveTo(kx + tgt * scale, y - 26); c.lineTo(kx + tgt * scale, y + 12); c.stroke(); c.setLineDash([]);
       D.text(c, 'target ' + tgt + ' mm', kx + tgt * scale, y - 34, { size: 9, mono: true, color: th.amber });
       // readout
-      c.fillStyle = '#0b1220'; D.rr(c, 410, 26, 210, 92, 8); c.fill();
+      c.fillStyle = '#16191b'; D.rr(c, 410, 26, 210, 92, 8); c.fill();
       D.text(c, 'HC0 = ' + (I['HC0'] || 0), 515, 46, { size: 15, weight: 800, mono: true, color: '#7CFC9A' });
       D.text(c, '= ' + ((I['HC0'] || 0) / 10).toFixed(1) + ' mm since reset', 515, 66, { size: 10, mono: true, color: '#9fb0c4' });
       D.text(c, 'strip past knife ' + st.pos.toFixed(1) + ' mm', 515, 84, { size: 10, mono: true, color: '#9fb0c4' });
@@ -1740,7 +1740,7 @@
       c.fillStyle = th.panel; D.rr(c, 16, 16, 608, 328, 14); c.fill(); c.strokeStyle = th.line; c.lineWidth = 1; c.stroke();
       this.outputs.forEach((o, i) => D.lamp(c, th, 90 + i * 110, 80, 18, !!Q[o.addr], o.color, (tags && tags[o.addr]) || o.name, o.addr));
       D.text(c, 'PB2 AS THE PLC SEES IT (last 0.6 s)', 40, 160, { size: 10, weight: 700, color: th.muted, align: 'left' });
-      c.fillStyle = '#0b1220'; D.rr(c, 40, 172, 560, 60, 6); c.fill();
+      c.fillStyle = '#16191b'; D.rr(c, 40, 172, 560, 60, 6); c.fill();
       c.strokeStyle = '#7CFC9A'; c.lineWidth = 2; c.beginPath();
       st.hist.forEach((v, i) => { const x = 50 + i * 9.1, y = v ? 186 : 218; if (i) { c.lineTo(x, c._py); c.lineTo(x, y); } else c.moveTo(x, y); c._py = y; });
       c.stroke();
@@ -1842,7 +1842,7 @@
       c.fillStyle = Q['Q0.0'] ? th.on : th.pipe; c.fillRect(cx - 10, gz + 6, 20, 4);
       if (st.hold) { c.fillStyle = st.hold.metal ? th.metal : th.amber; c.fillRect(cx - 11, gz + 10, 22, 9); }
       // readout
-      c.fillStyle = '#0b1220'; D.rr(c, 470, 62, 156, 96, 8); c.fill();
+      c.fillStyle = '#16191b'; D.rr(c, 470, 62, 156, 96, 8); c.fill();
       const ax = (n, nm) => 'AX' + n + ' ' + nm + ' ' + (Q['AX' + n + '.ON'] ? (Q['AX' + n + '.ERR'] ? 'ERROR' : Q['AX' + n + '.HOMED'] ? 'homed' : 'not homed') : 'off');
       D.text(c, ax(0, 'X'), 548, 76, { size: 10, mono: true, weight: 700, color: Q['AX0.ERR'] ? '#ff8a8a' : '#7CFC9A' });
       D.text(c, 'PLC ' + Math.round(+Q['AX0.POS'] || 0) + ' mm · real ' + Math.round(st.x), 548, 92, { size: 10, mono: true, color: '#9fb0c4' });
@@ -1910,28 +1910,28 @@
       if (st.jam) D.text(c, 'slide jammed', 160, 150, { size: 11, mono: true, weight: 700, color: th.red });
       D.text(c, 'stops at LOAD ' + st.atLoad + ' · WORK ' + st.atWork, 160, 290, { size: 10, mono: true, color: th.muted });
       // ── HMI (right) ──
-      c.fillStyle = '#0f172a'; D.rr(c, 328, 6, 306, 348, 12); c.fill();
-      c.fillStyle = '#1e293b'; D.rr(c, 334, 12, 294, 336, 8); c.fill();
+      c.fillStyle = '#16191b'; D.rr(c, 328, 6, 306, 348, 12); c.fill();
+      c.fillStyle = '#22272a'; D.rr(c, 334, 12, 294, 336, 8); c.fill();
       const auto = !!Q['M40.0'];
-      D.text(c, 'AXIS 1', 344, 26, { size: 11, weight: 800, color: '#e2e8f0', align: 'left' });
-      c.fillStyle = auto ? '#16a34a' : '#f59e0b'; D.rr(c, 400, 17, 66, 18, 4); c.fill();
-      D.text(c, auto ? 'AUTO' : 'MANUAL', 433, 26, { size: 10, weight: 800, mono: true, color: '#0f172a' });
-      const tag = (x, txt, on, col) => { c.fillStyle = on ? col : '#334155'; D.rr(c, x, 17, 50, 18, 4); c.fill(); D.text(c, txt, x + 25, 26, { size: 9, weight: 700, mono: true, color: on ? '#0f172a' : '#94a3b8' }); };
-      tag(472, 'ON', !!Q['AX0.ON'], '#22c55e'); tag(526, 'HOMED', !!Q['AX0.HOMED'], '#22c55e'); tag(580, 'ERROR', !!Q['AX0.ERR'], '#f87171');
+      D.text(c, 'AXIS 1', 344, 26, { size: 11, weight: 800, color: '#d2d6d2', align: 'left' });
+      c.fillStyle = auto ? '#1a9b4b' : '#e9a100'; D.rr(c, 400, 17, 66, 18, 4); c.fill();
+      D.text(c, auto ? 'AUTO' : 'MANUAL', 433, 26, { size: 10, weight: 800, mono: true, color: '#16191b' });
+      const tag = (x, txt, on, col) => { c.fillStyle = on ? col : '#353b3f'; D.rr(c, x, 17, 50, 18, 4); c.fill(); D.text(c, txt, x + 25, 26, { size: 9, weight: 700, mono: true, color: on ? '#16191b' : '#8d969b' }); };
+      tag(472, 'ON', !!Q['AX0.ON'], '#1a9b4b'); tag(526, 'HOMED', !!Q['AX0.HOMED'], '#1a9b4b'); tag(580, 'ERROR', !!Q['AX0.ERR'], '#cf3a2e');
       D.text(c, (+Q['AX0.POS'] || 0).toFixed(1) + ' mm', 344, 52, { size: 20, weight: 800, mono: true, color: '#7CFC9A', align: 'left' });
       D.text(c, Q['M40.2'] ? 'cycle running' : '', 620, 52, { size: 10, mono: true, color: '#7CFC9A', align: 'right' });
       const msg = Q['AX0.MSG'] || Q['MC.MSG'] || '';
-      D.text(c, msg ? '! ' + (msg.length > 52 ? msg.slice(0, 51) + '…' : msg) : 'no messages', 344, 72, { size: 9, mono: true, color: msg ? '#fca5a5' : '#64748b', align: 'left' });
+      D.text(c, msg ? '! ' + (msg.length > 52 ? msg.slice(0, 51) + '…' : msg) : 'no messages', 344, 72, { size: 9, mono: true, color: msg ? '#f2c9c4' : '#5d666b', align: 'left' });
       this.hmiFields.forEach((f) => {
-        c.fillStyle = '#0b1220'; D.rr(c, f.x, f.y, f.w, f.h, 4); c.fill(); c.strokeStyle = '#475569'; c.lineWidth = 1; c.stroke();
-        D.text(c, f.label, f.x + 6, f.y + 12, { size: 9, color: '#94a3b8', align: 'left' });
-        D.text(c, String(Q[f.addr] | 0), f.x + f.w - 6, f.y + 12, { size: 11, weight: 700, mono: true, color: '#e2e8f0', align: 'right' });
+        c.fillStyle = '#16191b'; D.rr(c, f.x, f.y, f.w, f.h, 4); c.fill(); c.strokeStyle = '#4b5257'; c.lineWidth = 1; c.stroke();
+        D.text(c, f.label, f.x + 6, f.y + 12, { size: 9, color: '#8d969b', align: 'left' });
+        D.text(c, String(Q[f.addr] | 0), f.x + f.w - 6, f.y + 12, { size: 11, weight: 700, mono: true, color: '#d2d6d2', align: 'right' });
       });
       this.hmiButtons().forEach((b) => {
         const lit = (b.addr === 'M30.0' && !auto) || (b.addr === 'M30.1' && auto) || (b.addr === 'M30.2' && Q['M40.1']) || (b.addr === 'M31.4' && Q['M40.2']);
         const down = !!I[b.addr];
-        c.fillStyle = down ? '#60a5fa' : lit ? '#2563eb' : '#334155'; D.rr(c, b.x, b.y, b.w, b.h, 5); c.fill();
-        D.text(c, b.label, b.x + b.w / 2, b.y + b.h / 2 + 1, { size: 10, weight: 700, color: '#f1f5f9' });
+        c.fillStyle = down ? '#2c6cc4' : lit ? '#2c6cc4' : '#353b3f'; D.rr(c, b.x, b.y, b.w, b.h, 5); c.fill();
+        D.text(c, b.label, b.x + b.w / 2, b.y + b.h / 2 + 1, { size: 10, weight: 700, color: '#eceeeb' });
       });
       D.fault(c, th, st.fault);
     },
@@ -2015,18 +2015,18 @@
         c.restore();
         D.text(c, st.powered ? 'BLADE POWERED' : st.speed > 0.02 ? 'running down' : 'stopped', 145, 214, { size: 11, mono: true, weight: 700, color: st.powered ? th.red : th.muted });
         // E-stop
-        c.fillStyle = '#facc15'; c.beginPath(); c.arc(320, 80, 30, 0, 7); c.fill();
+        c.fillStyle = '#e9a100'; c.beginPath(); c.arc(320, 80, 30, 0, 7); c.fill();
         c.fillStyle = th.red; c.beginPath(); c.arc(320, st.estop ? 84 : 78, 22, 0, 7); c.fill();
         D.text(c, st.estop ? 'E-STOP PRESSED' : 'E-stop', 320, 126, { size: 10, weight: 700, color: st.estop ? th.red : th.ink });
         D.text(c, 'ch A ' + (I['I0.0'] ? '1' : '0') + '  ch B ' + (I['I0.1'] ? '1' : '0') + (st.wireA ? '  (wire A broken)' : st.weldA ? '  (A welded)' : ''), 320, 142, { size: 9, mono: true, color: st.wireA ? th.red : th.muted });
         // safety relay with its real terminals (names as on a Pilz PNOZ / Schneider XPS; other brands differ, see the datasheet)
         if (relay) {
           const rx = 280, ry = 165, rw = 140, rh = 110;
-          c.fillStyle = '#e5e7eb'; D.rr(c, rx, ry, rw, rh, 6); c.fill(); c.strokeStyle = th.ink; c.lineWidth = 1; c.stroke();
+          c.fillStyle = '#d2d6d2'; D.rr(c, rx, ry, rw, rh, 6); c.fill(); c.strokeStyle = th.ink; c.lineWidth = 1; c.stroke();
           D.text(c, 'SAFETY RELAY', rx + rw / 2, ry + 11, { size: 9, weight: 800, color: '#111' });
           D.lamp(c, th, rx + 40, ry + 26, 4, true, 'green', ''); D.text(c, 'PWR', rx + 54, ry + 26, { size: 7, mono: true, color: '#111', align: 'left' });
           D.lamp(c, th, rx + 90, ry + 26, 4, !!st.relayOK, 'green', ''); D.text(c, 'CH1/2', rx + 104, ry + 26, { size: 7, mono: true, color: '#111', align: 'left' });
-          const live = (on) => (on ? '#16a34a' : '#9ca3af');
+          const live = (on) => (on ? '#1a9b4b' : '#8d969b');
           const fbLoop = !st.k1 && !st.k2;
           const rows = [ry + 44, ry + 60, ry + 76, ry + 94];
           const term = (x, y, name, on, right) => { c.fillStyle = live(on); c.beginPath(); c.arc(x, y, 3.5, 0, 7); c.fill(); D.text(c, name, x + (right ? -7 : 7), y, { size: 8, mono: true, weight: 700, color: '#111', align: right ? 'right' : 'left' }); };
@@ -2163,9 +2163,9 @@
         if (b.label) { c.fillStyle = '#fff'; c.fillRect(bx - 21, y - 18, 42, 14); D.text(c, b.label.length > 9 ? b.label.slice(-9) : b.label, bx, y - 11, { size: 8, mono: true, color: '#111' }); }
       });
       // HMI
-      c.fillStyle = '#0f172a'; D.rr(c, 20, 16, 600, 62, 8); c.fill();
+      c.fillStyle = '#16191b'; D.rr(c, 20, 16, 600, 62, 8); c.fill();
       const msg = LBL_TEXTS[Q['MW50'] | 0];
-      D.text(c, 'HMI  message ' + (Q['MW50'] | 0) + ': ' + (msg === undefined ? '(no text for this number)' : msg || '—'), 32, 32, { size: 12, weight: 700, color: msg === undefined ? '#fca5a5' : '#e2e8f0', align: 'left' });
+      D.text(c, 'HMI  message ' + (Q['MW50'] | 0) + ': ' + (msg === undefined ? '(no text for this number)' : msg || '—'), 32, 32, { size: 12, weight: 700, color: msg === undefined ? '#f2c9c4' : '#d2d6d2', align: 'left' });
       D.text(c, 'serial MW10 = ' + String(Q['MW10'] | 0).padStart(4, '0') + '   to printer: ' + (Q['QSTR0'] || "''") + '   last label: ' + (st.lastLabel || '—'), 32, 52, { size: 10, mono: true, color: '#9fb0c4', align: 'left' });
       D.text(c, 'shipped ' + st.shipped + ' · no label ' + st.noLabel + ' · rejected ' + st.rejected + ' · bad shipped ' + st.badShipped, 32, 68, { size: 10, mono: true, color: '#9fb0c4', align: 'left' });
       D.lamp(c, th, 540, 290, 7, !!Q['Q0.4'], 'green', 'running'); D.lamp(c, th, 600, 290, 7, !!Q['Q0.5'], 'red', 'alarm');
@@ -2256,7 +2256,7 @@
       D.text(c, 'RS-485  19200 8E1', 200, BUS + 18, { size: 10, mono: true, color: th.muted });
       // PLC + module
       c.fillStyle = th.metalDark; D.rr(c, M[0] - 50, M[1] - 30, 100, 60, 8); c.fill();
-      D.text(c, 'PLC + Modbus', M[0], M[1] - 8, { size: 11, weight: 700, color: '#fff' }); D.text(c, 'master', M[0], M[1] + 10, { size: 10, color: '#cbd5e1' });
+      D.text(c, 'PLC + Modbus', M[0], M[1] - 8, { size: 11, weight: 700, color: '#fff' }); D.text(c, 'master', M[0], M[1] + 10, { size: 10, color: '#b3b9b5' });
       c.strokeStyle = th.ink; c.beginPath(); c.moveTo(M[0], M[1] + 30); c.lineTo(M[0], BUS); c.stroke();
       D.lamp(c, th, M[0] - 30, M[1] - 52, 5, !!I['I0.1'], 'amber', ''); D.text(c, 'BUSY', M[0] - 30, M[1] - 66, { size: 8, mono: true, color: th.muted });
       D.lamp(c, th, M[0], M[1] - 52, 5, !!I['I0.0'], 'green', ''); D.text(c, 'DONE', M[0], M[1] - 66, { size: 8, mono: true, color: th.muted });
@@ -2401,7 +2401,7 @@
     draw(c, st, th, Q, I) {
       const x0 = 70, x1 = 520, y = 150, X = (mm) => x0 + mm / 500 * (x1 - x0);
       c.fillStyle = th.metalDark; D.rr(c, x0 - 30, y - 30, x1 - x0 + 60, 60, 10); c.fill();
-      c.fillStyle = '#b45309'; c.globalAlpha = 0.5; c.fillRect(x0 - 24, y - 24, X(st.pos) - x0 + 24, 48); c.globalAlpha = 1;
+      c.fillStyle = '#9a5c00'; c.globalAlpha = 0.5; c.fillRect(x0 - 24, y - 24, X(st.pos) - x0 + 24, 48); c.globalAlpha = 1;
       c.fillStyle = th.metal; c.fillRect(X(st.pos) - 6, y - 26, 12, 52);
       c.fillStyle = th.metal; c.fillRect(X(st.pos), y - 6, x1 + 60 - X(st.pos), 12);
       c.fillStyle = th.amber; D.rr(c, x1 + 50, y - 30, 30, 60, 4); c.fill();
@@ -2464,24 +2464,24 @@
     },
     draw(c, st, th, Q, I) {
       // sky
-      c.fillStyle = st.dark ? '#1e293b' : '#bfdbfe'; c.fillRect(0, 0, 640, 200);
-      if (!st.dark) { c.fillStyle = '#facc15'; c.beginPath(); c.arc(80, 60, 22, 0, 7); c.fill(); } else { c.fillStyle = '#e5e7eb'; c.beginPath(); c.arc(80, 60, 16, 0, 7); c.fill(); }
-      c.fillStyle = th.ground || '#64748b'; c.fillRect(0, 200, 640, 100);
+      c.fillStyle = st.dark ? '#22272a' : '#c5d7ee'; c.fillRect(0, 0, 640, 200);
+      if (!st.dark) { c.fillStyle = '#e9a100'; c.beginPath(); c.arc(80, 60, 22, 0, 7); c.fill(); } else { c.fillStyle = '#d2d6d2'; c.beginPath(); c.arc(80, 60, 16, 0, 7); c.fill(); }
+      c.fillStyle = th.ground || '#5d666b'; c.fillRect(0, 200, 640, 100);
       // building
       c.fillStyle = th.metalDark; c.fillRect(200, 80, 260, 140);
-      for (let r = 0; r < 2; r++) for (let k = 0; k < 5; k++) { c.fillStyle = Q['Q0.0'] ? '#fde68a' : '#334155'; c.fillRect(215 + k * 50, 100 + r * 50, 34, 30); }
+      for (let r = 0; r < 2; r++) for (let k = 0; k < 5; k++) { c.fillStyle = Q['Q0.0'] ? '#f3dfa6' : '#353b3f'; c.fillRect(215 + k * 50, 100 + r * 50, 34, 30); }
       // chimney / heating
       c.fillStyle = th.metal; c.fillRect(420, 50, 18, 30);
       if (Q['Q0.1']) { c.fillStyle = 'rgba(203,213,225,.8)'; [0, 1, 2].forEach((k) => { c.beginPath(); c.arc(429 + k * 8, 40 - k * 12 - ((st.t / 40) % 10), 7 + k * 2, 0, 7); c.fill(); }); }
       // outdoor lamps
-      [140, 520].forEach((x) => { c.fillStyle = th.metal; c.fillRect(x - 2, 140, 4, 80); c.fillStyle = Q['Q0.2'] ? '#fde047' : '#475569'; c.beginPath(); c.arc(x, 136, 9, 0, 7); c.fill(); if (Q['Q0.2']) { c.fillStyle = 'rgba(253,224,71,.25)'; c.beginPath(); c.arc(x, 150, 34, 0, 7); c.fill(); } });
+      [140, 520].forEach((x) => { c.fillStyle = th.metal; c.fillRect(x - 2, 140, 4, 80); c.fillStyle = Q['Q0.2'] ? '#fde047' : '#4b5257'; c.beginPath(); c.arc(x, 136, 9, 0, 7); c.fill(); if (Q['Q0.2']) { c.fillStyle = 'rgba(253,224,71,.25)'; c.beginPath(); c.arc(x, 150, 34, 0, 7); c.fill(); } });
       // bell
       D.lamp(c, th, 330, 250, 8, !!Q['Q0.3'], 'red', 'shift bell');
       // clock
       const pad = (n) => (n < 10 ? '0' : '') + n;
-      c.fillStyle = '#0f172a'; D.rr(c, 470, 228, 150, 52, 8); c.fill();
+      c.fillStyle = '#16191b'; D.rr(c, 470, 228, 150, 52, 8); c.fill();
       D.text(c, DAYS[st.wday] + ' ' + pad(st.hour) + ':' + pad(st.minute), 545, 248, { size: 18, mono: true, weight: 800, color: '#a3e635' });
-      D.text(c, 'PLC clock ×60', 545, 270, { size: 9, mono: true, color: '#94a3b8' });
+      D.text(c, 'PLC clock ×60', 545, 270, { size: 9, mono: true, color: '#8d969b' });
       if (I['I0.1']) D.text(c, 'HOLIDAY', 330, 70, { size: 12, weight: 800, color: th.red });
       D.text(c, 'heating ' + Math.round(st.heatMin / 60 * 10) / 10 + ' h', 110, 270, { size: 10, mono: true, color: '#fff' });
       D.fault(c, th, st.fault);
@@ -2618,7 +2618,7 @@
     draw(c, st, th, Q, I) {
       // tank, pump, accumulator, clamps
       c.fillStyle = th.metalDark; D.rr(c, 30, 200, 170, 70, 6); c.fill();
-      c.fillStyle = '#b45309'; c.globalAlpha = 0.85; c.fillRect(36, st.leak ? 250 : 222, 158, st.leak ? 14 : 42); c.globalAlpha = 1;
+      c.fillStyle = '#9a5c00'; c.globalAlpha = 0.85; c.fillRect(36, st.leak ? 250 : 222, 158, st.leak ? 14 : 42); c.globalAlpha = 1;
       D.text(c, 'oil tank', 115, 212, { size: 10, weight: 700, color: '#fff' });
       const motor = Q['Q0.0'];
       c.fillStyle = th.metalDark; c.beginPath(); c.arc(70, 160, 16, 0, 7); c.fill();
@@ -2630,7 +2630,7 @@
       const ax = 270, ay = 60, ah = 150;
       c.fillStyle = th.metalDark; D.rr(c, ax - 30, ay, 60, ah, 28); c.fill();
       const f = Math.min(1, st.p / 200);
-      c.fillStyle = '#b45309'; D.rr(c, ax - 24, ay + 6 + (ah - 12) * (1 - f), 48, (ah - 12) * f, 22); c.fill();
+      c.fillStyle = '#9a5c00'; D.rr(c, ax - 24, ay + 6 + (ah - 12) * (1 - f), 48, (ah - 12) * f, 22); c.fill();
       D.text(c, 'accumulator', ax, ay - 12, { size: 10, weight: 700, color: th.ink });
       D.text(c, st.bar + ' bar', ax, ay + ah + 16, { size: 13, mono: true, weight: 800, color: st.bar >= 130 ? th.ink : th.red });
       [[140, 'charge'], [160, 'stop']].forEach(([b, n]) => { const yy = ay + 6 + (ah - 12) * (1 - b / 200); c.strokeStyle = th.muted; c.lineWidth = 1; c.setLineDash([3, 3]); c.beginPath(); c.moveTo(ax + 32, yy); c.lineTo(ax + 50, yy); c.stroke(); c.setLineDash([]); D.text(c, b + ' ' + n, ax + 54, yy, { size: 8, mono: true, align: 'left', color: th.muted }); });
@@ -2767,7 +2767,7 @@
       const tx = 20, ty = 190;
       c.strokeStyle = st.p > 195 ? th.red : th.line; c.beginPath(); c.moveTo(tx + 46, ty - 26); c.lineTo(vx + 32, ty - 26); c.lineTo(vx + 32, vy + 28); c.stroke();
       c.fillStyle = th.metalDark; D.rr(c, tx, ty, 160, 76, 6); c.fill();
-      c.fillStyle = st.T > 60 ? '#c2410c' : '#b45309'; c.globalAlpha = 0.85; c.fillRect(tx + 6, ty + (st.leak ? 56 : 26), 148, st.leak ? 14 : 44); c.globalAlpha = 1;
+      c.fillStyle = st.T > 60 ? '#c4551f' : '#9a5c00'; c.globalAlpha = 0.85; c.fillRect(tx + 6, ty + (st.leak ? 56 : 26), 148, st.leak ? 14 : 44); c.globalAlpha = 1;
       D.text(c, 'oil ' + st.T.toFixed(1) + ' °C', tx + 80, ty + 13, { size: 10, mono: true, weight: 700, color: '#fff' });
       if (st.leak) D.text(c, 'LEVEL LOW', tx + 80, ty + 40, { size: 10, weight: 800, color: '#fff' });
       const motor = Q['Q0.0'] && !st.ovl;
@@ -3574,13 +3574,13 @@
     draw(c, st, th, Q, I) {
       const x = 40, y = 90, w = 300, h = 190;
       c.fillStyle = st.sunny ? 'rgba(253,230,138,.55)' : th.panel; D.rr(c, 10, 10, 360, 320, 10); c.fill();
-      if (st.sunny) { c.fillStyle = '#f59e0b'; c.beginPath(); c.arc(330, 36, 20, 0, 7); c.fill(); }
+      if (st.sunny) { c.fillStyle = '#e9a100'; c.beginPath(); c.arc(330, 36, 20, 0, 7); c.fill(); }
       c.fillStyle = th.glass; c.beginPath(); c.moveTo(x, y); c.lineTo(x + w / 2, y - 60); c.lineTo(x + w, y); c.lineTo(x + w, y + h); c.lineTo(x, y + h); c.closePath(); c.fill();
       c.strokeStyle = th.metalDark; c.lineWidth = 3; c.stroke();
       // vent flap on the right roof slope
       c.save(); c.translate(x + w / 2, y - 60); c.rotate(-st.vent * 0.6); c.fillStyle = Q['Q0.1'] || Q['Q0.2'] ? th.blue : th.metal; c.fillRect(0, -4, 90, 8); c.restore();
       // plants
-      for (let i = 0; i < 6; i++) { const px = x + 30 + i * 45; c.fillStyle = st.moist < 0.3 ? '#a16207' : '#16a34a'; c.beginPath(); c.ellipse(px, y + h - 30, 14, 20, 0, 0, 7); c.fill(); }
+      for (let i = 0; i < 6; i++) { const px = x + 30 + i * 45; c.fillStyle = st.moist < 0.3 ? '#9a5c00' : '#1a9b4b'; c.beginPath(); c.ellipse(px, y + h - 30, 14, 20, 0, 0, 7); c.fill(); }
       if (Q['Q0.4']) { c.fillStyle = th.water; for (let i = 0; i < 12; i++) c.fillRect(x + 20 + i * 24, y + h - 70 + ((st.t / 10 + i * 7) % 30), 2, 6); }
       if (Q['Q0.0']) { c.fillStyle = th.red; D.rr(c, x + 10, y + h - 14, 60, 8, 3); c.fill(); }
       c.save(); c.translate(x + w - 40, y + 30); c.rotate(st.ang); c.fillStyle = Q['Q0.3'] ? th.on : th.metalDark; for (let i = 0; i < 3; i++) { c.rotate(2.094); D.rr(c, -3, 0, 6, 18, 3); c.fill(); } c.restore();
@@ -4228,7 +4228,7 @@
         c.fillStyle = '#fff'; D.rr(c, 44, 270, 120, 30, 4); c.fill();
         c.fillStyle = '#111'; const bars = String(T.code) + 'X7'; for (let i = 0; i < 26; i++) { const w = ((bars.charCodeAt(i % bars.length) + i) % 3) + 1; c.fillRect(50 + i * 4, 274, w, 16); }
         D.text(c, String(T.code), 104, 296, { size: 8, mono: true, color: '#111' });
-        if (st.tool.bad) { c.strokeStyle = '#7f1d1d'; c.lineWidth = 3; c.beginPath(); c.moveTo(48, 272); c.lineTo(150, 298); c.moveTo(60, 298); c.lineTo(140, 274); c.stroke(); }
+        if (st.tool.bad) { c.strokeStyle = '#a02a22'; c.lineWidth = 3; c.beginPath(); c.moveTo(48, 272); c.lineTo(150, 298); c.moveTo(60, 298); c.lineTo(140, 274); c.stroke(); }
       } else D.text(c, st.chg > 0 ? 'Tool change…' : 'No tool', 196, 185, { size: 16, weight: 700, color: th.lampOff });
       // scanner
       c.fillStyle = th.bezel; D.rr(c, 6, 252, 22, 40, 4); c.fill();
@@ -4243,7 +4243,7 @@
         c.fillStyle = th.bezel; D.rr(c, x - 16, y - 12, 32, 24, 4); c.fill();
         const arm = st.pos[i];
         c.save(); c.translate(x, y + (i < 3 ? 10 : -10)); c.rotate((i < 3 ? 1 : -1) * (1 - arm) * 1.2);
-        c.fillStyle = Q['Q0.' + i] ? '#facc15' : '#cbd5e1'; c.fillRect(-4, 0, 8, (i < 3 ? 1 : -1) * 26); c.restore();
+        c.fillStyle = Q['Q0.' + i] ? '#e9a100' : '#b3b9b5'; c.fillRect(-4, 0, 8, (i < 3 ? 1 : -1) * 26); c.restore();
         D.text(c, String(i + 1), x, y, { size: 11, weight: 800, color: '#fff' });
         c.fillStyle = I['I1.' + i] ? th.red : th.lampOff; c.beginPath(); c.arc(x + 22, y - 6, 4, 0, 7); c.fill();
         c.fillStyle = I['I2.' + i] ? th.green : th.lampOff; c.beginPath(); c.arc(x + 22, y + 6, 4, 0, 7); c.fill();
@@ -4261,20 +4261,20 @@
       const tool = Q['MW21'] || 0;
       txt('Tool:  ' + (['—', 'A', 'B', 'C'][tool] || '—') + '     code ' + (I['AIW2'] || '—'), hy + 50, { mono: true });
       const mode = I['I4.1'] ? 'AUTO' : I['I4.0'] ? 'MANUAL' : 'OFF';
-      txt('Step:  ' + (Q['MW22'] || 0) + '     Mode: ' + mode, hy + 70, { mono: true, color: mode === 'MANUAL' ? '#fbbf24' : '#d6e6f5' });
+      txt('Step:  ' + (Q['MW22'] || 0) + '     Mode: ' + mode, hy + 70, { mono: true, color: mode === 'MANUAL' ? '#e9a100' : '#d6e6f5' });
       const msg = HMI_MSG[Q['MW20'] || 0] || ('message ' + Q['MW20']);
       c.fillStyle = '#16324a'; D.rr(c, hx + 16, hy + 84, hw - 32, 44, 5); c.fill();
       txt(msg.length > 30 ? msg.slice(0, 29) + '…' : msg, hy + 106, { size: 12, weight: 700, color: '#fff' });
       const alm = Q['MW26'] || 0;
-      if (alm) { c.fillStyle = '#b91c1c'; D.rr(c, hx + 16, hy + 136, hw - 32, 30, 5); c.fill(); txt((HMI_ALM[alm] || 'alarm ' + alm), hy + 151, { size: 11, weight: 700, color: '#fff' }); }
+      if (alm) { c.fillStyle = '#a02a22'; D.rr(c, hx + 16, hy + 136, hw - 32, 30, 5); c.fill(); txt((HMI_ALM[alm] || 'alarm ' + alm), hy + 151, { size: 11, weight: 700, color: '#fff' }); }
       if (!I['I4.0']) {
         txt('Parts  A: ' + (Q['MW24'] || 0) + '  B: ' + (Q['MW25'] || 0) + '  C: ' + (Q['MW27'] || 0), hy + 186, { mono: true });
-        if (Q['MW30']) txt('Order: Tool ' + (['—', 'A', 'B', 'C'][Q['MW30']] || '?') + '   ' + (Q['MW31'] || 0) + ' / ' + (Q['MW32'] || 0), hy + 206, { mono: true, color: '#fbbf24' });
+        if (Q['MW30']) txt('Order: Tool ' + (['—', 'A', 'B', 'C'][Q['MW30']] || '?') + '   ' + (Q['MW31'] || 0) + ' / ' + (Q['MW32'] || 0), hy + 206, { mono: true, color: '#e9a100' });
         txt('MW20 msg · MW21 tool · MW22 step', hy + 226, { size: 8, mono: true, color: '#6b8aa6' });
       }
       this.hmiButtons(st, I).forEach((b) => {
-        const on = !!I[b.addr], col = b.addr === 'I0.0' ? '#16a34a' : b.addr === 'I3.7' ? '#a16207' : '#475569';
-        c.fillStyle = on ? '#94a3b8' : col; D.rr(c, b.x, b.y, b.w, b.h, 5); c.fill();
+        const on = !!I[b.addr], col = b.addr === 'I0.0' ? '#1a9b4b' : b.addr === 'I3.7' ? '#9a5c00' : '#4b5257';
+        c.fillStyle = on ? '#8d969b' : col; D.rr(c, b.x, b.y, b.w, b.h, 5); c.fill();
         D.text(c, b.label, b.x + b.w / 2, b.y + b.h / 2, { size: b.h < 30 ? 9 : 11, weight: 800, color: '#fff' });
       });
       D.text(c, 'A ' + st.goodA + ' · B ' + st.goodB + ' · C ' + st.goodC + ' · bad ' + st.bad, 196, 340, { size: 11, mono: true, weight: 700, color: st.bad ? th.red : th.ink });

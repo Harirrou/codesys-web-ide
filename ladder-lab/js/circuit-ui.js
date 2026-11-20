@@ -1,4 +1,4 @@
-/* Ladder Lab — Circuit Lab pages: the task list (#circuits) and the bench (#circuit-<id>).
+/* PLC Start — Circuits pages: the task list (#circuits) and the bench (#circuit-<id>).
  * The bench shows two drawing sheets side by side, like a real diagram: the POWER CIRCUIT (three phases in their
  * wire colours, breaker, contactor, overload relay, motor; live) and the CONTROL CIRCUIT (IEC current paths between
  * L and N that you build). Below: the parts box while you edit, the panel door (buttons and pilot lamps) when the
@@ -15,8 +15,8 @@
   const KIND = { pb: 'push button', es: 'emergency stop', sel: 'switch', ls: 'moved by the machine', k: 'contactor / relay', kt: 'timer relay', ol: 'overload relay', lamp: 'lamp', horn: 'horn', valve: 'valve' };
   const SCNNAME = { none: 'Lamps only', free: 'Three motors', dol: 'One motor', rev: 'Reversing motor', two: 'Two conveyors', sd: 'Star-delta motor', tank: 'Tank and pump', hoist: 'Hoist', stein: 'Motor on single phase', steinh: 'Motor on single phase', res: 'Stator resistance', at: 'Autotransformer', rotor: 'Slip-ring motor', soft: 'Soft starter', pumps: 'Two pumps', comp: 'Compressor', vfd: 'Drive (VFD)', spd2: 'Two-speed motor', dahl: 'Dahlander motor', cap1: 'Single-phase motor', cap1r: 'Single-phase motor', brake: 'Motor with DC brake', plug: 'Motor with plugging' };
   const SUPPLY = { stein: '1 × 230 V', steinh: '1 × 230 V', cap1: '1 × 230 V', cap1r: '1 × 230 V' };
-  const LAMPC = { green: '#22c55e', red: '#ef4444', amber: '#f5a524' };
-  const CAPC = { green: '#16a34a', red: '#dc2626', amber: '#d97706' };
+  const LAMPC = { green: '#1a9b4b', red: '#cf3a2e', amber: '#e9a100' };
+  const CAPC = { green: '#1a9b4b', red: '#cf3a2e', amber: '#9a5c00' };
   const TERM = { pb: { NO: ['13', '14'], NC: ['11', '12'] }, sel: { NO: ['13', '14'], NC: ['11', '12'] }, es: { NO: ['13', '14'], NC: ['11', '12'] }, ls: { NO: ['13', '14'], NC: ['11', '12'] }, k: { NO: ['13', '14'], NC: ['21', '22'] }, kt: { NO: ['17', '18'], NC: ['15', '16'] }, ol: { NO: ['97', '98'], NC: ['95', '96'] } };
   const ICON = {
     NO: '<path d="M12 2v6M12 16v6M12 16L6.5 8.5"/>', NC: '<path d="M12 2v6h5M12 16v6M12 16l5-8"/>',
@@ -27,21 +27,21 @@
   const ico = (k) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">${ICON[k] || ''}</svg>`;
 
   const CSS = `
-.ec [hidden]{display:none!important}.ec-mach{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-weight:600;font-size:.9rem;margin:2px 0 10px}.ec-mach select{font:inherit;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);min-height:40px;max-width:100%}
+.ec [hidden]{display:none!important}.ec-mach{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-weight:600;font-size:var(--t-14);margin:2px 0 10px}.ec-mach select{font:inherit;padding:7px 10px;border-radius:var(--r-ctl);border:1px solid var(--line);background:var(--surface);color:var(--ink);min-height:40px;max-width:100%}
 .ec-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0 12px}
-.ec-card{border:1px solid var(--line);border-radius:16px;background:var(--surface);padding:14px 16px}
-.ec-task h2{margin:0 0 6px;font-size:1.25rem}.ec-brief{font-size:.96rem;line-height:1.5;max-width:92ch}.ec-brief ul{margin:6px 0 6px 18px;padding:0}
+.ec-card{border:1px solid var(--line);border-radius:var(--r-panel);background:var(--surface);padding:14px 16px}
+.ec-task h2{margin:0 0 6px;font-size:var(--t-20)}.ec-brief{font-size:var(--t-16);line-height:1.5;max-width:92ch}.ec-brief ul{margin:6px 0 6px 18px;padding:0}
 .ec-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .ec-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:14px 0 8px}
-.ec-bar .ec-go{font-size:1rem;padding:10px 20px;border-radius:12px}
-.ec-status{flex:1 1 260px;border-left:4px solid var(--info);background:var(--surface);border-radius:10px;padding:8px 12px;font-size:.92rem;line-height:1.4;min-height:2.6em;display:flex;align-items:center}
+.ec-bar .ec-go{font-size:var(--t-16);padding:10px 20px;border-radius:var(--r-ctl)}
+.ec-status{flex:1 1 260px;border-left:4px solid var(--info);background:var(--surface);border-radius:var(--r-ctl);padding:8px 12px;font-size:var(--t-14);line-height:1.4;min-height:2.6em;display:flex;align-items:center}
 .ec-status.bad{border-color:var(--danger);background:var(--danger-soft)}.ec-status.live{border-color:var(--power-bright)}
 .ec-sheets{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,8fr);gap:14px;align-items:start}
 .ec-sheets.solo{grid-template-columns:1fr}
 @media(max-width:900px){.ec-sheets{grid-template-columns:1fr}.ec-ctl{order:-1}}
-.ec-sheet{border:1px solid var(--line);border-radius:16px;background:var(--surface);overflow:hidden;box-shadow:0 1px 0 rgba(0,0,0,.03),0 8px 24px -18px rgba(0,0,0,.35)}
-.ec-sheet>header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:9px 14px;border-bottom:1px solid var(--line-2);font-family:var(--f-display);letter-spacing:.1em;text-transform:uppercase;font-size:.82rem;font-weight:700}
-.ec-sheet>header small{font-family:var(--f-mono);letter-spacing:0;text-transform:none;font-weight:500;color:var(--muted);font-size:.74rem}
+.ec-sheet{border:1px solid var(--line);border-radius:var(--r-panel);background:var(--surface);overflow:hidden;box-shadow:0 1px 0 rgba(0,0,0,.03),0 8px 24px -18px rgba(0,0,0,.35)}
+.ec-sheet>header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:9px 14px;border-bottom:1px solid var(--line-2);font-family:var(--f-body);letter-spacing:.04em;text-transform:uppercase;font-size:var(--t-13);font-weight:700}
+.ec-sheet>header small{font-family:var(--f-mono);letter-spacing:0;text-transform:none;font-weight:500;color:var(--muted);font-size:var(--t-12)}
 .ec-paper{background:var(--surface);background-image:radial-gradient(var(--line-2) 1px,transparent 1px);background-size:14px 14px;padding:6px}
 .ec-paper svg{display:block;width:100%;height:auto;margin:0 auto;touch-action:manipulation;user-select:none;-webkit-user-select:none}
 .ec-svg svg{max-height:72vh}.ec-m svg{max-height:66vh}
@@ -53,34 +53,34 @@
 .ec-m .fl{animation:none}
 @media(prefers-reduced-motion:reduce){.ec-svg .fl{animation:none}}
 .ec-svg .glow{filter:drop-shadow(0 0 5px var(--power-bright))}
-.ec-read{font-family:var(--f-mono);font-size:.86rem;padding:8px 14px;border-top:1px solid var(--line-2);display:flex;gap:6px 16px;flex-wrap:wrap}
-.ec-fault{margin:8px 12px;padding:8px 12px;border-radius:10px;background:var(--danger);color:#fff;font-weight:600;font-size:.88rem;line-height:1.35}
+.ec-read{font-family:var(--f-mono);font-size:var(--t-14);padding:8px 14px;border-top:1px solid var(--line-2);display:flex;gap:6px 16px;flex-wrap:wrap}
+.ec-fault{margin:8px 12px;padding:8px 12px;border-radius:var(--r-ctl);background:var(--danger);color:var(--on-danger);font-weight:600;font-size:var(--t-14);line-height:1.35}
 .ec-pwq{padding:10px 14px;border-top:1px solid var(--line-2);display:grid;gap:10px}
-.ec-pwq b{display:block;font-size:.88rem;margin-bottom:5px}.ec-pwq .o{display:flex;gap:6px;flex-wrap:wrap}
-.ec-pwq button{border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 12px;font:inherit;font-size:.84rem;font-weight:600;cursor:pointer;min-height:36px}
+.ec-pwq b{display:block;font-size:var(--t-14);margin-bottom:5px}.ec-pwq .o{display:flex;gap:6px;flex-wrap:wrap}
+.ec-pwq button{border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:6px 12px;font:inherit;font-size:var(--t-13);font-weight:600;cursor:pointer;min-height:36px}
 .ec-pwq button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}.ec-pwq.need b::after{content:" · choose";color:var(--danger);font-weight:600}
 .ec-box{border-top:1px solid var(--line-2);padding:12px 14px}
-.ec-boxt{font-family:var(--f-display);letter-spacing:.1em;text-transform:uppercase;font-size:.78rem;color:var(--muted);margin-bottom:8px}
+.ec-boxt{font-family:var(--f-body);letter-spacing:.04em;text-transform:uppercase;font-size:var(--t-13);color:var(--muted);margin-bottom:8px}
 .ec-pal{display:flex;gap:7px;flex-wrap:wrap}
-.ec-dev{border:1px solid var(--line-2);border-radius:12px;padding:6px 8px;background:var(--surface-2);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.ec-dev>span{font-size:.8rem;line-height:1.2;margin-right:2px}.ec-dev>span b{font-family:var(--f-mono);font-size:.86rem}.ec-dev>span small{display:block;color:var(--muted);font-size:.68rem}
-.ec-dev button,.ec-tool{display:inline-flex;align-items:center;gap:4px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:9px;padding:4px 9px 4px 6px;font:inherit;font-size:.8rem;font-weight:700;cursor:pointer;min-height:36px}
+.ec-dev{border:1px solid var(--line-2);border-radius:var(--r-ctl);padding:6px 8px;background:var(--surface-2);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.ec-dev>span{font-size:var(--t-13);line-height:1.2;margin-right:2px}.ec-dev>span b{font-family:var(--f-mono);font-size:var(--t-14)}.ec-dev>span small{display:block;color:var(--muted);font-size:var(--t-11)}
+.ec-dev button,.ec-tool{display:inline-flex;align-items:center;gap:4px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:4px 9px 4px 6px;font:inherit;font-size:var(--t-13);font-weight:700;cursor:pointer;min-height:36px}
 .ec-dev button.on,.ec-tool.on{background:var(--ink);color:var(--surface);border-color:var(--ink);box-shadow:0 0 0 3px var(--info-soft,rgba(59,130,246,.25))}
-.ec-dev input{width:46px;font:inherit;font-size:.8rem;border:1px solid var(--line);border-radius:6px;padding:4px;background:var(--surface);color:var(--ink)}
-.ec-lint{font-size:.85rem;color:var(--muted)}.ec-lint div{border-left:3px solid #f5a524;padding:3px 9px;margin:8px 0 0}
-.ec-door{display:flex;gap:16px 18px;flex-wrap:wrap;align-items:flex-end;background:linear-gradient(180deg,var(--surface-2),var(--surface-3));border:1px solid var(--line);border-radius:14px;padding:16px 16px 12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
-.ec-di{display:grid;justify-items:center;gap:5px;font-size:.74rem;font-weight:700;text-align:center;min-width:56px;line-height:1.15}.ec-di small{font-weight:500;color:var(--muted);font-family:var(--f-mono);font-size:.66rem}
-.ec-pb{width:50px;height:50px;border-radius:50%;border:4px solid #9aa3ae;background:radial-gradient(circle at 35% 30%,#fff5,#0000 45%),var(--cap,#475569);box-shadow:0 4px 0 #0004,0 6px 10px -4px #0006;cursor:pointer;touch-action:none;transition:transform .05s,box-shadow .05s;padding:0}
+.ec-dev input{width:46px;font:inherit;font-size:var(--t-13);border:1px solid var(--line);border-radius:var(--r-ctl);padding:4px;background:var(--surface);color:var(--ink)}
+.ec-lint{font-size:var(--t-14);color:var(--muted)}.ec-lint div{border-left:3px solid #e9a100;padding:3px 9px;margin:8px 0 0}
+.ec-door{display:flex;gap:16px 18px;flex-wrap:wrap;align-items:flex-end;background:linear-gradient(180deg,var(--surface-2),var(--surface-3));border:1px solid var(--line);border-radius:var(--r-panel);padding:16px 16px 12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
+.ec-di{display:grid;justify-items:center;gap:5px;font-size:var(--t-12);font-weight:700;text-align:center;min-width:56px;line-height:1.15}.ec-di small{font-weight:500;color:var(--muted);font-family:var(--f-mono);font-size:var(--t-11)}
+.ec-pb{width:50px;height:50px;border-radius:50%;border:4px solid #9aa3ae;background:radial-gradient(circle at 35% 30%,#fff5,#0000 45%),var(--cap,#4b5257);box-shadow:0 4px 0 #0004,0 6px 10px -4px #0006;cursor:pointer;touch-action:none;transition:transform .05s,box-shadow .05s;padding:0}
 .ec-pb.on{transform:translateY(3px);box-shadow:0 1px 0 #0004,inset 0 3px 6px #0006}
-.ec-pb.es{width:56px;height:56px;--cap:#dc2626;border:5px solid #facc15}.ec-pb.es.on{box-shadow:inset 0 4px 10px #0008;filter:brightness(.8)}
+.ec-pb.es{width:56px;height:56px;--cap:#cf3a2e;border:5px solid #e9a100}.ec-pb.es.on{box-shadow:inset 0 4px 10px #0008;filter:brightness(.8)}
 .ec-sel{width:50px;height:50px;border-radius:50%;border:4px solid #9aa3ae;background:var(--surface);position:relative;cursor:pointer;padding:0;box-shadow:0 4px 0 #0003}
-.ec-sel::after{content:"";position:absolute;left:21px;top:5px;width:4px;height:20px;border-radius:2px;background:var(--ink);transform-origin:2px 16px;transform:rotate(-45deg);transition:transform .15s}.ec-sel.on::after{transform:rotate(45deg)}
+.ec-sel::after{content:"";position:absolute;left:21px;top:5px;width:4px;height:20px;border-radius:var(--r-tag);background:var(--ink);transform-origin:2px 16px;transform:rotate(-45deg);transition:transform .15s}.ec-sel.on::after{transform:rotate(45deg)}
 .ec-lmp{width:38px;height:38px;border-radius:50%;border:4px solid #9aa3ae;background:var(--surface-3);box-shadow:inset 0 2px 5px #0003}.ec-lmp.on{background:radial-gradient(circle at 40% 35%,#fff,var(--lc) 55%);box-shadow:0 0 16px 3px var(--lc)}
-.ec-olb{border:2px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:6px 10px;font:inherit;font-weight:700;font-size:.78rem;cursor:pointer;min-height:50px;line-height:1.2}.ec-olb small{display:block;font-weight:500;color:var(--muted);font-size:.66rem}.ec-olb.on{border-color:var(--danger);background:var(--danger-soft)}
-.ec-ind{border:1.5px dashed var(--line);border-radius:10px;padding:6px 10px;font-size:.74rem;min-height:50px;display:grid;align-content:center;background:var(--surface)}.ec-ind.on{border-style:solid;border-color:var(--power-bright);background:var(--power-soft)}
+.ec-olb{border:2px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:6px 10px;font:inherit;font-weight:700;font-size:var(--t-13);cursor:pointer;min-height:50px;line-height:1.2}.ec-olb small{display:block;font-weight:500;color:var(--muted);font-size:var(--t-11)}.ec-olb.on{border-color:var(--danger);background:var(--danger-soft)}
+.ec-ind{border:1.5px dashed var(--line);border-radius:var(--r-ctl);padding:6px 10px;font-size:var(--t-12);min-height:50px;display:grid;align-content:center;background:var(--surface)}.ec-ind.on{border-style:solid;border-color:var(--power-bright);background:var(--power-soft)}
 .ec-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin:10px 0 22px}
 .ec-how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0 20px}@media(max-width:760px){.ec-how{grid-template-columns:1fr}}
-.ec-how div{background:var(--surface);border:1px solid var(--line-2);border-radius:12px;padding:10px 12px;font-size:.9rem;line-height:1.45}.ec-how b{display:block}`;
+.ec-how div{background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-ctl);padding:10px 12px;font-size:var(--t-14);line-height:1.45}.ec-how b{display:block}`;
   function css() { if (!document.getElementById('ec-css')) { const s = document.createElement('style'); s.id = 'ec-css'; s.textContent = CSS; document.head.appendChild(s); } }
 
   // ───────────── task list ─────────────
@@ -88,7 +88,7 @@
     css(); const d = load();
     const plain = (h) => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     const n = EC.TASKS.filter((t) => d.done[t.id]).length;
-    const page = el(`<div class="wrap"><span class="plate">Circuit Lab</span><h1 style="margin:10px 0 6px">Electrical circuits: build them, power them on</h1>
+    const page = el(`<div class="wrap"><span class="plate">Circuits</span><h1 style="margin:10px 0 6px">Electrical circuits: build them, power them on</h1>
       <p class="muted" style="margin:0 0 8px;max-width:68ch">Contactors, push buttons, overload relays, timers and lamps, wired by you, with the 3-phase power circuit beside it. No PLC here: this is the hard-wired control inside every motor starter. Build it, power it on, try it, then run the tests.</p>
       <div class="ec-how"><div><b>1. Build</b>Pick a part, tap a cell. Current runs from L at the top to N at the bottom. Tap a dot between two paths to link them.</div><div><b>2. Power on</b>Green wires have voltage. Press the buttons on the panel door, trip the overload, watch the contactors and the motor.</div><div><b>3. Run the tests</b>They press the buttons for you and check every case, like a commissioning engineer.</div></div>
       <div class="ec-top"><span class="chip">${n} / ${EC.TASKS.length} passed</span><a class="btn" href="#circuit-free">Free play: any machine, no tests</a><a class="btn ghost" href="#lesson-control-circuits">Lesson: read a control circuit</a></div>
@@ -181,7 +181,7 @@
       const x = 140, f = v('A1'), r = v('A2'), flt = v('F5'), on = Math.abs(st.n) > 0.01;
       g = B3() + tap(x, 44, PHC) + dev(x, 44, 'q', ok, 'Q1', 'main breaker', PHC, true) + run(x, 78, 100, ok, on)
         + `<rect x="${x - 48}" y="100" width="96" height="74" rx="9" fill="var(--surface-2)" stroke="${flt || st.fault ? 'var(--danger)' : on ? GRN : 'var(--line)'}" stroke-width="1.2"/><rect x="${x - 38}" y="110" width="76" height="30" rx="5" fill="${flt || st.fault ? 'var(--danger)' : '#0b1f17'}" stroke="none"/>`
-        + T(x, 124, flt || st.fault ? 'FAULT' : Math.abs(st.hz) + ' Hz', { z: 13, b: 1, a: 'middle', m: 1, f: flt || st.fault ? '#fff' : '#4ade80' }) + T(x, 135, st.n > 0.01 ? 'forward' : st.n < -0.01 ? 'reverse' : 'ready', { z: 8, a: 'middle', m: 1, f: flt || st.fault ? '#fff' : '#86efac' })
+        + T(x, 124, flt || st.fault ? 'FAULT' : Math.abs(st.hz) + ' Hz', { z: 13, b: 1, a: 'middle', m: 1, f: flt || st.fault ? '#fff' : '#1a9b4b' }) + T(x, 135, st.n > 0.01 ? 'forward' : st.n < -0.01 ? 'reverse' : 'ready', { z: 8, a: 'middle', m: 1, f: flt || st.fault ? '#fff' : '#cfe9d8' })
         + [['DI1', f, x - 30], ['DI2', r, x + 8]].map(([n, o, px]) => `<circle cx="${px}" cy="158" r="4.5" fill="${o ? GRN : 'var(--surface)'}" stroke="currentColor" stroke-width="1.1"/>` + T(px + 8, 161.5, n, { z: 8.5, m: 1 })).join('')
         + T(x + 56, 132, 'U1', { b: 1, z: 11, m: 1 }) + T(x + 56, 144, 'drive', { z: 8.5, f: 'var(--muted)' }) + run(x, 174, 204, on, on) + motor(x, 245, st.n, ang[0], 'motor', '3~', on);
       read = ['output ' + st.hz + ' Hz', 'the drive ramps by itself'];
@@ -195,8 +195,8 @@
     } else if (scn === 'comp') {
       const k = ok && v('K1'), ld = v('Y1'), bar = st.bar; vb = [462, 300];
       g = bus(PHC, ['L1', 'L2', 'L3'], 26, 200) + feeder(92, 'K1', 'KM1', 'F2', st.n, ang[0], 'compressor motor');
-      g += `<rect x="262" y="96" width="150" height="74" rx="37" fill="var(--surface)" stroke="currentColor" stroke-width="1.15"/><rect x="264" y="98" width="${Math.max(0, Math.min(146, 146 * bar / 10))}" height="70" rx="35" fill="#3b82f6" fill-opacity=".28" stroke="none"/>` + T(337, 130, bar.toFixed(1) + ' bar', { z: 15, b: 1, a: 'middle', m: 1 }) + T(337, 146, 'air tank · 6 to 8 bar', { z: 8.5, a: 'middle', f: 'var(--muted)' })
-        + seg([[117, 245], [226, 245], [226, 133], [262, 133]], '#3b82f6', k && ld, k && ld) + `<path d="M218 196 l16 12 v-12 l-16 12 z" fill="${ld ? 'var(--power-soft)' : 'var(--surface)'}" stroke="${ld ? GRN : 'currentColor'}" stroke-width="1.3"/>` + T(240, 206, 'Y1', { z: 10, b: 1, m: 1, f: ld ? 'var(--power)' : 'currentColor' }) + T(240, 217, ld ? 'loaded' : 'unloaded', { z: 8, f: 'var(--muted)' })
+      g += `<rect x="262" y="96" width="150" height="74" rx="37" fill="var(--surface)" stroke="currentColor" stroke-width="1.15"/><rect x="264" y="98" width="${Math.max(0, Math.min(146, 146 * bar / 10))}" height="70" rx="35" fill="#2c6cc4" fill-opacity=".28" stroke="none"/>` + T(337, 130, bar.toFixed(1) + ' bar', { z: 15, b: 1, a: 'middle', m: 1 }) + T(337, 146, 'air tank · 6 to 8 bar', { z: 8.5, a: 'middle', f: 'var(--muted)' })
+        + seg([[117, 245], [226, 245], [226, 133], [262, 133]], '#2c6cc4', k && ld, k && ld) + `<path d="M218 196 l16 12 v-12 l-16 12 z" fill="${ld ? 'var(--power-soft)' : 'var(--surface)'}" stroke="${ld ? GRN : 'currentColor'}" stroke-width="1.3"/>` + T(240, 206, 'Y1', { z: 10, b: 1, m: 1, f: ld ? 'var(--power)' : 'currentColor' }) + T(240, 217, ld ? 'loaded' : 'unloaded', { z: 8, f: 'var(--muted)' })
         + `<path d="M380 96 v-18" stroke="${v('B1') ? GRN : 'currentColor'}" stroke-width="1.3"/><circle cx="380" cy="72" r="6" fill="${v('B1') ? GRN : 'var(--surface)'}" stroke="currentColor" stroke-width="1.2"/>` + T(392, 70, 'B1', { z: 10, b: 1, m: 1 }) + T(392, 81, v('B1') ? 'pressure reached' : 'pressure low', { z: 8.5, f: 'var(--muted)' })
         + `<path d="M412 133 h26 M432 127 l7 6 l-7 6" stroke="currentColor" stroke-width="1.3"/>` + T(440, 122, 'air is used', { z: 8, a: 'end', f: 'var(--muted)' });
       read = ['pressure ' + bar.toFixed(1) + ' bar', 'motor starts ' + st.starts];
@@ -270,9 +270,9 @@
       // the run capacitor
       const cx = 214, capsym = (x, y, lab, on) => `<path d="M${x - 9} ${y} h18 M${x - 9} ${y + 6} h18" stroke="${on ? GRN : 'currentColor'}" stroke-width="1.9"/>` + T(x + 14, y + 7, lab, { z: 9.5, b: 1, m: 1 });
       if (cap === 'ln') g += seg([[xu, 184], [cx, 184], [cx, 192]], LN[0], run_) + capsym(cx, 192, 'C', false) + seg([[cx, 198], [cx, 204], [xv + 4, 204]], LN[1], run_) + `<circle cx="${xu}" cy="184" r="2.3" fill="${run_ ? LN[0] : DEAD}" stroke="none"/>` + seg([[xw, 222], [xw - 8, 230]], DEAD, false);
-      else if (cap) { const fromL = cap === 'wl', xs0 = fromL ? xu : xv, yT = fromL ? 180 : 188, c = run_ ? (fromL ? LN[0] : LN[1]) : DEAD; g += seg([[xs0, yT], [cx, yT], [cx, 196]], fromL ? LN[0] : LN[1], run_, run_ && good) + capsym(cx, 196, 'C run', run_ && good) + seg([[cx, 202], [cx, 222], [xw, 222], [xw - 8, 230]], '#a855f7', run_, run_ && good) + `<circle cx="${xs0}" cy="${yT}" r="2.3" fill="${c}" stroke="none"/>`; }
+      else if (cap) { const fromL = cap === 'wl', xs0 = fromL ? xu : xv, yT = fromL ? 180 : 188, c = run_ ? (fromL ? LN[0] : LN[1]) : DEAD; g += seg([[xs0, yT], [cx, yT], [cx, 196]], fromL ? LN[0] : LN[1], run_, run_ && good) + capsym(cx, 196, 'C run', run_ && good) + seg([[cx, 202], [cx, 222], [xw, 222], [xw - 8, 230]], '#2c6cc4', run_, run_ && good) + `<circle cx="${xs0}" cy="${yT}" r="2.3" fill="${c}" stroke="none"/>`; }
       else g += capsym(cx, 196, 'C ?', false) + T(cx, 220, 'not wired yet', { z: 9, a: 'middle', f: 'var(--danger)', b: 1 }) + seg([[xw, 222], [xw - 8, 230]], DEAD, false);
-      if (scn === 'steinh') { const b = ok && v('K2'); g += seg([[xu, 172], [262, 172], [262, 178]], LN[0], run_, b) + `<circle cx="${xu}" cy="172" r="2.3" fill="${run_ ? LN[0] : DEAD}" stroke="none"/>` + (b ? `<path d="M262 178 V194" stroke="${LN[0]}" stroke-width="1.9"/>` : `<path d="M262 194 L255 180" stroke="currentColor" stroke-width="1.3"/>`) + T(270, 190, 'KM2', { z: 9.5, b: 1, m: 1, f: b ? 'var(--power)' : 'currentColor' }) + seg([[262, 194], [262, 204]], LN[0], run_ && b) + capsym(262, 204, '', b) + T(262, 226, 'C start', { z: 9, a: 'middle', b: 1, m: 1 }) + seg([[262, 210], [262, 214]], '#a855f7', b) + seg([[262, 232], [262, 238], [cx, 238], [cx, 222]], '#a855f7', run_ && b, b); }
+      if (scn === 'steinh') { const b = ok && v('K2'); g += seg([[xu, 172], [262, 172], [262, 178]], LN[0], run_, b) + `<circle cx="${xu}" cy="172" r="2.3" fill="${run_ ? LN[0] : DEAD}" stroke="none"/>` + (b ? `<path d="M262 178 V194" stroke="${LN[0]}" stroke-width="1.9"/>` : `<path d="M262 194 L255 180" stroke="currentColor" stroke-width="1.3"/>`) + T(270, 190, 'KM2', { z: 9.5, b: 1, m: 1, f: b ? 'var(--power)' : 'currentColor' }) + seg([[262, 194], [262, 204]], LN[0], run_ && b) + capsym(262, 204, '', b) + T(262, 226, 'C start', { z: 9, a: 'middle', b: 1, m: 1 }) + seg([[262, 210], [262, 214]], '#2c6cc4', b) + seg([[262, 232], [262, 238], [cx, 238], [cx, 222]], '#2c6cc4', run_ && b, b); }
       read = ['speed ' + st.rpm + ' rpm', 'about 70 % of the motor power'];
     } else if (scn === 'spd2' || scn === 'dahl') {
       // two-speed motors: KM1 low, KM2 high; the Dahlander motor also has the star point contactor KM3
@@ -295,7 +295,7 @@
       read = ['speed ' + st.rpm + ' rpm', st.sp === 2 ? 'HIGH' : st.sp === 1 ? 'LOW' : 'stopped'];
     } else if (scn === 'cap1') {
       // single-phase motor opened up: the main winding and the start winding between L and N
-      const LN = [PHC[0], BLUE], run_ = ok && v('K1'), cap = pw.cap || '', sw = pw.sw || '', xm = 96, xl = xm - DX, xn = xm + DX, cs = !!st.cs, turning = st.n > 0.02, xL = 58, xR = 294, yM = 224, yA = 272, VIO = '#a855f7';
+      const LN = [PHC[0], BLUE], run_ = ok && v('K1'), cap = pw.cap || '', sw = pw.sw || '', xm = 96, xl = xm - DX, xn = xm + DX, cs = !!st.cs, turning = st.n > 0.02, xL = 58, xR = 294, yM = 224, yA = 272, VIO = '#2c6cc4';
       vb = [330, 322];
       g = bus(LN, ['L', 'N'], 26, 300) + tap(xm, 40, LN) + dev(xm, 40, 'q', ok, 'Q1', '2-pole breaker', LN, true) + run(xm, 74, 92, ok, run_, LN) + dev(xm, 92, 'k', run_, 'KM1', 'contactor', LN, ok) + run(xm, 126, 140, run_, run_, LN) + ovl(xm, 140, 'F2', run_, LN);
       g += `<rect x="40" y="194" width="270" height="102" rx="12" fill="none" stroke="var(--line)" stroke-width="1.1" stroke-dasharray="5 4"/>` + T(70, 208, 'inside the motor', { z: 8, f: 'var(--muted)' });
@@ -329,18 +329,18 @@
         g += `<path d="M${xa + 46} 262 h18" stroke="${v('B1') ? GRN : 'currentColor'}" stroke-width="1.3"/><circle cx="${xa + 70}" cy="262" r="5.5" fill="${v('B1') ? GRN : 'var(--surface)'}" stroke="currentColor" stroke-width="1.2"/>` + T(xa + 80, 260, 'B1', { z: 10, b: 1, m: 1 }) + T(xa + 80, 271, v('B1') ? 'shaft turns' : 'shaft stands still', { z: 8.5, f: 'var(--muted)' });
       } else {
         // two phases feed a transformer + rectifier; KM2 puts its DC on two motor wires
-        const dcOn = b, DC = '#a855f7', x2 = [xb - DX, xb + DX];
+        const dcOn = b, DC = '#2c6cc4', x2 = [xb - DX, xb + DX];
         [0, 1].forEach((i) => { g += seg([[xs(xa, 3)[i], 80 + i * 5], [x2[i], 80 + i * 5], [x2[i], 96]], PHC[i], ok) + `<circle cx="${xs(xa, 3)[i]}" cy="${80 + i * 5}" r="2" fill="${ok ? PHC[i] : DEAD}" stroke="none"/>`; });
         g += `<rect x="${xb - 30}" y="96" width="60" height="34" rx="7" fill="${dcOn ? 'var(--power-soft)' : 'var(--surface-2)'}" stroke="${dcOn ? GRN : 'var(--line)'}" stroke-width="1.15"/>` + T(xb, 111, 'T1 + V1', { z: 9.5, b: 1, a: 'middle', m: 1 }) + T(xb, 123, 'rectifier · DC', { z: 8, a: 'middle', f: 'var(--muted)' });
         g += run(xb, 130, 142, ok, dcOn, [DC, DC]) + dev(xb, 142, 'k', b, 'KM2', 'brake', [DC, DC], ok);
         [0, 1].forEach((i) => { g += seg([[x2[i], 176], [x2[i], 184 + i * 6], [xs(xa, 3)[i], 184 + i * 6]], DC, b, b) + `<circle cx="${xs(xa, 3)[i]}" cy="${184 + i * 6}" r="2" fill="${b ? DC : DEAD}" stroke="none"/>`; });
       }
-      const mc = b ? (pl ? [PHC[2], PHC[1], PHC[0]] : ['#a855f7', '#a855f7', 'var(--line)']) : PHC;   // what the motor wires carry now
+      const mc = b ? (pl ? [PHC[2], PHC[1], PHC[0]] : ['#2c6cc4', '#2c6cc4', 'var(--line)']) : PHC;   // what the motor wires carry now
       g += ovl(xa, 196, 'F2', out, mc) + run(xa, 222, 232, out, out, mc) + motor(xa, 273, st.n, ang[0], pl ? 'conveyor motor' : 'saw motor', '3~', out, mc);
       read = ['speed ' + st.pct + ' %', b ? (pl ? 'plugging: reverse field' : 'DC brake on') : a ? 'runs' : Math.abs(st.n) > 0.03 ? 'coasting' : 'stopped'];
     } else if (scn === 'cap1r') {
       // single-phase motor, two directions: KM1 and KM2 side by side, the motor opened up below
-      const LN = [PHC[0], BLUE], f = ok && v('K1'), r = ok && v('K2'), sw = pw.swap || '', xq = 150, xa = 90, xb = 210, out = f || (r && !!sw), cs = !!st.cs, turning = Math.abs(st.n) > 0.02, VIO = '#a855f7', rev = r && sw === 'aux';
+      const LN = [PHC[0], BLUE], f = ok && v('K1'), r = ok && v('K2'), sw = pw.swap || '', xq = 150, xa = 90, xb = 210, out = f || (r && !!sw), cs = !!st.cs, turning = Math.abs(st.n) > 0.02, VIO = '#2c6cc4', rev = r && sw === 'aux';
       vb = [330, 330];
       g = bus(LN, ['L', 'N'], 26, 300) + tap(xq, 36, LN) + dev(xq, 36, 'q', ok, 'Q1', '2-pole breaker', LN, true);
       [xa, xb].forEach((x) => xs(x, 2).forEach((p, i) => { g += seg([[xs(xq, 2)[i], 70], [xs(xq, 2)[i], 78 + i * 6], [p, 78 + i * 6], [p, 92]], LN[i], ok, x === xa ? f : r); }));
@@ -359,7 +359,7 @@
     } else if (scn === 'res') {
       const a = ok && v('K1'), b = ok && v('K2'), x = 110, hot = Math.min(100, Math.round(st.heat / 80));
       g = B3() + tap(x, 40, PHC) + dev(x, 40, 'q', ok, 'Q1', 'main breaker', PHC, true) + run(x, 74, 88, ok, a) + dev(x, 88, 'k', a, 'KM1', 'line', PHC, ok) + run(x, 122, 144, a, a && !b);
-      xs(x, 3).forEach((p, i) => { g += `<rect x="${p - 4.5}" y="144" width="9" height="30" rx="2" fill="${a && !b ? (hot > 70 ? 'var(--danger)' : '#f5a524') : 'var(--surface)'}" stroke="${a ? PHC[i] : DEAD}" stroke-width="1.3"/>` + seg([[p, 128 + i * 4], [xs(218, 3)[i], 128 + i * 4], [xs(218, 3)[i], 140]], PHC[i], a, a && b) + seg([[xs(218, 3)[i], 174], [xs(218, 3)[i], 180 + i * 4], [p, 180 + i * 4]], PHC[i], a && b, a && b); });
+      xs(x, 3).forEach((p, i) => { g += `<rect x="${p - 4.5}" y="144" width="9" height="30" rx="2" fill="${a && !b ? (hot > 70 ? 'var(--danger)' : '#e9a100') : 'var(--surface)'}" stroke="${a ? PHC[i] : DEAD}" stroke-width="1.3"/>` + seg([[p, 128 + i * 4], [xs(218, 3)[i], 128 + i * 4], [xs(218, 3)[i], 140]], PHC[i], a, a && b) + seg([[xs(218, 3)[i], 174], [xs(218, 3)[i], 180 + i * 4], [p, 180 + i * 4]], PHC[i], a && b, a && b); });
       g += T(x - 24, 162, 'R', { z: 11, b: 1, a: 'end', m: 1 }) + T(x - 24, 173, hot + ' % hot', { z: 8, a: 'end', f: hot > 70 ? 'var(--danger)' : 'var(--muted)' }) + dev(218, 140, 'k', b, 'KM2', 'bypass', PHC, a) + run(x, 174, 196, a, a) + ovl(x, 196, 'F2', a) + run(x, 222, 232, a, a) + motor(x, 273, st.n, ang[0], 'fan motor', '3~', a); vb = [300, 322];
       read = ['speed ' + st.pct + ' %', b ? 'resistors bridged' : a ? 'through the resistors' : 'stopped'];
     } else if (scn === 'at') {
@@ -375,21 +375,21 @@
     } else if (scn === 'rotor') {
       const k1 = ok && v('K1'), s1 = v('K2'), s2 = v('K3'), x = 84, hot = Math.min(100, Math.round(st.heat / 120));
       g = B3() + feeder(x, 'K1', 'KM1', 'F2', st.n, ang[0], 'slip-ring motor', 'Q1', true);
-      const yr = 245; g += seg([[x + 25, yr], [150, yr]], '#a855f7', k1, k1) + T(128, yr - 6, 'rings', { z: 8, a: 'middle', f: 'var(--muted)' });
+      const yr = 245; g += seg([[x + 25, yr], [150, yr]], '#2c6cc4', k1, k1) + T(128, yr - 6, 'rings', { z: 8, a: 'middle', f: 'var(--muted)' });
       [[176, 'R1', 'K11', s1], [236, 'R2', 'K12', s2]].forEach(([rx, rl, kl, on], i) => {
         const br = on || (i === 0 && s2);
-        g += `<rect x="${rx - 22}" y="${yr - 12}" width="44" height="24" rx="5" fill="${k1 && !br ? (hot > 70 ? 'var(--danger)' : '#f5a524') : 'var(--surface-2)'}" stroke="${k1 ? '#a855f7' : 'var(--line)'}" stroke-width="1.25"/>` + T(rx, yr + 4, rl, { z: 10, b: 1, a: 'middle', m: 1 }) + T(rx, yr + 24, br ? 'bridged' : 'in circuit', { z: 8, a: 'middle', f: 'var(--muted)' })
-          + seg([[rx + 22, yr], [rx + 38, yr]], '#a855f7', k1, k1) + seg([[rx - 30, yr], [rx - 30, yr - 44], [rx - 8, yr - 44]], '#a855f7', k1 && on, k1 && on) + seg([[rx + 8, yr - 44], [rx + 30, yr - 44], [rx + 30, yr]], '#a855f7', k1 && on, k1 && on)
-          + (on ? `<path d="M${rx - 8} ${yr - 44} H${rx + 8}" stroke="#a855f7" stroke-width="1.9"/>` : `<path d="M${rx - 8} ${yr - 44} L${rx + 6} ${yr - 52}" stroke="currentColor" stroke-width="1.3"/>`) + T(rx, yr - 58, kl, { z: 10.5, b: 1, a: 'middle', m: 1, f: on ? 'var(--power)' : 'currentColor' });
+        g += `<rect x="${rx - 22}" y="${yr - 12}" width="44" height="24" rx="5" fill="${k1 && !br ? (hot > 70 ? 'var(--danger)' : '#e9a100') : 'var(--surface-2)'}" stroke="${k1 ? '#2c6cc4' : 'var(--line)'}" stroke-width="1.25"/>` + T(rx, yr + 4, rl, { z: 10, b: 1, a: 'middle', m: 1 }) + T(rx, yr + 24, br ? 'bridged' : 'in circuit', { z: 8, a: 'middle', f: 'var(--muted)' })
+          + seg([[rx + 22, yr], [rx + 38, yr]], '#2c6cc4', k1, k1) + seg([[rx - 30, yr], [rx - 30, yr - 44], [rx - 8, yr - 44]], '#2c6cc4', k1 && on, k1 && on) + seg([[rx + 8, yr - 44], [rx + 30, yr - 44], [rx + 30, yr]], '#2c6cc4', k1 && on, k1 && on)
+          + (on ? `<path d="M${rx - 8} ${yr - 44} H${rx + 8}" stroke="#2c6cc4" stroke-width="1.9"/>` : `<path d="M${rx - 8} ${yr - 44} L${rx + 6} ${yr - 52}" stroke="currentColor" stroke-width="1.3"/>`) + T(rx, yr - 58, kl, { z: 10.5, b: 1, a: 'middle', m: 1, f: on ? 'var(--power)' : 'currentColor' });
       });
       g += `<path d="M274 ${yr - 8} v16 M279 ${yr - 5} v10" stroke="currentColor" stroke-width="1.3"/>` + T(212, yr + 40, 'rotor resistors ' + hot + ' % hot', { z: 8.5, a: 'middle', f: hot > 70 ? 'var(--danger)' : 'var(--muted)' });
       read = ['speed ' + st.pct + ' %', s2 ? 'all bridged' : s1 ? 'step 1 bridged' : k1 ? 'all resistance in' : 'stopped'];
     } else if (scn === 'tank') {
       const p = ok && v('K1'), h = 150 * st.level / 100; vb = [462, 300];
       g = bus(PHC, ['L1', 'L2', 'L3'], 26, 200) + feeder(92, 'K1', 'KM1', 'F2', p ? 1 : 0, ang[0], 'pump motor');
-      g += `<rect x="286" y="56" width="104" height="156" rx="6" fill="var(--surface)" stroke="currentColor" stroke-width="1.4"/><rect x="288" y="${210 - h}" width="100" height="${h}" rx="3" fill="#3b82f6" fill-opacity=".5" stroke="none"/>` + T(338, 48, 'tank ' + st.lv + ' %', { z: 10, a: 'middle', b: 1 })
+      g += `<rect x="286" y="56" width="104" height="156" rx="6" fill="var(--surface)" stroke="currentColor" stroke-width="1.4"/><rect x="288" y="${210 - h}" width="100" height="${h}" rx="3" fill="#2c6cc4" fill-opacity=".5" stroke="none"/>` + T(338, 48, 'tank ' + st.lv + ' %', { z: 10, a: 'middle', b: 1 })
         + [['B2', 80, 'high'], ['B1', 30, 'low']].map(([b, lv, lab]) => { const y = 210 - 150 * lv / 100; return `<path d="M390 ${y} h10" stroke="${v(b) ? GRN : 'currentColor'}" stroke-width="1.4"/><circle cx="405" cy="${y}" r="5" fill="${v(b) ? GRN : 'var(--surface)'}" stroke="currentColor" stroke-width="1.2"/>` + T(415, y + 1, b, { z: 10, b: 1, m: 1 }) + T(415, y + 12, lab + ' ' + lv + ' %', { z: 8.5, f: 'var(--muted)' }); }).join('')
-        + seg([[230, 245], [262, 245], [262, 74], [286, 74]], '#3b82f6', p, p) + `<path d="M338 212 v22 M332 228 l6 7 l6 -7" stroke="#3b82f6" stroke-width="1.4"/>` + T(338, 250, 'water is used', { z: 8.5, a: 'middle', f: 'var(--muted)' });
+        + seg([[230, 245], [262, 245], [262, 74], [286, 74]], '#2c6cc4', p, p) + `<path d="M338 212 v22 M332 228 l6 7 l6 -7" stroke="#2c6cc4" stroke-width="1.4"/>` + T(338, 250, 'water is used', { z: 8.5, a: 'middle', f: 'var(--muted)' });
       g += `<circle cx="216" cy="245" r="15" fill="var(--surface)" stroke="${p ? GRN : 'currentColor'}" stroke-width="1.6"/><path d="M209 237 l16 8 l-16 8" stroke="${p ? GRN : 'currentColor'}" stroke-width="1.4"/><path d="M117 245 H201" stroke="currentColor" stroke-width="1.15" stroke-dasharray="4 3"/>` + T(216, 274, 'pump', { z: 9, a: 'middle', f: 'var(--muted)' });
       read = ['level ' + st.lv + ' %', 'pump starts ' + st.starts];
     }
@@ -460,7 +460,7 @@
             const ac = act ? LIVE : INK, a0 = cx - 6, a1 = cx - 17, cap = CAPC[p.c];
             if (k !== 'k') g += `<path d="M${a0} ${my} H${a1}" stroke="${ac}" stroke-width="1.2" stroke-dasharray="3 2"/>`;
             if (k === 'pb') g += `<path d="M${a1 - 5} ${my - 6} H${a1} V${my + 6} H${a1 - 5} Z" fill="${cap || 'none'}" stroke="${cap || ac}" stroke-width="1.25"/>`;
-            else if (k === 'es') g += `<path d="M${a1} ${my - 8} A8 8 0 0 0 ${a1} ${my + 8} Z" fill="#dc2626" stroke="#dc2626" stroke-width="1.15"/>`;
+            else if (k === 'es') g += `<path d="M${a1} ${my - 8} A8 8 0 0 0 ${a1} ${my + 8} Z" fill="#cf3a2e" stroke="#cf3a2e" stroke-width="1.15"/>`;
             else if (k === 'sel') g += `<path d="M${a1} ${my - 6} V${my + 6} M${a1 - 6} ${my - 5} L${a1} ${my}" stroke="${ac}" stroke-width="1.3"/>`;
             else if (k === 'ls') g += `<circle cx="${a1 - 3}" cy="${my}" r="3.4" stroke="${ac}" stroke-width="1.25"/>`;
             else if (k === 'ol') g += `<path d="M${a1 - 6} ${my + 4} V${my - 4} H${a1} V${my + 4}" stroke="${act ? 'var(--danger)' : INK}" stroke-width="1.25"/>`;
@@ -472,7 +472,7 @@
             after = true; if (r === NR - 1) reach = true; const on = sim ? !!sim.D[cell.d].en : false, p = part[cell.d] || {};
             g += ln(cx, y, cx, my - 9, ct) + ln(cx, my + 9, cx, y + H, cb);
             if (cell.t === 'LAMP') g += `<circle cx="${cx}" cy="${my}" r="9.5" fill="${on ? LAMPC[p.c] || LAMPC.green : 'var(--surface)'}" stroke="currentColor" stroke-width="1.25"${on ? ` style="filter:drop-shadow(0 0 6px ${LAMPC[p.c] || LAMPC.green})"` : ''}/><path d="M${cx - 6.5} ${my - 6.5} L${cx + 6.5} ${my + 6.5} M${cx - 6.5} ${my + 6.5} L${cx + 6.5} ${my - 6.5}" stroke="currentColor" stroke-width="1"/>`;
-            else if (cell.t === 'HORN') g += `<path d="M${cx - 10} ${my - 7} H${cx + 10} V${my + 1} A10 10 0 0 1 ${cx - 10} ${my + 1} Z" fill="${on ? '#f5a524' : 'var(--surface)'}" stroke="currentColor" stroke-width="1.25"${on ? ' style="filter:drop-shadow(0 0 6px #f5a524)"' : ''}/>`;
+            else if (cell.t === 'HORN') g += `<path d="M${cx - 10} ${my - 7} H${cx + 10} V${my + 1} A10 10 0 0 1 ${cx - 10} ${my + 1} Z" fill="${on ? '#e9a100' : 'var(--surface)'}" stroke="currentColor" stroke-width="1.25"${on ? ' style="filter:drop-shadow(0 0 6px #e9a100)"' : ''}/>`;
             else {
               g += `<rect${on ? ' class="glow"' : ''} x="${cx - 14}" y="${my - 9}" width="28" height="18" rx="2.5" fill="${on ? 'var(--power-soft)' : 'var(--surface)'}" stroke="${on ? LIVE : 'currentColor'}" stroke-width="${on ? 1.9 : 1.25}"/>`;
               if (cell.t === 'TON') g += `<rect x="${cx - 22}" y="${my - 9}" width="8" height="18" fill="var(--surface)" stroke="currentColor" stroke-width="1.15"/><path d="M${cx - 22} ${my - 9} L${cx - 14} ${my + 9} M${cx - 22} ${my + 9} L${cx - 14} ${my - 9}" stroke="currentColor" stroke-width="1.1"/>`;
@@ -509,8 +509,8 @@
       $('.ec-door').innerHTML = task.parts.map((p) => {
         const v = sim ? sim.D[p.d].v : 0;
         if (p.k === 'lamp') return `<div class="ec-di"><span class="ec-lmp${v ? ' on' : ''}" style="--lc:${LAMPC[p.c] || LAMPC.green}"></span>${esc(p.n)}<small>${p.d}</small></div>`;
-        if (p.k === 'horn') return `<div class="ec-di"><span class="ec-lmp${v ? ' on' : ''}" style="--lc:#f5a524"></span>${esc(p.n)}<small>${v ? 'sounds' : p.d}</small></div>`;
-        if (p.k === 'pb') return `<div class="ec-di"><button type="button" class="ec-pb${v ? ' on' : ''}" style="--cap:${CAPC[p.c] || '#334155'}" data-op="${p.d}" data-hold="1" aria-label="${esc(p.n)}: hold to press"></button>${esc(p.n)}<small>${p.d}</small></div>`;
+        if (p.k === 'horn') return `<div class="ec-di"><span class="ec-lmp${v ? ' on' : ''}" style="--lc:#e9a100"></span>${esc(p.n)}<small>${v ? 'sounds' : p.d}</small></div>`;
+        if (p.k === 'pb') return `<div class="ec-di"><button type="button" class="ec-pb${v ? ' on' : ''}" style="--cap:${CAPC[p.c] || '#353b3f'}" data-op="${p.d}" data-hold="1" aria-label="${esc(p.n)}: hold to press"></button>${esc(p.n)}<small>${p.d}</small></div>`;
         if (p.k === 'es') return `<div class="ec-di"><button type="button" class="ec-pb es${v ? ' on' : ''}" data-op="${p.d}" aria-pressed="${!!v}" aria-label="Emergency stop"></button>${esc(p.n)}<small>${v ? 'pressed' : p.d}</small></div>`;
         if (p.k === 'sel') return `<div class="ec-di"><button type="button" class="ec-sel${v ? ' on' : ''}" data-op="${p.d}" aria-pressed="${!!v}" aria-label="${esc(p.n)}"></button>${esc(p.n)}<small>${v ? 'ON' : 'off'}</small></div>`;
         if (p.k === 'ol') return `<div class="ec-di"><button type="button" class="ec-olb${v ? ' on' : ''}" data-op="${p.d}">${p.d} ${v ? 'TRIPPED' : 'overload'}<small>${v ? 'tap to reset' : 'tap to trip'}</small></button></div>`;

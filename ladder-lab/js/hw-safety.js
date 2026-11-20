@@ -1,4 +1,4 @@
-/* Ladder Lab — "A safety relay on the rail". Mounted in lessons through [[hw:safetyrelay]].
+/* PLC Start — "A safety relay on the rail". Mounted in lessons through [[hw:safetyrelay]].
  * One safety relay with its sensor (E-stop, guard door, light curtain), its reset button, the feedback loop
  * and two contactors. Pick a layout: the terminal names and LEDs change, the behaviour is the same.
  * Operate it, make faults, and read the LEDs like in front of a real cabinet.
@@ -76,17 +76,17 @@
   const STORE = 'll-hw-safetyrelay';
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   const CSS = `
-.hw-sr{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:14px;margin:14px 0;text-align:left}
-.hsr-swipe{display:none;font-size:.78rem;color:var(--muted);margin:4px 0 0}@media(max-width:640px){.hsr-swipe{display:block}}
-.hsr-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 8px}.hsr-row>span{font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-right:2px}
-.hsr-row button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 12px;font:inherit;font-weight:600;font-size:.82rem;cursor:pointer;min-height:36px}
-.hsr-row button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}.hsr-row button.bad.on{background:var(--danger);border-color:var(--danger);color:#fff}
-.hsr-svg{background:var(--surface-2);border-radius:10px;overflow-x:auto}.hsr-svg svg{display:block;width:100%;min-width:560px;height:auto}
-.hsr-act{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.hsr-act .btn.hot{background:var(--danger);border-color:var(--danger);color:#fff}
-.hsr-say{border-left:4px solid var(--info);background:var(--surface-2);border-radius:8px;padding:8px 12px;font-size:.9rem;margin:8px 0}.hsr-say.good{border-left-color:var(--power)}.hsr-say.bad{border-left-color:var(--danger);background:var(--danger-soft)}
-.hsr-sec{display:flex;justify-content:space-between;font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:12px 0 6px}
-.hsr-chk{display:grid;gap:6px}.hsr-chk div{background:var(--surface-2);border-radius:8px;padding:6px 10px;font-size:.86rem}.hsr-chk div.ok{background:var(--power-soft)}.hsr-chk div::before{content:"○ ";color:var(--muted)}.hsr-chk div.ok::before{content:"✓ ";color:var(--power)}
-.hsr-note{font-size:.8rem;color:var(--muted);margin:6px 0 0}.hw-sr [hidden]{display:none!important}`;
+.hw-sr{border:1px solid var(--line);border-radius:var(--r-panel);background:var(--surface);padding:14px;margin:14px 0;text-align:left}
+.hsr-swipe{display:none;font-size:var(--t-13);color:var(--muted);margin:4px 0 0}@media(max-width:640px){.hsr-swipe{display:block}}
+.hsr-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 8px}.hsr-row>span{font-size:var(--t-12);text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-right:2px}
+.hsr-row button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:6px 12px;font:inherit;font-weight:600;font-size:var(--t-13);cursor:pointer;min-height:36px}
+.hsr-row button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}.hsr-row button.bad.on{background:var(--danger);border-color:var(--danger);color:var(--on-danger)}
+.hsr-svg{background:var(--surface-2);border-radius:var(--r-ctl);overflow-x:auto}.hsr-svg svg{display:block;width:100%;min-width:560px;height:auto}
+.hsr-act{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.hsr-act .btn.hot{background:var(--danger);border-color:var(--danger);color:var(--on-danger)}
+.hsr-say{border-left:4px solid var(--info);background:var(--surface-2);border-radius:var(--r-ctl);padding:8px 12px;font-size:var(--t-14);margin:8px 0}.hsr-say.good{border-left-color:var(--power)}.hsr-say.bad{border-left-color:var(--danger);background:var(--danger-soft)}
+.hsr-sec{display:flex;justify-content:space-between;font-size:var(--t-12);text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:12px 0 6px}
+.hsr-chk{display:grid;gap:6px}.hsr-chk div{background:var(--surface-2);border-radius:var(--r-ctl);padding:6px 10px;font-size:var(--t-14)}.hsr-chk div.ok{background:var(--power-soft)}.hsr-chk div::before{content:"○ ";color:var(--muted)}.hsr-chk div.ok::before{content:"✓ ";color:var(--power)}
+.hsr-note{font-size:var(--t-13);color:var(--muted);margin:6px 0 0}.hw-sr [hidden]{display:none!important}`;
 
   LL.HW = LL.HW || {};
   LL.HW.safetyrelay = function (ph) {

@@ -1,4 +1,4 @@
-/* Ladder Lab — Structured Text (IEC 61131-3) compiler + runtime.
+/* PLC Start — Structured Text (IEC 61131-3) compiler + runtime.
  * Supports VAR/AT declarations, BOOL/INT/DINT/REAL/TIME/BYTE/WORD, ARRAY,
  * IF/ELSIF/ELSE, CASE (lists, ranges, ELSE), FOR/BY, WHILE, REPEAT, EXIT,
  * RETURN, FBs TON/TOF/TP/CTU/CTD/R_TRIG/F_TRIG/RS/SR, functions ABS/MIN/MAX/

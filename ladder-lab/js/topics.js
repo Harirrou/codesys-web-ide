@@ -1,4 +1,4 @@
-/* Ladder Lab — topics: 24 subjects. Each one collects every lesson, task,
+/* PLC Start — topics: 24 subjects. Each one collects every lesson, task,
  * Lab machine and quiz about one thing, so a learner can find them in one place
  * (Home "Explore by topic", #topic-<id> pages, chips on Learn and lesson pages).
  * Topic: id, title, blurb (one line for the Home card), intro, color, icon

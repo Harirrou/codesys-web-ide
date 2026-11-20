@@ -1,4 +1,4 @@
-/* Ladder Lab — "Start a motor seven ways". Mounted in lessons through [[hw:starters]].
+/* PLC Start — "Start a motor seven ways". Mounted in lessons through [[hw:starters]].
  * One 3-phase motor, seven starting methods (DOL, star-delta, autotransformer, stator resistance, rotor resistance,
  * soft starter, VFD). The power circuit is drawn live, the line current and the speed are plotted against time with
  * the direct-on-line curve as a ghost for comparison, and the control logic is shown as a relay circuit or as PLC
@@ -154,40 +154,40 @@
   ];
 
   const CSS = `
-.hw-starters{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:14px;margin:16px 0}
-.hws-h{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}.hws-h b{font-size:1.05rem}
-.hws-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.hws-tabs button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 12px;font:inherit;font-size:.88rem;font-weight:600;cursor:pointer;min-height:34px}
+.hw-starters{border:1px solid var(--line);border-radius:var(--r-panel);background:var(--surface);padding:14px;margin:16px 0}
+.hws-h{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}.hws-h b{font-size:var(--t-16)}
+.hws-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.hws-tabs button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:6px 12px;font:inherit;font-size:var(--t-14);font-weight:600;cursor:pointer;min-height:34px}
 .hws-tabs button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}.hws-tabs button.done::after{content:" ✓";color:var(--power-bright)}
-.hws-idea{margin:4px 0 8px;font-size:.98rem}.hws-facts{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
-.hws-facts span{background:var(--surface-3);border-radius:999px;padding:2px 10px;font-size:.8rem}
+.hws-idea{margin:4px 0 8px;font-size:var(--t-16)}.hws-facts{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.hws-facts span{background:var(--surface-3);border-radius:var(--r-ctl);padding:2px 10px;font-size:var(--t-13)}
 .hws-grid{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:12px}@media(max-width:760px){.hws-grid{grid-template-columns:1fr}}
-.hws-dia{background:var(--surface-2);border-radius:10px;padding:6px}.hws-dia svg{width:100%;height:auto;display:block;max-height:340px}
-.hws-chart{background:var(--surface-2);border-radius:10px;padding:8px}.hws-chart canvas{width:100%;height:auto;display:block}
-.hws-read{display:flex;gap:14px;flex-wrap:wrap;font-family:var(--f-mono);font-size:.84rem;margin:6px 2px 0}.hws-read b{font-size:1rem}
-.hws-ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}.hws-ctl label{font-size:.85rem;display:flex;gap:6px;align-items:center}
+.hws-dia{background:var(--surface-2);border-radius:var(--r-ctl);padding:6px}.hws-dia svg{width:100%;height:auto;display:block;max-height:340px}
+.hws-chart{background:var(--surface-2);border-radius:var(--r-ctl);padding:8px}.hws-chart canvas{width:100%;height:auto;display:block}
+.hws-read{display:flex;gap:14px;flex-wrap:wrap;font-family:var(--f-mono);font-size:var(--t-13);margin:6px 2px 0}.hws-read b{font-size:var(--t-16)}
+.hws-ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}.hws-ctl label{font-size:var(--t-14);display:flex;gap:6px;align-items:center}
 .hws-ctl select,.hws-ctl input[type=range]{max-width:150px}
-.hws-cap{border-left:4px solid var(--info);background:var(--surface-2);border-radius:8px;padding:8px 12px;margin:8px 0;min-height:3.1em;font-size:.95rem;line-height:1.45}
-.hws-cap.bad{border-color:var(--danger);background:var(--danger-soft)}.hws-cap small{display:block;font-family:var(--f-mono);font-size:.7rem;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
-.hws-sec{font-family:var(--f-display);letter-spacing:.08em;text-transform:uppercase;font-size:.8rem;color:var(--muted);margin:14px 0 6px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center}
-.hws-seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.hws-seg button{border:0;background:var(--surface);color:var(--ink);padding:5px 10px;font:inherit;font-size:.82rem;cursor:pointer;min-height:32px;text-transform:none;letter-spacing:0}
+.hws-cap{border-left:4px solid var(--info);background:var(--surface-2);border-radius:var(--r-ctl);padding:8px 12px;margin:8px 0;min-height:3.1em;font-size:var(--t-16);line-height:1.45}
+.hws-cap.bad{border-color:var(--danger);background:var(--danger-soft)}.hws-cap small{display:block;font-family:var(--f-mono);font-size:var(--t-11);letter-spacing:.04em;color:var(--muted);text-transform:uppercase}
+.hws-sec{font-family:var(--f-body);letter-spacing:.04em;text-transform:uppercase;font-size:var(--t-13);color:var(--muted);margin:14px 0 6px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center}
+.hws-seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r-ctl);overflow:hidden}.hws-seg button{border:0;background:var(--surface);color:var(--ink);padding:5px 10px;font:inherit;font-size:var(--t-13);cursor:pointer;min-height:32px;text-transform:none;letter-spacing:0}
 .hws-seg button.on{background:var(--ink);color:var(--surface)}
-.hws-rungs{border:1px solid var(--line-2);border-radius:10px;overflow-x:auto;background:var(--surface)}
-.hws-rung{padding:8px 10px;border-bottom:1px solid var(--line-2)}.hws-rung:last-child{border-bottom:0}.hws-rung i{display:block;font-size:.78rem;color:var(--muted);margin-bottom:5px}
+.hws-rungs{border:1px solid var(--line-2);border-radius:var(--r-ctl);overflow-x:auto;background:var(--surface)}
+.hws-rung{padding:8px 10px;border-bottom:1px solid var(--line-2)}.hws-rung:last-child{border-bottom:0}.hws-rung i{display:block;font-size:var(--t-13);color:var(--muted);margin-bottom:5px}
 .hws-row{display:flex;align-items:center;gap:0;min-width:max-content}.hws-wire{height:2px;width:14px;background:var(--line);flex:none}.hws-wire.on{background:var(--power-bright)}.hws-wire.gr{flex:1;min-width:14px}
-.hws-c{border:2px solid var(--line);border-radius:6px;padding:3px 7px;font-family:var(--f-mono);font-size:.74rem;text-align:center;line-height:1.25;background:var(--surface);white-space:nowrap}
-.hws-c b{display:block;font-size:.7rem;color:var(--muted);font-weight:600}.hws-c.on{border-color:var(--power-bright);background:var(--power-soft)}
-.hws-or{display:flex;flex-direction:column;gap:3px}.hws-coil{border-radius:999px}
+.hws-c{border:2px solid var(--line);border-radius:var(--r-ctl);padding:3px 7px;font-family:var(--f-mono);font-size:var(--t-12);text-align:center;line-height:1.25;background:var(--surface);white-space:nowrap}
+.hws-c b{display:block;font-size:var(--t-11);color:var(--muted);font-weight:600}.hws-c.on{border-color:var(--power-bright);background:var(--power-soft)}
+.hws-or{display:flex;flex-direction:column;gap:3px}.hws-coil{border-radius:var(--r-ctl)}
 .hws-who{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px}@media(max-width:760px){.hws-who{grid-template-columns:1fr}}
-.hws-who div{background:var(--surface-2);border-radius:10px;padding:8px 10px;font-size:.86rem;line-height:1.4}.hws-who b{display:block;font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.hws-res{width:100%;border-collapse:collapse;font-size:.84rem}.hws-res th,.hws-res td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line-2)}.hws-res th{color:var(--muted);font-size:.74rem;text-transform:uppercase;letter-spacing:.06em}
-.hws-bar{display:inline-block;height:8px;border-radius:4px;background:var(--info);vertical-align:middle;margin-right:6px}
+.hws-who div{background:var(--surface-2);border-radius:var(--r-ctl);padding:8px 10px;font-size:var(--t-14);line-height:1.4}.hws-who b{display:block;font-size:var(--t-13);letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.hws-res{width:100%;border-collapse:collapse;font-size:var(--t-13)}.hws-res th,.hws-res td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line-2)}.hws-res th{color:var(--muted);font-size:var(--t-12);text-transform:uppercase;letter-spacing:.04em}
+.hws-bar{display:inline-block;height:8px;border-radius:var(--r-tag);background:var(--info);vertical-align:middle;margin-right:6px}
 .hws-chk{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}@media(max-width:760px){.hws-chk{grid-template-columns:1fr}}
-.hws-chk div{background:var(--surface-2);border-radius:8px;padding:6px 10px;font-size:.86rem}.hws-chk div.ok{background:var(--power-soft)}.hws-chk div::before{content:"○ ";color:var(--muted)}.hws-chk div.ok::before{content:"✓ ";color:var(--power)}
+.hws-chk div{background:var(--surface-2);border-radius:var(--r-ctl);padding:6px 10px;font-size:var(--t-14)}.hws-chk div.ok{background:var(--power-soft)}.hws-chk div::before{content:"○ ";color:var(--muted)}.hws-chk div.ok::before{content:"✓ ";color:var(--power)}
 .hws-tbl{overflow-x:auto}
 .hw-starters [hidden]{display:none!important}
-.hws-hand{padding:10px 12px}.hws-hand p{margin:0 0 8px;font-size:.92rem;line-height:1.45}.hws-hk{display:flex;gap:8px;flex-wrap:wrap}
-.hws-hk button{border:2px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:8px 14px;font:inherit;font-weight:700;cursor:pointer;min-width:92px;min-height:52px;line-height:1.25}
-.hws-hk button small{display:block;font-weight:500;font-size:.74rem;color:var(--muted)}.hws-hk button.on{border-color:var(--power-bright);background:var(--power-soft)}`;
+.hws-hand{padding:10px 12px}.hws-hand p{margin:0 0 8px;font-size:var(--t-14);line-height:1.45}.hws-hk{display:flex;gap:8px;flex-wrap:wrap}
+.hws-hk button{border:2px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:8px 14px;font:inherit;font-weight:700;cursor:pointer;min-width:92px;min-height:52px;line-height:1.25}
+.hws-hk button small{display:block;font-weight:500;font-size:var(--t-12);color:var(--muted)}.hws-hk button.on{border-color:var(--power-bright);background:var(--power-soft)}`;
 
   LL.HW.starters = function (ph) {
     if (!document.getElementById('hw-starters-css')) { const st = document.createElement('style'); st.id = 'hw-starters-css'; st.textContent = CSS; document.head.appendChild(st); }
@@ -200,7 +200,7 @@
     const fresh = () => { S = { run: false, btn: 0, n: 0, I: 0, T: 0, k: {}, tm: {}, trun: 0, t: 0, hist: [], peak: 0, trip: '', short: '', heat: 0, weld: false, interlock: true, blocked: 0, u: 0.4, f: 0, msg: '', P, atSpeed: 0, jump: 0, started: false }; M[method].k.forEach(([k]) => (S.k[k] = 0)); };
     fresh();
     const box = document.createElement('div'); box.className = 'hw-box hw-starters';
-    box.innerHTML = `<div class="hws-h"><b>Start a motor seven ways</b><span class="hws-n" style="font-family:var(--f-mono);font-size:.78rem;color:var(--muted)"></span></div>
+    box.innerHTML = `<div class="hws-h"><b>Start a motor seven ways</b><span class="hws-n" style="font-family:var(--f-mono);font-size:var(--t-13);color:var(--muted)"></span></div>
       <div class="hws-tabs" role="tablist"></div><p class="hws-idea"></p><div class="hws-facts"></div>
       <div class="hws-ctl"><button class="btn primary" data-a="start">▶ START</button><button class="btn" data-a="stop">■ STOP</button><button class="btn small" data-a="trip">Overload trips</button><button class="btn small" data-a="reset" hidden>Reset</button>
         <label>Load <select data-a="load">${Object.keys(LOADS).map((k) => `<option value="${k}">${LOADS[k].n}</option>`).join('')}</select></label><span class="hws-par"></span><span class="hws-x"></span></div>

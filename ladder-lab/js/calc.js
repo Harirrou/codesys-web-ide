@@ -1,4 +1,4 @@
-/* Ladder Lab — calculators (#calc, #calc-<id>).
+/* PLC Start — calculators (#calc, #calc-<id>).
  * The formulas a PLC programmer needs on a project, from Ohm's law to sizing a cable, a power supply or a cabinet fan.
  * Every calculator is one entry in LIST: fields, a run(values) function and a few notes. One page draws them all.
  * run() returns { r: [[label, value, unit, flag]], how: [lines with the numbers filled in], warn: [..] } or { err }.
@@ -904,65 +904,65 @@
   const CSS = `
 .cx-head p{max-width:68ch;margin:0 0 12px}
 .cx-find{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px}
-.cx-find input{flex:1;min-width:200px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:9px 12px;min-height:42px;font:inherit}
+.cx-find input{flex:1;min-width:200px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:9px 12px;min-height:42px;font:inherit}
 .cx-chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 6px}
-.cx-chips button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:5px 12px;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer;min-height:34px}
+.cx-chips button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:5px 12px;font:inherit;font-size:var(--t-13);font-weight:600;cursor:pointer;min-height:34px}
 .cx-chips button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
-.cx-grp h2{font-family:var(--f-display);font-size:1rem;letter-spacing:.06em;text-transform:uppercase;margin:22px 0 10px}
+.cx-grp h2{font-family:var(--f-body);font-size:var(--t-16);letter-spacing:.04em;text-transform:uppercase;margin:22px 0 10px}
 .cx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
-.cx-card{display:block;border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:12px 14px;text-decoration:none;color:var(--ink);min-width:0}
+.cx-card{display:block;border:1px solid var(--line);border-radius:var(--r-panel);background:var(--surface);padding:12px 14px;text-decoration:none;color:var(--ink);min-width:0}
 .cx-card:hover{background:var(--surface-2)}
-.cx-card b{display:block;font-size:1rem;line-height:1.3;margin-bottom:4px}
-.cx-card span.cx-d{display:block;color:var(--muted);font-size:.86rem;line-height:1.4}
-.cx-lv{display:inline-block;margin-top:8px;font-family:var(--f-mono);font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:2px 9px;background:var(--surface-3);color:var(--muted)}
+.cx-card b{display:block;font-size:var(--t-16);line-height:1.3;margin-bottom:4px}
+.cx-card span.cx-d{display:block;color:var(--muted);font-size:var(--t-14);line-height:1.4}
+.cx-lv{display:inline-block;margin-top:8px;font-family:var(--f-mono);font-size:var(--t-11);font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:var(--r-ctl);padding:2px 9px;background:var(--surface-3);color:var(--muted)}
 .cx-lv.l1{background:var(--power-soft);color:var(--power)}
 .cx-none{color:var(--muted);margin:18px 0}
 .cx-one{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:14px;align-items:start}
 @media(max-width:860px){.cx-one{display:flex;flex-direction:column;align-items:stretch}.cx-stack{display:contents}.cx-picbox{order:-1}}
-.cx-box{border:1px solid var(--line);border-radius:16px;background:var(--surface);padding:14px 16px;min-width:0}
-.cx-box h2{font-family:var(--f-display);font-size:.9rem;letter-spacing:.08em;text-transform:uppercase;margin:0 0 10px;color:var(--muted)}
+.cx-box{border:1px solid var(--line);border-radius:var(--r-panel);background:var(--surface);padding:14px 16px;min-width:0}
+.cx-box h2{font-family:var(--f-body);font-size:var(--t-14);letter-spacing:.04em;text-transform:uppercase;margin:0 0 10px;color:var(--muted)}
 .cx-f{display:grid;gap:10px}
-.cx-f label{display:grid;gap:4px;font-size:.86rem;font-weight:600;line-height:1.3}
-.cx-in{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);overflow:hidden}
+.cx-f label{display:grid;gap:4px;font-size:var(--t-14);font-weight:600;line-height:1.3}
+.cx-in{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--surface-2);overflow:hidden}
 .cx-in input,.cx-in select{flex:1;min-width:0;border:0;background:transparent;color:var(--ink);padding:9px 10px;min-height:42px;font:inherit;font-family:var(--f-mono)}
 .cx-in select{font-family:inherit}
-.cx-in i{font-style:normal;display:flex;align-items:center;padding:0 10px;color:var(--muted);font-size:.84rem;border-left:1px solid var(--line);white-space:nowrap}
+.cx-in i{font-style:normal;display:flex;align-items:center;padding:0 10px;color:var(--muted);font-size:var(--t-13);border-left:1px solid var(--line);white-space:nowrap}
 .cx-in.bad{border-color:var(--danger)}
 .cx-res{display:grid;gap:0}
 .cx-row{display:flex;gap:10px;justify-content:space-between;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--line-2);flex-wrap:wrap}
 .cx-row:last-child{border-bottom:0}
-.cx-row span{color:var(--muted);font-size:.88rem;line-height:1.35}
-.cx-row b{font-family:var(--f-mono);font-size:.95rem;text-align:right;overflow-wrap:anywhere;min-width:0}
-.cx-row b small{font-weight:500;color:var(--muted);font-size:.8rem;margin-left:4px}
-.cx-row.big{display:grid;justify-content:start;gap:2px;background:var(--power-soft);border:0;border-radius:12px;padding:12px 14px;margin-bottom:6px}
+.cx-row span{color:var(--muted);font-size:var(--t-14);line-height:1.35}
+.cx-row b{font-family:var(--f-mono);font-size:var(--t-16);text-align:right;overflow-wrap:anywhere;min-width:0}
+.cx-row b small{font-weight:500;color:var(--muted);font-size:var(--t-13);margin-left:4px}
+.cx-row.big{display:grid;justify-content:start;gap:2px;background:var(--power-soft);border:0;border-radius:var(--r-ctl);padding:12px 14px;margin-bottom:6px}
 .cx-row.big span{color:var(--ink);font-weight:600}
-.cx-row.big b{font-size:1.7rem;line-height:1.15;text-align:left}
-.cx-row.big b small{font-size:1rem}
+.cx-row.big b{font-size:var(--t-24);line-height:1.15;text-align:left}
+.cx-row.big b small{font-size:var(--t-16)}
 .cx-row.bad b{color:var(--danger)}
 .cx-row.ok b{color:var(--power)}
 .cx-row.big.bad{background:var(--danger-soft)}
-.cx-err{background:var(--danger-soft);border-radius:12px;padding:12px 14px;line-height:1.45}
-.cx-warn{border-left:4px solid #f5a524;background:var(--surface-2);border-radius:10px;padding:9px 12px;margin-top:10px;font-size:.9rem;line-height:1.45}
-.cx-how{font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--surface-2);border-radius:10px;padding:10px 12px;overflow-x:auto}
+.cx-err{background:var(--danger-soft);border-radius:var(--r-ctl);padding:12px 14px;line-height:1.45}
+.cx-warn{border-left:4px solid #e9a100;background:var(--surface-2);border-radius:var(--r-ctl);padding:9px 12px;margin-top:10px;font-size:var(--t-14);line-height:1.45}
+.cx-how{font-family:var(--f-mono);font-size:var(--t-13);line-height:1.55;background:var(--surface-2);border-radius:var(--r-ctl);padding:10px 12px;overflow-x:auto}
 .cx-how div{white-space:pre-wrap;overflow-wrap:anywhere}
-.cx-tips{margin:0;padding-left:18px;font-size:.9rem;line-height:1.5}
+.cx-tips{margin:0;padding-left:18px;font-size:var(--t-14);line-height:1.5}
 .cx-tips li{margin:0 0 5px}
 .cx-nav{display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;margin-top:16px}
 .cx-stack{display:grid;gap:14px;min-width:0}
 .cx-pic svg{display:block;width:100%;height:auto}
-.cx-cap{font-size:.84rem;color:var(--muted);margin:8px 0 0;line-height:1.4}
-.cx-svg text{font-family:var(--f-mono);font-size:11px;fill:currentColor}
-.cx-svg .t2{font-size:13px;font-weight:700}
+.cx-cap{font-size:var(--t-13);color:var(--muted);margin:8px 0 0;line-height:1.4}
+.cx-svg text{font-family:var(--f-mono);font-size:var(--t-11);fill:currentColor}
+.cx-svg .t2{font-size:var(--t-13);font-weight:700}
 .cx-svg .tm{fill:var(--muted)}
 .cx-svg .s{fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
 .cx-svg .s1{fill:none;stroke:currentColor;stroke-width:1;opacity:.45;stroke-dasharray:3 3}
 .cx-svg .bd{fill:var(--surface-2);stroke:currentColor;stroke-width:2;stroke-linejoin:round}
-.cx-svg .wa{fill:#3b82f6;opacity:.6}
-.cx-svg .wb{fill:#f5a524;opacity:.75}
+.cx-svg .wa{fill:#2c6cc4;opacity:.6}
+.cx-svg .wb{fill:#e9a100;opacity:.75}
 .cx-svg .pp{fill:none;stroke:currentColor;stroke-width:9;opacity:.16;stroke-linecap:round;stroke-linejoin:round}
-.cx-svg .fl{fill:none;stroke:#3b82f6;stroke-width:4;stroke-dasharray:9 7;stroke-linejoin:round}
+.cx-svg .fl{fill:none;stroke:#2c6cc4;stroke-width:4;stroke-dasharray:9 7;stroke-linejoin:round}
 .cx-svg .fl.hot{stroke:#e2553b}
-.cx-svg .fl.am{stroke:#f5a524}
+.cx-svg .fl.am{stroke:#e9a100}
 .cx-svg .fl.el{stroke:var(--power-bright)}
 .cx-svg .gn{fill:var(--power-bright)}
 .cx-svg .rd{fill:var(--danger)}
@@ -1010,7 +1010,7 @@
       <div class="cx-box cx-howbox"><h2>How it is calculated</h2><div class="cx-how"></div></div>
       <div class="cx-box"><h2>Good to know</h2><ul class="cx-tips">${(c.tips || []).map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div></div></div>
       <div class="cx-nav">${prev ? `<a class="btn small" href="#calc-${prev.id}">← ${esc(prev.t)}</a>` : '<span></span>'}${next ? `<a class="btn small" href="#calc-${next.id}">${esc(next.t)} →</a>` : '<span></span>'}</div>
-      <p class="muted" style="font-size:.84rem;margin:14px 0 0;max-width:68ch">${esc(gname)}. A calculator helps you check, it does not replace the datasheet, the standard of your country or the engineer who signs the drawing.</p></div>`);
+      <p class="muted" style="font-size:var(--t-13);margin:14px 0 0;max-width:68ch">${esc(gname)}. A calculator helps you check, it does not replace the datasheet, the standard of your country or the engineer who signs the drawing.</p></div>`);
     const form = wrap.querySelector('.cx-f'), out = wrap.querySelector('.cx-out'), how = wrap.querySelector('.cx-how'), howBox = wrap.querySelector('.cx-howbox');
     const drawForm = () => {
       form.innerHTML = c.f.map((x) => {

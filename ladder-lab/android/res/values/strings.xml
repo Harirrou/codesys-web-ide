@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Ladder Lab</string>
+    <string name="app_name">PLC Start</string>
     <string name="saved">Saved</string>
     <string name="not_saved">The file could not be saved.</string>
     <string name="no_file_app">No app on this phone can open or save files.</string>

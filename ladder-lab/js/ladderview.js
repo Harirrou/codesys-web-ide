@@ -1,4 +1,4 @@
-/* Ladder Lab — SVG ladder renderer with live power-flow monitoring.
+/* PLC Start — SVG ladder renderer with live power-flow monitoring.
  * Builds the drawing once per program change, then updates classes/text
  * every frame from the machine trace (cheap enough for phones). */
 (function (G) {
@@ -208,8 +208,8 @@
 
   /* How each brand names reusable blocks. Used by the block editor and the CALL box. */
   LL.BRANDS = {
-    ll: { name: 'Ladder Lab', fb: 'FB', fc: 'FC', fbLong: 'FB: a block WITH memory. Every call has its own instance', fcLong: 'FC: a block WITHOUT memory. Only parameters and temporary values', inst: 'Instance name (its own memory)', dirs: { IN: 'IN', OUT: 'OUT', INOUT: 'INOUT' }, stat: 'static', temp: 'temporary', inside: '#Start', call: { FB: 'CALL FB', FC: 'CALL FC' },
-      note: 'Ladder Lab uses the Siemens way of writing: #Name inside a block. Choose your brand above to see the same block in its words.' },
+    ll: { name: 'PLC Start', fb: 'FB', fc: 'FC', fbLong: 'FB: a block WITH memory. Every call has its own instance', fcLong: 'FC: a block WITHOUT memory. Only parameters and temporary values', inst: 'Instance name (its own memory)', dirs: { IN: 'IN', OUT: 'OUT', INOUT: 'INOUT' }, stat: 'static', temp: 'temporary', inside: '#Start', call: { FB: 'CALL FB', FC: 'CALL FC' },
+      note: 'PLC Start uses the Siemens way of writing: #Name inside a block. Choose your brand above to see the same block in its words.' },
     tia: { name: 'Siemens TIA Portal', fb: 'FB', fc: 'FC', fbLong: 'FB (function block) with an instance data block', fcLong: 'FC (function): no instance DB, only Temp variables', inst: 'Instance DB (its own memory)', dirs: { IN: 'Input', OUT: 'Output', INOUT: 'InOut' }, stat: 'Static', temp: 'Temp', inside: '#Start', call: { FB: 'FB', FC: 'FC' },
       note: 'In the block interface you fill Input, Output, InOut, Static and Temp. Inside the block you write #Start, exactly as here. Every call of an FB needs an instance DB (Motor1_DB) that holds its Static memory. An FC has no instance DB: its Temp values are lost after each call.' },
     rk: { name: 'Rockwell Studio 5000', fb: 'AOI', fc: 'Routine', fbLong: 'Add-On Instruction (AOI): each call has its own backing tag', fcLong: 'Subroutine called with JSR, with input and return parameters', inst: 'Backing tag (its own memory)', dirs: { IN: 'Input', OUT: 'Output', INOUT: 'InOut' }, stat: 'Local tag', temp: 'Local tag (kept too: write before you read)', inside: 'Start', call: { FB: 'AOI', FC: 'JSR' },
@@ -229,7 +229,7 @@
   LL.blockKinds = {};
 
   /* The same element in every brand: used by the "Other brands" window and the brand lesson. */
-  LL.BRAND_COLS = ['Ladder Lab', 'Siemens TIA Portal', 'Rockwell Studio 5000', 'Schneider Machine Expert (CODESYS)', 'Schneider M221 (Machine Expert Basic)', 'Beckhoff TwinCAT 3', 'Omron Sysmac Studio (NJ/NX)', 'Omron CX-Programmer (CP1/CJ)'];
+  LL.BRAND_COLS = ['PLC Start', 'Siemens TIA Portal', 'Rockwell Studio 5000', 'Schneider Machine Expert (CODESYS)', 'Schneider M221 (Machine Expert Basic)', 'Beckhoff TwinCAT 3', 'Omron Sysmac Studio (NJ/NX)', 'Omron CX-Programmer (CP1/CJ)'];
   LL.BRAND_XREF = [
     ['NO contact', 'NO(I0.0)', '-| |-', 'XIC', '-| |-', 'LD / AND / OR', '-| |-', '-| |-', 'LD / AND / OR'],
     ['NC contact', 'NC(I0.0)', '-|/|-', 'XIO', '-|/|-', 'LDN / ANDN / ORN', '-|/|-', '-|/|-', 'LD NOT / AND NOT'],

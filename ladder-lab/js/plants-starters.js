@@ -1,4 +1,4 @@
-/* Ladder Lab extra machines: three classic reduced-voltage starters for a 3-phase motor, and a drive on a fieldbus.
+/* PLC Start extra machines: three classic reduced-voltage starters for a 3-phase motor, and a drive on a fieldbus.
  * resstart  = stator resistance starter (line contactor + bypass contactor over the resistors)
  * autotrafo = autotransformer starter, closed transition (transformer, star point, run contactor)
  * rotorres  = slip-ring motor with rotor resistance cut out in three steps
@@ -293,8 +293,8 @@
       c.fillStyle = th.panel2; D.rr(c, 340, 30, 150, 112, 8); c.fill(); c.strokeStyle = st.state === 9 ? th.red : st.state === 4 ? th.on : th.line; c.lineWidth = 2.5; c.stroke();
       D.text(c, 'DRIVE', 415, 46, { size: 11, weight: 700, color: th.muted });
       c.fillStyle = st.state === 9 ? th.red : '#0b1f17'; D.rr(c, 352, 56, 126, 44, 5); c.fill();
-      D.text(c, st.state === 9 ? 'F07801' : st.rpm + ' rpm', 415, 72, { size: 15, mono: true, weight: 700, color: st.state === 9 ? '#fff' : '#4ade80' });
-      D.text(c, st.state === 9 ? 'FAULT' : st.state === 4 ? 'RUN' : st.state === 1 ? 'INHIBIT' : 'READY', 415, 90, { size: 10, mono: true, weight: 700, color: st.state === 9 ? '#fff' : '#86efac' });
+      D.text(c, st.state === 9 ? 'F07801' : st.rpm + ' rpm', 415, 72, { size: 15, mono: true, weight: 700, color: st.state === 9 ? '#fff' : '#1a9b4b' });
+      D.text(c, st.state === 9 ? 'FAULT' : st.state === 4 ? 'RUN' : st.state === 1 ? 'INHIBIT' : 'READY', 415, 90, { size: 10, mono: true, weight: 700, color: st.state === 9 ? '#fff' : '#cfe9d8' });
       D.text(c, DSTATE[st.state], 415, 118, { size: 10, weight: 600, color: th.ink });
       D.text(c, st.last, 415, 158, { size: 9.5, color: th.muted });
       // conveyor

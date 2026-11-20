@@ -1,4 +1,4 @@
-/* Ladder Lab — "Set up a drive": quick commissioning of a VFD at its keypad. Mounted in lessons through [[hw:drive]].
+/* PLC Start — "Set up a drive": quick commissioning of a VFD at its keypad. Mounted in lessons through [[hw:drive]].
  * A motor nameplate, the ten parameters every drive asks for, a run panel and a live frequency chart. Wrong values
  * give the faults a real drive gives: overcurrent, overvoltage on a fast stop, a nuisance overload trip.
  * Parameter codes are shown for SINAMICS, Altivar and PowerFlex. */
@@ -35,25 +35,25 @@
     ['flt', 'Make one fault on purpose, read why, and reset it'],
   ];
   const CSS = `
-.hw-drive{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:14px;margin:16px 0}
-.hwd-h{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px}.hwd-h b{font-size:1.05rem}
-.hwd-br{display:flex;gap:5px;flex-wrap:wrap}.hwd-br button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:5px 11px;font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;min-height:32px}.hwd-br button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.hw-drive{border:1px solid var(--line);border-radius:var(--r-panel);background:var(--surface);padding:14px;margin:16px 0}
+.hwd-h{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px}.hwd-h b{font-size:var(--t-16)}
+.hwd-br{display:flex;gap:5px;flex-wrap:wrap}.hwd-br button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:5px 11px;font:inherit;font-size:var(--t-13);font-weight:600;cursor:pointer;min-height:32px}.hwd-br button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
 .hwd-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:12px}@media(max-width:820px){.hwd-grid{grid-template-columns:1fr}}
-.hwd-np{border:2px solid var(--line);border-radius:8px;padding:8px 12px;font-family:var(--f-mono);font-size:.84rem;line-height:1.55;background:var(--surface-2);margin-bottom:10px}.hwd-np b{font-family:var(--f-display);letter-spacing:.08em;display:block;font-size:.76rem;text-transform:uppercase;color:var(--muted)}
-.hwd-par{display:grid;gap:5px}.hwd-p{display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:8px;align-items:center;background:var(--surface-2);border-radius:8px;padding:5px 8px;font-size:.84rem}
-.hwd-p code{font-size:.76rem;color:var(--muted)}.hwd-p.bad{box-shadow:inset 3px 0 0 #f5a524}.hwd-p.ok{box-shadow:inset 3px 0 0 var(--power-bright)}
-.hwd-v{display:flex;gap:4px;align-items:center}.hwd-v b{font-family:var(--f-mono);min-width:86px;text-align:right;font-size:.86rem}
-.hwd-v input{width:62px;font:inherit;font-family:var(--f-mono);font-size:.86rem;text-align:right;border:1px solid var(--line);border-radius:7px;padding:5px 6px;background:var(--surface);color:var(--ink)}.hwd-v i{font-style:normal;font-size:.76rem;color:var(--muted);min-width:24px}
-.hwd-v button{width:32px;height:32px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;font:inherit;font-weight:700;cursor:pointer}
-.hwd-dev{background:#1f2937;border-radius:14px;padding:12px;color:#e5e7eb}
-.hwd-lcd{background:#0b1f17;border-radius:8px;padding:10px 12px;font-family:var(--f-mono);color:#4ade80;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}.hwd-lcd b{font-size:1.7rem}.hwd-lcd.flt{background:#7f1d1d;color:#fff}
-.hwd-leds{display:flex;gap:12px;font-size:.72rem;margin:8px 0;flex-wrap:wrap}.hwd-leds i{display:inline-block;width:9px;height:9px;border-radius:50%;background:#374151;margin-right:4px}.hwd-leds .on i{background:#4ade80}.hwd-leds .red.on i{background:#ef4444}
-.hwd-keys{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.hwd-keys button{border:0;border-radius:9px;padding:8px 14px;font:inherit;font-weight:700;cursor:pointer;min-height:40px;background:#374151;color:#fff}.hwd-keys button.go{background:#16a34a}.hwd-keys button.st{background:#dc2626}.hwd-keys button:disabled{opacity:.4;cursor:not-allowed}
-.hwd-ext{background:var(--surface-2);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:.84rem;display:grid;gap:6px}.hwd-ext label{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.hwd-ext input[type=range]{flex:1;min-width:120px}
-.hwd-cv{background:var(--surface-2);border-radius:10px;padding:6px;margin-top:8px}.hwd-cv canvas{display:block;width:100%;height:auto}
-.hwd-cap{border-left:4px solid var(--info);background:var(--surface-2);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:.94rem;line-height:1.45;min-height:3em}.hwd-cap.bad{border-color:var(--danger);background:var(--danger-soft)}
-.hwd-sec{font-family:var(--f-display);letter-spacing:.08em;text-transform:uppercase;font-size:.8rem;color:var(--muted);margin:12px 0 6px;display:flex;justify-content:space-between}
-.hwd-chk{display:grid;gap:6px}.hwd-chk div{background:var(--surface-2);border-radius:8px;padding:6px 10px;font-size:.86rem}.hwd-chk div.ok{background:var(--power-soft)}.hwd-chk div::before{content:"○ ";color:var(--muted)}.hwd-chk div.ok::before{content:"✓ ";color:var(--power)}`;
+.hwd-np{border:2px solid var(--line);border-radius:var(--r-ctl);padding:8px 12px;font-family:var(--f-mono);font-size:var(--t-13);line-height:1.55;background:var(--surface-2);margin-bottom:10px}.hwd-np b{font-family:var(--f-body);letter-spacing:.04em;display:block;font-size:var(--t-12);text-transform:uppercase;color:var(--muted)}
+.hwd-par{display:grid;gap:5px}.hwd-p{display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:8px;align-items:center;background:var(--surface-2);border-radius:var(--r-ctl);padding:5px 8px;font-size:var(--t-13)}
+.hwd-p code{font-size:var(--t-12);color:var(--muted)}.hwd-p.bad{box-shadow:inset 3px 0 0 #e9a100}.hwd-p.ok{box-shadow:inset 3px 0 0 var(--power-bright)}
+.hwd-v{display:flex;gap:4px;align-items:center}.hwd-v b{font-family:var(--f-mono);min-width:86px;text-align:right;font-size:var(--t-14)}
+.hwd-v input{width:62px;font:inherit;font-family:var(--f-mono);font-size:var(--t-14);text-align:right;border:1px solid var(--line);border-radius:var(--r-ctl);padding:5px 6px;background:var(--surface);color:var(--ink)}.hwd-v i{font-style:normal;font-size:var(--t-12);color:var(--muted);min-width:24px}
+.hwd-v button{width:32px;height:32px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);font:inherit;font-weight:700;cursor:pointer}
+.hwd-dev{background:#22272a;border-radius:var(--r-panel);padding:12px;color:#d2d6d2}
+.hwd-lcd{background:#0b1f17;border-radius:var(--r-ctl);padding:10px 12px;font-family:var(--f-mono);color:#1a9b4b;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}.hwd-lcd b{font-size:var(--t-24)}.hwd-lcd.flt{background:#a02a22;color:#fff}
+.hwd-leds{display:flex;gap:12px;font-size:var(--t-12);margin:8px 0;flex-wrap:wrap}.hwd-leds i{display:inline-block;width:9px;height:9px;border-radius:50%;background:#353b3f;margin-right:4px}.hwd-leds .on i{background:#1a9b4b}.hwd-leds .red.on i{background:#cf3a2e}
+.hwd-keys{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.hwd-keys button{border:0;border-radius:var(--r-ctl);padding:8px 14px;font:inherit;font-weight:700;cursor:pointer;min-height:40px;background:#353b3f;color:#fff}.hwd-keys button.go{background:#1a9b4b}.hwd-keys button.st{background:#cf3a2e}.hwd-keys button:disabled{opacity:.4;cursor:not-allowed}
+.hwd-ext{background:var(--surface-2);border-radius:var(--r-ctl);padding:8px 10px;margin-top:8px;font-size:var(--t-13);display:grid;gap:6px}.hwd-ext label{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.hwd-ext input[type=range]{flex:1;min-width:120px}
+.hwd-cv{background:var(--surface-2);border-radius:var(--r-ctl);padding:6px;margin-top:8px}.hwd-cv canvas{display:block;width:100%;height:auto}
+.hwd-cap{border-left:4px solid var(--info);background:var(--surface-2);border-radius:var(--r-ctl);padding:8px 12px;margin:10px 0;font-size:var(--t-16);line-height:1.45;min-height:3em}.hwd-cap.bad{border-color:var(--danger);background:var(--danger-soft)}
+.hwd-sec{font-family:var(--f-body);letter-spacing:.04em;text-transform:uppercase;font-size:var(--t-13);color:var(--muted);margin:12px 0 6px;display:flex;justify-content:space-between}
+.hwd-chk{display:grid;gap:6px}.hwd-chk div{background:var(--surface-2);border-radius:var(--r-ctl);padding:6px 10px;font-size:var(--t-14)}.hwd-chk div.ok{background:var(--power-soft)}.hwd-chk div::before{content:"○ ";color:var(--muted)}.hwd-chk div.ok::before{content:"✓ ";color:var(--power)}`;
 
   LL.HW.drive = function (ph) {
     if (!document.getElementById('hw-drive-css')) { const st = document.createElement('style'); st.id = 'hw-drive-css'; st.textContent = CSS; document.head.appendChild(st); }
@@ -108,7 +108,7 @@
       const cs = getComputedStyle(document.documentElement), v = (n) => cs.getPropertyValue(n).trim(), W = 520, H = 170, L = 34, B = 22, Y = (f) => H - B - (f / 70) * (H - B - 8);
       ctx.clearRect(0, 0, W, H); ctx.font = '11px "IBM Plex Mono", monospace'; ctx.textBaseline = 'middle';
       [0, 25, 50].forEach((f) => { ctx.strokeStyle = v('--line-2'); ctx.beginPath(); ctx.moveTo(L, Y(f)); ctx.lineTo(W - 4, Y(f)); ctx.stroke(); ctx.fillStyle = v('--muted'); ctx.textAlign = 'right'; ctx.fillText(f + '', L - 5, Y(f)); });
-      [[P.fmin, '#f5a524'], [P.fmax, v('--danger')]].forEach(([f, c]) => { ctx.strokeStyle = c; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.moveTo(L, Y(f)); ctx.lineTo(W - 4, Y(f)); ctx.stroke(); ctx.setLineDash([]); });
+      [[P.fmin, '#e9a100'], [P.fmax, v('--danger')]].forEach(([f, c]) => { ctx.strokeStyle = c; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.moveTo(L, Y(f)); ctx.lineTo(W - 4, Y(f)); ctx.stroke(); ctx.setLineDash([]); });
       ctx.strokeStyle = S.fault ? v('--danger') : v('--power-bright'); ctx.lineWidth = 2; ctx.beginPath(); S.hist.forEach((f, i) => { const x = L + (i / 259) * (W - L - 4); i ? ctx.lineTo(x, Y(f)) : ctx.moveTo(x, Y(f)); }); ctx.stroke(); ctx.lineWidth = 1;
       ctx.fillStyle = v('--muted'); ctx.textAlign = 'left'; ctx.fillText('Hz · dashes: minimum and maximum frequency', L + 4, H - 8);
       const lcd = $('.hwd-lcd'); lcd.classList.toggle('flt', !!S.fault); $('[data-d="hz"]').textContent = S.fault ? S.fault : S.f.toFixed(1) + ' Hz';

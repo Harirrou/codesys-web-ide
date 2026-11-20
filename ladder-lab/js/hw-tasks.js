@@ -1,4 +1,4 @@
-/* Ladder Lab — "Who runs when?": PLC tasks on a time line. Mounted in lessons through [[hw:tasks]].
+/* PLC Start — "Who runs when?": PLC tasks on a time line. Mounted in lessons through [[hw:tasks]].
  * One CPU, three kinds of program: the main cyclic program, a periodic task and a hardware interrupt.
  * The time line shows which one has the CPU in every millisecond, when the main program reads its inputs,
  * which sensor pulses it misses, how regular the PID calls are, and what the watchdog does with a long cycle. */
@@ -21,19 +21,19 @@
     ['wd', 'Make the cycle longer than 150 ms: the watchdog stops the CPU. Then restart it'],
   ];
   const CSS = `
-.hw-tasks{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:14px;margin:16px 0}
-.hwt-h{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px}.hwt-h b{font-size:1.05rem}
-.hwt-br{display:flex;gap:5px;flex-wrap:wrap}.hwt-br button,.hwt-seg button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:5px 11px;font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;min-height:32px}
+.hw-tasks{border:1px solid var(--line);border-radius:var(--r-panel);background:var(--surface);padding:14px;margin:16px 0}
+.hwt-h{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px}.hwt-h b{font-size:var(--t-16)}
+.hwt-br{display:flex;gap:5px;flex-wrap:wrap}.hwt-br button,.hwt-seg button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:5px 11px;font:inherit;font-size:var(--t-13);font-weight:600;cursor:pointer;min-height:32px}
 .hwt-br button.on,.hwt-seg button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
-.hwt-cv{background:var(--surface-2);border-radius:10px;padding:6px;margin:8px 0}.hwt-cv canvas{display:block;width:100%;height:auto}
+.hwt-cv{background:var(--surface-2);border-radius:var(--r-ctl);padding:6px;margin:8px 0}.hwt-cv canvas{display:block;width:100%;height:auto}
 .hwt-ctl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px;margin:10px 0}@media(max-width:700px){.hwt-ctl{grid-template-columns:1fr}}
-.hwt-ctl label{display:grid;gap:3px;font-size:.86rem}.hwt-ctl label b{font-family:var(--f-mono);font-weight:600}.hwt-ctl input[type=range]{width:100%}
-.hwt-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:.86rem}.hwt-seg{display:inline-flex;gap:4px}
+.hwt-ctl label{display:grid;gap:3px;font-size:var(--t-14)}.hwt-ctl label b{font-family:var(--f-mono);font-weight:600}.hwt-ctl input[type=range]{width:100%}
+.hwt-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:var(--t-14)}.hwt-seg{display:inline-flex;gap:4px}
 .hwt-num{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0}@media(max-width:700px){.hwt-num{grid-template-columns:1fr}}
-.hwt-num div{background:var(--surface-2);border-radius:10px;padding:8px 10px;font-size:.84rem;line-height:1.4}.hwt-num b{display:block;font-family:var(--f-mono);font-size:1.05rem}.hwt-num div.bad{background:var(--danger-soft)}.hwt-num div.ok{background:var(--power-soft)}
-.hwt-cap{border-left:4px solid var(--info);background:var(--surface-2);border-radius:8px;padding:8px 12px;margin:8px 0;font-size:.94rem;line-height:1.45;min-height:3em}.hwt-cap.bad{border-color:var(--danger);background:var(--danger-soft)}
-.hwt-sec{font-family:var(--f-display);letter-spacing:.08em;text-transform:uppercase;font-size:.8rem;color:var(--muted);margin:12px 0 6px;display:flex;justify-content:space-between}
-.hwt-chk{display:grid;gap:6px}.hwt-chk div{background:var(--surface-2);border-radius:8px;padding:6px 10px;font-size:.86rem}.hwt-chk div.ok{background:var(--power-soft)}.hwt-chk div::before{content:"○ ";color:var(--muted)}.hwt-chk div.ok::before{content:"✓ ";color:var(--power)}
+.hwt-num div{background:var(--surface-2);border-radius:var(--r-ctl);padding:8px 10px;font-size:var(--t-13);line-height:1.4}.hwt-num b{display:block;font-family:var(--f-mono);font-size:var(--t-16)}.hwt-num div.bad{background:var(--danger-soft)}.hwt-num div.ok{background:var(--power-soft)}
+.hwt-cap{border-left:4px solid var(--info);background:var(--surface-2);border-radius:var(--r-ctl);padding:8px 12px;margin:8px 0;font-size:var(--t-16);line-height:1.45;min-height:3em}.hwt-cap.bad{border-color:var(--danger);background:var(--danger-soft)}
+.hwt-sec{font-family:var(--f-body);letter-spacing:.04em;text-transform:uppercase;font-size:var(--t-13);color:var(--muted);margin:12px 0 6px;display:flex;justify-content:space-between}
+.hwt-chk{display:grid;gap:6px}.hwt-chk div{background:var(--surface-2);border-radius:var(--r-ctl);padding:6px 10px;font-size:var(--t-14)}.hwt-chk div.ok{background:var(--power-soft)}.hwt-chk div::before{content:"○ ";color:var(--muted)}.hwt-chk div.ok::before{content:"✓ ";color:var(--power)}
 .hw-tasks [hidden]{display:none!important}`;
 
   LL.HW.tasks = function (ph) {
@@ -94,7 +94,7 @@
     function pid(t) { if (S.pidAt >= 0) { S.iv.push(t - S.pidAt); if (S.iv.length > 10) S.iv.shift(); } S.pidAt = t; }
     function draw() {
       const cs = getComputedStyle(document.documentElement), v = (n) => cs.getPropertyValue(n).trim();
-      const W = 760, H = 250, L = 96, lanes = [['Sensor input', 30], [C.useInt ? 'Interrupt' : 'Interrupt (off)', 78], ['Periodic task', 126], ['Main program', 174]], col = { int: v('--danger'), per: '#f5a524', main: v('--info'), stop: v('--muted') };
+      const W = 760, H = 250, L = 96, lanes = [['Sensor input', 30], [C.useInt ? 'Interrupt' : 'Interrupt (off)', 78], ['Periodic task', 126], ['Main program', 174]], col = { int: v('--danger'), per: '#e9a100', main: v('--info'), stop: v('--muted') };
       ctx.clearRect(0, 0, W, H); ctx.font = '12px "IBM Plex Sans", sans-serif'; ctx.textBaseline = 'middle';
       lanes.forEach(([n, y]) => { ctx.fillStyle = v('--muted'); ctx.textAlign = 'left'; ctx.fillText(n, 4, y + 12); ctx.fillStyle = v('--surface'); ctx.fillRect(L, y, W - L - 4, 26); });
       const X = (age) => W - 4 - (age / WIN) * (W - L - 4);

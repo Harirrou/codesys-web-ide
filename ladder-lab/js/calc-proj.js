@@ -1,4 +1,4 @@
-/* Ladder Lab — project calculators and the moving pictures of the calculators.
+/* PLC Start — project calculators and the moving pictures of the calculators.
  * Part 1: the group "Projects": whole jobs from industry (fill a tank, pump pit, drain, pipe, valve, dosing,
  *         filling by weight, compressed air, conveyor line, winder, cooling, main supply…).
  * Part 2: pictures for calculators of js/calc.js (tank, conveyor, gearbox, axis move, cylinder, cable, 4–20 mA…).

@@ -1,4 +1,4 @@
-/* Ladder Lab — "what happens on the wire": small step-by-step animations of how industrial
+/* PLC Start — "what happens on the wire": small step-by-step animations of how industrial
  * networks move data (serial bits, polling, token, CAN arbitration, LIN, EtherCAT, cyclic
  * Ethernet, publish/subscribe). Used in lessons through [[comm:scene]] placeholders. */
 (function () {
@@ -7,7 +7,7 @@
   const col = () => {
     const cs = getComputedStyle(document.documentElement), v = (n) => cs.getPropertyValue(n).trim();
     return { ink: v('--ink') || '#12202b', muted: v('--muted') || '#5b6b77', line: v('--line') || '#c9d2d9', surf: v('--surface-2') || '#f3f6f8', surf3: v('--surface-3') || '#e2e8ec',
-      accent: v('--accent-bg') || '#ffb02e', ok: v('--power-bright') || '#22c55e', bad: v('--danger') || '#d02a2a', info: v('--info') || '#2160c4' };
+      accent: v('--accent-bg') || '#e9a100', ok: v('--power-bright') || '#1a9b4b', bad: v('--danger') || '#d02a2a', info: v('--info') || '#2160c4' };
   };
   const lerp = (a, b, t) => a + (b - a) * Math.max(0, Math.min(1, t));
   const ease = (t) => (t < 0 ? 0 : t > 1 ? 1 : t * t * (3 - 2 * t));

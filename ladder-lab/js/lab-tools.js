@@ -1,4 +1,4 @@
-/* Ladder Lab — two debug tools for the Lab, like the ones in real PLC software.
+/* PLC Start — two debug tools for the Lab, like the ones in real PLC software.
  * Cross-reference: every address of the program, where it is written and where it is read, with jumps to the rung
  *   and warnings (two coils, written but never read, read but never written).
  * Trend: a live chart of the signals you pick (inputs, outputs, memory bits, words) over the last 20 seconds.
@@ -9,26 +9,26 @@
   const LL = (window.LL = window.LL || {});
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
   const CSS = `
-.lt-x{width:100%;border-collapse:collapse;font-size:.86rem}.lt-x th,.lt-x td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line-2);vertical-align:top}
-.lt-x th{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);position:sticky;top:0;background:var(--surface)}
+.lt-x{width:100%;border-collapse:collapse;font-size:var(--t-14)}.lt-x th,.lt-x td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line-2);vertical-align:top}
+.lt-x th{font-size:var(--t-12);text-transform:uppercase;letter-spacing:.04em;color:var(--muted);position:sticky;top:0;background:var(--surface)}
 .lt-x td:first-child{font-family:var(--f-mono);font-weight:700;white-space:nowrap}.lt-x small{color:var(--muted)}
-.lt-go{border:1px solid var(--line);background:var(--surface-2);color:var(--ink);border-radius:6px;padding:2px 7px;margin:1px 3px 1px 0;font:inherit;font-family:var(--f-mono);font-size:.8rem;cursor:pointer;min-height:28px}
-.lt-go:hover{border-color:var(--info)}.lt-go i{font-style:normal;color:var(--muted);font-size:.7rem;margin-left:3px}
-.lt-warn{display:inline-block;background:#f5a52433;border-radius:6px;padding:1px 7px;font-size:.78rem;font-weight:600}.lt-warn.bad{background:var(--danger-soft);color:var(--danger)}
+.lt-go{border:1px solid var(--line);background:var(--surface-2);color:var(--ink);border-radius:var(--r-ctl);padding:2px 7px;margin:1px 3px 1px 0;font:inherit;font-family:var(--f-mono);font-size:var(--t-13);cursor:pointer;min-height:28px}
+.lt-go:hover{border-color:var(--info)}.lt-go i{font-style:normal;color:var(--muted);font-size:var(--t-11);margin-left:3px}
+.lt-warn{display:inline-block;background:#f5a52433;border-radius:var(--r-ctl);padding:1px 7px;font-size:var(--t-13);font-weight:600}.lt-warn.bad{background:var(--danger-soft);color:var(--danger)}
 .lt-sum{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.lt-wrap{max-height:62vh;overflow:auto}
 .lt-flash .rung-bg{stroke:var(--info)!important;stroke-width:3!important}
 .lt-trend{padding:12px}.lt-th{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
-.lt-chips{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}.lt-chips button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:3px 10px;font:inherit;font-family:var(--f-mono);font-size:.76rem;cursor:pointer;min-height:30px}
-.lt-chips button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}.lt-trend canvas{display:block;width:100%;height:auto;background:var(--surface-2);border-radius:8px}
-.lt-rp{margin:0 12px 10px;padding:10px 12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);border-left:4px solid var(--info)}
+.lt-chips{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}.lt-chips button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:3px 10px;font:inherit;font-family:var(--f-mono);font-size:var(--t-12);cursor:pointer;min-height:30px}
+.lt-chips button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}.lt-trend canvas{display:block;width:100%;height:auto;background:var(--surface-2);border-radius:var(--r-ctl)}
+.lt-rp{margin:0 12px 10px;padding:10px 12px;border-radius:var(--r-ctl);background:var(--surface-2);border:1px solid var(--line);border-left:4px solid var(--info)}
 .lt-rp.good{border-left-color:var(--power)}.lt-rp.bad{border-left-color:var(--danger);background:var(--danger-soft)}
-.lt-rp-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.lt-rp-h b{font-size:.92rem;min-width:0}
+.lt-rp-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.lt-rp-h b{font-size:var(--t-14);min-width:0}
 .lt-rp-h span{display:flex;gap:6px;flex-wrap:wrap}.lt-rp-h small{color:var(--muted);font-family:var(--f-mono);font-weight:400;margin-left:6px}
 .lt-rp-dots{display:flex;gap:4px;flex-wrap:wrap;margin:8px 0 6px;padding:0;list-style:none}
-.lt-rp-dots li{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:600 .68rem var(--f-mono);background:var(--surface);border:1px solid var(--line);color:var(--muted)}
-.lt-rp-dots li.done{background:var(--power);border-color:var(--power);color:#fff}.lt-rp-dots li.now{border-color:var(--info);color:var(--info);box-shadow:0 0 0 3px color-mix(in srgb,var(--info) 22%,transparent)}
-.lt-rp-dots li.bad{background:var(--danger);border-color:var(--danger);color:#fff}
-.lt-rp-now{font-size:.88rem;margin:0}.lt-rp-now i{font-style:normal;color:var(--muted)}.lt-rp-msg{font-size:.86rem;margin:6px 0 0;color:var(--ink-2)}
+.lt-rp-dots li{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:600 var(--t-11) var(--f-mono);background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+.lt-rp-dots li.done{background:var(--power);border-color:var(--power);color:var(--on-power)}.lt-rp-dots li.now{border-color:var(--info);color:var(--info);box-shadow:0 0 0 3px color-mix(in srgb,var(--info) 22%,transparent)}
+.lt-rp-dots li.bad{background:var(--danger);border-color:var(--danger);color:var(--on-danger)}
+.lt-rp-now{font-size:var(--t-14);margin:0}.lt-rp-now i{font-style:normal;color:var(--muted)}.lt-rp-msg{font-size:var(--t-14);margin:6px 0 0;color:var(--ink-2)}
 .lt-watch{margin-top:6px}.lt-rp [hidden]{display:none!important}.lt-rp{scroll-margin-top:74px;scroll-margin-bottom:150px}`;
   function css() { if (!document.getElementById('lt-css')) { const s = document.createElement('style'); s.id = 'lt-css'; s.textContent = CSS; document.head.appendChild(s); } }
   const isAddr = (v) => typeof v === 'string' && /^(SM|AIW|AQW|MW|MD|MR|HC|STR|ISTR|QSTR|AX|MC|DB|[IQMTC])\d/.test(v) && !/^\d/.test(v);
@@ -70,7 +70,7 @@
     const warn = keys.filter((k) => notes(k, use[k])).length;
     const body = keys.length ? `<div class="lt-sum"><span class="chip">${keys.length} addresses</span><span class="chip">${lab.prog.rungs.length} rungs</span>${warn ? `<span class="chip" style="background:#f5a52433">${warn} to check</span>` : '<span class="chip ok">nothing to check</span>'}</div>
       <div class="lt-wrap"><table class="lt-x"><tr><th>Address</th><th>Name</th><th>Written in rung</th><th>Read in rung</th><th></th></tr>${keys.map((k) => `<tr><td>${esc(k)}</td><td>${esc(tags[k] || '')}</td><td>${refs(use[k].w)}</td><td>${refs(use[k].r)}</td><td>${notes(k, use[k])}</td></tr>`).join('')}</table></div>
-      <p class="muted" style="font-size:.84rem;margin:10px 0 0">Tap a rung number to jump to it. Real software has the same list: "Cross-references" in TIA Portal, "Cross Reference" in Studio 5000 and CODESYS.</p>` : '<p>The program is empty. Add a rung first.</p>';
+      <p class="muted" style="font-size:var(--t-13);margin:10px 0 0">Tap a rung number to jump to it. Real software has the same list: "Cross-references" in TIA Portal, "Cross Reference" in Studio 5000 and CODESYS.</p>` : '<p>The program is empty. Add a rung first.</p>';
     const m = modal('Cross-reference: where is each address used?', body, [{ label: 'Close' }]);
     m.addEventListener('click', (e) => {
       const b = e.target.closest('[data-go]'); if (!b) return;
@@ -81,7 +81,7 @@
   }
 
   // ───────────── trend ─────────────
-  const WIN = 20000, COL = ['#22c55e', '#3b82f6', '#f5a524', '#ef4444', '#a855f7', '#14b8a6', '#ec4899', '#84cc16'];
+  const WIN = 20000, COL = ['#1a9b4b', '#2c6cc4', '#e9a100', '#cf3a2e', '#2c6cc4', '#2a7f86', '#2c6cc4', '#6f8f1e'];
   const isWord = (a) => /^(AIW|AQW|MW|MD|MR|HC)\d/.test(a) || /\.(CV|ET|POS|VEL)$/.test(a);
   function value(lab, a) {
     try { if (/^(I\d|AIW|HC)/.test(a)) return +(lab.I || {})[a] || 0; return isWord(a) ? +lab.m.word(a) || 0 : lab.m.bit(a) ? 1 : 0; } catch (e) { return 0; }

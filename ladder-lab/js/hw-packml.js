@@ -1,4 +1,4 @@
-/* Ladder Lab — "Every machine has the same states": the PackML state model. Mounted in lessons through [[hw:packml]].
+/* PLC Start — "Every machine has the same states": the PackML state model. Mounted in lessons through [[hw:packml]].
  * The 17 states as a map, the commands that are allowed right now, a small filling machine that reacts, and the
  * events of a real line (upstream empty, out of caps, guard door) so the difference between Hold, Suspend and
  * Abort becomes clear. "-ing" states do their work and move on by themselves. */
@@ -31,7 +31,7 @@
   const CMD = { Reset: { STOPPED: 'RESETTING', COMPLETE: 'RESETTING' }, Start: { IDLE: 'STARTING' }, Hold: { EXECUTE: 'HOLDING' }, Unhold: { HELD: 'UNHOLDING' }, Suspend: { EXECUTE: 'SUSPENDING' }, Unsuspend: { SUSPENDED: 'UNSUSPENDING' }, Clear: { ABORTED: 'CLEARING' } };
   const NOSTOP = ['STOPPED', 'STOPPING', 'ABORTING', 'ABORTED', 'CLEARING'], NOABORT = ['ABORTING', 'ABORTED'];
   const ARROWS = [['STOPPED', 'RESETTING', 'Reset'], ['RESETTING', 'IDLE', ''], ['IDLE', 'STARTING', 'Start'], ['STARTING', 'EXECUTE', ''], ['EXECUTE', 'COMPLETING', 'done'], ['COMPLETING', 'COMPLETE', ''], ['EXECUTE', 'HOLDING', 'Hold'], ['HOLDING', 'HELD', ''], ['HELD', 'UNHOLDING', 'Unhold'], ['UNHOLDING', 'EXECUTE', ''], ['EXECUTE', 'SUSPENDING', 'Suspend'], ['SUSPENDING', 'SUSPENDED', ''], ['SUSPENDED', 'UNSUSPENDING', 'Unsuspend'], ['UNSUSPENDING', 'EXECUTE', ''], ['STOPPING', 'STOPPED', ''], ['ABORTING', 'ABORTED', ''], ['ABORTED', 'CLEARING', 'Clear'], ['CLEARING', 'STOPPED', '']];
-  const LIGHT = { off: '#9aa3ae', blue: '#3b82f6', green: '#22c55e', amber: '#f5a524', red: '#ef4444' };
+  const LIGHT = { off: '#9aa3ae', blue: '#2c6cc4', green: '#1a9b4b', amber: '#e9a100', red: '#cf3a2e' };
   const CHECKS = [
     ['cycle', 'A whole order: Reset, Start, let it fill 12 bottles, Complete, Reset again'],
     ['hold', 'Out of caps: the machine holds itself. Fix it and Unhold'],
@@ -40,17 +40,17 @@
     ['stop', 'Press Stop while it produces, and bring it back to Idle'],
   ];
   const CSS = `
-.hw-packml{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:14px;margin:16px 0}
-.hwk-h{font-size:1.05rem;font-weight:700;margin-bottom:8px}
-.hwk-map{background:var(--surface-2);border-radius:10px;padding:6px;overflow-x:auto}.hwk-map svg{display:block;width:100%;min-width:560px;height:auto}
-.hwk-now{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:center;border-left:4px solid var(--info);background:var(--surface-2);border-radius:8px;padding:9px 12px;margin:10px 0}
-.hwk-now i{display:block;width:26px;height:26px;border-radius:50%;border:3px solid #9aa3ae}.hwk-now b{font-size:1.05rem}.hwk-now p{margin:2px 0 0;font-size:.92rem;line-height:1.4}
-.hwk-cmd{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.hwk-cmd button{border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:8px 14px;font:inherit;font-weight:700;font-size:.88rem;cursor:pointer;min-height:42px}
+.hw-packml{border:1px solid var(--line);border-radius:var(--r-panel);background:var(--surface);padding:14px;margin:16px 0}
+.hwk-h{font-size:var(--t-16);font-weight:700;margin-bottom:8px}
+.hwk-map{background:var(--surface-2);border-radius:var(--r-ctl);padding:6px;overflow-x:auto}.hwk-map svg{display:block;width:100%;min-width:560px;height:auto}
+.hwk-now{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:center;border-left:4px solid var(--info);background:var(--surface-2);border-radius:var(--r-ctl);padding:9px 12px;margin:10px 0}
+.hwk-now i{display:block;width:26px;height:26px;border-radius:50%;border:3px solid #9aa3ae}.hwk-now b{font-size:var(--t-16)}.hwk-now p{margin:2px 0 0;font-size:var(--t-14);line-height:1.4}
+.hwk-cmd{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.hwk-cmd button{border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:8px 14px;font:inherit;font-weight:700;font-size:var(--t-14);cursor:pointer;min-height:42px}
 .hwk-cmd button.can{border-color:var(--power-bright);background:var(--power-soft)}.hwk-cmd button:disabled{opacity:.38;cursor:not-allowed}.hwk-cmd button.red.can{border-color:var(--danger);background:var(--danger-soft)}
-.hwk-ev{display:flex;gap:6px;flex-wrap:wrap}.hwk-ev button{border:1px dashed var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:7px 12px;font:inherit;font-size:.84rem;font-weight:600;cursor:pointer;min-height:38px}.hwk-ev button.on{border-style:solid;border-color:#f5a524;background:#f5a52422}
-.hwk-sec{font-family:var(--f-display);letter-spacing:.08em;text-transform:uppercase;font-size:.8rem;color:var(--muted);margin:12px 0 6px;display:flex;justify-content:space-between}
-.hwk-fill{font-family:var(--f-mono);font-size:.88rem;margin:6px 0}.hwk-fill span{display:inline-block;width:14px;height:20px;border-radius:3px 3px 5px 5px;border:1.5px solid var(--line);margin-right:3px;vertical-align:middle}.hwk-fill span.f{background:#3b82f6;border-color:#3b82f6}
-.hwk-chk{display:grid;gap:6px}.hwk-chk div{background:var(--surface-2);border-radius:8px;padding:6px 10px;font-size:.86rem}.hwk-chk div.ok{background:var(--power-soft)}.hwk-chk div::before{content:"○ ";color:var(--muted)}.hwk-chk div.ok::before{content:"✓ ";color:var(--power)}`;
+.hwk-ev{display:flex;gap:6px;flex-wrap:wrap}.hwk-ev button{border:1px dashed var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:7px 12px;font:inherit;font-size:var(--t-13);font-weight:600;cursor:pointer;min-height:38px}.hwk-ev button.on{border-style:solid;border-color:#e9a100;background:#f5a52422}
+.hwk-sec{font-family:var(--f-body);letter-spacing:.04em;text-transform:uppercase;font-size:var(--t-13);color:var(--muted);margin:12px 0 6px;display:flex;justify-content:space-between}
+.hwk-fill{font-family:var(--f-mono);font-size:var(--t-14);margin:6px 0}.hwk-fill span{display:inline-block;width:14px;height:20px;border-radius:var(--r-tag) var(--r-tag) var(--r-tag) var(--r-tag);border:1.5px solid var(--line);margin-right:3px;vertical-align:middle}.hwk-fill span.f{background:#2c6cc4;border-color:#2c6cc4}
+.hwk-chk{display:grid;gap:6px}.hwk-chk div{background:var(--surface-2);border-radius:var(--r-ctl);padding:6px 10px;font-size:var(--t-14)}.hwk-chk div.ok{background:var(--power-soft)}.hwk-chk div::before{content:"○ ";color:var(--muted)}.hwk-chk div.ok::before{content:"✓ ";color:var(--power)}`;
 
   LL.HW.packml = function (ph) {
     if (!document.getElementById('hw-packml-css')) { const st = document.createElement('style'); st.id = 'hw-packml-css'; st.textContent = CSS; document.head.appendChild(st); }

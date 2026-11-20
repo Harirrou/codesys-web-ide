@@ -1,4 +1,4 @@
-/* Ladder Lab extra machine: robot cell. A robot loads raw parts into a machine and unloads the finished ones.
+/* PLC Start extra machine: robot cell. A robot loads raw parts into a machine and unloads the finished ones.
  * The PLC does not move the robot. It talks to the robot controller with a handshake: START + job number out,
  * READY / HOME / BUSY / DONE / CLEAR / FAULT back. The PLC owns the machine door and the machine cycle, so the
  * classic mistakes are real here: a door that closes on the arm, a machine that starts with the robot inside.

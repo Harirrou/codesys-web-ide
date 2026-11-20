@@ -67,7 +67,7 @@ LL.CHALLENGES.filter((c) => c.lang !== 'st').forEach((ch) => {
   ok(F.next(5, 6) === 0 && F.next(0, 6) === 1 && F.SEQ.rows.every((r) => r.length === F.SEQ.outs.length), 'sequencer wraps and its table is square');
 }
 
-// Circuit Lab free play: every machine opens with its parts, and its start circuit runs for 6 s without a fault
+// Circuits free play: every machine opens with its parts, and its start circuit runs for 6 s without a fault
 if (LL.EC && LL.EC.freeFor) LL.EC.FREE_SCN.forEach((scn) => {
   const EC = LL.EC, f = EC.freeFor(scn), c = EC.parse(f.solution || ''), sim = new EC.Sim(c, f);
   for (let i = 0; i < 30; i++) sim.tick();
@@ -328,7 +328,7 @@ console.log('ST sample:\n' + LL.toST(LL.parseProgram(LL.CH_BY_ID['permissive'].s
   const longest = b.filter((q) => { const L = q.a.map((x) => x.length); return L[q.c] === Math.max(...L); }).length;
   ok(longest / b.length <= 0.3, n + ': the right answer is the longest in ' + longest + ' of ' + b.length + ' questions (guessable)');
 });
-// Circuit Lab (js/circuit.js): every reference circuit passes its tests, an empty panel and every broken starter fail,
+// Circuits (js/circuit.js): every reference circuit passes its tests, an empty panel and every broken starter fail,
 // the text format round-trips, and the reference circuits have no lint warnings
 require(path.join(__dirname, '../js/circuit.js'));
 {

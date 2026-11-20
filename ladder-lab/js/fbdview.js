@@ -1,4 +1,4 @@
-/* Ladder Lab — FBD (function block diagram) view of a ladder program. Read-only and live.
+/* PLC Start — FBD (function block diagram) view of a ladder program. Read-only and live.
  *
  * Every rung becomes one network: contacts in series become an AND box (&), parallel branches an OR box (>=1),
  * an NC contact is a small circle (negation) on the pin, and the coil / timer / counter / maths box sits on the right.
@@ -212,13 +212,13 @@
 
   const CSS = `
 .fbd-card{padding:12px;min-width:0;max-width:100%;overflow:hidden}.fbd-host,.fbd-net{min-width:0;max-width:100%}.fbd-top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
-.fbd-note{font-size:.84rem;color:var(--muted);margin:0 0 8px}
-.fbd-net{border-top:1px solid var(--line-2);padding:6px 0 2px}.fbd-h{font-size:.78rem;color:var(--muted)}.fbd-h b{font-family:var(--f-mono);color:var(--accent);margin-right:6px}
+.fbd-note{font-size:var(--t-13);color:var(--muted);margin:0 0 8px}
+.fbd-net{border-top:1px solid var(--line-2);padding:6px 0 2px}.fbd-h{font-size:var(--t-13);color:var(--muted)}.fbd-h b{font-family:var(--f-mono);color:var(--accent);margin-right:6px}
 .fbd-sc{overflow-x:auto;padding-bottom:2px}.fbd-sc svg{display:block}
 .fbd-w{fill:none;stroke:var(--wire);stroke-width:1.6}.fbd-w.on{stroke:var(--power-bright);stroke-width:2.2}
 .fbd-box{fill:var(--surface);stroke:var(--ink);stroke-width:1.4}.fbd-out{fill:var(--surface-2)}
-.fbd-sym{font:700 13px var(--f-mono);fill:var(--ink)}.fbd-ttl{font:700 11px var(--f-mono);fill:var(--ink)}
-.fbd-n{font:600 11.5px var(--f-body);fill:var(--ink)}.fbd-a{font:9.5px var(--f-mono);fill:var(--muted)}.fbd-dim{fill:var(--muted);font-style:italic;font-weight:400}
+.fbd-sym{font:700 var(--t-13) var(--f-mono);fill:var(--ink)}.fbd-ttl{font:700 var(--t-11) var(--f-mono);fill:var(--ink)}
+.fbd-n{font:600 var(--t-12) var(--f-body);fill:var(--ink)}.fbd-a{font:var(--t-11) var(--f-mono);fill:var(--muted)}.fbd-dim{fill:var(--muted);font-style:italic;font-weight:400}
 .fbd-leaf.on .fbd-n{fill:var(--power)}.fbd-neg{fill:var(--surface);stroke:var(--ink);stroke-width:1.4}.fbd-dot{fill:var(--wire)}`;
   function css() { if (typeof document !== 'undefined' && !document.getElementById('fbd-css')) { const s = document.createElement('style'); s.id = 'fbd-css'; s.textContent = CSS; document.head.appendChild(s); } }
 

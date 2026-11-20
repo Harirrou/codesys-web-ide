@@ -1,4 +1,4 @@
-/* Ladder Lab — "Jumps, zones, queues, sequencer": four instructions you meet in older programs. Mounted through [[hw:flow]].
+/* PLC Start — "Jumps, zones, queues, sequencer": four instructions you meet in older programs. Mounted through [[hw:flow]].
  * Jump (JMP / LBL): the rungs in between are NOT scanned, so everything there keeps its last state.
  * Zone (MCR, Omron IL / ILC): the rungs are scanned as FALSE, so normal coils drop and TON timers reset; latched bits stay.
  * Queue (FIFO / LIFO): values go in at one end; first in first out, or last in first out.
@@ -50,26 +50,26 @@
     ['turn', 'Sequencer: step through the whole table until it starts again at row 1.'],
   ];
   const CSS = `
-.hw-flow{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:14px;margin:14px 0}
-.hwf-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.hwf-tabs button,.hwf-seg button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 14px;font:inherit;font-weight:600;font-size:.86rem;cursor:pointer;min-height:36px}
+.hw-flow{border:1px solid var(--line);border-radius:var(--r-panel);background:var(--surface);padding:14px;margin:14px 0}
+.hwf-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.hwf-tabs button,.hwf-seg button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:6px 14px;font:inherit;font-weight:600;font-size:var(--t-14);cursor:pointer;min-height:36px}
 .hwf-tabs button.on,.hwf-seg button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
-.hwf-cap{background:var(--surface-2);border-radius:8px;padding:8px 10px;font-size:.88rem;margin:8px 0}
-.hwf-rungs{display:grid;gap:4px;margin:8px 0}.hwf-r{display:grid;grid-template-columns:26px 1fr auto;gap:8px;align-items:center;padding:6px 10px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);font-family:var(--f-mono);font-size:.82rem}
-.hwf-r b{color:var(--accent)}.hwf-r i{font-style:normal;font-family:var(--f-body);font-size:.74rem;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.hwf-cap{background:var(--surface-2);border-radius:var(--r-ctl);padding:8px 10px;font-size:var(--t-14);margin:8px 0}
+.hwf-rungs{display:grid;gap:4px;margin:8px 0}.hwf-r{display:grid;grid-template-columns:26px 1fr auto;gap:8px;align-items:center;padding:6px 10px;border-radius:var(--r-ctl);border:1px solid var(--line-2);background:var(--surface);font-family:var(--f-mono);font-size:var(--t-13)}
+.hwf-r b{color:var(--accent)}.hwf-r i{font-style:normal;font-family:var(--f-body);font-size:var(--t-12);font-weight:700;border-radius:var(--r-ctl);padding:2px 9px;white-space:nowrap}
 .hwf-r.run i{background:var(--power-soft);color:var(--power)}.hwf-r.skip{opacity:.55;border-style:dashed}.hwf-r.skip i{background:var(--surface-3);color:var(--muted)}
-.hwf-r.off{background:var(--danger-soft)}.hwf-r.off i{background:var(--danger);color:#fff}.hwf-r.zone{margin-left:14px}.hwf-r.edge{border-color:var(--info)}
-.hwf-io{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}.hwf-sw{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:7px 12px;font:inherit;font-weight:600;font-size:.86rem;cursor:pointer;min-height:40px}
-.hwf-sw.on{background:var(--power);border-color:var(--power);color:#fff}.hwf-lamp{display:inline-flex;align-items:center;gap:6px;font-size:.86rem;font-weight:600;padding:5px 10px;border-radius:999px;background:var(--surface-2)}
+.hwf-r.off{background:var(--danger-soft)}.hwf-r.off i{background:var(--danger);color:var(--on-danger)}.hwf-r.zone{margin-left:14px}.hwf-r.edge{border-color:var(--info)}
+.hwf-io{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}.hwf-sw{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:7px 12px;font:inherit;font-weight:600;font-size:var(--t-14);cursor:pointer;min-height:40px}
+.hwf-sw.on{background:var(--power);border-color:var(--power);color:var(--on-power)}.hwf-lamp{display:inline-flex;align-items:center;gap:6px;font-size:var(--t-14);font-weight:600;padding:5px 10px;border-radius:var(--r-ctl);background:var(--surface-2)}
 .hwf-lamp::before{content:"";width:12px;height:12px;border-radius:50%;background:var(--p-lampoff)}.hwf-lamp.on::before{background:var(--power-bright);box-shadow:0 0 0 3px var(--power-soft)}
-.hwf-bar{display:inline-block;width:70px;height:8px;border-radius:4px;background:var(--surface-3);overflow:hidden;vertical-align:middle}.hwf-bar s{display:block;height:100%;background:var(--accent-bg)}
-.hwf-q{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:10px 0}.hwf-q div{height:54px;border-radius:10px;border:1px dashed var(--line);display:grid;place-items:center;font-weight:700;font-size:.8rem;color:var(--muted)}
-.hwf-q div.g{border:1px solid var(--power);background:var(--power-soft);color:var(--power)}.hwf-q div.b{border:1px solid var(--danger);background:var(--danger-soft);color:var(--danger)}.hwf-q small{display:block;font-weight:400;font-size:.66rem;color:var(--muted)}
-.hwf-ends{display:flex;justify-content:space-between;font-size:.74rem;color:var(--muted)}
-.hwf-t{width:100%;border-collapse:collapse;font-size:.82rem;margin:8px 0}.hwf-t th,.hwf-t td{padding:5px 6px;border-bottom:1px solid var(--line-2);text-align:center}.hwf-t th:first-child,.hwf-t td:first-child{text-align:left;font-family:var(--f-mono)}
-.hwf-t th{font-size:.7rem;color:var(--muted)}.hwf-t tr.on td{background:var(--power-soft);font-weight:700}.hwf-t td.one{color:var(--power);font-weight:700}
-.hwf-sec{display:flex;justify-content:space-between;font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:12px 0 6px}
-.hwf-chk{display:grid;gap:6px}.hwf-chk div{background:var(--surface-2);border-radius:8px;padding:6px 10px;font-size:.86rem}.hwf-chk div.ok{background:var(--power-soft)}.hwf-chk div::before{content:"○ ";color:var(--muted)}.hwf-chk div.ok::before{content:"✓ ";color:var(--power)}
-.hw-flow [hidden]{display:none!important}@media(max-width:520px){.hwf-r{grid-template-columns:20px 1fr;}.hwf-r i{grid-column:2;justify-self:start}.hwf-q div{height:46px;font-size:.7rem}}`;
+.hwf-bar{display:inline-block;width:70px;height:8px;border-radius:var(--r-tag);background:var(--surface-3);overflow:hidden;vertical-align:middle}.hwf-bar s{display:block;height:100%;background:var(--accent-bg)}
+.hwf-q{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:10px 0}.hwf-q div{height:54px;border-radius:var(--r-ctl);border:1px dashed var(--line);display:grid;place-items:center;font-weight:700;font-size:var(--t-13);color:var(--muted)}
+.hwf-q div.g{border:1px solid var(--power);background:var(--power-soft);color:var(--power)}.hwf-q div.b{border:1px solid var(--danger);background:var(--danger-soft);color:var(--danger)}.hwf-q small{display:block;font-weight:400;font-size:var(--t-11);color:var(--muted)}
+.hwf-ends{display:flex;justify-content:space-between;font-size:var(--t-12);color:var(--muted)}
+.hwf-t{width:100%;border-collapse:collapse;font-size:var(--t-13);margin:8px 0}.hwf-t th,.hwf-t td{padding:5px 6px;border-bottom:1px solid var(--line-2);text-align:center}.hwf-t th:first-child,.hwf-t td:first-child{text-align:left;font-family:var(--f-mono)}
+.hwf-t th{font-size:var(--t-11);color:var(--muted)}.hwf-t tr.on td{background:var(--power-soft);font-weight:700}.hwf-t td.one{color:var(--power);font-weight:700}
+.hwf-sec{display:flex;justify-content:space-between;font-size:var(--t-12);text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:12px 0 6px}
+.hwf-chk{display:grid;gap:6px}.hwf-chk div{background:var(--surface-2);border-radius:var(--r-ctl);padding:6px 10px;font-size:var(--t-14)}.hwf-chk div.ok{background:var(--power-soft)}.hwf-chk div::before{content:"○ ";color:var(--muted)}.hwf-chk div.ok::before{content:"✓ ";color:var(--power)}
+.hw-flow [hidden]{display:none!important}@media(max-width:520px){.hwf-r{grid-template-columns:20px 1fr;}.hwf-r i{grid-column:2;justify-self:start}.hwf-q div{height:46px;font-size:var(--t-11)}}`;
 
   LL.HW.flow = function (ph) {
     if (!document.getElementById('hw-flow-css')) { const st = document.createElement('style'); st.id = 'hw-flow-css'; st.textContent = CSS; document.head.appendChild(st); }

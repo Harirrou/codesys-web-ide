@@ -1,4 +1,4 @@
-/* Ladder Lab — "Read a program" quiz: several rungs and a short story (buttons pressed, time passing).
+/* PLC Start — "Read a program" quiz: several rungs and a short story (buttons pressed, time passing).
  * The learner says what is ON at the end. Endless: every question is made from a pattern with random parts.
  *
  * LL.genRead()      → { kind, text, tags, init, steps: [{ say, ops: [{ in, ms | scans }] }], ask: [addr], want: {addr: 0|1}, why }

@@ -1,6 +1,6 @@
 {
-  "name": "Ladder Lab: PLC ladder logic trainer",
-  "short_name": "Ladder Lab",
+  "name": "PLC Start: Learn Ladder Logic",
+  "short_name": "PLC Start",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

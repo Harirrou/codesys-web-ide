@@ -1,4 +1,4 @@
-/* Ladder Lab — PLC ladder engine
+/* PLC Start — PLC ladder engine
  * Parses a compact text format, runs scans like a real PLC (read inputs →
  * solve rungs top-to-bottom → write outputs), records power flow for the
  * view, lints common mistakes and translates rungs to Structured Text.
@@ -10,7 +10,7 @@
   // Small signs used inside text and on buttons by every module: drawn once here, never as emoji
   // (an emoji looks different on every phone and breaks the look of a technical drawing).
   // the name and the version of the app: one place (the Android build reads the version from this line)
-  LL.APP = { name: 'Ladder Lab', version: '1.1.0' };
+  LL.APP = { name: 'PLC Start', version: '1.1.0' };
   LL.SYM = {
     warn: '<svg class="sym" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4 21.5 20h-19z"/><path d="M12 10v4.5M12 17.4v.1"/></svg>',
     bolt: '<svg class="sym" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 2.5 5 13.5h6l-1.5 8L18.5 10h-6z"/></svg>',
@@ -1623,7 +1623,7 @@
   });
 })(typeof window !== 'undefined' ? window : globalThis);
 
-/* Ladder Lab — the same program for other brands: TIA Portal SCL, TwinCAT 3 / Omron Sysmac ST
+/* PLC Start — the same program for other brands: TIA Portal SCL, TwinCAT 3 / Omron Sysmac ST
  * with named variables, Schneider Machine Expert ST, Omron CX-Programmer mnemonics. */
 (function (G) {
   'use strict';
@@ -1750,7 +1750,7 @@
     { const bits = [...used].filter((a) => RE.mwBit.test(a)).sort();
       if (bits.length) out.push('// Bit of a word = slice access: %MW10.%X3 is bit 3 of MW10 (bit 0 = the lowest bit). Careful, Siemens byte order:',
         '//   MW10 = MB10 (HIGH byte) + MB11 (LOW byte), so bit 3 of MW10 is %M11.3 and bit 8 is %M10.0. Here: ' + bits.map((a) => { const m = RE.mwBit.exec(a), k = +m[2]; return a + ' = %M' + (+m[1] + (k < 8 ? 1 : 0)) + '.' + (k % 8); }).join(', ') + '.',
-        '//   In Ladder Lab M bits and MW words are separate memory; in a Siemens PLC they overlap, so keep other M bits away from these bytes.');
+        '//   In PLC Start M bits and MW words are separate memory; in a Siemens PLC they overlap, so keep other M bits away from these bytes.');
       if ([...used].some((a) => RE.mr.test(a))) out.push('// REAL: MRn becomes a tag of type Real (4 bytes, a %MD address). TIA does not put a Real into an Int by itself: use CONV, ROUND or TRUNC.'); }
     const td = Object.keys(inst);
     if (td.length) out.push('// Create these instance data blocks (or multi-instances in an FB): ' + td.map((k) => '"' + k + '" : ' + (/^(TON|TOF|TP|TONR)$/.test(inst[k]) ? 'IEC_TIMER' : /^(CTU|CTD|CTUD)$/.test(inst[k]) ? 'IEC_COUNTER' : '"' + inst[k] + '"')).join(', ') + '.');

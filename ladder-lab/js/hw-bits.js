@@ -1,4 +1,4 @@
-/* Ladder Lab — "A word is 16 bits": a word calculator. Mounted in lessons through [[hw:bits]].
+/* PLC Start — "A word is 16 bits": a word calculator. Mounted in lessons through [[hw:bits]].
  * Two 16-bit words A and B with clickable bits, shown as decimal, hex, binary and BCD, and the result of
  * WAND / WOR / WXOR / WNOT with a one-line reason for each. A small mission list drills masks, hex and BCD. */
 (function () {
@@ -24,25 +24,25 @@
     ['neg', 'Make A = −1 as a signed number. Look at the bits', (s) => s.a === 0xffff],
   ];
   const CSS = `
-.hw-bits{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:14px;margin:16px 0}
-.hwb-h{font-size:1.05rem;font-weight:700;margin-bottom:8px}
+.hw-bits{border:1px solid var(--line);border-radius:var(--r-panel);background:var(--surface);padding:14px;margin:16px 0}
+.hwb-h{font-size:var(--t-16);font-weight:700;margin-bottom:8px}
 .hwb-row{display:grid;grid-template-columns:54px minmax(0,1fr);gap:8px;align-items:center;margin:10px 0}
-.hwb-row>b{font-family:var(--f-mono);font-size:1rem}.hwb-w{min-width:0}
+.hwb-row>b{font-family:var(--f-mono);font-size:var(--t-16)}.hwb-w{min-width:0}
 .hwb-bits{display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:3px;max-width:520px}
-.hwb-bits button,.hwb-bits span{border:1.5px solid var(--line);background:var(--surface-2);color:var(--muted);border-radius:5px;font-family:var(--f-mono);font-size:.8rem;font-weight:700;padding:0;height:38px;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15}
-.hwb-bits i{font-style:normal;font-size:.56rem;font-weight:500;color:var(--muted)}
+.hwb-bits button,.hwb-bits span{border:1.5px solid var(--line);background:var(--surface-2);color:var(--muted);border-radius:var(--r-tag);font-family:var(--f-mono);font-size:var(--t-13);font-weight:700;padding:0;height:38px;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15}
+.hwb-bits i{font-style:normal;font-size:var(--t-11);font-weight:500;color:var(--muted)}
 .hwb-bits button{cursor:pointer}.hwb-bits .on{background:var(--power-soft);border-color:var(--power-bright);color:var(--ink)}
 .hwb-bits .gap{margin-left:4px}.hwb-bits .dim{opacity:.38}
-.hwb-nums{display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:3px;max-width:520px;font-family:var(--f-mono);font-size:.62rem;color:var(--muted);text-align:center;margin-top:2px}.hwb-nums .gap{margin-left:4px}
-.hwb-val{display:flex;gap:6px 14px;flex-wrap:wrap;font-family:var(--f-mono);font-size:.82rem;margin-top:5px;align-items:center}.hwb-val b{font-size:.95rem}
-.hwb-val input{width:104px;font:inherit;border:1px solid var(--line);border-radius:6px;padding:3px 6px;background:var(--surface);color:var(--ink)}
-.hwb-ops{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 2px 62px}@media(max-width:560px){.hwb-ops{margin-left:0}.hwb-row{grid-template-columns:26px minmax(0,1fr)}.hwb-bits{grid-template-columns:repeat(8,minmax(0,1fr));gap:4px}.hwb-bits :nth-child(9){margin-left:0}.hwb-bits button,.hwb-bits span{height:42px;font-size:.9rem}}
-.hwb-ops button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:5px 14px;font:inherit;font-weight:700;font-size:.86rem;cursor:pointer;min-height:34px}.hwb-ops button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
-.hwb-ops code{align-self:center;font-size:.8rem;color:var(--muted)}
-.hwb-cap{border-left:4px solid var(--info);background:var(--surface-2);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:.95rem;line-height:1.45}
-.hwb-pre{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.hwb-sec{font-family:var(--f-display);letter-spacing:.08em;text-transform:uppercase;font-size:.8rem;color:var(--muted);margin:14px 0 6px;display:flex;justify-content:space-between}
+.hwb-nums{display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:3px;max-width:520px;font-family:var(--f-mono);font-size:var(--t-11);color:var(--muted);text-align:center;margin-top:2px}.hwb-nums .gap{margin-left:4px}
+.hwb-val{display:flex;gap:6px 14px;flex-wrap:wrap;font-family:var(--f-mono);font-size:var(--t-13);margin-top:5px;align-items:center}.hwb-val b{font-size:var(--t-16)}
+.hwb-val input{width:104px;font:inherit;border:1px solid var(--line);border-radius:var(--r-ctl);padding:3px 6px;background:var(--surface);color:var(--ink)}
+.hwb-ops{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 2px 62px}@media(max-width:560px){.hwb-ops{margin-left:0}.hwb-row{grid-template-columns:26px minmax(0,1fr)}.hwb-bits{grid-template-columns:repeat(8,minmax(0,1fr));gap:4px}.hwb-bits :nth-child(9){margin-left:0}.hwb-bits button,.hwb-bits span{height:42px;font-size:var(--t-14)}}
+.hwb-ops button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:5px 14px;font:inherit;font-weight:700;font-size:var(--t-14);cursor:pointer;min-height:34px}.hwb-ops button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.hwb-ops code{align-self:center;font-size:var(--t-13);color:var(--muted)}
+.hwb-cap{border-left:4px solid var(--info);background:var(--surface-2);border-radius:var(--r-ctl);padding:8px 12px;margin:10px 0;font-size:var(--t-16);line-height:1.45}
+.hwb-pre{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.hwb-sec{font-family:var(--f-body);letter-spacing:.04em;text-transform:uppercase;font-size:var(--t-13);color:var(--muted);margin:14px 0 6px;display:flex;justify-content:space-between}
 .hwb-chk{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}@media(max-width:760px){.hwb-chk{grid-template-columns:1fr}}
-.hwb-chk div{background:var(--surface-2);border-radius:8px;padding:6px 10px;font-size:.86rem}.hwb-chk div.ok{background:var(--power-soft)}.hwb-chk div::before{content:"○ ";color:var(--muted)}.hwb-chk div.ok::before{content:"✓ ";color:var(--power)}`;
+.hwb-chk div{background:var(--surface-2);border-radius:var(--r-ctl);padding:6px 10px;font-size:var(--t-14)}.hwb-chk div.ok{background:var(--power-soft)}.hwb-chk div::before{content:"○ ";color:var(--muted)}.hwb-chk div.ok::before{content:"✓ ";color:var(--power)}`;
 
   LL.HW.bits = function (ph) {
     if (!document.getElementById('hw-bits-css')) { const st = document.createElement('style'); st.id = 'hw-bits-css'; st.textContent = CSS; document.head.appendChild(st); }

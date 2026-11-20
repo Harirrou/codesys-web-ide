@@ -1,4 +1,4 @@
-/* Ladder Lab — two extra pages.
+/* PLC Start — two extra pages.
  * #oral : interview practice out loud. A question from the interview bank, you answer aloud, then compare with the
  *         model answer and rate yourself. Questions you did not know come back first.
  * #cheat: one page with the things to remember: contacts, timers, patterns, wiring, starters, safety, networks,
@@ -9,19 +9,19 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
   const el = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
   const CSS = `
-.xo-card{border:1px solid var(--line);border-radius:16px;background:var(--surface);padding:18px;max-width:780px}
+.xo-card{border:1px solid var(--line);border-radius:var(--r-panel);background:var(--surface);padding:18px;max-width:780px}
 .xo-top{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 14px}
-.xo-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}.xo-chips button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:5px 12px;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer;min-height:34px}.xo-chips button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
-.xo-q{font-size:1.3rem;font-weight:700;line-height:1.35;margin:6px 0 12px}.xo-tag{font-family:var(--f-mono);font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
-.xo-time{font-family:var(--f-mono);font-size:1.6rem;font-weight:700}.xo-hint{color:var(--muted);font-size:.92rem;line-height:1.45}
-.xo-ans{border-left:4px solid var(--power-bright);background:var(--power-soft);border-radius:10px;padding:12px 14px;margin:14px 0}.xo-ans b{display:block;font-size:1.05rem;margin-bottom:4px}.xo-ans p{margin:0;line-height:1.5}
-.xo-rate{display:flex;gap:8px;flex-wrap:wrap}.xo-bar{height:8px;border-radius:4px;background:var(--surface-3);overflow:hidden;flex:1;min-width:120px}.xo-bar i{display:block;height:100%;background:var(--power-bright)}
-.xo-how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0 0}@media(max-width:640px){.xo-how{grid-template-columns:1fr}}.xo-how div{background:var(--surface-2);border-radius:10px;padding:8px 10px;font-size:.86rem;line-height:1.4}.xo-how b{display:block}
+.xo-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}.xo-chips button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:5px 12px;font:inherit;font-size:var(--t-13);font-weight:600;cursor:pointer;min-height:34px}.xo-chips button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.xo-q{font-size:var(--t-20);font-weight:700;line-height:1.35;margin:6px 0 12px}.xo-tag{font-family:var(--f-mono);font-size:var(--t-12);color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.xo-time{font-family:var(--f-mono);font-size:var(--t-24);font-weight:700}.xo-hint{color:var(--muted);font-size:var(--t-14);line-height:1.45}
+.xo-ans{border-left:4px solid var(--power-bright);background:var(--power-soft);border-radius:var(--r-ctl);padding:12px 14px;margin:14px 0}.xo-ans b{display:block;font-size:var(--t-16);margin-bottom:4px}.xo-ans p{margin:0;line-height:1.5}
+.xo-rate{display:flex;gap:8px;flex-wrap:wrap}.xo-bar{height:8px;border-radius:var(--r-tag);background:var(--surface-3);overflow:hidden;flex:1;min-width:120px}.xo-bar i{display:block;height:100%;background:var(--power-bright)}
+.xo-how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0 0}@media(max-width:640px){.xo-how{grid-template-columns:1fr}}.xo-how div{background:var(--surface-2);border-radius:var(--r-ctl);padding:8px 10px;font-size:var(--t-14);line-height:1.4}.xo-how b{display:block}
 .xc{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}@media(max-width:860px){.xc{grid-template-columns:1fr}}
-.xc section{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:12px 14px;break-inside:avoid;min-width:0;overflow-x:auto}.xc td{overflow-wrap:anywhere}.xc h2{font-size:1rem;margin:0 0 8px;font-family:var(--f-display);letter-spacing:.06em;text-transform:uppercase}
-.xc table{width:100%;border-collapse:collapse;font-size:.84rem}.xc td,.xc th{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line-2);vertical-align:top}.xc th{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
-.xc pre{margin:6px 0;font-size:.78rem;background:var(--surface-2);border-radius:8px;padding:8px;overflow-x:auto}.xc ul,.xc ol{margin:4px 0 4px 18px;padding:0;font-size:.86rem;line-height:1.5}.xc p{font-size:.86rem;line-height:1.5;margin:4px 0}.xc code{font-size:.8rem}
-.xa{max-width:760px}.xa-lead{font-size:1.08rem;line-height:1.55;margin:0 0 8px;max-width:62ch}.xa section{margin-top:22px}.xa h2{font-size:1.1rem;margin:0 0 6px}.xa p,.xa li{line-height:1.6;max-width:68ch}.xa ul{margin:0;padding-left:20px}.xa li{margin:0 0 4px}
+.xc section{border:1px solid var(--line);border-radius:var(--r-panel);background:var(--surface);padding:12px 14px;break-inside:avoid;min-width:0;overflow-x:auto}.xc td{overflow-wrap:anywhere}.xc h2{font-size:var(--t-16);margin:0 0 8px;font-family:var(--f-body);letter-spacing:.04em;text-transform:uppercase}
+.xc table{width:100%;border-collapse:collapse;font-size:var(--t-13)}.xc td,.xc th{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line-2);vertical-align:top}.xc th{font-size:var(--t-12);text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.xc pre{margin:6px 0;font-size:var(--t-13);background:var(--surface-2);border-radius:var(--r-ctl);padding:8px;overflow-x:auto}.xc ul,.xc ol{margin:4px 0 4px 18px;padding:0;font-size:var(--t-14);line-height:1.5}.xc p{font-size:var(--t-14);line-height:1.5;margin:4px 0}.xc code{font-size:var(--t-13)}
+.xa{max-width:760px}.xa-lead{font-size:var(--t-18);line-height:1.55;margin:0 0 8px;max-width:62ch}.xa section{margin-top:22px}.xa h2{font-size:var(--t-18);margin:0 0 6px}.xa p,.xa li{line-height:1.6;max-width:68ch}.xa ul{margin:0;padding-left:20px}.xa li{margin:0 0 4px}
 @media print{header.top,nav.tabs,.xc-noprint{display:none!important}.xc{grid-template-columns:1fr 1fr;gap:8px}.xc section{border-color:#999}body{background:#fff}}`;
   function css() { if (!document.getElementById('xo-css')) { const s = document.createElement('style'); s.id = 'xo-css'; s.textContent = CSS; document.head.appendChild(s); } }
 
@@ -146,7 +146,7 @@ outputs:  CMP(MW0==10) COIL(VALVE_A)</pre><p>One word holds the step. Transition
     css();
     const A = LL.APP, n = esc(A.name);
     main.appendChild(el(`<div class="wrap xa"><span class="plate">About</span><h1 style="margin:10px 0 6px">About ${n}</h1>
-      <p class="xa-lead">${n} teaches PLC ladder logic by doing: lessons, a simulator with machines, tasks with automatic tests, an electrical Circuit Lab, quizzes and calculators.</p>
+      <p class="xa-lead">${n} teaches PLC ladder logic by doing: lessons, a simulator with machines, tasks with automatic tests, an electrical wiring bench (Circuits), quizzes and calculators.</p>
       <section><h2>Your data stays on your device</h2><ul>
         <li>No account, no ads, no tracking.</li>
         <li>The app does not send anything to anyone. Nothing about you or about how you use the app is collected.</li>

@@ -1,4 +1,4 @@
-/* Ladder Lab — application shell: routing, pages, mini simulators, the Lab
+/* PLC Start — application shell: routing, pages, mini simulators, the Lab
  * (editor + machine + tests), quizzes and glossary. No dependencies. */
 (function () {
   'use strict';
@@ -444,7 +444,7 @@
       const r = LL.compileST(text, 'ST program');
       return { lang: 'st', text, name: progName('st', text) !== 'ST program' ? progName('st', text) : base || 'ST program', warn: r.ok ? '' : 'It has an error on line ' + r.error.line + ': ' + r.error.msg };
     }
-    return { error: 'This is not a Ladder Lab program. A Ladder file has RUNG lines; an ST file has := or END_PROGRAM.' };
+    return { error: 'This is not a PLC Start program. A Ladder file has RUNG lines; an ST file has := or END_PROGRAM.' };
   }
   function openProgramFile() {
     pickFile('.txt,.st,text/plain', (f, text) => {
@@ -468,7 +468,7 @@
     saveNow();
     const store = {};
     try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (storeKey(k)) store[k] = localStorage.getItem(k); } } catch (e) { /* storage unavailable */ }
-    const name = 'ladder-lab-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    const name = 'plc-start-backup-' + new Date().toISOString().slice(0, 10) + '.json';
     download(name, JSON.stringify({ format: 'ladder-lab-backup', version: 1, exported: new Date().toISOString(), app: S, store }, null, 1), 'application/json');
     toast('Backup downloaded: ' + name + '. Keep it somewhere safe.', { ms: 4500 });
   }
@@ -501,7 +501,7 @@
     pickFile('.json,application/json', (f, text) => {
       let d = null; try { d = JSON.parse(text); } catch (e) { /* not JSON */ }
       const b = checkBackup(d);
-      if (!b) { modal('Not a backup file', '<p>This file is not a Ladder Lab backup. Choose the <b>.json</b> file that <b>Export my work</b> made.</p>', [{ label: 'OK' }]); return; }
+      if (!b) { modal('Not a backup file', '<p>This file is not a PLC Start backup. Choose the <b>.json</b> file that <b>Export my work</b> made.</p>', [{ label: 'OK' }]); return; }
       const w = workSummary(b.app), here = workSummary(S), nStore = Object.keys(b.store).length;
       const li = [
         `<li><b>${w.lessons}</b> of ${LL.LESSONS.length} lessons done</li>`,
@@ -646,7 +646,7 @@
     const add = (o) => { o.n = out.length; o.lt = o.title.toLowerCase(); o.ls = (o.sub || '').toLowerCase(); o.lb = (o.body || '').toLowerCase(); out.push(o); };
     TOPICS.forEach((T) => add({ type: 'topic', href: '#topic-' + T.id, title: T.title, sub: plainText(T.blurb), body: plainText(T.intro), T, meta: topicCounts(T).replace(/<[^>]+>/g, '') }));
     LL.LESSONS.forEach((l) => add({ type: 'lesson', href: '#lesson-' + l.id, title: l.title, sub: plainText(l.summary), body: plainText(l.body) + ' ' + (l.takeaways || []).join(' '), meta: 'Lesson ' + lessonNo(l) + ' · ' + l.min + ' min', done: !!S.lessons[l.id] }));
-    ((LL.EC && LL.EC.TASKS) || []).forEach((c) => add({ type: 'task', href: '#circuit-' + c.id, title: c.title, sub: plainText(c.brief), meta: 'Circuit Lab · Level ' + c.level, id: c.id }));
+    ((LL.EC && LL.EC.TASKS) || []).forEach((c) => add({ type: 'task', href: '#circuit-' + c.id, title: c.title, sub: plainText(c.brief), meta: 'Circuits · Level ' + c.level, id: c.id }));
     LL.CHALLENGES.forEach((c) => add({ type: 'task', href: '#ch-' + c.id, title: c.title, sub: plainText(c.brief), meta: 'Level ' + c.level + (c.lang === 'st' ? ' · ST' : '') + ' · ' + plantName(c.plant), id: c.id }));
     LL.PLANT_ORDER.forEach((p) => { const M = LL.Plants[p]; if (M) add({ type: 'machine', href: '#lab', title: M.name, sub: plainText(M.blurb), plant: p, meta: 'Machine in the Lab' }); });
     ((LL.Calc && LL.Calc.LIST) || []).forEach((c) => add({ type: 'calc', href: '#calc-' + c.id, title: c.t, sub: c.d, body: c.key || '', meta: 'Calculator · ' + LL.Calc.LEVELS[c.lv] }));
@@ -1269,7 +1269,7 @@
         if (ok) b.classList.add('go');
         view.update(g.m, true);
         const st = LL.toST(Object.assign(g.prog, { tags: g.tags, name: 'Quiz' })).split('\n').filter((l) => /:=/.test(l)).join('\n');
-        $('.fb', area).innerHTML = `<div class="why"><b>${ok ? 'Correct!' : 'Not this time.'}</b> The lamp is <b>${g.ans ? 'ON' : 'OFF'}</b>. Green shows where power can flow. Remember: NO passes on 1, NC passes on 0.<pre class="code" style="margin:8px 0 0;font-family:var(--f-mono);font-size:.85rem;white-space:pre-wrap">${esc(st)}</pre></div><div class="row" style="margin-top:12px"><button class="btn primary" data-n>Next rung ${I.arrow}</button></div>`;
+        $('.fb', area).innerHTML = `<div class="why"><b>${ok ? 'Correct!' : 'Not this time.'}</b> The lamp is <b>${g.ans ? 'ON' : 'OFF'}</b>. Green shows where power can flow. Remember: NO passes on 1, NC passes on 0.<pre class="code" style="margin:8px 0 0;font-family:var(--f-mono);font-size:var(--t-14);white-space:pre-wrap">${esc(st)}</pre></div><div class="row" style="margin-top:12px"><button class="btn primary" data-n>Next rung ${I.arrow}</button></div>`;
         $('[data-n]', area).onclick = () => { delete area.dataset.lock; show(); };
       }));
     };
@@ -1487,7 +1487,7 @@
       const fieldAt = (e) => { if (!this.plant.hmiFields) return null; const r = this.canvas.getBoundingClientRect(); const x = (e.clientX - r.left) * 640 / r.width, y = (e.clientY - r.top) * 360 / r.height; return this.plant.hmiFields.find((f) => x >= f.x && x <= f.x + f.w && y >= f.y && y <= f.y + f.h); };
       this.canvas.addEventListener('pointerdown', (e) => {
         const f = fieldAt(e); if (!f) return; e.preventDefault();
-        modal('HMI: ' + f.label, `<div class="field"><label for="hmiv">${esc(f.label)}${f.unit ? ' (' + esc(f.unit) + ')' : ''} → ${f.addr}</label><input id="hmiv" type="number" inputmode="numeric" value="${this.m.word(f.addr)}"></div><p class="muted" style="font-size:.85rem;margin:0">The touch panel writes the number straight into the PLC word ${f.addr}, as a real HMI does.</p>`, [{ label: 'Cancel' }, { label: 'Write', cls: 'primary', run: (mm) => { const v = Math.round(+$('#hmiv', mm).value); if (isNaN(v)) return false; this.m.setWord(f.addr, v); toast(f.addr + ' = ' + v); } }]);
+        modal('HMI: ' + f.label, `<div class="field"><label for="hmiv">${esc(f.label)}${f.unit ? ' (' + esc(f.unit) + ')' : ''} → ${f.addr}</label><input id="hmiv" type="number" inputmode="numeric" value="${this.m.word(f.addr)}"></div><p class="muted" style="font-size:var(--t-14);margin:0">The touch panel writes the number straight into the PLC word ${f.addr}, as a real HMI does.</p>`, [{ label: 'Cancel' }, { label: 'Write', cls: 'primary', run: (mm) => { const v = Math.round(+$('#hmiv', mm).value); if (isNaN(v)) return false; this.m.setWord(f.addr, v); toast(f.addr + ' = ' + v); } }]);
         setTimeout(() => { const i = document.getElementById('hmiv'); if (i) { i.focus(); i.select(); } }, 50);
       });
       this.canvas.addEventListener('pointermove', (e) => { if (fieldAt(e)) this.canvas.style.cursor = 'pointer'; });
@@ -1608,7 +1608,7 @@
       // IO table
       const rows = this.plant.inputs.flatMap((d) => d.kind === 'sel3' ? [d.addr, d.addr2].map((a, k) => `<tr><td>${a}</td><td>${esc(d.name)} ${k ? 'AUTO' : 'MANUAL'}<span class="kind">selector position</span></td><td data-io="${a}">0</td></tr>`) : [`<tr><td>${d.addr}</td><td>${esc(tags[d.addr] || d.name)}<span class="kind">${d.kind === 'pbnc' ? 'button, wired NC' : d.kind === 'pb' ? 'button, NO' : d.kind === 'sw' ? 'switch' : d.kind === 'hmi' ? 'HMI touch button (writes the M bit)' : d.kind === 'hmiw' ? 'HMI number field (tap it on the screen)' : 'sensor'}</span>${d.note ? `<div class="kind" style="margin:0">${esc(d.note)}</div>` : ''}</td><td data-io="${d.addr}">0</td></tr>`])
         .concat(this.plant.outputs.map((o) => `<tr><td>${o.addr}</td><td>${esc(tags[o.addr] || o.name)}<span class="kind">output</span></td><td data-io="${o.addr}">0</td></tr>`));
-      $('.live-io', this.el).innerHTML = `<tr class="force-head"><td colspan="4"><span class="muted" style="font-size:.78rem">Tap <b>F</b> to force a bit: ON → OFF → normal. Forcing overrides the program or the field, like a real programming tool. On a real machine: only with the danger area clear.</span></td></tr>` + rows.join('') + '<tbody class="valrows"></tbody>';
+      $('.live-io', this.el).innerHTML = `<tr class="force-head"><td colspan="4"><span class="muted" style="font-size:var(--t-13)">Tap <b>F</b> to force a bit: ON → OFF → normal. Forcing overrides the program or the field, like a real programming tool. On a real machine: only with the danger area clear.</span></td></tr>` + rows.join('') + '<tbody class="valrows"></tbody>';
       this.ioCells = $$('[data-io]', this.el);
       this.ioCells.forEach((c) => {
         const a = c.dataset.io;
@@ -1661,10 +1661,10 @@
         blocks.forEach((b) => { if (b !== cur) { const outer = []; scan.call(null, [], ''); void outer; } });
         if (!this.monInst || !insts.some((i) => i.key === this.monInst)) this.monInst = insts[0] ? insts[0].key : '';
         const isFC = kindOf(cur) === 'FC';
-        html += `<div class="card blk-iface"><div class="row" style="justify-content:space-between;gap:8px"><span class="eyebrow">${esc(BR.name)} · ${esc(isFC ? BR.fcLong : BR.fbLong)}</span><span class="row" style="gap:6px">${insts.length ? `<label class="muted" style="font-size:.8rem">Monitor <select data-mon>${insts.map((i) => `<option value="${esc(i.key)}" ${i.key === this.monInst ? 'selected' : ''}>${esc(i.label)}</option>`).join('')}</select></label>` : '<span class="muted" style="font-size:.8rem">not called yet: add CALL ' + esc(cur.name) + ' in the main program</span>'}<button class="btn small" data-blk-del style="color:var(--danger)">Delete block</button></span></div>
+        html += `<div class="card blk-iface"><div class="row" style="justify-content:space-between;gap:8px"><span class="eyebrow">${esc(BR.name)} · ${esc(isFC ? BR.fcLong : BR.fbLong)}</span><span class="row" style="gap:6px">${insts.length ? `<label class="muted" style="font-size:var(--t-13)">Monitor <select data-mon>${insts.map((i) => `<option value="${esc(i.key)}" ${i.key === this.monInst ? 'selected' : ''}>${esc(i.label)}</option>`).join('')}</select></label>` : '<span class="muted" style="font-size:var(--t-13)">not called yet: add CALL ' + esc(cur.name) + ' in the main program</span>'}<button class="btn small" data-blk-del style="color:var(--danger)">Delete block</button></span></div>
           <div class="blk-row"><label>Kind <select data-bkind><option value="FB" ${isFC ? '' : 'selected'}>${esc(BR.fb)} (with memory)</option><option value="FC" ${isFC ? 'selected' : ''}>${esc(BR.fc)} (no memory)</option></select></label><label>Name <input data-bname value="${esc(cur.name)}" class="mono"></label><label style="flex:1">Comment <input data-bcom value="${esc(cur.comment || '')}" placeholder="what the block does"></label></div>
           <table class="blk-params"><tr><th>Dir</th><th>Name</th><th>Type</th><th>Comment</th><th></th></tr>${cur.params.map((pp, k) => `<tr data-pk="${k}"><td><select data-pf="dir">${['IN', 'OUT', 'INOUT'].map((d) => `<option value="${d}" ${d === pp.dir ? 'selected' : ''}>${esc(BR.dirs[d])}</option>`).join('')}</select></td><td><input data-pf="name" class="mono" value="${esc(pp.name)}"></td><td><select data-pf="type">${['BOOL', 'INT'].map((d) => `<option ${d === pp.type ? 'selected' : ''}>${d}</option>`).join('')}</select></td><td><input data-pf="comment" value="${esc(pp.comment || '')}"></td><td><button class="btn small ghost" data-pdel>✕</button></td></tr>`).join('')}</table>
-          <div class="row"><button class="btn small" data-padd>+ Parameter</button><span class="muted" style="font-size:.8rem">${isFC ? 'Any other #name you use inside is ' + esc(BR.temp) + ': it is cleared at every call, so an FC cannot remember anything (no latches, timers or edges inside: use an FB for that).' : 'Any other #name you use inside (e.g. #Latch, #Delay) is ' + esc(BR.stat) + ' memory: every ' + esc(BR.inst.split(' (')[0].toLowerCase()) + ' gets its own copy.'}</span></div>
+          <div class="row"><button class="btn small" data-padd>+ Parameter</button><span class="muted" style="font-size:var(--t-13)">${isFC ? 'Any other #name you use inside is ' + esc(BR.temp) + ': it is cleared at every call, so an FC cannot remember anything (no latches, timers or edges inside: use an FB for that).' : 'Any other #name you use inside (e.g. #Latch, #Delay) is ' + esc(BR.stat) + ' memory: every ' + esc(BR.inst.split(' (')[0].toLowerCase()) + ' gets its own copy.'}</span></div>
           <div class="hint blk-brand-note"><b>${esc(BR.name)}:</b> ${esc(BR.note)}</div></div>`;
       }
       const dbc = this.dbSel != null && (this.prog.dbs || []).find((d) => d.num === this.dbSel);
@@ -1677,8 +1677,8 @@
         };
         html += `<div class="card blk-iface"><div class="row" style="justify-content:space-between;gap:8px"><span class="eyebrow">Data block · ${esc((LL.BRANDS[S.brand] || LL.BRANDS.ll).name)}: ${esc({ ll: 'global DB', tia: 'global data block (DB) with a PLC data type', rk: 'controller tags of a user-defined data type (UDT)', cds: 'GVL with a STRUCT (DUT)', sch: 'GVL with a STRUCT (DUT)', tc: 'GVL with a STRUCT (DUT)', om: 'global variable of a structure data type' }[S.brand] || 'global DB')}</span><button class="btn small" data-db-del style="color:var(--danger)">Delete DB</button></div>
           <div class="blk-row"><label>Number <input data-dbnum class="mono" value="${dbc.num}" style="width:70px"></label><label>Name <input data-dbname class="mono" value="${esc(dbc.name)}"></label><label style="flex:1">Comment <input data-dbcom value="${esc(dbc.comment || '')}"></label></div>
-          <table class="blk-params"><tr><th>Field</th><th>Type</th><th>Array</th><th>Start values</th><th>Now</th><th>Comment</th><th></th></tr>${dbc.fields.map((f, k) => `<tr data-fk="${k}"><td><input data-ff="name" class="mono" value="${esc(f.name)}"></td><td><select data-ff="type">${['BOOL', 'INT', 'DINT', 'STRING'].map((t) => `<option ${t === f.type ? 'selected' : ''}>${t}</option>`).join('')}</select></td><td><input data-ff="range" class="mono" placeholder="e.g. 1..3" value="${f.lo != null ? f.lo + '..' + f.hi : ''}" style="width:70px"></td><td><input data-ff="init" class="mono" placeholder="${f.lo != null ? '500,300,800' : '0'}" value="${esc((f.init || []).join(','))}"></td><td class="mono muted" style="font-size:.78rem;white-space:nowrap">${esc(cur2(f))}</td><td><input data-ff="comment" value="${esc(f.comment || '')}"></td><td><button class="btn small ghost" data-fdel>✕</button></td></tr>`).join('')}</table>
-          <div class="row"><button class="btn small" data-fadd>+ Field</button><span class="muted" style="font-size:.8rem">Use it in the ladder as <b>DB${dbc.num}.NAME</b>, or for an array <b>DB${dbc.num}.NAME[2]</b> / <b>DB${dbc.num}.NAME[MW30]</b> (the index from a word). Start values are loaded at every download.</span></div></div>`;
+          <table class="blk-params"><tr><th>Field</th><th>Type</th><th>Array</th><th>Start values</th><th>Now</th><th>Comment</th><th></th></tr>${dbc.fields.map((f, k) => `<tr data-fk="${k}"><td><input data-ff="name" class="mono" value="${esc(f.name)}"></td><td><select data-ff="type">${['BOOL', 'INT', 'DINT', 'STRING'].map((t) => `<option ${t === f.type ? 'selected' : ''}>${t}</option>`).join('')}</select></td><td><input data-ff="range" class="mono" placeholder="e.g. 1..3" value="${f.lo != null ? f.lo + '..' + f.hi : ''}" style="width:70px"></td><td><input data-ff="init" class="mono" placeholder="${f.lo != null ? '500,300,800' : '0'}" value="${esc((f.init || []).join(','))}"></td><td class="mono muted" style="font-size:var(--t-13);white-space:nowrap">${esc(cur2(f))}</td><td><input data-ff="comment" value="${esc(f.comment || '')}"></td><td><button class="btn small ghost" data-fdel>✕</button></td></tr>`).join('')}</table>
+          <div class="row"><button class="btn small" data-fadd>+ Field</button><span class="muted" style="font-size:var(--t-13)">Use it in the ladder as <b>DB${dbc.num}.NAME</b>, or for an array <b>DB${dbc.num}.NAME[2]</b> / <b>DB${dbc.num}.NAME[MW30]</b> (the index from a word). Start values are loaded at every download.</span></div></div>`;
       }
       bar.innerHTML = html;
       const bs = $('[data-brand]', bar); if (bs) bs.onchange = () => { S.brand = bs.value; save(); this.refresh(); toast('Block names shown as ' + LL.BRANDS[bs.value].name); };
@@ -1708,7 +1708,7 @@
       }
       const nb = $('[data-blk-new]', bar);
       if (nb) nb.onclick = () => {
-        const m = modal('New block', `<p class="muted" style="margin:0 0 10px">A block is a piece of ladder you write once and call many times, each call with its own inputs, outputs and memory (an FB with an instance in TIA Portal, an Add-On Instruction in Studio 5000, a function block in CODESYS).</p><div class="field"><label for="nbk">Kind</label><select id="nbk"><option value="FB">${esc(BR.fbLong)}</option><option value="FC">${esc(BR.fcLong)}</option></select></div><div class="field"><label for="nbn">Block name</label><input id="nbn" class="mono" value="FB_${blocks.length ? 'Block' + (blocks.length + 1) : 'Motor'}"></div><p class="muted" style="font-size:.85rem;margin:6px 0 0">Rule of thumb: if the block must remember anything from one scan to the next (a latch, a timer, an edge, a counter), it is an FB. If it only calculates its outputs from its inputs, an FC is enough.</p>`, [{ label: 'Cancel' }, { label: 'Create', cls: 'primary', run: (mm) => {
+        const m = modal('New block', `<p class="muted" style="margin:0 0 10px">A block is a piece of ladder you write once and call many times, each call with its own inputs, outputs and memory (an FB with an instance in TIA Portal, an Add-On Instruction in Studio 5000, a function block in CODESYS).</p><div class="field"><label for="nbk">Kind</label><select id="nbk"><option value="FB">${esc(BR.fbLong)}</option><option value="FC">${esc(BR.fcLong)}</option></select></div><div class="field"><label for="nbn">Block name</label><input id="nbn" class="mono" value="FB_${blocks.length ? 'Block' + (blocks.length + 1) : 'Motor'}"></div><p class="muted" style="font-size:var(--t-14);margin:6px 0 0">Rule of thumb: if the block must remember anything from one scan to the next (a latch, a timer, an edge, a counter), it is an FB. If it only calculates its outputs from its inputs, an FC is enough.</p>`, [{ label: 'Cancel' }, { label: 'Create', cls: 'primary', run: (mm) => {
           const kind = $('#nbk', mm).value;
           let nm = $('#nbn', mm).value.trim();
           if (kind === 'FC') nm = nm.replace(/^FB_/, 'FC_');
@@ -1873,7 +1873,7 @@
           show(pick);
           break;
         }
-        case 'rk': modal('Studio 5000 rung text', `<p class="muted" style="margin:0 0 10px">The same ladder in Rockwell's rung text (XIC = NO contact, XIO = NC contact, OTE = coil, OTL / OTU = set / reset, [ , ] = a parallel branch). Logix Designer shows it when you edit a rung as text, and you can paste a rung into it. See the lesson "From Ladder Lab to the real software".</p><pre>${esc(LL.toRockwell(Object.assign({}, this.prog, { tags: this.tags() })))}</pre>`, [{ label: 'Close' }]); break;
+        case 'rk': modal('Studio 5000 rung text', `<p class="muted" style="margin:0 0 10px">The same ladder in Rockwell's rung text (XIC = NO contact, XIO = NC contact, OTE = coil, OTL / OTU = set / reset, [ , ] = a parallel branch). Logix Designer shows it when you edit a rung as text, and you can paste a rung into it. See the lesson "From PLC Start to the real software".</p><pre>${esc(LL.toRockwell(Object.assign({}, this.prog, { tags: this.tags() })))}</pre>`, [{ label: 'Close' }]); break;
         case 'st': modal('Structured Text', `<p class="muted" style="margin:0 0 10px">The same logic written as IEC 61131-3 Structured Text, as in CODESYS. Reading both side by side is a great way to learn.</p><pre>${esc(LL.toST(Object.assign({}, this.prog, { tags: this.tags() })))}</pre>`, [{ label: 'Close' }]); break;
         case 'file': this.fileMenu(); break;
         case 'xref': if (LL.LabTools) LL.LabTools.xref(this, modal); break;
@@ -1951,7 +1951,7 @@
       }
       if (s.kind === 'rung') {
         const r = this.E.rungs[s.i];
-        box.innerHTML = `<div class="ih"><h3>${this.blk ? esc(this.blk) + ' · ' : ''}Rung ${s.i + 1}</h3><span class="muted" style="font-size:.85rem">${r.rows} row${r.rows > 1 ? 's' : ''}</span></div>
+        box.innerHTML = `<div class="ih"><h3>${this.blk ? esc(this.blk) + ' · ' : ''}Rung ${s.i + 1}</h3><span class="muted" style="font-size:var(--t-14)">${r.rows} row${r.rows > 1 ? 's' : ''}</span></div>
           <div class="field"><label for="rc">Comment: say why this rung exists</label><input id="rc" value="${esc(r.comment)}" placeholder="e.g. Motor start/stop latch"></div>
           <div class="row"><button class="btn small" data-a="r-above">+ Rung above</button><button class="btn small" data-a="r-add">+ Rung below</button><button class="btn small" data-a="r-row">+ Branch row</button><button class="btn small" data-a="r-unrow">− Last row</button><button class="btn small" data-a="r-up">↑</button><button class="btn small" data-a="r-down">↓</button><button class="btn small" data-a="r-dup">Duplicate</button><button class="btn small" data-a="r-del" style="color:var(--danger)">Delete rung</button></div>`;
         $('#rc', box).oninput = (e) => { r.comment = e.target.value; clearTimeout(this._ct); this._ct = setTimeout(() => this.commit(), 400); };
@@ -2002,7 +2002,7 @@
         const blocks = this.prog.blocks || [];
         if (blocks.length && !blocks.some((x) => x.name === cell.block)) { const first = blocks.find((x) => x.name !== this.blk); if (first) cell.block = first.name; }
         const b = blocks.find((x) => x.name === cell.block);
-        fields += `<div class="field"><label for="f-blk">Block</label><select id="f-blk" data-call="block">${blocks.length ? '' : '<option value="">(no blocks yet: create one with + Block)</option>'}${blocks.filter((x) => x.name !== this.blk).map((x) => `<option ${x.name === cell.block ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>${b && b.kind === 'FC' ? `<p class="muted" style="font-size:.85rem;margin:0">${esc(b.name)} is an ${esc((LL.BRANDS[S.brand] || LL.BRANDS.ll).fc)}: no instance, no memory. Just connect the parameters.</p>` : `<div class="field"><label for="f-inst">${esc((LL.BRANDS[S.brand] || LL.BRANDS.ll).inst)}</label><input id="f-inst" class="mono" data-call="inst" value="${esc(cell.inst)}"></div>`}`;
+        fields += `<div class="field"><label for="f-blk">Block</label><select id="f-blk" data-call="block">${blocks.length ? '' : '<option value="">(no blocks yet: create one with + Block)</option>'}${blocks.filter((x) => x.name !== this.blk).map((x) => `<option ${x.name === cell.block ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>${b && b.kind === 'FC' ? `<p class="muted" style="font-size:var(--t-14);margin:0">${esc(b.name)} is an ${esc((LL.BRANDS[S.brand] || LL.BRANDS.ll).fc)}: no instance, no memory. Just connect the parameters.</p>` : `<div class="field"><label for="f-inst">${esc((LL.BRANDS[S.brand] || LL.BRANDS.ll).inst)}</label><input id="f-inst" class="mono" data-call="inst" value="${esc(cell.inst)}"></div>`}`;
         if (b) b.params.forEach((pp) => { fields += `<div class="field"><label>${pp.dir} ${esc(pp.name)} <span class="muted">${pp.type}${pp.comment ? ' · ' + esc(pp.comment) : ''}</span></label><input class="mono" data-arg="${esc(pp.name)}" data-ptype="${pp.type}" data-pdir="${pp.dir}" value="${esc((cell.args || {})[pp.name] || '')}" placeholder="${pp.type === 'INT' ? 'MW10, AIW0, 100 …' : pp.dir === 'IN' ? 'I0.0, M0.1 …' : 'Q0.0, M0.1 …'}"></div>`; });
       } else if (LL.STRING_OPS.includes(T)) {
         const fld = (f, label) => `<div class="field"><label for="f-${f}">${label}</label><input id="f-${f}" class="mono" data-f="${f}" value="${esc(cell[f])}"></div>`;
@@ -2017,7 +2017,7 @@
           : T === 'MC_ABS' || T === 'MC_REL' ? `<div class="field"><label for="f-a">${T === 'MC_ABS' ? 'Position (mm)' : 'Distance (mm, negative = backwards)'}</label><input id="f-a" class="mono" data-f="a" value="${esc(cell.a)}"></div><div class="field"><label for="f-b">Velocity (mm/s)</label><input id="f-b" class="mono" data-f="b" value="${esc(cell.b)}"></div>`
           : T === 'MC_JOG' ? `<div class="field"><label for="f-a">Velocity (mm/s, negative = backwards)</label><input id="f-a" class="mono" data-f="a" value="${esc(cell.a)}"></div>`
           : T === 'MC_SETPOS' ? `<div class="field"><label for="f-a">Position value to set (mm)</label><input id="f-a" class="mono" data-f="a" value="${esc(cell.a)}"></div>` : '';
-        fields += tagF + axSel + extra + `<p class="muted" style="font-size:.82rem;margin:4px 0 0">Read the axis with AX0.POS (mm), AX0.VEL, AX0.ON, AX0.HOMED, AX0.MOVING, AX0.ERR.</p>`;
+        fields += tagF + axSel + extra + `<p class="muted" style="font-size:var(--t-13);margin:4px 0 0">Read the axis with AX0.POS (mm), AX0.VEL, AX0.ON, AX0.HOMED, AX0.MOVING, AX0.ERR.</p>`;
         if (T === 'MC_HOME') chips = this.quickChips('src', inputs);
       } else if (T === 'PID') {
         fields += `<div class="field"><label for="f-a">PV: measured value (word)</label><input id="f-a" class="mono" data-f="a" value="${esc(cell.a)}"></div><div class="field"><label for="f-b">SP: setpoint (word, same units)</label><input id="f-b" class="mono" data-f="b" value="${esc(cell.b)}"></div><div class="field"><label for="f-dst">OUT: 0 … 27648 = 0 … 100 %</label><input id="f-dst" class="mono" data-f="dst" value="${esc(cell.dst)}"></div><div class="field"><label for="f-kp">Kp: % output per unit of error</label><input id="f-kp" type="number" step="0.01" min="0.001" data-f="kp" value="${cell.kp}"></div><div class="field"><label for="f-ti">Ti: integral time in s (0 = no I)</label><input id="f-ti" type="number" step="0.1" min="0" data-f="ti" value="${cell.ti}"></div><div class="field"><label for="f-td">Td: derivative time in s (0 = no D)</label><input id="f-td" type="number" step="0.05" min="0" data-f="td" value="${cell.td}"></div>`;
@@ -2039,7 +2039,7 @@
         else if (T === 'BCD_I') { fields += fld('src', 'BCD word') + res('(word)'); note = '16#1234 becomes 1234, e.g. from a thumbwheel switch. A 4-bit group above 9 is not BCD: then nothing is written.'; }
         else if (T === 'NORM_X' || T === 'SCALE_X') { fields += fld('a', 'MIN') + fld('src', 'VALUE') + fld('b', 'MAX') + res(T === 'NORM_X' ? '(MRn)' : '(MRn or word)'); note = T === 'NORM_X' ? 'VALUE from MIN … MAX (e.g. AIW0, 0 … 27648) becomes 0.0 … 1.0 in a REAL (MR0 … MR99).' : 'VALUE 0.0 … 1.0 (a REAL, e.g. from NORM_X) becomes MIN … MAX. Into a word (MW, AQW) it is rounded.'; }
         else { fields += fld('src', 'Source') + res(T === 'CONV' ? '(other type)' : '(word or MRn)'); note = T === 'CONV' ? 'INT → REAL: MW10 into MR0. REAL → INT: MR0 into MW10, rounded to the nearest (2.5 → 2, 3.5 → 4).' : T === 'ROUND' ? 'Source is a REAL (MR0 or 2.5). 2.4 → 2, 2.6 → 3, x.5 → the even number.' : 'Source is a REAL (MR0 or 2.5). The decimals are cut off: 2.9 → 2, -2.9 → -2.'; }
-        chips = `<p class="muted" style="font-size:.82rem;margin:0 0 6px">${note}${T === 'LIM' || (LL.REAL_OPS || []).includes(T) ? ' MR0 … MR99 hold REAL numbers: write them with a point (100.0).' : ''}</p>` + this.quickChips(T === 'LIM' || T === 'NORM_X' ? 'src' : (LL.WORDLOGIC || []).includes(T) ? 'a' : 'src', words);
+        chips = `<p class="muted" style="font-size:var(--t-13);margin:0 0 6px">${note}${T === 'LIM' || (LL.REAL_OPS || []).includes(T) ? ' MR0 … MR99 hold REAL numbers: write them with a point (100.0).' : ''}</p>` + this.quickChips(T === 'LIM' || T === 'NORM_X' ? 'src' : (LL.WORDLOGIC || []).includes(T) ? 'a' : 'src', words);
       } else if ((LL.FLOW_OPS || []).includes(T) || (LL.FIFO_OPS || []).includes(T)) {
         // jump, label, MCR zone, FIFO / LIFO
         const fld = (f, label) => `<div class="field"><label for="f-${f}">${label}</label><input id="f-${f}" class="mono" data-f="${f}" value="${esc(cell[f])}" autocomplete="off" spellcheck="false"></div>`;
@@ -2049,12 +2049,12 @@
         else if (T === 'MCR') note = 'Use two: the first MCR (with a condition) starts the zone, the second one (alone on its rung) ends it. While the condition is false, the rungs of the zone are solved as FALSE. Not a safety function.';
         else if (T === 'FFL') { fields += fld('src', 'Value to load') + fld('dst', 'Table (MWn)') + fld('n', 'Size (1 … 32)'); note = 'One load on each rising edge. The table MW100 uses MW100 as the count and MW101 … for the data. Full when the count equals the size: test it with a Compare (MW100 >= 8).'; }
         else { fields += fld('src', 'Table (MWn)') + fld('n', 'Size (1 … 32)') + fld('dst', 'Value goes to'); note = (T === 'FFU' ? 'FIFO: the oldest value comes out and the rest moves up.' : 'LIFO: the newest value comes out.') + ' One unload on each rising edge. Empty when the count (the first word) is 0.'; }
-        chips = `<p class="muted" style="font-size:.82rem;margin:0 0 6px">${note}</p>`;
+        chips = `<p class="muted" style="font-size:var(--t-13);margin:0 0 6px">${note}</p>`;
       } else if (LL.MATH.includes(T)) {
         fields += `<div class="field"><label for="f-a">A</label><input id="f-a" class="mono" data-f="a" value="${esc(cell.a)}"></div><div class="field"><label for="f-b">B</label><input id="f-b" class="mono" data-f="b" value="${esc(cell.b)}"></div><div class="field"><label for="f-dst">Result</label><input id="f-dst" class="mono" data-f="dst" value="${esc(cell.dst)}"></div>`;
       }
       const swap = ['NO', 'NC', 'P', 'N'].includes(T) ? ['NO', 'NC', 'P', 'N'] : ['COIL', 'NCOIL', 'SET', 'RST'].includes(T) ? ['COIL', 'NCOIL', 'SET', 'RST'] : null;
-      box.innerHTML = `<div class="ih"><h3>${esc(title)}</h3><span class="muted mono" style="font-size:.8rem">rung ${s.i + 1} · row ${s.r + 1} · col ${s.c + 1}</span></div>
+      box.innerHTML = `<div class="ih"><h3>${esc(title)}</h3><span class="muted mono" style="font-size:var(--t-13)">rung ${s.i + 1} · row ${s.r + 1} · col ${s.c + 1}</span></div>
         <p class="desc">${esc(desc)}</p>
         ${fields ? `<div class="fields">${fields}</div>` : ''}${chips}
         <div class="row">${swap ? swap.map((t) => `<button class="btn small ${t === T ? 'primary' : ''}" data-swap="${t}">${esc((LL.ELEMENT_INFO[t] || [t])[0])}</button>`).join('') : ''}</div>
@@ -2428,7 +2428,7 @@
   function shell() {
     document.body.insertAdjacentHTML('afterbegin', `
       <header class="top"><div class="wrap">
-        <a class="brand" href="#home" aria-label="Ladder Lab home">${BRAND_SVG}<span>Ladder <b>Lab</b></span></a>
+        <a class="brand" href="#home" aria-label="PLC Start home">${BRAND_SVG}<span>PLC <b>Start</b></span></a>
         <nav class="nav"><a data-tab="learn" href="#learn">Learn</a><a data-tab="lab" href="#lab">Lab</a><a data-tab="circuits" href="#circuits">Circuits</a><a data-tab="path" href="#path">Path</a><a data-tab="challenges" href="#challenges">Challenges</a><a data-tab="quiz" href="#quiz">Quiz</a><a href="#glossary">Glossary</a></nav>
         <span class="spacer"></span><span class="xp"></span>
         <a class="iconbtn srch-btn" data-tab="search" href="#search" aria-label="Search" title="Search (key /)">${I.search}</a>
