@@ -413,7 +413,7 @@
       <div class="ec-card ec-task"><h2>${esc(task.title)}</h2><div class="ec-brief">${task.brief}</div><div class="ec-hints"></div>
         <div class="ec-acts">${task.tests.length ? '<button class="btn go" data-a="tests">✓ Run tests</button>' : ''}${task.hints.length ? '<button class="btn" data-a="hint">Hint</button>' : ''}${task.solution ? '<button class="btn ghost" data-a="sol">Solution</button>' : ''}</div>
         <div class="results" style="margin-top:10px"></div></div>
-      <div class="ec-bar"><button class="btn primary ec-go" data-a="power">⚡ Power on</button><button class="btn" data-a="mcb" hidden>Reset breaker F1</button><button class="btn small" data-a="undo">Undo</button><button class="btn small ghost" data-a="clear">Clear</button><div class="ec-status"></div></div>
+      <div class="ec-bar"><button class="btn primary ec-go" data-a="power">${LL.SYM.bolt} Power on</button><button class="btn" data-a="mcb" hidden>Reset breaker F1</button><button class="btn small" data-a="undo">Undo</button><button class="btn small ghost" data-a="clear">Clear</button><div class="ec-status"></div></div>
       <div class="ec-sheets${hasPow ? '' : ' solo'}">
         <section class="ec-sheet ec-pow"${hasPow ? '' : ' hidden'}><header><span>Power circuit</span><small>${SUPPLY[task.scn] || '3 × 400 V'} · ${esc(SCNNAME[task.scn])}</small></header><div class="ec-paper ec-m"></div><div class="ec-fault" hidden></div><div class="ec-read"></div><div class="ec-pwq ec-ppal" hidden></div><div class="ec-pwq ec-pwc" hidden></div></section>
         <section class="ec-sheet ec-ctl"><header><span>Control circuit</span><small>230 V AC · you build this</small></header><div class="ec-paper ec-svg edit"></div>
@@ -531,7 +531,7 @@
       if (!hasPow) return;
       const st = sim ? sim.st : EC.SCN[task.scn].init(), r = powerSvg(task.scn, st, sim ? sim.D : {}, circ.pw || {}, ang, { build: !!task.pbuild, edit: !sim, need: (task.power || []).map((q) => q.k), task });
       $('.ec-m').innerHTML = r.svg; $('.ec-read').innerHTML = r.read.map((x) => `<span>${esc(x)}</span>`).join('') || '<span style="color:var(--muted)">Power on to see it work</span>';
-      const f = $('.ec-fault'); f.hidden = !st.fault; f.textContent = st.fault ? '⚠ ' + st.fault : '';
+      const f = $('.ec-fault'); f.hidden = !st.fault; f.innerHTML = st.fault ? LL.SYM.warn + ' ' + esc(st.fault) : '';
     }
 
     // ── live ──
@@ -556,7 +556,7 @@
     function power(on) {
       if (on) { sim = new EC.Sim(circ, task); lastSig = ''; lastT = performance.now(); timer = setInterval(frame, 50); }
       else { sim = null; clearInterval(timer); timer = 0; status(EC.isEmpty(circ) ? 'Pick a part in the parts box, then tap a cell. Current runs from L (top) to N (bottom).' : 'Edit mode. Pick a part and tap a cell, or tap a dot between two paths to link them. Then Power on.'); }
-      const b = $('[data-a="power"]'); b.textContent = on ? '■ Power off (edit)' : '⚡ Power on'; b.classList.toggle('primary', !on);
+      const b = $('[data-a="power"]'); b.innerHTML = on ? '■ Power off (edit)' : LL.SYM.bolt + ' Power on'; b.classList.toggle('primary', !on);
       svgBox.classList.toggle('edit', !on); $('.ec-pal').hidden = on; $('.ec-door').hidden = !on; $('[data-a="mcb"]').hidden = true;
       $('[data-a="undo"]').hidden = on; $('[data-a="clear"]').hidden = on;
       draw(); pwq(); if (on) { door(); frame(); } else { palette(); lint(); machine(); }

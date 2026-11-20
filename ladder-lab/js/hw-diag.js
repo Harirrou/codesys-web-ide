@@ -579,7 +579,7 @@
       }).join('');
       h += mod('#2160c4', '#fff', B.ai, `${L('g', 'RUN')}${L(H.aiBad ? 'r blink' : '', 'ERR')}<span class="hwd-ain">${aiRows}</span>`, b === 'tia' ? 'raw / ch' : 'mA / ch', 'ai', H.aiBad, 'Analog input card' + (H.aiBad ? ': channel 2 in fault' : ': OK'));
       h += '</div></div>';
-      h += `<div class="hwd-cable${H.remLost ? ' lost' : ''}" aria-hidden="true"><span>${esc(B.net)}</span>${H.remLost ? '<i class="hwd-cut">✂</i>' : ''}</div>`;
+      h += `<div class="hwd-cable${H.remLost ? ' lost' : ''}" aria-hidden="true"><span>${esc(B.net)}</span>${H.remLost ? '<i class="hwd-cut">✕</i>' : ''}</div>`;
       h += `<div class="hwd-st"><small>Remote station 3 · ${esc(B.rem)}</small><div class="hwd-rack">`;
       const lost = H.remLost;
       h += mod('#4b5966', '#fff', esc(B.im), `<span class="hwd-port${lost ? ' lost' : ''}" aria-hidden="true"></span>${L(lost ? '' : 'g', 'LINK')}${L(lost ? 'r' : '', b === 'rockwell' ? 'NET' : b === 'tia' ? 'BF' : 'ERR')}${L(lost ? '' : 'g', 'RUN')}`, 'adapter', 'im', lost, 'Remote station adapter' + (lost ? ': bus fault, no connection' : ': OK'));

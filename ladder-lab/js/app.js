@@ -49,9 +49,22 @@
   const BRAND_SVG = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="7" fill="var(--ink)"/><path d="M8 7v18M24 7v18" stroke="var(--surface)" stroke-width="2.4" stroke-linecap="round"/><path d="M8 12h4M15 12h3M20.5 12H24" stroke="var(--power-bright)" stroke-width="2.4" stroke-linecap="round"/><path d="M12 9v6M15 9v6" stroke="var(--power-bright)" stroke-width="2.2"/><circle cx="19.3" cy="12" r="1.9" fill="none" stroke="var(--power-bright)" stroke-width="1.8"/><path d="M8 20h16" stroke="var(--surface)" stroke-opacity=".45" stroke-width="2" stroke-linecap="round"/></svg>';
 
   // ───────────────────────── theme ─────────────────────────
+  // the Android app paints the area behind the system bars in the colour of our top bar
+  function syncBars() {
+    const A = window.LLAndroid;
+    if (!A || typeof A.bars !== 'function') return;
+    try {
+      const c = document.createElement('canvas').getContext('2d');
+      c.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#ffffff';
+      const hex = c.fillStyle, n = parseInt(hex.slice(1), 16); // the canvas turns any CSS colour into #rrggbb
+      if (!/^#[0-9a-f]{6}$/i.test(hex)) return;
+      A.bars(hex, (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) < 128);
+    } catch (e) { /* no canvas: the app keeps its own colour */ }
+  }
   function applyTheme() {
     if (S.theme) document.documentElement.setAttribute('data-theme', S.theme);
     else document.documentElement.removeAttribute('data-theme');
+    syncBars();
     PT = null;
   }
   function isDark() {
@@ -72,7 +85,7 @@
     };
     return PT;
   }
-  if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener && matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { PT = null; });
+  if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener && matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { PT = null; syncBars(); });
 
   // ───────────────────────── toast / modal ─────────────────────────
   let toastT = 0;
@@ -942,7 +955,7 @@
     tasks.forEach((c) => {
       const t = chKind(c), plain = c.brief.replace(/<[^>]+>/g, '');
       // kind chips (no chip when the title already says it, or starts with its icon)
-      const tags = [t.st ? 'ST' : '', t.bug && !/bug hunt|^🐞/i.test(c.title) ? '🐞 bug hunt' : '', c.kind === 'diagnose' && !/fault finding|^🔧/i.test(c.title) ? '🔧 fault finding' : ''].filter(Boolean).map((x) => `<span class="chip">${x}</span>`).join('');
+      const tags = [t.st ? 'ST' : '', t.bug && !/bug hunt/i.test(c.title) ? 'bug hunt' : '', c.kind === 'diagnose' && !/fault finding/i.test(c.title) ? 'fault finding' : ''].filter(Boolean).map((x) => `<span class="chip">${x}</span>`).join('');
       const state = S.ch[c.id] ? '<span class="chip ok">✓ passed</span>' : S.chTried[c.id] ? '<span class="chip">in progress</span>' : '';
       $('.tp-tasks', el).appendChild(h(`<a class="card ch-card tp-task" href="#ch-${c.id}"><div class="top-line"><span class="eyebrow">Level ${c.level} · ${esc(LL.Plants[c.plant].name)}</span>${state}</div><h4>${esc(c.title)}</h4><p>${esc(plain.length > 140 ? plain.slice(0, 138) + '…' : plain)}</p>${tags ? `<div class="tp-tags">${tags}</div>` : ''}</a>`));
     });
@@ -1043,7 +1056,7 @@
     const el = h(`<div class="wrap"><span class="plate">Practice</span><h1 style="margin:10px 0 6px">Challenges &amp; exercises</h1><p class="muted" style="margin:0 0 14px;max-width:64ch">Each task gives you a machine and a job. Build the program, try it by hand, then press <b>Run tests</b>: the checker presses buttons, waits and checks the outputs like a commissioning engineer. Stuck? Hints first, solution last. <b>${passed}/${total}</b> passed.</p>
       <div class="path-banner">${LL.PATHS.map((P) => { const ps = pathState(P); return `<a class="card" href="#path-${P.id}"><span class="eyebrow">Guided path</span><b>${esc(P.title)}</b><div class="meter"><i style="width:${Math.round((ps.done / P.all.length) * 100)}%"></i></div><span class="muted">${ps.done}/${P.all.length} · ${ps.next ? 'next: ' + esc(ps.next.title) : 'complete'}</span></a>`; }).join('')}</div>
       <div class="filters" role="group" aria-label="Filter"></div><div class="lv"></div></div>`);
-    const F = [['all', 'All'], ['ld', 'Ladder'], ['st', 'Structured Text'], ['bug', '🐞 Bug hunts'], ['project', 'Projects'], ['todo', 'Not passed yet']];
+    const F = [['all', 'All'], ['ld', 'Ladder'], ['st', 'Structured Text'], ['bug', 'Bug hunts'], ['project', 'Projects'], ['todo', 'Not passed yet']];
     const cur = S.chFilter || 'all';
     const fl = $('.filters', el);
     F.forEach(([k, l]) => {
@@ -2271,7 +2284,7 @@
       const f = this.pst.fault ? 'Machine fault: ' + this.pst.fault : this.m.error ? 'PLC in STOP · ' + this.m.error : '';
       if (fh._f !== f) {
         fh._f = f;
-        fh.innerHTML = f ? `<div class="fault-banner"><span>⚠ ${esc(f)}</span><button class="btn small" data-a="reset">Reset</button></div>` : '';
+        fh.innerHTML = f ? `<div class="fault-banner"><span>${LL.SYM.warn} ${esc(f)}</span><button class="btn small" data-a="reset">Reset</button></div>` : '';
       }
     }
 
@@ -2378,6 +2391,7 @@
     else if (tab === 'search') { let q = hsh.slice(7); try { q = decodeURIComponent(q); } catch (e) { /* keep it raw */ } pageSearch(q); }
     else if (isTopic) pageTopic(hsh.slice(6));
     else pageHome();
+    if (window.LLAndroid && typeof window.LLAndroid.nav === 'function') window.LLAndroid.nav(); // who owns the back gesture now
     const d = countDone();
     const xp = $('.xp'); if (xp) xp.textContent = d.l + '/' + LL.LESSONS.length + ' lessons · ' + d.c + '/' + LL.CHALLENGES.length + ' challenges';
     // Back / Forward: the remembered place; a new page: the top, or for #topics (Home) "Explore by topic"

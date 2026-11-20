@@ -100,7 +100,7 @@
   D.fault = function (c, th, msg) {
     if (!msg) return;
     c.fillStyle = th.red; D.rr(c, 20, 300, 600, 44, 8); c.fill();
-    D.text(c, '⚠ ' + msg, 320, 322, { size: 13, weight: 700, color: '#fff' });
+    D.text(c, msg, 320, 322, { size: 13, weight: 700, color: '#fff' });
   };
 
   // ───────────────────────── trainer panel ─────────────────────────
@@ -394,9 +394,17 @@
       D.text(c, 'Q0.0 / Q0.1 / Q0.2', 300, 10 + 2, { size: 9, mono: true, color: th.muted });
       // ped head
       c.fillStyle = th.bezel; D.rr(c, 430, 270, 70, 60, 8); c.fill();
-      D.text(c, '🚶', 450, 300, { size: 22, color: Q['Q0.3'] ? th.green : th.lampOff });
-      D.text(c, '✋', 482, 300, { size: 22, color: Q['Q0.4'] ? th.red : th.lampOff });
       c.globalAlpha = Q['Q0.3'] ? 1 : 0.15; c.fillStyle = th.green; c.beginPath(); c.arc(450, 300, 14, 0, 7); c.fill(); c.globalAlpha = Q['Q0.4'] ? 1 : 0.15; c.fillStyle = th.red; c.beginPath(); c.arc(482, 300, 14, 0, 7); c.fill(); c.globalAlpha = 1;
+      // the two figures of a pedestrian signal: walking and standing, drawn (no emoji)
+      const ped = (x, walk, lit) => {
+        c.save(); c.strokeStyle = c.fillStyle = lit ? th.bezel : th.lampOff; c.lineWidth = 2.4; c.lineCap = 'round';
+        c.beginPath(); c.arc(x, 291, 2.6, 0, 7); c.fill();
+        c.beginPath(); c.moveTo(x, 295); c.lineTo(x, 302);
+        if (walk) { c.moveTo(x, 302); c.lineTo(x - 4.5, 309); c.moveTo(x, 302); c.lineTo(x + 4.5, 309); c.moveTo(x - 4, 299.5); c.lineTo(x + 4.5, 297); }
+        else { c.moveTo(x - 1.7, 302); c.lineTo(x - 1.7, 309); c.moveTo(x + 1.7, 302); c.lineTo(x + 1.7, 309); c.moveTo(x - 4.2, 296.5); c.lineTo(x - 4.2, 302); c.moveTo(x + 4.2, 296.5); c.lineTo(x + 4.2, 302); }
+        c.stroke(); c.restore();
+      };
+      ped(450, true, !!Q['Q0.3']); ped(482, false, !!Q['Q0.4']);
       D.text(c, 'WALK', 450, 300, { size: 8, weight: 700, color: '#fff' });
       D.text(c, 'WAIT', 482, 300, { size: 8, weight: 700, color: '#fff' });
       D.text(c, 'Q0.3 / Q0.4', 465, 342, { size: 9, mono: true, color: th.muted });
@@ -964,7 +972,7 @@
       c.fillStyle = th.door; c.fillRect(sx + 14, cy + 10, dw, fh - 20); c.fillRect(sx + sw - 14 - dw, cy + 10, dw, fh - 20);
       c.strokeStyle = th.metalDark; c.lineWidth = 1; c.strokeRect(sx + 14, cy + 10, sw - 28, fh - 20);
       if (st.personT > 0 && st.door > 0.05) { c.fillStyle = th.red; c.beginPath(); c.arc(sx + sw / 2, cy + 22, 5, 0, 7); c.fill(); c.fillRect(sx + sw / 2 - 4, cy + 28, 8, 18); }
-      if (st.over) D.text(c, '⚖', sx + sw / 2, cy + fh / 2, { size: 18, color: th.red });
+      if (st.over) D.text(c, 'OVERLOAD', sx + sw / 2, cy + fh / 2, { size: 10, mono: true, weight: 700, color: th.red });
       // car operating panel
       c.fillStyle = th.panel2; D.rr(c, 380, 20, 96, 240, 10); c.fill(); c.strokeStyle = th.line; c.stroke();
       c.fillStyle = '#0b1220'; D.rr(c, 392, 32, 72, 62, 6); c.fill();
@@ -1913,7 +1921,7 @@
       D.text(c, (+Q['AX0.POS'] || 0).toFixed(1) + ' mm', 344, 52, { size: 20, weight: 800, mono: true, color: '#7CFC9A', align: 'left' });
       D.text(c, Q['M40.2'] ? 'cycle running' : '', 620, 52, { size: 10, mono: true, color: '#7CFC9A', align: 'right' });
       const msg = Q['AX0.MSG'] || Q['MC.MSG'] || '';
-      D.text(c, msg ? '⚠ ' + (msg.length > 52 ? msg.slice(0, 51) + '…' : msg) : 'no messages', 344, 72, { size: 9, mono: true, color: msg ? '#fca5a5' : '#64748b', align: 'left' });
+      D.text(c, msg ? '! ' + (msg.length > 52 ? msg.slice(0, 51) + '…' : msg) : 'no messages', 344, 72, { size: 9, mono: true, color: msg ? '#fca5a5' : '#64748b', align: 'left' });
       this.hmiFields.forEach((f) => {
         c.fillStyle = '#0b1220'; D.rr(c, f.x, f.y, f.w, f.h, 4); c.fill(); c.strokeStyle = '#475569'; c.lineWidth = 1; c.stroke();
         D.text(c, f.label, f.x + 6, f.y + 12, { size: 9, color: '#94a3b8', align: 'left' });
@@ -3355,7 +3363,7 @@
       c.restore();
       c.strokeStyle = st.open ? th.amber : th.metalDark; c.lineWidth = 10; c.beginPath(); c.arc(cx, cy, R + 4, 0, 7); c.stroke();
       if (st.open) D.text(c, 'DOOR OPEN', cx, cy, { size: 14, weight: 800, color: th.amber });
-      D.text(c, st.lock > 0.95 ? '🔒 locked' : 'unlocked', cx, 52, { size: 11, mono: true, weight: 700, color: st.lock > 0.95 ? th.amber : th.muted });
+      D.text(c, st.lock > 0.95 ? 'LOCKED' : 'unlocked', cx, 52, { size: 11, mono: true, weight: 700, color: st.lock > 0.95 ? th.amber : th.muted });
       D.text(c, Math.round(st.water * 100) + '% water · ' + Math.round(st.temp) + ' °C', cx, 300, { size: 12, mono: true, weight: 600, color: th.ink });
       D.text(c, Q['Q0.3'] ? '↺ LEFT' : Q['Q0.4'] ? (Q['Q0.6'] ? '↻ SPIN' : '↻ RIGHT') : '', cx + 140, 60, { size: 12, mono: true, weight: 700, color: th.on, align: 'right' });
       D.sensorDot(c, th, 470, 70, !!I['I0.4'], 'level I0.4');
@@ -4258,7 +4266,7 @@
       c.fillStyle = '#16324a'; D.rr(c, hx + 16, hy + 84, hw - 32, 44, 5); c.fill();
       txt(msg.length > 30 ? msg.slice(0, 29) + '…' : msg, hy + 106, { size: 12, weight: 700, color: '#fff' });
       const alm = Q['MW26'] || 0;
-      if (alm) { c.fillStyle = '#b91c1c'; D.rr(c, hx + 16, hy + 136, hw - 32, 30, 5); c.fill(); txt('⚠ ' + (HMI_ALM[alm] || 'alarm ' + alm), hy + 151, { size: 11, weight: 700, color: '#fff' }); }
+      if (alm) { c.fillStyle = '#b91c1c'; D.rr(c, hx + 16, hy + 136, hw - 32, 30, 5); c.fill(); txt((HMI_ALM[alm] || 'alarm ' + alm), hy + 151, { size: 11, weight: 700, color: '#fff' }); }
       if (!I['I4.0']) {
         txt('Parts  A: ' + (Q['MW24'] || 0) + '  B: ' + (Q['MW25'] || 0) + '  C: ' + (Q['MW27'] || 0), hy + 186, { mono: true });
         if (Q['MW30']) txt('Order: Tool ' + (['—', 'A', 'B', 'C'][Q['MW30']] || '?') + '   ' + (Q['MW31'] || 0) + ' / ' + (Q['MW32'] || 0), hy + 206, { mono: true, color: '#fbbf24' });

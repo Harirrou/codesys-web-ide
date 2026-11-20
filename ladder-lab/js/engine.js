@@ -7,6 +7,17 @@
 (function (G) {
   'use strict';
   const LL = (G.LL = G.LL || {});
+  // Small signs used inside text and on buttons by every module: drawn once here, never as emoji
+  // (an emoji looks different on every phone and breaks the look of a technical drawing).
+  LL.SYM = {
+    warn: '<svg class="sym" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4 21.5 20h-19z"/><path d="M12 10v4.5M12 17.4v.1"/></svg>',
+    bolt: '<svg class="sym" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 2.5 5 13.5h6l-1.5 8L18.5 10h-6z"/></svg>',
+    user: '<svg class="sym" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20.5c1.2-4 4-5.8 7.5-5.8s6.3 1.8 7.5 5.8"/></svg>',
+    sound: '<svg class="sym" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4.5 4.5 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/></svg>',
+    hold: '<svg class="sym" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v9M7.5 7.5 12 12l4.5-4.5"/><path d="M5 16h14v4H5z"/></svg>',
+    bug: '<svg class="sym" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="13.5" rx="4.5" ry="6"/><path d="M9.5 7.8a2.6 2.6 0 0 1 5 0M12 8v11M3.5 13.5h4M16.5 13.5h4M5 7.5l3 2.4M19 7.5l-3 2.4M5 20l3-2.6M19 20l-3-2.6"/></svg>',
+    wrench: '<svg class="sym" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 6.2a4.2 4.2 0 0 0 5.3 5.3L21 12.7 12.7 21l-2.2-2.2 6.3-6.3M14.5 6.2 9.3 11.4 3 17.7 6.3 21"/><path d="M14.5 6.2 17 3.8"/></svg>',
+  };
 
   // ───────────────────────── element catalogue ─────────────────────────
   const LOGIC = ['WIRE', 'NO', 'NC', 'P', 'N', 'NOT', 'CMP', 'LIM'];

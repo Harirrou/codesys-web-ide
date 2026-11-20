@@ -1160,10 +1160,10 @@ CMP(MW0==5) NO(Z up) NC(metal)  MOV(20,MW0)   → to the chute block 20…23, wh
 <h3>The I/O check sheet</h3>
 <div class="tbl"><table>
 <tr><th>Address</th><th>Tag</th><th>Device</th><th>How tested</th><th>OK</th></tr>
-<tr><td>I0.3</td><td>A1</td><td>Reed switch, cylinder A out</td><td>Cylinder A out by hand: I0.3 = 1, back: 0</td><td>✔</td></tr>
-<tr><td>I0.1</td><td>STOP</td><td>Push button, NC</td><td>Not pressed: 1, pressed: 0</td><td>✔</td></tr>
-<tr><td>Q0.1</td><td>Y2</td><td>Valve B</td><td>Force Q0.1: cylinder B goes out</td><td>✔</td></tr>
-<tr><td>AIW0</td><td>LT101</td><td>Level 4–20 mA</td><td>4 / 12 / 20 mA → 0 / 50 / 100 %</td><td>✔</td></tr>
+<tr><td>I0.3</td><td>A1</td><td>Reed switch, cylinder A out</td><td>Cylinder A out by hand: I0.3 = 1, back: 0</td><td>✓</td></tr>
+<tr><td>I0.1</td><td>STOP</td><td>Push button, NC</td><td>Not pressed: 1, pressed: 0</td><td>✓</td></tr>
+<tr><td>Q0.1</td><td>Y2</td><td>Valve B</td><td>Force Q0.1: cylinder B goes out</td><td>✓</td></tr>
+<tr><td>AIW0</td><td>LT101</td><td>Level 4–20 mA</td><td>4 / 12 / 20 mA → 0 / 50 / 100 %</td><td>✓</td></tr>
 </table></div>
 <h3>Typical findings</h3>
 <ul>

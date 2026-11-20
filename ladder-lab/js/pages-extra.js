@@ -52,7 +52,7 @@
       const can = 'speechSynthesis' in window;
       card.innerHTML = `<div class="xo-tag">${esc(cur.t)}${mem[cur.k] != null ? ' · last time: ' + ['not known', 'partly', 'known'][mem[cur.k]] : ''}</div><div class="xo-q">${esc(cur.q)}</div>`
         + (shown ? `<div class="xo-ans"><b>${esc(cur.a)}</b><p>${esc(cur.why)}</p></div><p class="xo-hint">How was your answer?</p><div class="xo-rate"><button class="btn go" data-r="2">I knew it</button><button class="btn" data-r="1">Partly</button><button class="btn" data-r="0">I did not know</button></div>`
-          : `<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><span class="xo-time">0:00</span><span class="xo-hint">Speak now. A good answer takes 20 to 60 seconds.</span></div><div class="xo-rate" style="margin-top:14px"><button class="btn primary" data-a="show">Show the model answer</button>${can ? '<button class="btn" data-a="say">🔊 Read the question to me</button>' : ''}<button class="btn ghost" data-a="skip">Skip</button></div>`);
+          : `<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><span class="xo-time">0:00</span><span class="xo-hint">Speak now. A good answer takes 20 to 60 seconds.</span></div><div class="xo-rate" style="margin-top:14px"><button class="btn primary" data-a="show">Show the model answer</button>${can ? '<button class="btn" data-a="say">${LL.SYM.sound} Read the question to me</button>' : ''}<button class="btn ghost" data-a="skip">Skip</button></div>`);
     }
     page.addEventListener('click', (e) => {
       const t = e.target.closest('button'); if (!t) return;

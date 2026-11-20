@@ -566,7 +566,7 @@
 <button type="button" role="tab" id="${uid}-tout" data-act="mode" data-v="out" data-f="m-out">Output circuit<small>PLC → load</small></button></div>
 <div class="hww-pick" role="tabpanel"></div>
 <div class="hww-stage"><div class="hww-draw"><svg class="hww-svg" role="img" aria-label="Wiring drawing" viewBox="0 0 640 300"></svg></div><p class="hww-swipe">Swipe the drawing sideways to see all of it.</p>
-<div class="hww-run"><button type="button" class="btn go" data-act="power" data-f="power">⚡ Power on</button><span class="hww-step" aria-live="polite"></span></div>
+<div class="hww-run"><button type="button" class="btn go" data-act="power" data-f="power">${LL.SYM.bolt} Power on</button><span class="hww-step" aria-live="polite"></span></div>
 <div class="hww-res" aria-live="polite"></div></div>
 <div class="hww-sec hww-check"></div>
 <div class="hww-cap"><div class="hww-caph"><span class="hww-k" style="margin:0">What happened</span><button type="button" class="hww-more" data-act="more" aria-expanded="false">more ▾</button></div><p role="status" aria-live="polite"></p></div>`;
@@ -617,7 +617,7 @@
     function renderRun() {
       const busy = timers.length > 0;
       const pw = runEl.querySelector('[data-act="power"]');
-      pw.textContent = powered ? (busy ? '⚡ Testing…' : '■ Power off') : '⚡ Power on';
+      pw.innerHTML = powered ? (busy ? LL.SYM.bolt + ' Testing…' : '■ Power off') : LL.SYM.bolt + ' Power on';
       pw.setAttribute('aria-pressed', String(powered));
       pw.disabled = busy;
       let seg = runEl.querySelector('.hww-seg');
@@ -633,7 +633,7 @@
     function renderRes() {
       if (!powered || !res || timers.length) {
         resEl.className = 'hww-res idle';
-        resEl.innerHTML = timers.length ? 'Testing…' : 'Press <b>⚡ Power on</b> to test this wiring: first with the signal ON, then OFF.';
+        resEl.innerHTML = timers.length ? 'Testing…' : 'Press <b>Power on</b> to test this wiring: first with the signal ON, then OFF.';
         return;
       }
       resEl.className = 'hww-res';
@@ -815,7 +815,7 @@
     fit();
     if (window.ResizeObserver) { ro = new ResizeObserver(() => requestAnimationFrame(fit)); ro.observe(root); } else window.addEventListener('resize', fit);
     renderAll();
-    say(restored ? (TASKS.every((t) => c.done[t.id]) ? 'Welcome back: your mission is complete. Try other cards, the 4-wire sensor, or another brand.' : 'Welcome back: your mission progress is saved. Press Set up on the next task.') : 'Start with task 1 below: press Set up, then ⚡ Power on. Or choose any card and device yourself.', 'info');
+    say(restored ? (TASKS.every((t) => c.done[t.id]) ? 'Welcome back: your mission is complete. Try other cards, the 4-wire sensor, or another brand.' : 'Welcome back: your mission progress is saved. Press Set up on the next task.') : 'Start with task 1 below: press Set up, then Power on. Or choose any card and device yourself.', 'info');
     capEl.classList.remove('flash');
   };
 })();

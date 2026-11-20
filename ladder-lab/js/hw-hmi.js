@@ -547,7 +547,7 @@
       if (st.mode === 'edit') sbar.innerHTML = `<b>${S.lvl >= 2 ? LOCK : ''}${SCRN[st.scr]}</b><small>${esc(BR[B()].tool)}</small>`;
       else {
         const s = rt.scr;
-        sbar.innerHTML = `<b>${st.screens[s].lvl >= 2 ? LOCK : ''}${SCRN[s]}</b><select data-user aria-label="Logged-in user">${[1, 2, 3].map((l) => `<option value="${l}"${rt.user === l ? ' selected' : ''}>👤 ${LVS[l]}</option>`).join('')}</select>`;
+        sbar.innerHTML = `<b>${st.screens[s].lvl >= 2 ? LOCK : ''}${SCRN[s]}</b><select data-user aria-label="Logged-in user">${[1, 2, 3].map((l) => `<option value="${l}"${rt.user === l ? ' selected' : ''}>${LVS[l]}</option>`).join('')}</select>`;
       }
     }
     function renderScreen(flashId) {

@@ -521,7 +521,7 @@
 <div class="hwm-head"><h4 class="hwm-title">Measure like an electrician</h4>
 <div class="hwm-seg" role="group" aria-label="PLC brand">${BORDER.map((k) => `<button type="button" data-act="brand" data-b="${k}" data-f="b-${k}">${BR[k].b}</button>`).join('')}</div></div>
 <p class="hwm-intro">A 24 V control circuit with numbered test points, and a multimeter. Turn the dial, then click a point for the <b style="color:var(--hwm-red)">red probe</b> and another point for the <b>black probe</b>. Learn what good readings look like, then find four hidden faults.</p>
-<div class="hwm-rule" role="note"><b>The rule</b><span>⚡ Volts: power <b>ON</b>.</span><span>Ω and beep: power <b>OFF</b>.</span></div>
+<div class="hwm-rule" role="note"><b>The rule</b><span>${LL.SYM.bolt} Volts: power <b>ON</b>.</span><span>Ω and beep: power <b>OFF</b>.</span></div>
 <div class="hwm-tabs" role="tablist" aria-label="Part of the exercise">
 <button type="button" class="hwm-tab" role="tab" id="${uid}-t1" aria-controls="${uid}-p1" data-act="tab" data-t="circ" data-f="tab-circ">1 · Measure the circuit</button>
 <button type="button" class="hwm-tab" role="tab" id="${uid}-t2" aria-controls="${uid}-p2" data-act="tab" data-t="motor" data-f="tab-motor">2 · Motor nameplate</button></div>
@@ -535,7 +535,7 @@
  <div class="hwm-draw"></div><div class="hwm-swipe">The drawing is wide: swipe it sideways. Or use the point buttons under the meter.</div>
  <div class="hwm-mgrid">
   <div class="hwm-dev" role="group" aria-label="Multimeter">
-   <div class="hwm-lcd" aria-hidden="true"><span class="hwm-flags"><i class="auto">AUTO</i><i class="bp">•)))</i><i class="live">⚡ LIVE</i></span><b></b><span class="u"></span></div>
+   <div class="hwm-lcd" aria-hidden="true"><span class="hwm-flags"><i class="auto">AUTO</i><i class="bp">•)))</i><i class="live">${LL.SYM.bolt} LIVE</i></span><b></b><span class="u"></span></div>
    <div class="hwm-dial"><div class="hwm-knob" aria-hidden="true"><i></i></div>${MODES.map((m) => {
       const x = 106 + 74 * Math.sin((m.a * Math.PI) / 180), y = 88 - 62 * Math.cos((m.a * Math.PI) / 180);
       return `<button type="button" class="hwm-mode" style="left:${x.toFixed(0)}px;top:${y.toFixed(0)}px" data-act="mode" data-m="${m.k}" data-f="mode-${m.k}" aria-label="Dial: ${m.l}">${m.t}</button>`;
@@ -637,7 +637,7 @@
       const sw = (el, on, ic, t, sub) => { el.setAttribute('aria-pressed', String(on)); el.innerHTML = `<span class="hwm-knobi" aria-hidden="true">${ic}</span><span><b>${t}</b><small>${sub}</small></span>`; };
       sw($('[data-act="power"]'), S.power, S.power ? 'I' : 'O', 'Main switch -Q1: ' + (S.power ? 'ON' : 'OFF'), S.power ? 'click: switch OFF' : 'click: switch ON');
       sw($('[data-act="estop"]'), S.estop, '', 'E-stop -S1: ' + (S.estop ? 'PRESSED' : 'released'), S.estop ? 'click: release it' : 'click: press it');
-      sw($('[data-act="start"]'), S.start, S.start ? '✋' : '▶', 'START -S2: ' + (S.start ? 'held' : 'not pressed'), S.start ? 'a colleague holds it · click: let go' : 'click: a colleague holds it');
+      sw($('[data-act="start"]'), S.start, S.start ? LL.SYM.hold : '▶', 'START -S2: ' + (S.start ? 'held' : 'not pressed'), S.start ? 'a colleague holds it · click: let go' : 'click: a colleague holds it');
       const sl = drawEl.scrollLeft;
       drawEl.innerHTML = svgCircuit(C);
       drawEl.scrollLeft = sl;

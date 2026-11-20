@@ -911,7 +911,7 @@
         inp.setAttribute('aria-invalid', chk.ok ? 'false' : 'true');
         const net = card.querySelector('[data-v="net"]'), nh = netHTML(ipS, st.mask[k]);
         if (nh) { net.className = 'hwn-net'; net.innerHTML = nh; }
-        else { net.className = 'hwn-net err'; net.textContent = '⚠ ' + cap1(chk.why) + '.'; }
+        else { net.className = 'hwn-net err'; net.innerHTML = LL.SYM.warn + ' ' + esc(cap1(chk.why)) + '.'; }
         if (k === 'hmi') {
           const hp = card.querySelector('input[data-f="hmiplc"]'), T = parseIp(String(st.hmiPlc).trim());
           const okA = !!T && !T.bad && ev.N.plc.ok && T.n === ev.N.plc.n;
@@ -1146,7 +1146,7 @@
       }
       const tmask = st.mask[t], Tn = { n: T.n, mask: tmask };
       const owners = DEVS.filter((k) => k !== 'laptop' && N[k].ok && N[k].n === T.n);
-      if (T.n === Lp.n) return { anim: 'none', lines: [rep('<1ms', 128), rep('<1ms', 128), rep('<1ms', 128), rep('<1ms', 128)], recv: 4, cap: tip + ' is the address of your own laptop, so your laptop answers itself. Give the laptop its own IP.', now: '⚠ Your laptop answered itself.', kind: 'bad' };
+      if (T.n === Lp.n) return { anim: 'none', lines: [rep('<1ms', 128), rep('<1ms', 128), rep('<1ms', 128), rep('<1ms', 128)], recv: 4, cap: tip + ' is the address of your own laptop, so your laptop answers itself. Give the laptop its own IP.', now: 'Your laptop answered itself.', kind: 'bad' };
       if (!local(Lp, Tn)) {
         const tn = ntoa((T.n & maskN(tmask)) >>> 0);
         return { anim: 'local', lines: four('r', 'PING: transmit failed. General failure.'), recv: 0, cap: 'No route: ' + Lp.ip + '/' + Lp.mask + ' is in network ' + ntoa(Lp.net) + '; ' + (t === 'plc' ? 'the PLC' : SHORT[t]) + ' ' + tip + '/' + tmask + ' is in ' + tn + '. Different street — no router.', now: '✕ No route: ' + tip + ' is not on your laptop\'s street, and there is no router.' };
@@ -1170,7 +1170,7 @@
       if (owners.length > 1 || ev.dup.laptop.length) {
         const who = ev.dup.laptop.length ? ['laptop'].concat(ev.dup.laptop) : owners, dip = ev.dup.laptop.length ? Lp.ip : tip;
         const first = !st.seen.acd; st.seen.acd = true;
-        return { anim: 'dup', owners, lines: [rep('=1ms'), rep('=3ms'), ['r', 'Request timed out.'], rep('=1ms')], recv: 3, kind: 'bad', cap: COUNT[who.length] + ' devices answer to ' + dip + ' (' + list(who) + ') — replies get mixed up, connections drop now and then.' + (first ? ' Many industrial devices detect this (Address Conflict Detection): one stops using the address and its network LED turns red.' : ''), now: '⚠ ' + COUNT[who.length] + ' devices answer to ' + dip + ': duplicate IP.' };
+        return { anim: 'dup', owners, lines: [rep('=1ms'), rep('=3ms'), ['r', 'Request timed out.'], rep('=1ms')], recv: 3, kind: 'bad', cap: COUNT[who.length] + ' devices answer to ' + dip + ' (' + list(who) + ') — replies get mixed up, connections drop now and then.' + (first ? ' Many industrial devices detect this (Address Conflict Detection): one stops using the address and its network LED turns red.' : ''), now: COUNT[who.length] + ' devices answer to ' + dip + ': duplicate IP.' };
       }
       const o = owners[0], O = N[o];
       if (!local(O, Lp)) return { anim: 'mask', o, lines: four('r', 'Request timed out.'), recv: 0, cap: 'Request timed out: ' + SHORT[o] + ' got the ping, but with mask /' + O.mask + ' it thinks your laptop is on another street, so the reply never comes back. This is a mask mismatch.', now: '✕ The reply gets lost: mask mismatch.' };
