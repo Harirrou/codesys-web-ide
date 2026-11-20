@@ -147,11 +147,13 @@ outputs:  CMP(MW0==10) COIL(VALVE_A)</pre><p>One word holds the step. Transition
     const A = LL.APP, n = esc(A.name);
     main.appendChild(el(`<div class="wrap xa"><span class="plate">About</span><h1 style="margin:10px 0 6px">About ${n}</h1>
       <p class="xa-lead">${n} teaches PLC ladder logic by doing: lessons, a simulator with machines, tasks with automatic tests, an electrical wiring bench (Circuits), quizzes and calculators.</p>
-      <section><h2>Your data stays on your device</h2><ul>
+      <section><h2>Privacy policy</h2><p><b>Your data stays on your device.</b> This policy is for the app ${n} on Android and on the web.</p><ul>
         <li>No account, no ads, no tracking.</li>
         <li>The app does not send anything to anyone. Nothing about you or about how you use the app is collected.</li>
         <li>Your progress, your programs and your quiz scores are saved only on this device.</li>
         <li>To keep them or to move them to another device: <a href="#home">Home</a>, then <b>Export my work</b>. To delete them: delete the app, or clear the data of this site in your browser.</li>
+        <li>The app asks for no permission on your phone and contains no code from advertising or analytics companies.</li>
+        <li>Questions about privacy: write to the developer. The contact address is on the app's page in Google Play.</li>
       </ul></section>
       <section><h2>For learning only</h2><p>A simulator is not a real machine. Real machines can hurt people. Before you work on one, follow the rules of your workplace, the standards of your country and the instructions of the maker. Values from the calculators help you check and learn: a qualified person must confirm them before anything is ordered or built.</p></section>
       <section><h2>Names of other companies</h2><p>Siemens, SIMATIC, TIA Portal, Rockwell Automation, Allen-Bradley, Studio 5000, CODESYS, Schneider Electric, EcoStruxure, Beckhoff, TwinCAT, Omron, Sysmac, ABB, Mitsubishi Electric and other product names belong to their owners. ${n} is not made, approved or supported by any of them. The names are used only to explain how the same thing is called in each software.</p></section>

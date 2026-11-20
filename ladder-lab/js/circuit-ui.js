@@ -78,9 +78,9 @@
 .ec-lmp{width:38px;height:38px;border-radius:50%;border:4px solid #9aa3ae;background:var(--surface-3);box-shadow:inset 0 2px 5px #0003}.ec-lmp.on{background:radial-gradient(circle at 40% 35%,#fff,var(--lc) 55%);box-shadow:0 0 16px 3px var(--lc)}
 .ec-olb{border:2px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:6px 10px;font:inherit;font-weight:700;font-size:var(--t-13);cursor:pointer;min-height:50px;line-height:1.2}.ec-olb small{display:block;font-weight:500;color:var(--muted);font-size:var(--t-11)}.ec-olb.on{border-color:var(--danger);background:var(--danger-soft)}
 .ec-ind{border:1.5px dashed var(--line);border-radius:var(--r-ctl);padding:6px 10px;font-size:var(--t-12);min-height:50px;display:grid;align-content:center;background:var(--surface)}.ec-ind.on{border-style:solid;border-color:var(--power-bright);background:var(--power-soft)}
-.ec-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin:10px 0 22px}
-.ec-how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0 20px}@media(max-width:760px){.ec-how{grid-template-columns:1fr}}
-.ec-how div{background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-ctl);padding:10px 12px;font-size:var(--t-14);line-height:1.45}.ec-how b{display:block}`;
+.ec-list{columns:2 420px;column-gap:48px;margin:0 0 30px}
+.ec-how{display:block;margin:12px 0 18px;max-width:46rem}
+.ec-how div{padding:3px 0;font-size:var(--t-14);line-height:1.45}.ec-how b{margin-right:6px}`;
   function css() { if (!document.getElementById('ec-css')) { const s = document.createElement('style'); s.id = 'ec-css'; s.textContent = CSS; document.head.appendChild(s); } }
 
   // ───────────── task list ─────────────
@@ -96,7 +96,7 @@
     const box = page.querySelector('.ec-levels');
     Object.keys(LEVELS).forEach((lv) => {
       const ts = EC.TASKS.filter((t) => t.level === +lv); if (!ts.length) return;
-      box.appendChild(el(`<h2 style="margin:6px 0 0">Level ${lv} · ${LEVELS[lv]}</h2>`));
+      box.appendChild(el(`<div class="sec-head" style="margin:26px 0 0"><h2>Level ${lv} · ${LEVELS[lv]}</h2><span class="sec-n">${ts.length}</span></div>`));
       const g = el('<div class="ec-list"></div>');
       ts.forEach((t) => { const p = plain(t.brief); g.appendChild(el(`<a class="card ch-card" href="#circuit-${t.id}"><div class="top-line"><span class="eyebrow">Level ${t.level} · ${esc(SCNNAME[t.scn])}</span>${d.done[t.id] ? '<span class="chip ok">passed</span>' : ''}</div><h4>${esc(t.title)}</h4><p>${esc(p.length > 130 ? p.slice(0, 128) + '…' : p)}</p></a>`)); });
       box.appendChild(g);

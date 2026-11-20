@@ -69,7 +69,7 @@ public class MainActivity extends Activity {
         super.onCreate(state);
         web = new WebView(this);
         frame = new FrameLayout(this);
-        frame.setBackgroundColor(0xFF12202B);
+        frame.setBackgroundColor(0xFF161A1D);
         frame.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(frame);
         frame.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {

@@ -904,26 +904,26 @@
   const CSS = `
 .cx-head p{max-width:68ch;margin:0 0 12px}
 .cx-find{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px}
-.cx-find input{flex:1;min-width:200px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:9px 12px;min-height:42px;font:inherit}
-.cx-chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 6px}
-.cx-chips button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:5px 12px;font:inherit;font-size:var(--t-13);font-weight:600;cursor:pointer;min-height:34px}
-.cx-chips button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
-.cx-grp h2{font-family:var(--f-body);font-size:var(--t-16);letter-spacing:.04em;text-transform:uppercase;margin:22px 0 10px}
-.cx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
-.cx-card{display:block;border:1px solid var(--line);border-radius:var(--r-panel);background:var(--surface);padding:12px 14px;text-decoration:none;color:var(--ink);min-width:0}
-.cx-card:hover{background:var(--surface-2)}
-.cx-card b{display:block;font-size:var(--t-16);line-height:1.3;margin-bottom:4px}
-.cx-card span.cx-d{display:block;color:var(--muted);font-size:var(--t-14);line-height:1.4}
-.cx-lv{display:inline-block;margin-top:8px;font-family:var(--f-mono);font-size:var(--t-11);font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:var(--r-ctl);padding:2px 9px;background:var(--surface-3);color:var(--muted)}
-.cx-lv.l1{background:var(--power-soft);color:var(--power)}
+.cx-find input{flex:1;min-width:200px;border:1px solid var(--edge);background:var(--surface);color:var(--ink);border-radius:var(--r-ctl);padding:9px 12px;min-height:44px;font:inherit}
+.cx-chips{display:flex;gap:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 0 4px;border-bottom:1px solid var(--line)}.cx-chips::-webkit-scrollbar{display:none}
+.cx-chips button{border:0;border-bottom:3px solid transparent;margin-bottom:-1px;background:none;color:var(--muted);padding:0 14px;font:inherit;font-size:var(--t-14);font-weight:500;cursor:pointer;min-height:44px;white-space:nowrap}
+.cx-chips button.on{color:var(--ink);font-weight:600;border-bottom-color:var(--ink)}
+.cx-grp h2{font:600 var(--t-12)/1.3 var(--f-body);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:26px 0 0;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.cx-grid{columns:2 420px;column-gap:48px}
+.cx-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 14px;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line-2);text-decoration:none;color:var(--ink);min-width:0;break-inside:avoid}
+.cx-card:hover{border-bottom-color:var(--ink)}
+.cx-card b{grid-column:1;font-weight:600;line-height:var(--lh-ui)}
+.cx-card span.cx-d{grid-column:1;color:var(--ink-2);font-size:var(--t-14);line-height:1.4}
+.cx-lv{font:500 var(--t-12) var(--f-mono);color:var(--muted);white-space:nowrap}.cx-card .cx-lv{grid-column:2;grid-row:1}
+
 .cx-none{color:var(--muted);margin:18px 0}
 .cx-one{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:14px;align-items:start}
 @media(max-width:860px){.cx-one{display:flex;flex-direction:column;align-items:stretch}.cx-stack{display:contents}.cx-picbox{order:-1}}
 .cx-box{border:1px solid var(--line);border-radius:var(--r-panel);background:var(--surface);padding:14px 16px;min-width:0}
-.cx-box h2{font-family:var(--f-body);font-size:var(--t-14);letter-spacing:.04em;text-transform:uppercase;margin:0 0 10px;color:var(--muted)}
+.cx-box h2{font:600 var(--t-12)/1.3 var(--f-body);letter-spacing:.04em;text-transform:uppercase;margin:0 0 10px;color:var(--muted)}
 .cx-f{display:grid;gap:10px}
 .cx-f label{display:grid;gap:4px;font-size:var(--t-14);font-weight:600;line-height:1.3}
-.cx-in{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--surface-2);overflow:hidden}
+.cx-in{display:flex;align-items:stretch;border:1px solid var(--edge);border-radius:var(--r-ctl);background:var(--surface);overflow:hidden}
 .cx-in input,.cx-in select{flex:1;min-width:0;border:0;background:transparent;color:var(--ink);padding:9px 10px;min-height:42px;font:inherit;font-family:var(--f-mono)}
 .cx-in select{font-family:inherit}
 .cx-in i{font-style:normal;display:flex;align-items:center;padding:0 10px;color:var(--muted);font-size:var(--t-13);border-left:1px solid var(--line);white-space:nowrap}
@@ -934,13 +934,13 @@
 .cx-row span{color:var(--muted);font-size:var(--t-14);line-height:1.35}
 .cx-row b{font-family:var(--f-mono);font-size:var(--t-16);text-align:right;overflow-wrap:anywhere;min-width:0}
 .cx-row b small{font-weight:500;color:var(--muted);font-size:var(--t-13);margin-left:4px}
-.cx-row.big{display:grid;justify-content:start;gap:2px;background:var(--power-soft);border:0;border-radius:var(--r-ctl);padding:12px 14px;margin-bottom:6px}
+.cx-row.big{display:grid;justify-content:start;gap:2px;background:var(--surface-2);border:0;border-left:3px solid var(--ink);border-radius:0;padding:12px 14px;margin-bottom:6px}
 .cx-row.big span{color:var(--ink);font-weight:600}
 .cx-row.big b{font-size:var(--t-24);line-height:1.15;text-align:left}
 .cx-row.big b small{font-size:var(--t-16)}
 .cx-row.bad b{color:var(--danger)}
 .cx-row.ok b{color:var(--power)}
-.cx-row.big.bad{background:var(--danger-soft)}
+.cx-row.big.bad{background:var(--danger-soft);border-left-color:var(--danger)}
 .cx-err{background:var(--danger-soft);border-radius:var(--r-ctl);padding:12px 14px;line-height:1.45}
 .cx-warn{border-left:4px solid #e9a100;background:var(--surface-2);border-radius:var(--r-ctl);padding:9px 12px;margin-top:10px;font-size:var(--t-14);line-height:1.45}
 .cx-how{font-family:var(--f-mono);font-size:var(--t-13);line-height:1.55;background:var(--surface-2);border-radius:var(--r-ctl);padding:10px 12px;overflow-x:auto}
@@ -989,7 +989,7 @@
       const hit = (c) => { const t = (c.t + ' ' + c.d + ' ' + (c.key || '')).toLowerCase(); return words.every((w) => t.includes(w)); };
       const html = GROUPS.filter(([k]) => !listState.g || listState.g === k).map(([k, n]) => {
         const cs = LIST.filter((c) => c.g === k && hit(c));
-        return cs.length ? `<section class="cx-grp"><h2>${esc(n)}</h2><div class="cx-grid">${cs.map((c) => `<a class="cx-card" href="#calc-${c.id}"><b>${esc(c.t)}</b><span class="cx-d">${esc(c.d)}</span><span class="cx-lv l${c.lv}">${LEVELS[c.lv]}</span>${c.pic ? '<span class="cx-lv" style="margin-left:6px">▶ picture</span>' : ''}</a>`).join('')}</div></section>` : '';
+        return cs.length ? `<section class="cx-grp"><h2>${esc(n)}</h2><div class="cx-grid">${cs.map((c) => `<a class="cx-card" href="#calc-${c.id}"><b>${esc(c.t)}</b><span class="cx-d">${esc(c.d)}</span><span class="cx-lv">${LEVELS[c.lv]}${c.pic ? ' · picture' : ''}</span></a>`).join('')}</div></section>` : '';
       }).join('');
       out.innerHTML = html || '<p class="cx-none">No calculator found. Try a shorter word.</p>';
     };
@@ -1004,7 +1004,7 @@
     const same = LIST.filter((x) => x.g === c.g), at = same.indexOf(c), prev = same[at - 1], next = same[at + 1];
     const gname = (GROUPS.find((g) => g[0] === c.g) || [])[1];
     const wrap = el(`<div class="wrap"><a class="btn small ghost" href="#calc">← All calculators</a>
-      <h1 style="margin:10px 0 6px">${esc(c.t)}</h1><p class="muted" style="margin:0;max-width:68ch">${esc(c.d)} <span class="cx-lv l${c.lv}" style="margin:0 0 0 6px">${LEVELS[c.lv]}</span></p>
+      <h1 style="margin:10px 0 6px">${esc(c.t)}</h1><p class="muted" style="margin:0;max-width:68ch">${esc(c.d)} <span class="cx-lv" style="margin:0 0 0 6px">${LEVELS[c.lv]}</span></p>
       <div class="cx-one"><div class="cx-box"><h2>Your numbers</h2><div class="cx-f"></div><p style="margin:12px 0 0"><button type="button" class="btn small" id="cx-reset">Back to the example</button></p></div>
       <div class="cx-stack"><div class="cx-box cx-picbox" hidden><h2 style="display:flex;justify-content:space-between;align-items:center;gap:8px">See it <button type="button" class="btn small" id="cx-pause"></button></h2><div class="cx-pic"></div><p class="cx-cap"></p></div><div class="cx-box"><h2>Result</h2><div class="cx-out" aria-live="polite"></div></div>
       <div class="cx-box cx-howbox"><h2>How it is calculated</h2><div class="cx-how"></div></div>
