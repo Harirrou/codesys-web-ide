@@ -913,3 +913,7 @@ ul.guide { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 6
 .rd-seg button.on { background: var(--ink); color: var(--surface); }
 .rd-res { font-weight: 700; font-size: .88rem; margin-left: 10px; white-space: nowrap; }
 .rd-q.ok .rd-res { color: var(--power); } .rd-q.bad .rd-res { color: var(--danger); }
+
+/* the last line of the home page: the way to the About page, and the version */
+.app-foot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 28px 0 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: .86rem; color: var(--muted); }
+.app-foot span { font-family: var(--f-mono); }

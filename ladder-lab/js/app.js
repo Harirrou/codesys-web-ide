@@ -802,6 +802,7 @@
         <div class="mp-home-t"><h2 id="mp-home-h">Keep your work safe</h2><p>Your progress and programs are saved only in this browser. If you clear the browser data, they are gone. Export a backup file now and then. Import it on another computer to continue there.</p></div>
         <div class="row mp-home-b"><button class="btn primary" data-bk="export">${I.download} Export my work</button><button class="btn" data-bk="import">${I.upload} Import</button><button class="btn" data-bk="my">${I.folder} My programs${S.saved.length ? ' (' + S.saved.length + ')' : ''}</button></div>
       </section>
+      <p class="app-foot"><a href="#about">About, privacy and licences</a><span>${esc(LL.APP.name)} ${esc(LL.APP.version)}</span></p>
     </div>`);
     main().appendChild(el);
     workBox(el);
@@ -2387,6 +2388,7 @@
     else if (hsh === 'glossary') pageGlossary();
     else if (hsh === 'oral' && LL.Extra) LL.Extra.oral(m);
     else if (hsh === 'cheat' && LL.Extra) LL.Extra.cheat(m);
+    else if (hsh === 'about' && LL.Extra) LL.Extra.about(m);
     else if ((hsh === 'calc' || hsh.startsWith('calc-')) && LL.Calc) LL.Calc.page(m, hsh.slice(5));
     else if (tab === 'search') { let q = hsh.slice(7); try { q = decodeURIComponent(q); } catch (e) { /* keep it raw */ } pageSearch(q); }
     else if (isTopic) pageTopic(hsh.slice(6));

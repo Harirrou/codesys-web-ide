@@ -21,6 +21,7 @@
 .xc section{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:12px 14px;break-inside:avoid;min-width:0;overflow-x:auto}.xc td{overflow-wrap:anywhere}.xc h2{font-size:1rem;margin:0 0 8px;font-family:var(--f-display);letter-spacing:.06em;text-transform:uppercase}
 .xc table{width:100%;border-collapse:collapse;font-size:.84rem}.xc td,.xc th{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line-2);vertical-align:top}.xc th{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
 .xc pre{margin:6px 0;font-size:.78rem;background:var(--surface-2);border-radius:8px;padding:8px;overflow-x:auto}.xc ul,.xc ol{margin:4px 0 4px 18px;padding:0;font-size:.86rem;line-height:1.5}.xc p{font-size:.86rem;line-height:1.5;margin:4px 0}.xc code{font-size:.8rem}
+.xa{max-width:760px}.xa-lead{font-size:1.08rem;line-height:1.55;margin:0 0 8px;max-width:62ch}.xa section{margin-top:22px}.xa h2{font-size:1.1rem;margin:0 0 6px}.xa p,.xa li{line-height:1.6;max-width:68ch}.xa ul{margin:0;padding-left:20px}.xa li{margin:0 0 4px}
 @media print{header.top,nav.tabs,.xc-noprint{display:none!important}.xc{grid-template-columns:1fr 1fr;gap:8px}.xc section{border-color:#999}body{background:#fff}}`;
   function css() { if (!document.getElementById('xo-css')) { const s = document.createElement('style'); s.id = 'xo-css'; s.textContent = CSS; document.head.appendChild(s); } }
 
@@ -139,5 +140,26 @@ outputs:  CMP(MW0==10) COIL(VALVE_A)</pre><p>One word holds the step. Transition
       <div class="xc">${SHEET}</div></div>`));
     const b = main.querySelector('#xc-print'); if (b) b.onclick = () => { try { window.print(); } catch (e) { /* not available */ } };
   }
-  LL.Extra = { oral, cheat };
+  // #about: what the app is, what happens with the user's data (nothing leaves the device), the limits of a
+  // simulator, whose the trade names are, and the licences of the fonts. Google Play asks for this text inside the app.
+  function about(main) {
+    css();
+    const A = LL.APP, n = esc(A.name);
+    main.appendChild(el(`<div class="wrap xa"><span class="plate">About</span><h1 style="margin:10px 0 6px">About ${n}</h1>
+      <p class="xa-lead">${n} teaches PLC ladder logic by doing: lessons, a simulator with machines, tasks with automatic tests, an electrical Circuit Lab, quizzes and calculators.</p>
+      <section><h2>Your data stays on your device</h2><ul>
+        <li>No account, no ads, no tracking.</li>
+        <li>The app does not send anything to anyone. Nothing about you or about how you use the app is collected.</li>
+        <li>Your progress, your programs and your quiz scores are saved only on this device.</li>
+        <li>To keep them or to move them to another device: <a href="#home">Home</a>, then <b>Export my work</b>. To delete them: delete the app, or clear the data of this site in your browser.</li>
+      </ul></section>
+      <section><h2>For learning only</h2><p>A simulator is not a real machine. Real machines can hurt people. Before you work on one, follow the rules of your workplace, the standards of your country and the instructions of the maker. Values from the calculators help you check and learn: a qualified person must confirm them before anything is ordered or built.</p></section>
+      <section><h2>Names of other companies</h2><p>Siemens, SIMATIC, TIA Portal, Rockwell Automation, Allen-Bradley, Studio 5000, CODESYS, Schneider Electric, EcoStruxure, Beckhoff, TwinCAT, Omron, Sysmac, ABB, Mitsubishi Electric and other product names belong to their owners. ${n} is not made, approved or supported by any of them. The names are used only to explain how the same thing is called in each software.</p></section>
+      <section><h2>Fonts</h2><p class="xa-fonts"></p></section>
+      <section><h2>Version</h2><p style="font-family:var(--f-mono)">${n} ${esc(A.version)}</p></section>
+      <p><a class="btn" href="#home">Back to Home</a></p></div>`));
+    const f = main.querySelector('.xa-fonts');
+    if (f) f.textContent = (A.fonts || 'The fonts in this app are free fonts under the SIL Open Font License.');
+  }
+  LL.Extra = { oral, cheat, about };
 })();
