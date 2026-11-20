@@ -752,6 +752,19 @@
   // "8 lessons · 10 tasks · 2 machines": every part stays on one line, so a narrow card wraps only between parts
   const topicCounts = (T) => [[T.lessons.length, 'lesson'], [T.tasks.length, 'task'], [T.machines.length, 'machine']].filter(([n]) => n).map(([n, w]) => `<span class="nw">${plural(n, w)}</span>`).join(' · ');
   const topicDone = (T) => { const l = T.lessons.filter((id) => S.lessons[id]).length, c = T.tasks.filter((id) => S.ch[id]).length; return { l, c, n: l + c, of: T.lessons.length + T.tasks.length }; };
+  // the topics in the order of the home index, in groups; a topic's number is its place in that order (like a sheet number)
+  const TOPIC_GROUPS = [
+    ['Fundamentals', ['basics', 'electrical', 'memory', 'timers', 'counters']],
+    ['Program structure', ['blocks', 'sequences', 'data', 'st']],
+    ['Fluid power', ['pneumatics', 'hydraulics']],
+    ['Motors and motion', ['motors', 'starting', 'motion']],
+    ['Process, safety and HMI', ['analog', 'safety', 'alarms', 'production']],
+    ['Systems and site work', ['networks', 'setup', 'commissioning', 'brands']],
+    ['Projects and career', ['machines', 'interview']],
+  ];
+  { const seen = TOPIC_GROUPS.reduce((a, g) => a.concat(g[1]), []); const rest = TOPICS.filter((T) => seen.indexOf(T.id) < 0).map((T) => T.id); if (rest.length) TOPIC_GROUPS.push(['More', rest]); }
+  const TOPIC_ORDER = TOPIC_GROUPS.reduce((a, g) => a.concat(g[1]), []).filter((id) => LL.TOPIC_BY_ID && own(LL.TOPIC_BY_ID, id));
+  const topicNo = (T) => String(TOPIC_ORDER.indexOf(T.id) + 1).padStart(2, '0');
   const topicIc = (T, cls) => `<span class="tp-ic${cls ? ' ' + cls : ''}" aria-hidden="true">${T.icon}</span>`;
   // on: this chip's topic is the current page ('page'), or the topic a lesson was opened from ('true')
   const topicChip = (T, on) => `<a class="tp-chip${on ? ' on' : ''}" href="#topic-${T.id}" style="--tc:${T.color}"${on ? ` aria-current="${on === true ? 'page' : on}"` : ''}>${topicIc(T)}<span>${esc(T.title)}</span></a>`;
@@ -769,33 +782,31 @@
   function pageHome() {
     const d = countDone();
     const next = LL.LESSONS.find((l) => !S.lessons[l.id]) || LL.LESSONS[0];
-    // "Explore by topic" sits in the hero grid: on phones (css) it comes before the live rung, so the topics are on the first screen
     const el = h(`<div class="wrap">
       <section class="hero">
         <div class="hero-t">
-          <span class="plate">PLC · Ladder logic trainer</span>
+          <span class="plate">PLC ladder logic trainer</span>
           <h1>Learn ladder logic by <em>wiring it</em>, not memorising it.</h1>
-          <p class="lead">${LL.LESSONS.length} short lessons from your first contact to whole-machine projects, a PLC simulator with ${LL.PLANT_ORDER.length} animated machines, and ${LL.CHALLENGES.length} challenges that test your program like a commissioning engineer would.</p>
+          <p class="lead">${LL.LESSONS.length} short lessons, a PLC simulator with ${LL.PLANT_ORDER.length} machines, and ${LL.CHALLENGES.length} tasks that test your program like a commissioning engineer would.</p>
           <div class="row">
             <a class="btn primary" href="#lesson-${next.id}">${d.l ? 'Continue: ' + esc(next.title) : 'Start lesson 1'} ${I.arrow}</a>
             <a class="btn" href="#lab">${I.lab} Open the Lab</a>
-            <a class="btn" href="#circuits">Circuit Lab: wire real starters</a>
           </div>
         </div>
         <div class="card hero-demo"><div class="demo-cap"><span class="eyebrow">Try it now: tap START, then STOP</span></div><div class="demo"></div></div>
-        ${TOPICS.length ? `<section class="tp-home" id="topics"><div class="sec-head"><div><h2>Explore by topic</h2><p>Pick a subject: every lesson, simulator, task, machine and quiz about it in one place.</p></div></div><div class="tp-grid"></div></section>` : ''}
       </section>
-      <div class="sec-head"><div><h2>Your progress</h2><p>${d.l}/${LL.LESSONS.length} lessons · ${d.c}/${LL.CHALLENGES.length} challenges passed</p></div></div>
-      <div class="grid levels-strip"></div>
-      <div class="sec-head"><div><h2>Five ways to practise</h2><p>Mix them. Understanding comes from building and breaking things.</p></div></div>
-      <div class="grid paths">
-        <a class="card path" href="#learn"><span class="ic">${I.learn}</span><h3>Lessons</h3><p>What, why and where, each with live examples you can press.</p></a>
-        <a class="card path" href="#lab"><span class="ic">${I.lab}</span><h3>Lab</h3><p>Draw rungs and drive a motor, tank, conveyor, elevator, mixer, sorter, filling line or the 3 cylinders from your video.</p></a>
-        <a class="card path" href="#path"><span class="ic">${I.arrow}</span><h3>Guided path</h3><p>All tasks in the order to solve them, from your first contact to whole machines.</p></a>
-        <a class="card path" href="#path-interview"><span class="ic">${I.arrow}</span><h3>Interview path</h3><p>The classic PLC interview tasks, in the order to prepare them.</p></a>
-        <a class="card path" href="#challenges"><span class="ic">${I.target}</span><h3>Challenges</h3><p>Real tasks with automatic tests, hints and bug hunts.</p></a>
-        <a class="card path" href="#quiz"><span class="ic">${I.quiz}</span><h3>Quiz</h3><p>Concept questions plus endless "predict the output" drills.</p></a>
-        <a class="card path" href="#calc"><span class="ic">${I.target}</span><h3>Calculators</h3><p>The numbers for a project: fill a tank, pump, pipe, cable, 24 V supply, analog scaling and more, with moving pictures.</p></a>
+      ${TOPICS.length ? `<section class="tp-home" id="topics"><div class="sec-head"><h2>Topics</h2><span class="sec-n">${TOPICS.length}</span></div><div class="tp-index"></div></section>` : ''}
+      <div class="sec-head"><h2>Your progress</h2><span class="sec-n">${d.l}/${LL.LESSONS.length} lessons · ${d.c}/${LL.CHALLENGES.length} tasks</span></div>
+      <div class="levels-strip"></div>
+      <div class="sec-head"><h2>Ways to practise</h2><span class="sec-n">7</span></div>
+      <div class="paths">
+        <a class="path" href="#learn"><h3>Lessons</h3><p>What, why and where, each with live examples you can press.</p></a>
+        <a class="path" href="#lab"><h3>Lab</h3><p>Draw rungs and drive a motor, a tank, a conveyor, an elevator, a mixer, a sorter or a filling line.</p></a>
+        <a class="path" href="#circuits"><h3>Circuits</h3><p>Wire real motor starters with contactors, relays and push buttons, then power them on.</p></a>
+        <a class="path" href="#path"><h3>Guided path</h3><p>All tasks in the order to solve them, from your first contact to whole machines.</p></a>
+        <a class="path" href="#path-interview"><h3>Interview path</h3><p>The classic PLC interview tasks, in the order to prepare them.</p></a>
+        <a class="path" href="#quiz"><h3>Quiz</h3><p>Concept questions and endless drills: predict the output, read a program.</p></a>
+        <a class="path" href="#calc"><h3>Calculators</h3><p>The numbers for a project: fill a tank, pump, pipe, cable, 24 V supply, analog scaling and more.</p></a>
       </div>
       <section class="card mp-home" aria-labelledby="mp-home-h">
         <span class="mp-home-ic" aria-hidden="true">${I.folder}</span>
@@ -807,21 +818,19 @@
     main().appendChild(el);
     workBox(el);
     new MiniSim($('.demo', el), { program: 'RUNG Start/stop with seal-in\nNO(I0.3) | NO(I0.0) | COIL(Q0.0)\n. NO(Q0.0)', inputs: { 'I0.0': { name: 'START', kind: 'pb' }, 'I0.3': { name: 'STOP', kind: 'pbnc' } }, outputs: { 'Q0.0': 'Motor' } }, { label: 'Live rung', noOpen: true });
-    const tg = $('.tp-grid', el);
-    if (tg) TOPICS.forEach((T) => {
-      const d = topicDone(T), pct = d.of ? Math.round((d.n / d.of) * 100) : 0;
-      // .started: phones show the small progress line only on topics you have begun (no 22 empty bars for a newcomer)
-      tg.appendChild(h(`<a class="card tp-card${d.n ? ' started' : ''}" href="#topic-${T.id}" style="--tc:${T.color}">
-        <div class="tp-head">${topicIc(T)}<h3>${esc(T.title)}</h3></div>
-        <p>${esc(T.blurb)}</p>
-        <span class="tp-n">${topicCounts(T)}</span>
-        <div class="tp-foot"><span class="meter" title="${d.n} of ${d.of} lessons and tasks done"><i style="width:${pct}%"></i></span><span class="tp-pct">${d.n}/${d.of}</span><span class="tp-go">Open ${I.arrow}</span></div>
-      </a>`));
+    const ti = $('.tp-index', el);
+    if (ti) TOPIC_GROUPS.forEach(([name, ids]) => {
+      const g = h(`<section class="tp-group"><h3>${esc(name)}</h3></section>`);
+      ids.map((id) => LL.TOPIC_BY_ID[id]).filter(Boolean).forEach((T) => {
+        const d = topicDone(T);
+        g.appendChild(h(`<a class="tp-row${d.n ? ' started' : ''}" href="#topic-${T.id}"><span class="tp-no">${topicNo(T)}</span>${topicIc(T)}<span class="tp-t"><b>${esc(T.title)}</b><span class="tp-b">${esc(T.blurb)}</span></span><span class="tp-pg" title="${d.n} of ${d.of} lessons and tasks done">${d.n}/${d.of}</span></a>`));
+      });
+      if (g.children.length > 1) ti.appendChild(g);
     });
     const strip = $('.levels-strip', el);
     LL.LEVELS.forEach((lv) => {
       const ls = LL.LESSONS.filter((l) => l.level === lv.n), dn = ls.filter((l) => S.lessons[l.id]).length;
-      strip.appendChild(h(`<a class="card lvl" href="#learn"><span class="n">${lv.n}</span><h4>${esc(lv.name)}</h4><div class="meter"><i style="width:${Math.round((dn / ls.length) * 100)}%"></i></div><span class="muted" style="font-size:.82rem">${dn}/${ls.length} lessons</span></a>`));
+      strip.appendChild(h(`<a class="lvl" href="#learn"><span class="n">${lv.n}</span><h4>${esc(lv.name)}</h4><span class="meter"><i style="width:${Math.round((dn / ls.length) * 100)}%"></i></span><span class="ct">${dn}/${ls.length}</span></a>`));
     });
   }
 

@@ -57,15 +57,14 @@ POM
 fi
 bundletool() { java -cp "$BTL/*" com.android.tools.build.bundletool.BundleToolMain "$@"; }
 
-# 2. the web app as assets: the same files as the web version, with the fonts inside (no network on the phone)
+# 2. the web app as assets: the same files as the web version (it carries its own fonts, so no network on the phone)
 A="$B/assets"; mkdir -p "$A"
 cp -r "$ROOT/css" "$ROOT/js" "$ROOT/icon.svg" "$A/"
-cp -r "$ROOT/android/fonts" "$A/fonts"; cp "$ROOT/android/fonts.css" "$A/fonts.css"
+cp -r "$ROOT/fonts" "$A/fonts"; cp "$ROOT/fonts.css" "$A/fonts.css"
 node -e '
   const fs = require("fs"); let h = fs.readFileSync(process.argv[1], "utf8");
-  h = h.replace(/<link rel="preconnect"[^>]*>\n/g, "").replace(/<link rel="manifest"[^>]*>\n/, "");
-  const n = h.length; h = h.replace(/<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com[^>]*>/, "<link rel=\"stylesheet\" href=\"fonts.css\">");
-  if (h.length === n || /https?:\/\//.test(h.replace(/xmlns="[^"]*"/g, ""))) { console.error("index.html still points to the network"); process.exit(1); }
+  h = h.replace(/<link rel="manifest"[^>]*>\n/, "");
+  if (!/href="fonts\.css"/.test(h) || /https?:\/\//.test(h.replace(/xmlns="[^"]*"/g, ""))) { console.error("index.html must use the local fonts and no network address"); process.exit(1); }
   fs.writeFileSync(process.argv[2], h);' "$ROOT/index.html" "$A/index.html"
 
 # 3. resources and manifest, then the Java code → classes.dex
