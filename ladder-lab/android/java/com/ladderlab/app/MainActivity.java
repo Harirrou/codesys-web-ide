@@ -75,9 +75,11 @@ public class MainActivity extends Activity {
         frame.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
             @Override
             public WindowInsets onApplyWindowInsets(View v, WindowInsets in) {
-                if (Build.VERSION.SDK_INT >= 30) Api30.pad(v, in);
-                else v.setPadding(in.getSystemWindowInsetLeft(), in.getSystemWindowInsetTop(), in.getSystemWindowInsetRight(), in.getSystemWindowInsetBottom());
-                return in;
+                // the frame takes the bars and the keyboard as padding and hands on insets WITHOUT them:
+                // otherwise the WebView gives the page the same insets again (env(safe-area-inset-*)) and the gap is doubled
+                if (Build.VERSION.SDK_INT >= 30) return Api30.pad(v, in);
+                v.setPadding(in.getSystemWindowInsetLeft(), in.getSystemWindowInsetTop(), in.getSystemWindowInsetRight(), in.getSystemWindowInsetBottom());
+                return in.consumeSystemWindowInsets();
             }
         });
         barIcons(true);
@@ -176,10 +178,12 @@ public class MainActivity extends Activity {
     // code that only exists on newer Android lives in its own classes, so that old phones never load it
     @TargetApi(30)
     private static final class Api30 {
-        static void pad(View v, WindowInsets in) {
-            Insets bars = in.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+        static WindowInsets pad(View v, WindowInsets in) {
+            int edges = WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout();
+            Insets bars = in.getInsets(edges);
             Insets ime = in.getInsets(WindowInsets.Type.ime());
             v.setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, ime.bottom));
+            return new WindowInsets.Builder(in).setInsets(edges | WindowInsets.Type.ime(), Insets.NONE).build();
         }
 
         static void icons(Activity a, boolean darkPage) {
