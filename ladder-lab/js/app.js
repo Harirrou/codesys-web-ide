@@ -44,6 +44,12 @@
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>',
     arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>',
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.4v.2"/></svg>',
+    zoom: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 15v5h-5M4 4l6 6M20 20l-6-6"/></svg>',
+    xref: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v5M12 16.5v5M2.5 12h5M16.5 12h5"/></svg>',
+    fbd: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="5" width="9" height="14" rx="1"/><path d="M3 9h5M3 15h5M17 12h4"/></svg>',
+    trend: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16l5-6 4 3 4-8 5 6"/><path d="M3 21h18"/></svg>',
     flask: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6L4.5 18.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3"/><path d="M7 15h10"/></svg>',
   };
   const BRAND_SVG = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="7" fill="var(--ink)"/><path d="M8 7v18M24 7v18" stroke="var(--surface)" stroke-width="2.4" stroke-linecap="round"/><path d="M8 12h4M15 12h3M20.5 12H24" stroke="var(--power-bright)" stroke-width="2.4" stroke-linecap="round"/><path d="M12 9v6M15 9v6" stroke="var(--power-bright)" stroke-width="2.2"/><circle cx="19.3" cy="12" r="1.9" fill="none" stroke="var(--power-bright)" stroke-width="1.8"/><path d="M8 20h16" stroke="var(--surface)" stroke-opacity=".45" stroke-width="2" stroke-linecap="round"/></svg>';
@@ -80,8 +86,10 @@
       panel: v('--p-panel'), panel2: v('--p-panel2'), bezel: v('--p-bezel'), lampOff: v('--p-lampoff'), metal: v('--p-metal'), metalDark: v('--p-metal-dark'),
       pipe: v('--p-pipe'), water: v('--p-water'), road: v('--p-road'), roadLine: v('--p-road-line'), zebra: v('--p-zebra'), carBody: v('--p-car'), carGlass: v('--p-glass'),
       box: v('--p-box'), boxEdge: v('--p-box-edge'), wall: v('--p-wall'), inside: v('--p-inside'), door: v('--p-door'), door2: v('--p-door2'), ground: v('--p-ground'),
-      knob: v('--p-knob'), chip: v('--p-chip'), glass: v('--p-glass2'), ink: v('--ink'), muted: v('--muted'), line: v('--line'), on: v('--power-bright'), onInk: '#04210f',
-      red: '#e23b3b', green: '#22c55e', amber: '#f5a524', blue: '#3b82f6', white: '#f1f5f9',
+      knob: v('--p-knob'), chip: v('--p-chip'), glass: v('--p-glass2'), ink: v('--ink'), muted: v('--muted'), line: v('--line'), on: v('--power-bright'), onInk: v('--on-power'),
+      // signal colours of the drawings: the pilot-lamp set of css/app.css (IEC 60073), the same in every machine
+      red: v('--lamp-red'), green: v('--lamp-green'), amber: v('--lamp-yellow'), blue: v('--lamp-blue'), white: v('--lamp-white'),
+      surface: v('--surface'), surface2: v('--surface-2'), surface3: v('--surface-3'), ink2: v('--ink-2'), line2: v('--line-2'), edge: v('--edge'), wire: v('--wire'), danger: v('--danger'), info: v('--info'),
     };
     return PT;
   }
@@ -98,7 +106,7 @@
     clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), o.ms || 2600);
   }
   function modal(title, bodyHtml, actions) {
-    const m = h(`<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="card"><div class="mh"><h2>${esc(title)}</h2><button class="iconbtn" data-x aria-label="Close">✕</button></div><div class="mb">${bodyHtml}</div><div class="row ma"></div></div></div>`);
+    const m = h(`<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="card"><div class="mh"><h2>${esc(title)}</h2><button class="iconbtn" data-x aria-label="Close">${I.x}</button></div><div class="mb">${bodyHtml}</div><div class="row ma"></div></div></div>`);
     const close = () => { m.remove(); document.removeEventListener('keydown', onKey); };
     const onKey = (e) => { if (e.key === 'Escape' && $$('.modal').pop() === m) close(); }; // only the top window
     document.addEventListener('keydown', onKey);
@@ -730,7 +738,7 @@
       const t = e.target.closest('[data-try]'); if (t) { inp.value = t.dataset.try; draw(); setUrl(); inp.focus(); return; }
       const mo = e.target.closest('[data-more]'); if (mo) { open[mo.dataset.more] = 1; draw(); return; }
       const a = e.target.closest('.srch-hit'); if (!a) return;
-      if (a.dataset.plant) { S.plant.lab = a.dataset.plant; labView = 'machine'; saveNow(); toast('Machine: ' + plantName(a.dataset.plant) + '. Your program is kept: press Clear for an empty editor, or ⓘ How it works for its working program.', { ms: 6500, top: true }); }
+      if (a.dataset.plant) { S.plant.lab = a.dataset.plant; labView = 'machine'; saveNow(); toast('Machine: ' + plantName(a.dataset.plant) + '. Your program is kept: press Clear for an empty editor, or How it works for its working program.', { ms: 6500, top: true }); }
       if (a.dataset.term) glossQ = a.dataset.term;
     });
     inp.value = q0 || '';
@@ -975,7 +983,7 @@
       const M = LL.Plants[pid], n = tasks.filter((c) => c.plant === pid).length;
       const a = h(`<a class="card tp-mach" href="#lab"><h4>${esc(M.name)}</h4><p>${esc(M.blurb || '')}</p><div class="tp-mfoot"><span class="muted">${n ? 'Used in ' + plural(n, 'task') + ' here' : 'Free play'}</span><span class="btn small">${I.lab} Open in the Lab</span></div></a>`);
       // same as picking the machine in the Lab's machine list: your program is kept, so say it with the Lab's words
-      a.onclick = () => { S.plant.lab = pid; labView = 'machine'; saveNow(); toast('Machine: ' + M.name + '. Your program is kept: press Clear for an empty editor, or ⓘ How it works for its working program.', { ms: 6500, top: true }); };
+      a.onclick = () => { S.plant.lab = pid; labView = 'machine'; saveNow(); toast('Machine: ' + M.name + '. Your program is kept: press Clear for an empty editor, or How it works for its working program.', { ms: 6500, top: true }); };
       mbox.appendChild(a);
     });
     // phones (css): the first 4 machines, then a "Show all" button
@@ -1296,7 +1304,7 @@
         const ok = g.ask.every((a) => pick[a] === r.got[a]);
         streak = ok ? streak + 1 : 0;
         S.quiz.read = streak; S.quiz.readBest = Math.max(S.quiz.readBest || 0, streak); save();
-        g.ask.forEach((a) => { const q = $(`.rd-q[data-q="${a}"]`, area); q.classList.add(pick[a] === r.got[a] ? 'ok' : 'bad'); q.firstElementChild.insertAdjacentHTML('beforeend', `<span class="rd-res">${pick[a] === r.got[a] ? '✓ right' : '✕ it is ' + (r.got[a] ? 'ON' : 'OFF')}</span>`); });
+        g.ask.forEach((a) => { const q = $(`.rd-q[data-q="${a}"]`, area); q.classList.add(pick[a] === r.got[a] ? 'ok' : 'bad'); q.firstElementChild.insertAdjacentHTML('beforeend', `<span class="rd-res">${pick[a] === r.got[a] ? '✓ right' : '× it is ' + (r.got[a] ? 'ON' : 'OFF')}</span>`); });
         $('[data-check]', area).parentNode.remove();
         view.update(r.m, true);
         $('.fb', area).innerHTML = `<div class="why"><b>${ok ? 'Correct!' : 'Not this time.'}</b> ${g.why} <span class="muted">The ladder above now shows the end of the story: green is where power flows.</span></div><div class="row" style="margin-top:12px"><button class="btn primary" data-n>Next program ${I.arrow}</button></div>`;
@@ -1428,14 +1436,14 @@
             <button class="btn small" data-a="step" title="Execute one scan phase">${I.step}<span class="hide-s">Step</span></button>
             <button class="btn small" data-a="reset" title="Reset PLC memory and machine">${I.reset}</button>
             <button class="btn small" data-a="speed" title="Simulation speed">1×</button>
-            <button class="btn small ld-only" data-a="zoom" title="Zoom: fit width or 100 %">⤢</button>
+            <button class="btn small ld-only" data-a="zoom" title="Zoom: fit width or 100 %">${I.zoom}</button>
             <span class="sep"></span>
             <button class="btn small ld-only" data-a="undo" title="Undo">${I.undo}</button>
             <button class="btn small ld-only" data-a="redo" title="Redo">${I.redo}</button>
             <button class="btn small ld-only" data-a="brands" title="This ladder in TIA Portal, Studio 5000, Schneider, TwinCAT, Omron and as Structured Text">${I.code} Other brands</button>
-            <button class="btn small ld-only" data-a="xref" title="Cross-reference: where is each address written and read?">⌖<span class="hide-s"> Cross-ref</span></button>
-            <button class="btn small ld-only" data-a="fbd" title="FBD: see the same program as a function block diagram (AND / OR boxes), live">▭<span class="hide-s"> FBD</span></button>
-            <button class="btn small" data-a="trend" title="Trend: a live chart of the signals you pick">∿<span class="hide-s"> Trend</span></button>
+            <button class="btn small ld-only" data-a="xref" title="Cross-reference: where is each address written and read?">${I.xref}<span class="hide-s">Cross-ref</span></button>
+            <button class="btn small ld-only" data-a="fbd" title="FBD: see the same program as a function block diagram (AND / OR boxes), live">${I.fbd}<span class="hide-s">FBD</span></button>
+            <button class="btn small" data-a="trend" title="Trend: a live chart of the signals you pick">${I.trend}<span class="hide-s">Trend</span></button>
             <button class="btn small" data-a="clear" title="Empty the editor">${I.trash}<span class="hide-s">Clear</span></button>
             <button class="btn small" data-a="file" title="New, examples, import/export">${I.file} File</button>
             ${ch ? '' : `<button class="btn small" data-a="myprogs" title="My programs: save, load, download and back up your programs">${I.folder}<span class="hide-s">My programs</span></button>`}
@@ -1455,7 +1463,7 @@
         <div class="lab-side">
           ${ch ? '<div class="card chal only-task"></div>' : ''}
           <div class="card machine only-machine">
-            <div class="machine-head"><span class="eyebrow">Machine</span>${ch ? `<b>${esc(this.plant.name)}</b>` : `<select id="plant-sel" aria-label="Machine">${LL.PLANT_ORDER.map((p) => `<option value="${p}">${esc(LL.Plants[p].name)}</option>`).join('')}</select>`}<button class="btn small how-btn" data-a="how" title="How this machine works and its working program">ⓘ How it works</button></div>
+            <div class="machine-head"><span class="eyebrow">Machine</span>${ch ? `<b>${esc(this.plant.name)}</b>` : `<select id="plant-sel" aria-label="Machine">${LL.PLANT_ORDER.map((p) => `<option value="${p}">${esc(LL.Plants[p].name)}</option>`).join('')}</select>`}<button class="btn small how-btn" data-a="how" title="How this machine works and its working program">${I.info} How it works</button></div>
             <canvas width="640" height="360" aria-label="Machine animation"></canvas>
             <p class="blurb"></p>
             <div class="dock desktop-only"></div>
@@ -1504,7 +1512,7 @@
       this.setView(ch ? 'task' : labView || 'program');
       labView = '';
       const ps = $('#plant-sel', el);
-      if (ps) { ps.value = this.plantId; ps.onchange = () => { this.plantId = ps.value; S.plant.lab = ps.value; save(); this.newMachine(); toast('Machine: ' + this.plant.name + '. Your program is kept: press Clear for an empty editor, or ⓘ How it works for its working program.'); }; }
+      if (ps) { ps.value = this.plantId; ps.onchange = () => { this.plantId = ps.value; S.plant.lab = ps.value; save(); this.newMachine(); toast('Machine: ' + this.plant.name + '. Your program is kept: press Clear for an empty editor, or How it works for its working program.'); }; }
       if (ch) this.renderTask();
       this.updateRunBtn();
       this.resizeCanvas();
@@ -1834,7 +1842,7 @@
         case 'run': this.running = !this.running; if (this.running) { this.ladder.setActiveRung(-1); this.scanText(''); } this.updateRunBtn(); break;
         case 'step': this.running = false; this.updateRunBtn(); this.stepPhase(); break;
         case 'reset': this.m.reset(); this.pst = this.initPlant(); this.acc = 0; this.ctrl = {}; this.forces = {}; this.buildDevices(); this.ladder.setActiveRung(-1); this.scanText(''); toast('PLC memory and machine reset'); break;
-        case 'speed': this.speed = this.speed === 1 ? 0.25 : this.speed === 0.25 ? 0.1 : 1; btn.textContent = this.speed === 1 ? '1×' : this.speed === 0.25 ? '¼×' : '⅒×'; toast('Simulation speed ' + btn.textContent); break;
+        case 'speed': this.speed = this.speed === 1 ? 0.25 : this.speed === 0.25 ? 0.1 : 1; btn.textContent = this.speed === 1 ? '1×' : this.speed === 0.25 ? '¼×' : '0.1×'; toast('Simulation speed ' + btn.textContent); break;
         case 'zoom': this.ladder.opts.zoom = this.ladder.opts.zoom === 'fit' ? 1 : 'fit'; this.ladder.fit(); toast(this.ladder.opts.zoom === 'fit' ? 'Zoom: fit width' : 'Zoom: 100 %'); break;
         case 'undo': if (this.hi > 0) { this.hi--; this.restore(this.hist[this.hi]); } break;
         case 'redo': if (this.hi < this.hist.length - 1) { this.hi++; this.restore(this.hist[this.hi]); } break;
@@ -1906,7 +1914,7 @@
       if (this.m.phase === 0) this.plantStep(10);
       const ph = this.m.stepPhase(10);
       this.ladder.setActiveRung(ph >= 1 && ph <= n ? ph - 1 : -1);
-      this.scanText(ph === 0 ? 'Scan ' + this.m.scanCount + ' · ① read inputs' : ph <= n ? '② solved rung ' + ph + ' of ' + n : '③ wrote outputs');
+      this.scanText(ph === 0 ? 'Scan ' + this.m.scanCount + ' · 1 of 3: read inputs' : ph <= n ? '2 of 3: solved rung ' + ph + ' of ' + n : '3 of 3: wrote outputs');
     }
 
     refresh() {
@@ -2131,7 +2139,7 @@
         if (o.ok) {
           res.innerHTML = `<div class="passed-banner"><span>Found it! ${esc(o.why)}</span>${this.nextCh() ? `<a class="btn small" href="#ch-${this.nextCh().id}">${this.pathOf() ? 'Next in the path' : 'Next challenge'}: ${esc(this.nextCh().title)} ${I.arrow}</a>` : ''}</div><div class="hint"><b>How a technician proves it:</b> ${esc(ch.proof)}</div>`;
           S.ch[ch.id] = 1; save(); this.renderTaskBadge(); toast('Fault found!');
-        } else res.innerHTML = `<div class="res bad"><span class="ri">✕</span><div><b>Not this one.</b><div class="rm">${esc(o.why)}</div></div></div>`;
+        } else res.innerHTML = `<div class="res bad"><span class="ri">×</span><div><b>Not this one.</b><div class="rm">${esc(o.why)}</div></div></div>`;
       }));
     }
 
@@ -2143,7 +2151,7 @@
       // the tests really ran (no "fix this first" message) and the machine in the Lab is the one that was tested
       const canWatch = !!LL.LabTools && !this.ch.faults && !res.some((r) => !r.ok && /^(Not run\.|Fix |This project is|This task )/.test(r.msg));
       box.innerHTML = (allOk ? `<div class="passed-banner"><span>All ${res.length} tests passed. Machine commissioned!</span>${this.nextCh() ? `<a class="btn small" href="#ch-${this.nextCh().id}">${this.pathOf() ? 'Next in the path' : 'Next challenge'}: ${esc(this.nextCh().title)} ${I.arrow}</a>` : ''}</div>` : '') +
-        res.map((r, k) => `<div class="res ${r.ok ? 'ok' : 'bad'}"><span class="ri">${r.ok ? '✓' : '✕'}</span><div><b>${esc(r.name)}</b>${r.ok ? '' : `<div class="rm">${esc(r.msg)}</div><ol class="steps-list">${this.ch.tests[k].steps.map((st) => `<li>${esc(LL.describeStep(st, tags))}</li>`).join('')}</ol>`}${canWatch ? `<div><button type="button" class="btn small lt-watch" data-watch="${k}" title="Run the steps of this test live on the machine">▶ Watch this test${r.ok ? '' : ' fail'}</button></div>` : ''}</div></div>`).join('');
+        res.map((r, k) => `<div class="res ${r.ok ? 'ok' : 'bad'}"><span class="ri">${r.ok ? '✓' : '×'}</span><div><b>${esc(r.name)}</b>${r.ok ? '' : `<div class="rm">${esc(r.msg)}</div><ol class="steps-list">${this.ch.tests[k].steps.map((st) => `<li>${esc(LL.describeStep(st, tags))}</li>`).join('')}</ol>`}${canWatch ? `<div><button type="button" class="btn small lt-watch" data-watch="${k}" title="Run the steps of this test live on the machine">${I.play} Watch this test${r.ok ? '' : ' fail'}</button></div>` : ''}</div></div>`).join('');
       box.onclick = (e) => { const b = e.target.closest('[data-watch]'); if (b) LL.LabTools.replay(this, +b.dataset.watch); };
       if (allOk) { S.ch[this.ch.id] = 1; save(); this.renderTaskBadge(); toast('Challenge passed!'); }
       else toast(res.filter((r) => !r.ok).length + ' test(s) failed. See the details.');

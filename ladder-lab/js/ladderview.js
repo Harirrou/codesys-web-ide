@@ -359,8 +359,11 @@
     fit() {
       if (!this.svg) return;
       const avail = this.host.clientWidth || this.W;
-      let s = this.opts.fit || this.opts.zoom === 'fit' ? Math.min(1, avail / this.W) : Math.max(0.62, Math.min(1, avail / this.W));
+      // the editor never shrinks below 0.72 (a phone then scrolls the ladder sideways): smaller and nobody can read an address
+      let s = this.opts.fit || this.opts.zoom === 'fit' ? Math.min(1, avail / this.W) : Math.max(0.72, Math.min(1, avail / this.W));
       if (typeof this.opts.zoom === 'number') s = this.opts.zoom;
+      // when the drawing is shown small, its labels are set a little bigger (css: .ladder uses --ls)
+      this.svg.style.setProperty('--ls', s < 0.85 ? Math.min(1.22, 0.9 / s).toFixed(2) : '1');
       this.svg.setAttribute('width', Math.round(this.W * s));
       this.svg.setAttribute('height', Math.round(this.H * s));
     }
