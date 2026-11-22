@@ -107,6 +107,53 @@
       out: (a, b, k) => { const bar = a ? Math.round(k * 60) / 10 : 0; return { bar, txt: a ? `Outlet ${bar} bar from a 7 bar supply. A 32 mm cylinder now pushes about ${Math.round(bar * 80)} N (≈ ${Math.round(bar * 8)} kg).` : 'Supply off: 0 bar.' }; } },
   };
   ValveSim.AIR = AIR;
+
+  // ───────────── vacuum: a venturi ejector, a suction cup, a part ─────────────
+  // o = { gen, blow, lift, mass (kg), cup (mm), leak, sw (switch point, -kPa) }
+  const VacSim = {
+    init: () => ({ vac: 0, y: 0, held: false, dropped: false, part: 0, msg: '' }),
+    force: (vacKpa, cupMm) => vacKpa * 1000 * Math.PI * cupMm * cupMm / 4 * 1e-6,
+    step(st, o, dt) {
+      const target = o.blow ? 0 : o.gen ? (o.leak ? 30 : 75) : 0;
+      const tau = o.blow ? 0.03 : target > st.vac ? 0.18 : 0.35;                 // kPa below atmosphere; blow-off clears it fast
+      st.vac += (target - st.vac) * Math.min(1, dt / tau);
+      if (st.vac < 0.05) st.vac = 0;
+      const touching = st.y < 0.02 && !st.dropped;
+      const ymov = o.lift ? 1 : -1, moving = (o.lift && st.y < 1) || (!o.lift && st.y > 0);
+      const need = o.mass * (9.81 + (moving ? 5 : 0)), have = VacSim.force(st.vac, o.cup);
+      if (touching && have > o.mass * 9.81 * 1.05) st.held = true;
+      if (st.held && have < need) { st.held = false; if (st.y > 0.02 || o.lift) { st.dropped = true; st.msg = (st.y > 0.02 ? 'The part fell' : 'The part tore off the cup') + ': the cup holds ' + Math.round(have) + ' N, the move needs ' + Math.round(need) + ' N.'; } }
+      st.y = Math.max(0, Math.min(1, st.y + ymov * dt / 0.8));
+      if (st.dropped && st.y < 0.02 && !o.lift) { st.dropped = false; }             // back down: the cup is on the part again
+      st.part = st.held ? st.y : 0;
+      st.sw = st.vac >= (o.sw || 50);
+      return st;
+    },
+  };
+  ValveSim.Vac = VacSim;
+  // ───────────── a pneumatic drawing (ISO 1219-2 names) and the faults to find on it ─────────────
+  const PDRAW = {
+    parts: {
+      '0Z1': ['Service unit (FRL)', 'Filter, regulator and gauge: clean air at a set pressure for the whole machine. 0 = supply group, Z = air preparation.'],
+      '0V1': ['Shut-off / soft-start valve', 'A 3/2 valve that switches the air on slowly and dumps all air when switched off. Lock it out before you work on the machine.'],
+      '1V1': ['5/2 valve, coil 1M1', 'Drives cylinder 1A1. 1 = circuit 1, V = valve. Its coil has its own name on the electrical drawing: 1M1, wired to a PLC output.'],
+      '1V2': ['One-way flow control (out stroke)', 'Meter-out on the rod side: sets the speed of the out stroke of 1A1.'],
+      '1V3': ['One-way flow control (back stroke)', 'Meter-out on the piston side: sets the speed of the back stroke of 1A1.'],
+      '1A1': ['Cylinder 1A1', 'Double-acting cylinder of circuit 1. A = actuator.'],
+      '1B1': ['Sensor 1B1 (back)', 'Reed switch at the back end of 1A1. B = sensor; wired to a PLC input.'],
+      '1B2': ['Sensor 1B2 (out)', 'Reed switch at the front end of 1A1.'],
+      '2V1': ['5/3 valve, coils 2M1 / 2M2', 'Closed-centre valve for cylinder 2A1: both coils off = stop and hold.'],
+      '2A1': ['Cylinder 2A1', 'Double-acting cylinder of circuit 2.'],
+    },
+    faults: [
+      { q: 'Cylinder 1A1 goes out much too slowly, but comes back fast.', a: '1V2', why: '1V2 throttles the air leaving the rod side, so it sets the out stroke. It is closed too far (or blocked).' },
+      { q: 'No cylinder moves at all. All coils switch (the LEDs on the valves light), the gauge shows 0 bar.', a: '0V1', why: 'No air downstream: the shut-off / soft-start valve 0V1 is off or did not switch. Check its coil and the main supply.' },
+      { q: 'The PLC switches output 1M1, the LED on 1V1 lights, 1A1 does not move. Pressing the manual override on 1V1 moves it.', a: '1V1', why: 'Air is there and the cylinder works with the override, so the valve does not switch electrically: coil, connector or a pilot valve that needs more pressure.' },
+      { q: '1A1 is out (you can see it), but the PLC waits for ever in the step "wait for 1A1 out".', a: '1B2', why: 'The sensor at the front end, 1B2, does not switch: moved on the barrel, cable broken or wrong address.' },
+      { q: 'Cylinder 2A1 stops in the middle and slowly sinks under its load.', a: '2V1', why: 'The closed centre of 2V1 should block the air; an internal leak (worn seals) lets it out. A pilot check valve on the cylinder holds a load for longer.' },
+    ],
+  };
+  ValveSim.PDRAW = PDRAW;
   LL.ValveSim = ValveSim;
   if (typeof document === 'undefined') return;
 
@@ -377,6 +424,119 @@
         g += T(100, 140, 'supply 7 bar', { z: 11 }) + T(320, 230, 'turn the knob = the spring sets the outlet pressure', { a: 'middle', z: 11, f: 'var(--muted)' });
       }
       $('.vlv-svg').innerHTML = `<svg viewBox="60 0 520 250" role="img" aria-label="${esc(E.name)}" style="color:var(--ink)">${g}</svg>`;
+    }
+    draw();
+  };
+
+  // ───────────── [[hw:vacuum]] ─────────────
+  LL.HW.vacuum = function (ph) {
+    addCss();
+    const o = { gen: false, blow: false, lift: false, mass: 2, cup: 30, leak: false, sw: 50 };
+    const st = VacSim.init();
+    const box = document.createElement('div'); box.className = 'hw-box hw-vlv';
+    box.innerHTML = `<div class="vlv-svg"></div>
+      <div class="vlv-ctl"><button class="btn" data-v="gen">Vacuum ON (Y1)</button><button class="btn" data-v="blow" title="Hold for a short blow-off pulse">Blow-off (hold)</button><button class="btn" data-v="lift">Lift the gripper</button><button class="btn" data-v="leak">Porous part / torn cup</button></div>
+      <div class="vlv-ctl"><label>Part <input type="range" min="0.5" max="8" step="0.5" value="2" data-r="mass"><span data-o="mass">2 kg</span></label><label>Cup <select data-r="cup">${[20, 30, 40, 50, 60].map((d) => `<option value="${d}"${d === 30 ? ' selected' : ''}>${d} mm</option>`).join('')}</select></label><label>Vacuum switch at <input type="range" min="20" max="70" step="5" value="50" data-r="sw"><span data-o="sw">-50 kPa</span></label></div>
+      <div class="vlv-say" aria-live="polite"></div>`;
+    ph.replaceWith(box);
+    const $ = (q) => box.querySelector(q);
+    ['gen', 'lift', 'leak'].forEach((k) => $(`[data-v="${k}"]`).addEventListener('click', () => { o[k] = !o[k]; if (k === 'gen' && !o.gen) st.msg = ''; draw(); }));
+    const bl = $('[data-v="blow"]'), hold = (on) => (e) => { e.preventDefault(); o.blow = on; draw(); };
+    bl.addEventListener('pointerdown', hold(true)); ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => bl.addEventListener(ev, hold(false)));
+    bl.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') hold(true)(e); }); bl.addEventListener('keyup', hold(false));
+    box.querySelectorAll('[data-r]').forEach((x) => x.addEventListener('input', () => { o[x.dataset.r] = +x.value; const out = $(`[data-o="${x.dataset.r}"]`); if (out) out.textContent = x.dataset.r === 'mass' ? x.value + ' kg' : '-' + x.value + ' kPa'; draw(); }));
+    function draw() {
+      FS = Math.min(1.8, Math.max(1, 600 / (box.clientWidth || 640)));
+      const gx = 330, cy = 70 + st.y * 120, gripY = 210 - st.y * 120;            // cup height on screen: down at 210, up at 90
+      const F = VacSim.force(st.vac, o.cup), vac = st.vac;
+      let g = '';
+      // supply → valve → venturi
+      g += `<g transform="translate(60 300)"><circle r="13" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"/><path d="M-6 6 L0 -7 L6 6 Z" fill="${AIRC}"/></g>` + T(60, 330, 'air 6 bar', { a: 'middle', z: 10, m: 1, f: AIRC });
+      g += line('M73 300 H130', 'P') + `<rect x="130" y="286" width="44" height="28" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"/>` + T(152, 280, 'Y1', { a: 'middle', z: 10, m: 1, b: 1, f: o.gen ? 'var(--power)' : 'var(--muted)' }) + `<rect x="118" y="290" width="12" height="20" fill="${o.gen ? 'var(--power-bright)' : 'var(--surface)'}" stroke="currentColor" stroke-width="1.2"/>`;
+      g += line('M174 300 H210', o.gen ? 'P' : 'X');
+      // venturi ejector: nozzle and diffuser, suction port up
+      g += `<path d="M210 290 L240 296 L240 304 L210 310 Z M246 296 L290 286 L290 314 L246 304 Z" fill="var(--surface-3)" stroke="currentColor" stroke-width="1.4"/>` + T(250, 336, 'venturi ejector', { a: 'middle', z: 10, f: 'var(--muted)' });
+      if (o.gen && !o.blow) g += `<circle class="vlv-puff"${phase(0.7)} cx="306" cy="300" r="7" fill="var(--muted)" opacity=".6"/>`;
+      // blow-off line
+      g += line(`M243 296 V${gripY + 10} H${gx - 40}`, o.blow ? 'P' : vac > 1 ? 'E' : 'X', 2);
+      // the gripper: rod, vacuum switch, cup
+      g += `<rect x="${gx - 6}" y="20" width="12" height="${gripY - 4}" fill="#b3b9b5" stroke="currentColor" stroke-width="1"/><rect x="${gx - 40}" y="${gripY}" width="80" height="20" rx="3" fill="var(--surface-2)" stroke="currentColor" stroke-width="1.4"/>`;
+      g += `<path d="M${gx - 22} ${gripY + 20} L${gx - 30} ${gripY + 40} H${gx + 30} L${gx + 22} ${gripY + 20} Z" fill="${o.leak ? 'color-mix(in srgb, var(--danger) 30%, var(--surface-3))' : 'var(--surface-3)'}" stroke="currentColor" stroke-width="1.4"/>`;
+      g += `<circle cx="${gx + 60}" cy="${gripY + 10}" r="9" fill="${st.sw ? 'var(--power-bright)' : 'var(--surface-3)'}" stroke="currentColor"/>` + T(gx + 74, gripY + 14, 'vacuum switch → PLC: ' + (st.sw ? 'ON' : 'off'), { z: 10, m: 1, b: st.sw, f: st.sw ? 'var(--power)' : 'var(--muted)' });
+      // the part
+      const py = st.held ? gripY + 40 : 250;
+      g += `<rect x="${gx - 50}" y="${py}" width="100" height="40" rx="3" fill="#e9a100" stroke="currentColor" stroke-width="1.4"/>` + T(gx, py + 25, o.mass + ' kg', { a: 'middle', z: 12, b: 1, f: '#161a1d' }) + `<path d="M300 290 H470" stroke="currentColor" stroke-width="1.5"/>`;
+      // gauge
+      const ang = (-135 + Math.min(1, vac / 90) * 270) * Math.PI / 180;
+      g += `<g transform="translate(540 90)"><circle r="44" fill="var(--surface)" stroke="currentColor" stroke-width="1.6"/>${[0, 30, 60, 90].map((k) => { const a2 = (-135 + k / 90 * 270) * Math.PI / 180; return `<path d="M${(34 * Math.sin(a2)).toFixed(1)} ${(-34 * Math.cos(a2)).toFixed(1)} L${(42 * Math.sin(a2)).toFixed(1)} ${(-42 * Math.cos(a2)).toFixed(1)}" stroke="currentColor" stroke-width="1.5"/>`; }).join('')}<path d="M0 0 L${(32 * Math.sin(ang)).toFixed(1)} ${(-32 * Math.cos(ang)).toFixed(1)}" stroke="var(--danger)" stroke-width="2.6"/>${T(0, 30, '-' + Math.round(vac) + ' kPa', { a: 'middle', z: 11, m: 1, b: 1 })}</g>` + T(540, 150, 'vacuum gauge', { a: 'middle', z: 10, f: 'var(--muted)' });
+      g += T(540, 186, 'holding force', { a: 'middle', z: 10, f: 'var(--muted)' }) + T(540, 206, Math.round(F) + ' N', { a: 'middle', z: 14, b: 1, m: 1 }) + T(540, 226, 'weight ' + Math.round(o.mass * 9.81) + ' N', { a: 'middle', z: 10, m: 1, f: 'var(--muted)' });
+      $('.vlv-svg').innerHTML = `<svg viewBox="0 0 640 345" role="img" aria-label="Vacuum gripper" style="color:var(--ink)">${g}</svg>`;
+      box.querySelectorAll('[data-v]').forEach((b) => b.classList.toggle('on', !!o[b.dataset.v]));
+      $('[data-v="leak"]').classList.toggle('warn', o.leak); $('[data-v="leak"]').classList.remove('on');
+      const say = $('.vlv-say');
+      say.classList.toggle('bad', !!st.msg);
+      say.textContent = st.msg || (st.held ? (o.lift ? 'Part lifted. The PLC keeps watching the vacuum switch while it moves.' : 'Part gripped. Vacuum switch ' + (st.sw ? 'ON: safe to lift.' : 'still off: do not lift yet.')) : o.gen ? 'Vacuum on, building up…' : 'Lower the cup onto the part and switch the vacuum on.');
+    }
+    let last = 0, raf = 0, sig = '';
+    function tick(t) {
+      raf = requestAnimationFrame(tick);
+      if (!box.isConnected) { cancelAnimationFrame(raf); return; }
+      const dt = Math.min(0.05, (t - (last || t)) / 1000); last = t; NOW = t / 1000;
+      VacSim.step(st, o, dt);
+      const s2 = [Math.round(st.vac), st.y.toFixed(2), st.held, st.dropped, st.sw, st.msg].join();
+      if (s2 !== sig) { sig = s2; draw(); }
+    }
+    draw(); raf = requestAnimationFrame(tick);
+  };
+
+  // ───────────── [[hw:pdraw]]: read a pneumatic drawing, then find the fault on it ─────────────
+  LL.HW.pdraw = function (ph) {
+    addCss();
+    let sel = '', mode = 'read', fi = 0, score = 0, answered = false;
+    const box = document.createElement('div'); box.className = 'hw-box hw-vlv';
+    box.innerHTML = `<div class="air-pick" role="radiogroup" aria-label="Mode"><button type="button" data-m="read">Read the drawing</button><button type="button" data-m="find">Find the fault</button></div><div class="vlv-svg"></div><div class="vlv-say" aria-live="polite"></div><div class="pd-next"></div>`;
+    ph.replaceWith(box);
+    const $ = (q) => box.querySelector(q);
+    box.querySelectorAll('[data-m]').forEach((b) => b.addEventListener('click', () => { mode = b.dataset.m; sel = ''; fi = 0; score = 0; answered = false; draw(); }));
+    // component positions: [x, y, w, h] hit boxes on the drawing
+    const HIT = { '0Z1': [30, 300, 70, 40], '0V1': [120, 300, 70, 40], '1V1': [150, 196, 120, 46], '1V2': [236, 120, 40, 40], '1V3': [140, 120, 40, 40], '1A1': [130, 40, 180, 50], '1B1': [140, 14, 30, 22], '1B2': [270, 14, 30, 22], '2V1': [400, 196, 170, 46], '2A1': [420, 40, 180, 50] };
+    function draw() {
+      FS = Math.min(1.6, Math.max(1, 560 / (box.clientWidth || 640)));
+      const P = PDRAW.parts, sym = (id) => (sel === id ? 'var(--info)' : 'currentColor');
+      let g = '';
+      // supply group
+      g += `<rect x="36" y="306" width="58" height="28" fill="var(--surface)" stroke="${sym('0Z1')}" stroke-width="1.6"/><circle cx="65" cy="320" r="8" fill="none" stroke="${sym('0Z1')}"/>` + T(65, 352, '0Z1', { a: 'middle', z: 11, m: 1, b: 1 });
+      g += `<rect x="126" y="306" width="29" height="28" fill="var(--surface)" stroke="${sym('0V1')}" stroke-width="1.6"/><rect x="155" y="306" width="29" height="28" fill="var(--surface)" stroke="${sym('0V1')}" stroke-width="1.6"/>` + T(155, 352, '0V1', { a: 'middle', z: 11, m: 1, b: 1 });
+      g += `<path d="M94 320 H126 M184 320 H540 M210 320 V242 M480 320 V242" stroke="currentColor" stroke-width="1.6" fill="none"/>`;
+      // circuit 1
+      g += `<rect x="156" y="200" width="54" height="40" fill="var(--surface)" stroke="${sym('1V1')}" stroke-width="1.6"/><rect x="210" y="200" width="54" height="40" fill="var(--surface)" stroke="${sym('1V1')}" stroke-width="1.6"/><rect x="138" y="208" width="18" height="24" fill="var(--surface)" stroke="${sym('1V1')}"/><path d="M140 230 L154 210" stroke="${sym('1V1')}"/>` + T(274, 226, '1V1', { z: 11, m: 1, b: 1 }) + T(146, 254, '1M1', { a: 'middle', z: 9, m: 1, f: 'var(--muted)' });
+      g += `<path d="M228 200 V160 M246 200 V176 H256 V160" stroke="currentColor" stroke-width="1.6" fill="none"/>`;
+      g += `<path d="M160 160 V96 M256 160 V96" stroke="currentColor" stroke-width="1.6"/>` + `<path d="M228 160 H160" stroke="currentColor" stroke-width="1.6"/>`;
+      [['1V3', 160], ['1V2', 256]].forEach(([id, x]) => { g += `<g transform="translate(${x} 140)"><rect x="-14" y="-16" width="28" height="32" fill="var(--surface)" stroke="${sym(id)}" stroke-width="1.4"/><path d="M-5 -10 q5 10 0 20 M5 -10 q-5 10 0 20" fill="none" stroke="${sym(id)}"/><path d="M-10 10 L10 -10" stroke="${sym(id)}"/></g>` + T(x + (id === '1V3' ? -20 : 20), 144, id, { z: 11, m: 1, b: 1, a: id === '1V3' ? 'end' : 'start' }); });
+      g += `<rect x="136" y="46" width="170" height="40" fill="var(--surface)" stroke="${sym('1A1')}" stroke-width="1.8"/><path d="M200 50 V82 M200 66 H330" stroke="${sym('1A1')}" stroke-width="3"/>` + T(320, 60, '1A1', { z: 11, m: 1, b: 1 });
+      [['1B1', 155], ['1B2', 285]].forEach(([id, x]) => { g += `<rect x="${x - 10}" y="18" width="20" height="14" fill="var(--surface)" stroke="${sym(id)}" stroke-width="1.4"/><path d="M${x} 32 V46" stroke="${sym(id)}" stroke-dasharray="2 2"/>` + T(x, 12, id, { a: 'middle', z: 10, m: 1, b: 1 }); });
+      // circuit 2
+      g += [0, 1, 2].map((k) => `<rect x="${420 + k * 46}" y="200" width="46" height="40" fill="var(--surface)" stroke="${sym('2V1')}" stroke-width="1.6"/>`).join('') + `<rect x="402" y="208" width="18" height="24" fill="var(--surface)" stroke="${sym('2V1')}"/><rect x="558" y="208" width="18" height="24" fill="var(--surface)" stroke="${sym('2V1')}"/>` + T(490, 260, '2V1', { a: 'middle', z: 11, m: 1, b: 1 }) + T(411, 254, '2M1', { a: 'middle', z: 9, m: 1, f: 'var(--muted)' }) + T(567, 254, '2M2', { a: 'middle', z: 9, m: 1, f: 'var(--muted)' });
+      g += `<path d="M478 200 V96 M502 200 V96" stroke="currentColor" stroke-width="1.6"/><rect x="430" y="46" width="170" height="40" fill="var(--surface)" stroke="${sym('2A1')}" stroke-width="1.8"/><path d="M470 50 V82 M470 66 H620" stroke="${sym('2A1')}" stroke-width="3"/>` + T(600, 40, '2A1', { z: 11, m: 1, b: 1, a: 'end' });
+      // hit boxes
+      g += Object.keys(HIT).map((id) => { const [x, y, w, h] = HIT[id]; return `<rect class="pd-hit" data-id="${id}" x="${x}" y="${y}" width="${w}" height="${h}" fill="${sel === id ? 'color-mix(in srgb, var(--info) 14%, transparent)' : 'transparent'}" stroke="${sel === id ? 'var(--info)' : 'none'}" stroke-dasharray="4 3" style="cursor:pointer" tabindex="0" role="button" aria-label="${esc(id + ': ' + P[id][0])}"/>`; }).join('');
+      $('.vlv-svg').innerHTML = `<svg viewBox="0 0 640 362" role="img" aria-label="Pneumatic drawing with two circuits" style="color:var(--ink)">${g}</svg>`;
+      box.querySelectorAll('[data-m]').forEach((b) => { const on = b.dataset.m === mode; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
+      box.querySelectorAll('.pd-hit').forEach((r) => { const go = () => pick(r.dataset.id); r.addEventListener('click', go); r.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }); });
+      const say = $('.vlv-say'), next = $('.pd-next');
+      say.classList.remove('bad'); next.innerHTML = '';
+      if (mode === 'read') say.innerHTML = sel ? `<b>${esc(sel)}: ${esc(P[sel][0])}.</b> ${esc(P[sel][1])}` : 'Tap any part of the drawing. The name tells you the circuit (the first number), the kind of part (the letter) and which one (the last number).';
+      else {
+        const f = PDRAW.faults[fi];
+        if (!f) { say.innerHTML = `<b>Done: ${score} of ${PDRAW.faults.length} right on the first try.</b> On a real machine the drawing is how you find the part to check.`; next.innerHTML = '<button class="btn" type="button">Again</button>'; next.firstChild.onclick = () => { fi = 0; score = 0; sel = ''; answered = false; draw(); }; return; }
+        say.innerHTML = `<b>Fault ${fi + 1} of ${PDRAW.faults.length}:</b> ${esc(f.q)} <span class="muted">Tap the part you check first.</span>` + (sel ? `<br>${sel === f.a ? '<b style="color:var(--power)">Right.</b>' : `<b style="color:var(--danger)">Not ${esc(sel)}.</b>`} ${sel === f.a ? esc(f.why) : 'Try again.'}` : '');
+        if (sel && sel !== f.a) say.classList.add('bad');
+        if (sel === f.a) { next.innerHTML = '<button class="btn primary" type="button">Next fault</button>'; next.firstChild.onclick = () => { fi++; sel = ''; answered = false; draw(); }; }
+      }
+    }
+    function pick(id) {
+      if (mode === 'find') { const f = PDRAW.faults[fi]; if (!f) return; if (!answered) { answered = true; if (id === f.a) score++; } }
+      sel = id; draw();
     }
     draw();
   };

@@ -873,6 +873,87 @@ Back := Step_Back AND NOT Out_cmd;   (* Y12 *)</pre>
       challenges: ['vlv-bistable', 'vlv-midstop', 'vlv-lift', 'bug-vlv-both', 'cyl-once', 'cyl-repeat'],
     },
     {
+      id: 'vacuum', level: 4, title: 'Vacuum grippers: grip, check, lift, release', min: 12,
+      summary: 'How a suction cup holds a part, how the air makes the vacuum, why the PLC waits for the vacuum switch before it lifts, and how a blow-off pulse lets the part go.',
+      body: `
+<p>Boxes, sheets, glass, bags, bottles: many machines pick parts with <b>suction cups</b>. The air outside pushes the part onto the cup when the air inside the cup is taken away. The PLC switches the vacuum on and off, and it <b>checks</b> the vacuum before it moves.</p>
+<h3>1. Where the vacuum comes from</h3>
+<ul>
+<li><b>Venturi ejector</b>: compressed air rushes through a nozzle and drags the air out of the cup. No moving parts, small, fast, right at the gripper. A valve (Y1) on its supply switches it. It uses compressed air the whole time it is on.</li>
+<li><b>Vacuum pump</b> (electric): better for big or porous parts and long hold times, but bigger and slower to react.</li>
+<li>Vacuum is written as <b>-kPa</b> or <b>-bar</b> below the air around us: -60 kPa = -0.6 bar is a typical working vacuum.</li>
+</ul>
+<h3>2. Holding force</h3>
+<p><b>Force = vacuum × cup area.</b> A 30 mm cup at -60 kPa holds about 42 N, just over 4 kg on paper. On paper only: the part must also be <b>accelerated</b> when it moves, so add a <b>safety factor</b> of 2 for a flat part lifted straight up and 4 when the part is held at the side or moved fast. The <a href="#calc-vcup">vacuum cup calculator</a> does this for you.</p>
+<p>Try it: grip a light part and lift it; then make the part heavier, or use a smaller cup, or tear the cup:</p>
+[[hw:vacuum]]
+<h3>3. The vacuum switch: the PLC's eyes</h3>
+<ul>
+<li>A vacuum switch (or a vacuum sensor with a switch point) on the gripper tells the PLC: <b>"vacuum reached, the part is held"</b>.</li>
+<li>Set it a little below the normal vacuum, for example at -45 kPa when the gripper normally reaches -60.</li>
+<li>No signal after a time-out (0.5 to 1 s): <b>no part, a torn cup, a porous part or no air</b>. Do not lift; give an alarm.</li>
+<li>Watch it <b>during</b> the move too: if it drops, stop the move before the part falls on someone.</li>
+</ul>
+<h3>4. The sequence in the program</h3>
+<ol>
+<li>Move down onto the part.</li>
+<li>Vacuum ON (Y1). Wait for the vacuum switch, with a time-out.</li>
+<li>Lift and move. The vacuum switch must stay ON.</li>
+<li>Move down to the place position.</li>
+<li>Vacuum OFF and a short <b>blow-off pulse</b> (Y2, 100 to 300 ms): the cup lets go at once instead of after a second.</li>
+<li>Move up; check that the vacuum switch is OFF (the part did not stick to the cup).</li>
+</ol>
+<div class="callout tip"><b>Saving air:</b> many ejectors have an air-saving circuit: they stop at -70 kPa, a check valve keeps the vacuum, and they start again only when it drops to -60. On a tight part the ejector is off most of the time.</div>
+<div class="callout warn"><b>Safety:</b> if the air or the power fails, an ejector stops at once and the part falls. Never move parts over people; for heavy parts use a gripper with a check valve or a mechanical safety catch.</div>
+<div class="callout where"><b>Where:</b> packaging and palletising robots, sheet metal feeders, glass handling, labelling, pick &amp; place units, bag and carton erectors.</div>
+`,
+      sims: {},
+      takeaways: ['Force = vacuum × cup area; add a safety factor of 2 (lifted flat) or 4 (held at the side, fast moves).', 'Lift only when the vacuum switch is ON, with a time-out; watch it during the move.', 'Release with vacuum OFF plus a short blow-off pulse.'],
+      mistakes: ['Lifting on a timer instead of on the vacuum switch: with a torn cup the part stays behind (or falls on the way).', 'Choosing the cup for the weight only, without the acceleration of the move.', 'No blow-off: the part sticks to the cup and is carried back.'],
+      challenges: ['pp-pick', 'diag-vacuum', 'pp-cycle'],
+    },
+    {
+      id: 'pneu-drawings', level: 4, title: 'Reading a pneumatic drawing', min: 10,
+      summary: 'The names on a pneumatic drawing (0Z1, 1V1, 1A1, 1B1, 1M1), how the drawing is laid out, and how to use it to find a fault on the machine.',
+      body: `
+<p>Every machine with air has a <b>pneumatic drawing</b> next to the electrical one. It shows every valve, cylinder and sensor with a name. When something does not move, the drawing tells you what to check, and in which order.</p>
+<h3>1. The layout</h3>
+<ul>
+<li>The <b>air supply is at the bottom</b>: service unit, shut-off valve, the main line.</li>
+<li>Above it the <b>valves</b>, and at the top the <b>cylinders</b> and other actuators. Air flows from the bottom to the top.</li>
+<li>Every cylinder with its valves and sensors is <b>one circuit</b>, drawn in its own column: circuit 1, circuit 2…</li>
+<li>Everything is drawn at rest: power off, air on, cylinders in their start position.</li>
+</ul>
+<h3>2. The names (ISO 1219-2)</h3>
+<div class="tbl"><table>
+<tr><th>Name</th><th>Means</th></tr>
+<tr><td><b>0Z1</b></td><td>circuit 0 (supply), Z = air preparation: filter, regulator, gauge</td></tr>
+<tr><td><b>0V1</b></td><td>circuit 0, V = valve: the shut-off / soft-start valve</td></tr>
+<tr><td><b>1A1</b></td><td>circuit 1, A = actuator: the cylinder</td></tr>
+<tr><td><b>1V1</b></td><td>circuit 1, the directional valve of that cylinder</td></tr>
+<tr><td><b>1V2, 1V3</b></td><td>more valves of circuit 1: flow controls, check valves</td></tr>
+<tr><td><b>1B1, 1B2</b></td><td>B = sensor: the end-position sensors of 1A1</td></tr>
+<tr><td><b>1M1</b></td><td>M = the coil of 1V1. The same name is on the electrical drawing at the PLC output.</td></tr>
+</table></div>
+<p>So <b>1M1</b> joins the two drawings: find it on the electrical drawing and you know the PLC output; find it on the pneumatic drawing and you know which valve and which cylinder.</p>
+<p>Tap the parts to read them, then switch to <b>Find the fault</b>:</p>
+[[hw:pdraw]]
+<h3>3. Finding a fault, step by step</h3>
+<ol>
+<li><b>Air?</b> Gauge on 0Z1, shut-off valve 0V1 on.</li>
+<li><b>Does the PLC switch the coil?</b> Output LED on the PLC and the LED on the valve connector.</li>
+<li><b>Does the valve switch?</b> Use the manual override: if the cylinder moves now, the fault is electrical (coil, connector, cable).</li>
+<li><b>Does the cylinder move freely?</b> Flow controls, jammed mechanics, a leak (you hear it).</li>
+<li><b>Does the sensor see it?</b> The LED on the sensor, and the PLC input.</li>
+</ol>
+<div class="callout where"><b>Where:</b> commissioning and maintenance of every machine with cylinders. Valve islands have their own drawing too: slot number, coil names, and the fieldbus address.</div>
+`,
+      sims: {},
+      takeaways: ['Air flows from the bottom (supply) to the top (cylinders); one column per circuit.', '1A1 cylinder, 1V1 its valve, 1B1/1B2 its sensors, 1M1 the coil (same name on the electrical drawing).', 'Fault finding: air → PLC output → valve (manual override) → mechanics → sensor.'],
+      mistakes: ['Changing the program when the fault is a closed flow control or a moved sensor.', 'Forgetting that the drawing shows the machine at rest.'],
+      challenges: ['diag-reed', 'cio-2', 'diag-vacuum'],
+    },
+    {
       id: 'io-wiring', level: 4, title: "Wiring inputs and outputs: PNP, NPN, relays and transistors", min: 14,
       summary: "Where the current flows in an input and an output circuit: sinking and sourcing, 2-wire sensors, the four kinds of output card, flyback diodes and interposing relays. With a wiring simulator where every mistake is free.",
       body: `
@@ -3803,6 +3884,10 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
 
   // ───────────────────────── glossary ─────────────────────────
   LL.GLOSSARY = [
+    ['Venturi ejector', 'A vacuum generator without moving parts: compressed air through a nozzle drags the air out of a suction cup.'],
+    ['Vacuum switch', 'A switch on a vacuum gripper that tells the PLC the vacuum is reached, so the part is held.'],
+    ['Blow-off pulse', 'A short puff of air into a suction cup after the vacuum is switched off, so the part lets go at once.'],
+    ['ISO 1219', 'The standard for pneumatic and hydraulic symbols (part 1) and for drawings and names like 1A1, 1V1, 1B1 (part 2).'],
     ['5/2 valve', 'A directional valve with 5 ports (1 supply, 2 and 4 to the cylinder, 3 and 5 exhaust) and 2 positions. The standard valve for a double-acting cylinder.'],
     ['3/2 valve', 'A valve with 3 ports (1 supply, 2 out, 3 exhaust) and 2 positions. Drives a single-acting cylinder; normally closed (NC) or normally open (NO).'],
     ['5/3 exhaust centre', 'A 5/3 valve whose centre position vents both cylinder ports: no force, the cylinder can be moved by hand. A vertical load falls.'],
@@ -4155,6 +4240,10 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
 
   // ───────────────────────── concept quiz ─────────────────────────
   LL.QUIZ = [
+    { l: 4, q: "When may the PLC lift a part held by suction cups?", a: ["After a fixed 0.5 s with the vacuum on", "When the vacuum switch says the vacuum is reached", "As soon as the vacuum valve is switched on", "When the part sensor under the cup goes off"], c: 1, why: "Only the vacuum switch proves the part is held. A timer lifts even with a torn cup or no air." },
+    { l: 4, q: "What is the holding force of a suction cup?", a: ["Vacuum × cup area", "Air pressure × hose length", "Weight of the part × 2", "Cup diameter × vacuum"], c: 0, why: "Force = pressure difference × area. Then divide by a safety factor of 2 to 4 for the moves." },
+    { l: 4, q: "On a pneumatic drawing, what is 1B2?", a: ["The second valve of circuit 1", "The second sensor of circuit 1", "The coil of valve 1V1", "Cylinder 2 of circuit 1"], c: 1, why: "The number in front is the circuit, the letter the kind of part (B = sensor), the last number which one." },
+    { l: 4, q: "The LED on valve 1V1 lights but cylinder 1A1 does not move. The manual override moves it. Where is the fault?", a: ["In the PLC program", "The valve does not switch electrically: coil, connector or pilot", "The cylinder is jammed", "The air supply is off"], c: 1, why: "The override proves air, valve spool and cylinder are fine; what is left is the electrical switching of the valve." },
     { l: 4, q: "What does 5/2 mean on a valve?", a: ["5 bar and 2 coils", "5 ports and 2 positions", "5 mm bore and 2 outputs", "5 positions and 2 ports"], c: 1, why: "Ports first, positions second: 1 supply, 2 and 4 to the cylinder, 3 and 5 exhaust; two positions." },
     { l: 4, q: "A 5/2 monostable valve holds a cylinder out. The power fails. What happens?", a: ["The cylinder stays out", "The cylinder stops halfway", "The spring switches the valve back and the cylinder retracts", "The cylinder becomes free to move by hand"], c: 2, why: "Monostable = one stable position. Without the coil the spring returns the valve, so the cylinder goes back." },
     { l: 4, q: "A gripper must NOT drop the part when the power fails. Which valve?", a: ["5/2 monostable", "5/2 bistable", "5/3 exhaust centre", "3/2 normally closed"], c: 1, why: "A bistable valve keeps its last position without power, so the gripper keeps its air and holds the part." },

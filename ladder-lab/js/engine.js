@@ -10,7 +10,7 @@
   // Small signs used inside text and on buttons by every module: drawn once here, never as emoji
   // (an emoji looks different on every phone and breaks the look of a technical drawing).
   // the name and the version of the app: one place (the Android build reads the version from this line)
-  LL.APP = { name: 'PLC Start', version: '1.3.0' };
+  LL.APP = { name: 'PLC Start', version: '1.4.0' };
   LL.SYM = {
     warn: '<svg class="sym" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4 21.5 20h-19z"/><path d="M12 10v4.5M12 17.4v.1"/></svg>',
     bolt: '<svg class="sym" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 2.5 5 13.5h6l-1.5 8L18.5 10h-6z"/></svg>',

@@ -282,6 +282,47 @@
     tips: ['Air values are in normal litres: the air at room pressure, before it is compressed.', 'Leaks of 15 to 30 % are common in old plants. Fixing leaks is cheaper than a bigger compressor.', 'A bigger pressure band or a bigger tank gives fewer starts. A compressor with a drive needs a much smaller tank.', 'The start pressure must still be above what the machines need, plus the loss in the pipes and the dryer.'],
   });
   add({
+    id: 'leak', g: 'proj', lv: 1, t: 'Air leak: how much it costs', d: 'The air lost through a leak, the power the compressor needs for it and what it costs in a year.', key: 'compressed air leak cost hole energy kWh money year pneumatic',
+    f: [N('d', 'Size of the hole (one leak)', 'mm', 1), N('n', 'Number of such leaks', '', 10), N('p', 'Line pressure', 'bar', 6), N('h', 'Hours with air on, per year', 'h', 4000), N('c', 'Price of electricity', 'per kWh', 0.2)],
+    run(v) {
+      if (!(v.d > 0 && v.n > 0 && v.p > 0 && v.h > 0)) return E('Hole size, number, pressure and hours must be above 0.');
+      // choked flow through a round hole (discharge factor 0.9), as free air at 20 °C
+      const A1 = PI * v.d * v.d / 4 * 1e-6, mdot = 0.9 * A1 * (v.p + 1) * 1e5 * 0.0404 / Math.sqrt(293), q1 = mdot / 1.204 * 60000, Q = q1 * v.n;
+      const kw = Q / 1000 * 6.5, kwh = kw * v.h, cost = kwh * v.c;
+      return { r: [['Air lost', F(Q, 0), 'l/min', 'big'], ['One leak', F(q1, 1), 'l/min'], ['Compressor power for it', F(kw, 2), 'kW'], ['Energy per year', F(kwh, 0), 'kWh'], ['Cost per year', F(cost, 0), '(your money)', cost > 1000 ? 'bad' : '']],
+        how: [`A hole lets air out at the speed of sound: about 0.9 × area × absolute pressure × 0.0404 ÷ √T kg/s`, `One ${F(v.d)} mm hole at ${F(v.p)} bar ≈ ${F(q1, 1)} l/min of free air`, `Compressor power ≈ 6.5 kW per m³/min = ${F(kw, 2)} kW`, `Cost = ${F(kw, 2)} kW × ${F(v.h, 0)} h × ${F(v.c)} = ${F(cost, 0)}`],
+        warn: Q > 100 ? ['That is a lot of air. Listen for leaks on a quiet weekend, or use an ultrasonic leak finder, and fix the biggest ones first.'] : [] };
+    },
+    tips: ['A 1 mm leak at 6 bar loses about 60 l/min: you cannot hear it on a running machine, but you pay for it all year.', 'Leaks of 20 to 30 % of all the air are normal in old plants.', 'Shut off the air with the machine (a 3/2 valve on the supply): no leaks at night and at the weekend.'],
+  });
+  add({
+    id: 'vcup', g: 'proj', lv: 2, t: 'Vacuum cups: size for a part', d: 'The suction cup size to hold and move a part safely, and the vacuum switch point.', key: 'vacuum suction cup gripper size holding force safety factor kPa venturi pick and place',
+    f: [N('m', 'Mass of the part', 'kg', 2), N('n', 'Number of cups', '', 2), N('vac', 'Vacuum', '-kPa', 60), S('dir', 'How the part hangs and moves', [['h', 'Flat part, lifted (cups on top)'], ['v', 'Held at the side (vertical)']], 'h'), N('a', 'Acceleration of the move', 'm/s²', 5)],
+    run(v) {
+      if (!(v.m > 0 && v.n >= 1 && v.vac > 0 && v.vac < 100)) return E('Mass and cups above 0; vacuum between 0 and 100 kPa.');
+      const S2 = v.dir === 'v' ? 4 : 2, mu = 0.5, Fneed = v.dir === 'v' ? v.m * (G + v.a) / mu * S2 : v.m * (G + v.a) * S2, Fcup = Fneed / Math.floor(v.n);
+      const Aneed = Fcup / (v.vac * 1000), d = Math.sqrt(4 * Aneed / PI) * 1000;
+      const cups = [10, 15, 20, 25, 30, 40, 50, 60, 80, 100, 125, 150], dd = nextStd(cups, d), Fhave = dd ? v.vac * 1000 * PI * dd * dd / 4 * 1e-6 * Math.floor(v.n) : 0;
+      return { r: [['Cup diameter, at least', F(d, 1), 'mm'], ['Take the standard cup', dd ? F(dd, 0) : 'more than 150', 'mm', 'big'], ['Holding force needed, all cups', F(Fneed, 0), 'N'], ['Holding force of the chosen cups', dd ? F(Fhave, 0) : '—', 'N'], ['Vacuum switch point, about', F(v.vac * 0.75, 0), '-kPa']],
+        how: [`Force needed = mass × (g + a)${v.dir === 'v' ? ' ÷ friction 0.5' : ''} × safety ${S2} = ${F(v.m)} × ${F(G + v.a, 1)}${v.dir === 'v' ? ' ÷ 0.5' : ''} × ${S2} = ${F(Fneed, 0)} N`, `Per cup ${F(Fcup, 0)} N; area = force ÷ vacuum = ${F(Aneed * 1e6, 0)} mm²`, `Diameter = √(4 × area ÷ π) = ${F(d, 1)} mm`],
+        warn: v.dir === 'v' ? ['Held at the side the part hangs on friction only: that is why the force is doubled again (÷ 0.5) and the safety factor is 4.'] : [] };
+    },
+    tips: ['Safety factor 2 for a flat part lifted straight up, 4 when the part is held at the side or moved fast.', 'Set the vacuum switch a bit below the normal vacuum: the PLC lifts only when it is ON, and stops the move when it goes OFF.', 'Porous parts (cardboard, wood) leak: they need a bigger generator, not only a bigger cup.'],
+  });
+  add({
+    id: 'cylspeed', g: 'proj', lv: 2, t: 'Cylinder speed: air flow and tube size', d: 'How fast a cylinder moves for a stroke time, the air flow it needs and the tube size that gives it.', key: 'pneumatic cylinder speed stroke time air flow tube size valve flow l/min',
+    f: [N('d', 'Piston diameter (bore)', 'mm', 40), N('s', 'Stroke', 'mm', 300), N('t', 'Wanted stroke time', 's', 0.6), N('p', 'Pressure', 'bar', 6)],
+    run(v) {
+      if (!(v.d > 0 && v.s > 0 && v.t > 0 && v.p > 0)) return E('All values must be above 0.');
+      const A1 = PI * v.d * v.d / 4, vel = v.s / 1000 / v.t, Q = A1 * v.s / 1e6 * (v.p + 1) / v.t * 60;
+      const TUBE = [[4, 100], [6, 300], [8, 600], [10, 1000], [12, 1500], [16, 2800]], tube = TUBE.find((x) => x[1] >= Q);
+      return { r: [['Piston speed', F(vel, 2), 'm/s', vel > 1 ? 'bad' : ''], ['Air flow while it moves', F(Q, 0), 'l/min (normal)', 'big'], ['Tube (outside diameter), about', tube ? F(tube[0], 0) : 'more than 16', 'mm'], ['Valve flow, choose at least', F(Q * 1.5, 0), 'l/min (Qn)']],
+        how: [`Speed = stroke ÷ time = ${F(v.s / 1000, 2)} m ÷ ${F(v.t)} s = ${F(vel, 2)} m/s`, `Air = area × stroke × (pressure + 1) ÷ time = ${F(A1, 0)} mm² × ${F(v.s)} mm × ${F(v.p + 1)} ÷ ${F(v.t)} s = ${F(Q, 0)} l/min`, 'Tube and valve: rules of thumb for short tubes at 6 bar; the valve Qn about 1.5 × the flow'],
+        warn: vel > 1 ? ['Over 1 m/s a cylinder needs good end cushions (or shock absorbers), or it hits hard at the end of the stroke.'] : vel < 0.05 ? ['Under about 0.05 m/s many cylinders move in jerks (stick-slip). Use a low-friction cylinder or hydraulics for slow, smooth moves.'] : [] };
+    },
+    tips: ['Normal speed for a pneumatic cylinder: 0.1 to 1 m/s.', 'Set the speed with a meter-out flow control; the tube and the valve only set the top speed.', 'A long, thin tube is a hidden throttle: keep the valve close to the cylinder.'],
+  });
+  add({
     id: 'line', g: 'proj', lv: 1, t: 'Conveyor line: speed for parts per hour', d: 'The belt speed for an output, and if the sensor and the PLC are fast enough to see every part.', key: 'conveyor throughput parts per hour belt speed gap pitch sensor time line rate',
     f: [N('n', 'Parts per hour', '', 3600), N('len', 'Length of one part', 'mm', 300), N('gap', 'Gap between two parts', 'mm', 200), N('sc', 'Scan time of the PLC', 'ms', 10)],
     run(v) {

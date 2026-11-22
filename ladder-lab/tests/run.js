@@ -136,6 +136,16 @@ if (LL.EC && LL.EC.freeFor) LL.EC.FREE_SCN.forEach((scn) => {
   ok(A.flow.out(0, 1, 0.3).fast === 0.3 && A.flow.out(1, 0, 0.3).fast === 1, 'valves: flow control throttles the return only');
   ok(A.reg.out(1, 0, 0.5).bar === 3 && A.reg.out(0, 0, 0.5).bar === 0, 'valves: regulator');
   ok(LL.LESSONS.some((l) => l.id === 'pneu-valves' && l.body.includes('[[hw:valves]]') && l.body.includes('[[hw:airlogic]]')), 'valves: lesson mounts both widgets');
+  const Vc = V.Vac, vrun = (o, secs, st) => { st = st || Vc.init(); for (let i = 0; i < secs * 50; i++) Vc.step(st, o, 0.02); return st; };
+  let vs = vrun({ gen: 1, mass: 2, cup: 30, sw: 50 }, 1); ok(vs.held && vs.sw, 'vacuum: grips a 2 kg part, switch ON');
+  vrun({ gen: 1, lift: 1, mass: 2, cup: 30, sw: 50 }, 1.5, vs); ok(vs.held && vs.y === 1, 'vacuum: lifts it');
+  vrun({ gen: 0, blow: 1, mass: 2, cup: 30 }, 0.3, vs); ok(!vs.held && vs.vac === 0, 'vacuum: blow-off releases');
+  vs = vrun({ gen: 1, mass: 5, cup: 30 }, 1); vrun({ gen: 1, lift: 1, mass: 5, cup: 30 }, 1, vs); ok(vs.dropped && !vs.held, 'vacuum: too heavy for the cup when it moves');
+  vs = vrun({ gen: 1, leak: 1, mass: 2, cup: 30, sw: 50 }, 1); ok(!vs.sw, 'vacuum: a leak keeps the switch off');
+  ok(Math.abs(Vc.force(60, 30) - 42.4) < 0.1, 'vacuum: force = vacuum × area');
+  const PD = V.PDRAW; ok(PD.faults.length >= 5 && PD.faults.every((f) => PD.parts[f.a]), 'pdraw: every fault answer is a part on the drawing');
+  ['vacuum', 'pneu-drawings'].forEach((id) => ok(LL.LESSONS.some((l) => l.id === id), 'lesson ' + id));
+  ok(LL.LESSONS.find((l) => l.id === 'vacuum').body.includes('[[hw:vacuum]]') && LL.LESSONS.find((l) => l.id === 'pneu-drawings').body.includes('[[hw:pdraw]]'), 'vacuum and drawing lessons mount their widgets');
 }
   const S = LL.SafetySim, mk = (o) => S.init(Object.assign({ app: 'estop2', auto: false, fb: true, delay: false, faults: {} }, o || {}));
   const run = (st, inp, ms) => { for (let t = 0; t < (ms || 100); t += 10) S.step(st, Object.assign({ act: false, reset: false, power: true }, inp), 10); return st; };
@@ -479,6 +489,7 @@ require(path.join(__dirname, '../js/calc-proj.js'));
   eq(val('dilute'), '66.7', 'concentrate'); eq(val('dilute', {}, 3), '33.3 min', 'dosing time'); ok(/stronger/.test(val('dilute', { cf: 40 })), 'calc dilute: too strong');
   eq(val('ratio'), '1', 'dosing flow'); eq(val('ratio', {}, 2), '12', 'dosing mA'); eq(val('ratio', { u: 'pct', dose: 0.01, cap: 10 }), '2', 'dosing in %');
   eq(val('batchw'), '24.919', 'stop weight'); eq(val('batchw', {}, 1), '22.19', 'change to slow'); eq(val('batchw', {}, 3), '17.2', 'fill time');
+  eq(val('leak'), '582', 'leak: 10 × 1 mm at 6 bar'); eq(val('vcup', {}, 1), '30', 'vacuum cup 2 kg, 2 cups'); eq(val('cylspeed', {}, 1), '264', 'cylinder air flow');
   eq(val('air'), '773', 'compressor'); eq(val('air', {}, 3), '1000', 'receiver'); eq(val('air', {}, 2), '5.5', 'compressor motor'); ok(/higher than the start/.test(val('air', { poff: 6 })), 'calc air: stop below start');
   eq(val('line'), '30', 'belt speed'); eq(val('line', {}, 4), '400', 'gap time'); eq(val('roll'), '4963', 'roll length'); eq(val('roll', {}, 3), '353.7', 'rpm empty');
   eq(val('cool'), '28.8', 'cooling water'); eq(val('cool', { m: 'a', p: 1, dt: 10 }), '299', 'cooling air'); eq(val('tmix'), '11.1', 'hot water');
