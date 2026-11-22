@@ -806,6 +806,73 @@
     },
 
     {
+      id: 'pneu-valves', level: 4, title: 'Pneumatic valves: every type, when and why', min: 15,
+      summary: 'Read a valve symbol, know the 8 directional valves (2/2, 3/2, 5/2, 5/3) and the small ones around them, and choose the right one: what must the cylinder do when the power fails?',
+      body: `
+<p>A PLC never moves a cylinder by itself. It switches a <b>coil</b> on a <b>valve</b>, and the valve sends air to the cylinder. The valve you choose decides what the cylinder does when a coil goes off, when the power fails, when the E-stop is pressed or when the air is shut off. So it changes the program and the safety of the machine.</p>
+<h3>1. Read the name and the symbol</h3>
+<ul>
+<li><b>5/2</b> means <b>5 ports, 2 positions</b>. 3/2 = 3 ports, 2 positions. 5/3 = 5 ports, 3 positions.</li>
+<li><b>Port numbers</b> (ISO 5599): <b>1</b> = supply, <b>2</b> and <b>4</b> = to the cylinder, <b>3</b> and <b>5</b> = exhausts. The coil <b>14</b> joins 1 to 4; the coil (or spring) <b>12</b> joins 1 to 2.</li>
+<li>In the symbol every <b>square is one position</b>. Arrows show where the air flows, a <b>T</b> is a blocked port. The ports always stay at the square in use: when the valve switches, picture the squares sliding over the ports.</li>
+<li>At the ends you see what moves the valve: a coil (rectangle with a slash), a spring (zigzag), a push button or manual override, a roller lever, an air pilot.</li>
+</ul>
+<p>Mount a valve on the island, switch its coils like PLC outputs, then cut the power, shut off the air or hang a load on the cylinder:</p>
+[[hw:valves]]
+<h3>2. The family, and when to use each one</h3>
+<div class="tbl"><table>
+<tr><th>Valve</th><th>Drives</th><th>Power fails</th><th>Use it for</th></tr>
+<tr><td><b>2/2</b> NC</td><td>one line</td><td>closes</td><td>blow-off nozzles, air knives, vacuum on / off, shut-off</td></tr>
+<tr><td><b>3/2</b> NC</td><td>single-acting cylinder</td><td>vents: spring returns</td><td>clamps, stoppers, ejectors, the soft-start / dump valve of a machine</td></tr>
+<tr><td><b>3/2</b> NO</td><td>single-acting cylinder</td><td>pressurises: goes out</td><td>brakes released by air, functions that must stay on without power</td></tr>
+<tr><td><b>5/2 monostable</b></td><td>double-acting cylinder</td><td>springs back: cylinder retracts</td><td>the everyday choice: pushers, lifts, slides, grippers</td></tr>
+<tr><td><b>5/2 bistable</b></td><td>double-acting cylinder</td><td>stays, keeps pushing</td><td>grippers and clamps that must hold the part</td></tr>
+<tr><td><b>5/3 closed centre</b></td><td>double-acting cylinder</td><td>stops and holds (trapped air)</td><td>stop anywhere, positioning, vertical axes (with pilot check valves)</td></tr>
+<tr><td><b>5/3 exhaust centre</b></td><td>double-acting cylinder</td><td>no force on either side</td><td>move by hand after a stop, free a trapped hand</td></tr>
+<tr><td><b>5/3 pressure centre</b></td><td>double-acting cylinder</td><td>pressure on both sides</td><td>balanced or rodless cylinders, holding with pilot check valves</td></tr>
+</table></div>
+<h3>3. How to choose, in four questions</h3>
+<ol>
+<li><b>Single- or double-acting?</b> A spring return (single) needs a 3/2. Air both ways (double) needs a 5/2 or 5/3.</li>
+<li><b>What must happen when the power fails or the E-stop opens?</b> Go back → 5/2 monostable. Stay where it is → 5/2 bistable. Stop where it is → 5/3 closed centre. No force at all → 5/3 exhaust centre.</li>
+<li><b>Must it stop in the middle?</b> Only a 5/3 can stop a cylinder between its ends.</li>
+<li><b>Is the load vertical?</b> A falling load is dangerous. Never use an exhaust centre on it; a closed centre holds only for a short time, because valves leak. For people under a load use pilot check valves on the cylinder or a mechanical clamp.</li>
+</ol>
+<div class="callout tip"><b>Rule of thumb:</b> first decide the safe state of the movement, then pick the valve that goes there by itself. Do not try to fix a wrong valve in the program: when the power fails, the program does not run.</div>
+<h3>4. What switches the valve</h3>
+<ul>
+<li><b>Solenoid</b>: the PLC output (24 V DC). Most valves are <b>pilot-operated</b>: the coil moves a tiny pilot valve and the supply air moves the big spool. They need a minimum pressure (often 2 to 3 bar) to switch.</li>
+<li><b>Spring</b> return, or <b>centring springs</b> on a 5/3.</li>
+<li><b>Manual override</b>: the small yellow button on the valve, to test a movement during commissioning. It moves the cylinder even when the program says no: check the danger zone first.</li>
+<li><b>Mechanical</b>: roller lever, plunger, push button. <b>Air pilot</b>: another valve switches it (pure pneumatic control).</li>
+<li><b>Valve islands</b>: 8 to 32 valves on one manifold with one supply, one exhaust and one fieldbus cable (PROFINET, EtherNet/IP, IO-Link) instead of a wire for every coil.</li>
+</ul>
+<h3>5. In the PLC program</h3>
+<ul>
+<li><b>5/2 monostable</b>: one output, a normal coil. ON for as long as the cylinder must be out.</li>
+<li><b>5/2 bistable</b>: two outputs. A short pulse on Y14 (out) or Y12 (back). Interlock them so both are never on together.</li>
+<li><b>5/3</b>: two outputs. Y14 = out, Y12 = back, both off = the centre position (stop). Never both on.</li>
+</ul>
+<pre class="code">Out  := Step_Out AND NOT Back_cmd;   (* Y14 *)
+Back := Step_Back AND NOT Out_cmd;   (* Y12 *)</pre>
+<p>Always check the end sensors (B1 back, B2 out) before the next step, and add a time-out: if the sensor does not come in time, the valve, the air or the sensor has a fault.</p>
+<h3>6. Speed, force and the small valves</h3>
+<ul>
+<li><b>One-way flow control, meter-out</b>: throttles the air leaving the cylinder. The piston moves smoothly, even with a changing load. Fit it at the cylinder ports.</li>
+<li><b>Quick exhaust valve</b>: dumps the air right at the cylinder: a much faster return.</li>
+<li><b>Check valve</b>: air one way only. <b>Shuttle valve</b>: OR. <b>Two-pressure valve</b>: AND.</li>
+<li><b>Pressure regulator</b>: sets the force. Force = pressure × piston area (6 bar on a 32 mm piston ≈ 480 N).</li>
+</ul>
+[[hw:airlogic]]
+<div class="callout warn"><b>Safety:</b> compressed air is stored energy. Before you work on a machine, shut off and <b>exhaust</b> the air (a lockable 3/2 shut-off valve on the supply), not only the power. A cylinder can still move on trapped air. Safety functions need certified safety valves, often two in series with monitored spools.</div>
+<div class="callout where"><b>Where:</b> every machine with cylinders: packaging, assembly cells, pick &amp; place, presses, sorting gates, robot grippers, food and pharma lines, trucks and trains (doors and brakes).</div>
+`,
+      sims: {},
+      takeaways: ['5/2 = 5 ports, 2 positions. 1 supply, 2 and 4 to the cylinder, 3 and 5 exhaust; coil 14 gives 1→4.', 'Choose the valve by the safe state: back (5/2 mono), stay (5/2 bistable), stop (5/3 closed), free (5/3 exhaust).', 'Monostable: hold the coil. Bistable and 5/3: two outputs, never both on.', 'Meter-out flow control for speed, a regulator for force, a quick exhaust for a fast return.'],
+      mistakes: ['A 5/3 exhaust centre on a vertical load: it falls when the valve stops.', 'Switching both coils of a bistable or 5/3 valve on together.', 'Trusting a closed centre to hold a load for a long time: valves leak.', 'Working on a machine with the power off but the air still on.'],
+      challenges: ['cyl-once', 'cyl-repeat', 'cylinders-abc', 'cyl-dwell', 'diag-reed'],
+    },
+    {
       id: 'io-wiring', level: 4, title: "Wiring inputs and outputs: PNP, NPN, relays and transistors", min: 14,
       summary: "Where the current flows in an input and an output circuit: sinking and sourcing, 2-wire sensors, the four kinds of output card, flyback diodes and interposing relays. With a wiring simulator where every mistake is free.",
       body: `
@@ -3736,6 +3803,16 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
 
   // ───────────────────────── glossary ─────────────────────────
   LL.GLOSSARY = [
+    ['5/2 valve', 'A directional valve with 5 ports (1 supply, 2 and 4 to the cylinder, 3 and 5 exhaust) and 2 positions. The standard valve for a double-acting cylinder.'],
+    ['3/2 valve', 'A valve with 3 ports (1 supply, 2 out, 3 exhaust) and 2 positions. Drives a single-acting cylinder; normally closed (NC) or normally open (NO).'],
+    ['5/3 exhaust centre', 'A 5/3 valve whose centre position vents both cylinder ports: no force, the cylinder can be moved by hand. A vertical load falls.'],
+    ['5/3 pressure centre', 'A 5/3 valve whose centre position gives air to both cylinder ports. A single-rod cylinder creeps out because the piston side has the bigger area.'],
+    ['Shuttle valve', 'A pneumatic OR: two inputs, one output. A ball closes the input without pressure.'],
+    ['Two-pressure valve', 'A pneumatic AND: air at the output only when both inputs have air.'],
+    ['Quick exhaust valve', 'A valve at the cylinder port that dumps the exhaust air right there instead of through the tube and the main valve: a faster stroke.'],
+    ['Meter-out', 'Speed control that throttles the air leaving the cylinder. Smooth and steady movement; the normal way to set cylinder speed.'],
+    ['Manual override', 'The small button on a solenoid valve that switches it by hand, for tests during commissioning. It moves the cylinder whatever the program says.'],
+    ['Valve island', 'Many valves on one manifold with a common supply, exhaust and one fieldbus or IO-Link connection to the PLC.'],
     ['PLC', 'Programmable Logic Controller: an industrial computer that reads inputs, runs a program in a repeating scan, and drives outputs.'],
     ['Ladder Diagram (LD)', 'Graphical PLC language that looks like a relay schematic: rails, rungs, contacts and coils.'],
     ['Rung', 'One horizontal line of ladder logic: conditions on the left, result(s) on the right.'],
@@ -4078,6 +4155,13 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
 
   // ───────────────────────── concept quiz ─────────────────────────
   LL.QUIZ = [
+    { l: 4, q: "What does 5/2 mean on a valve?", a: ["5 bar and 2 coils", "5 ports and 2 positions", "5 mm bore and 2 outputs", "5 positions and 2 ports"], c: 1, why: "Ports first, positions second: 1 supply, 2 and 4 to the cylinder, 3 and 5 exhaust; two positions." },
+    { l: 4, q: "A 5/2 monostable valve holds a cylinder out. The power fails. What happens?", a: ["The cylinder stays out", "The cylinder stops halfway", "The spring switches the valve back and the cylinder retracts", "The cylinder becomes free to move by hand"], c: 2, why: "Monostable = one stable position. Without the coil the spring returns the valve, so the cylinder goes back." },
+    { l: 4, q: "A gripper must NOT drop the part when the power fails. Which valve?", a: ["5/2 monostable", "5/2 bistable", "5/3 exhaust centre", "3/2 normally closed"], c: 1, why: "A bistable valve keeps its last position without power, so the gripper keeps its air and holds the part." },
+    { l: 4, q: "Which valve can stop a cylinder in the middle of its stroke?", a: ["3/2 NC", "5/2 monostable", "5/2 bistable", "5/3 closed centre"], c: 3, why: "Only a 5/3 has a centre position. Closed centre blocks both ports and the cylinder stops where it is." },
+    { l: 4, q: "Why is a 5/3 exhaust centre dangerous on a vertical load?", a: ["It switches too slowly", "Both sides are vented in the centre, so nothing holds the load and it falls", "It needs two power supplies", "It blocks the supply air"], c: 1, why: "The exhaust centre removes all force. Good for moving a cylinder by hand, bad when gravity pulls." },
+    { l: 4, q: "How do you set the speed of a pneumatic cylinder in the usual way?", a: ["Lower the supply pressure", "A one-way flow control that throttles the exhaust air (meter-out)", "Switch the coil on and off fast", "Use a bigger valve"], c: 1, why: "Meter-out throttles the air leaving the cylinder: smooth, steady movement even when the load changes." },
+    { l: 4, q: "A shuttle valve works like which logic function?", a: ["AND", "OR", "NOT", "XOR"], c: 1, why: "Air at X or at Y gives air at the output. The two-pressure valve is the AND." },
     { l: 5, q: "Why put the logic for 20 identical motors in one block instead of copying rungs?", a: ["A block runs faster than the same copied rungs", "Test it once; one fix then reaches all 20 motors", "A block uses no memory, copied rungs use a lot", "Copied rungs are not allowed by the IEC 61131 standard"], c: 1, why: "One tested block, many calls." },
     { l: 5, q: "Inside a block you write #Start. What is it?", a: ["A fixed input address that is the same in every single call", "A parameter or local variable, connected at each call", "A comment marker; the PLC ignores the text after #", "A system bit that is 1 in the first scan only"], c: 1, why: "The call connects #Start to a real address." },
     { l: 5, q: "Two CALLs of FB_Motor use the same instance name. What happens?", a: ["The compiler gives each call its own copy anyway", "They share one memory and overwrite timers and latches", "The PLC goes to STOP mode with a double-instance error", "The second call is skipped, and only the first one runs"], c: 1, why: "Instance = memory. Each device needs its own instance." },

@@ -1,6 +1,6 @@
 // node ladder-lab/tests/run.js — verifies engine + every challenge solution
 const path = require('path');
-['engine', 'st', 'plants', 'plants-robot', 'plants-starters', 'challenges', 'lessons', 'topics', 'quiz-read', 'fbdview', 'hw-flow', 'hw-safety'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
+['engine', 'st', 'plants', 'plants-robot', 'plants-starters', 'challenges', 'lessons', 'topics', 'quiz-read', 'fbdview', 'hw-flow', 'hw-safety', 'hw-valves'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
 const LL = globalThis.LL;
 let fail = 0, pass = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL', m); } };
@@ -110,6 +110,33 @@ if (LL.EC && LL.EC.freeFor) LL.EC.FREE_SCN.forEach((scn) => {
 
 // safety relay simulator (lesson safety-practice)
 {
+// pneumatic valves: every valve goes where its type says, on coils, power loss, air loss and loads
+{
+  const V = LL.ValveSim, run = (t, o, secs, st) => { st = st || V.init(t); for (let i = 0; i < secs * 50; i++) V.step(st, o, 0.02); return st; };
+  ok(V.ORDER.length === 8 && V.ORDER.every((k) => V.VALVES[k]), 'valves: 8 types');
+  let st = run('v52m', { y14: 1 }, 2); ok(st.x === 1 && V.sensors(st).b2, 'valves: 5/2 mono extends on Y14');
+  run('v52m', { y14: 1, power: false }, 2, st); ok(st.x === 0 && V.sensors(st).b1, 'valves: 5/2 mono retracts on power loss');
+  st = run('v52b', { y14: 1 }, 2); run('v52b', {}, 2, st); ok(st.x === 1 && st.pos === 'on', 'valves: bistable keeps its position');
+  run('v52b', { y12: 1 }, 2, st); ok(st.x === 0, 'valves: bistable back on Y12');
+  st = run('v52b', { y14: 1, y12: 1 }, 0.1); ok(st.both, 'valves: both coils flagged');
+  st = run('v53c', { y14: 1 }, 0.5); const h = st.x; run('v53c', {}, 2, st); ok(h > 0.2 && h < 0.8 && Math.abs(st.x - h) < 1e-9 && st.pos === 'mid', 'valves: closed centre stops and holds');
+  run('v53c', { load: 1 }, 2, st); ok(st.x - h < 0.05, 'valves: closed centre holds a load (creeps a little)');
+  st = run('v53e', { y14: 1 }, 0.4); run('v53e', { load: 1 }, 2, st); ok(st.x === 1, 'valves: exhaust centre lets a vertical load fall');
+  st = run('v53e', { y14: 1 }, 0.4); const e = st.x; run('v53e', {}, 2, st); ok(st.x === e, 'valves: exhaust centre without load stays (no force)');
+  st = run('v53p', {}, 1); ok(st.x > 0.1, 'valves: pressure centre creeps out');
+  st = run('v32nc', { y14: 1 }, 2); ok(st.x === 1, 'valves: 3/2 NC out on coil'); run('v32nc', {}, 2, st); ok(st.x === 0, 'valves: 3/2 NC spring return');
+  st = run('v32no', {}, 1); ok(st.x === 1, 'valves: 3/2 NO out without power');
+  st = run('v52m', { y14: 1, air: false }, 2); ok(st.x === 0, 'valves: no air, no movement');
+  st = run('v52m', { man: 1, power: false }, 2); ok(st.x === 1, 'valves: manual override works without power');
+  const slow = run('v52m', { y14: 1, speed: 0.2 }, 0.5).x, fast = run('v52m', { y14: 1, speed: 1 }, 0.5).x; ok(slow < fast / 3, 'valves: meter-out slows the stroke');
+  st = run('v22', { y14: 1 }, 0.5); ok(st.jet === 1 && st.ch.out === 'P', 'valves: 2/2 opens'); run('v22', {}, 0.1, st); ok(st.jet === 0, 'valves: 2/2 closes');
+  const A = V.AIR; ok(A.shuttle.out(1, 0).y && A.shuttle.out(0, 1).y && !A.shuttle.out(0, 0).y, 'valves: shuttle = OR');
+  ok(!A.andv.out(1, 0).y && !A.andv.out(0, 1).y && A.andv.out(1, 1).y, 'valves: two-pressure = AND');
+  ok(A.check.out(1, 0).flow === 'ltr' && A.check.out(0, 1).flow === 'none', 'valves: check valve one way');
+  ok(A.flow.out(0, 1, 0.3).fast === 0.3 && A.flow.out(1, 0, 0.3).fast === 1, 'valves: flow control throttles the return only');
+  ok(A.reg.out(1, 0, 0.5).bar === 3 && A.reg.out(0, 0, 0.5).bar === 0, 'valves: regulator');
+  ok(LL.LESSONS.some((l) => l.id === 'pneu-valves' && l.body.includes('[[hw:valves]]') && l.body.includes('[[hw:airlogic]]')), 'valves: lesson mounts both widgets');
+}
   const S = LL.SafetySim, mk = (o) => S.init(Object.assign({ app: 'estop2', auto: false, fb: true, delay: false, faults: {} }, o || {}));
   const run = (st, inp, ms) => { for (let t = 0; t < (ms || 100); t += 10) S.step(st, Object.assign({ act: false, reset: false, power: true }, inp), 10); return st; };
   const press = (st, inp) => { run(st, Object.assign({}, inp, { reset: true }), 50); run(st, inp, 50); };

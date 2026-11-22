@@ -132,10 +132,10 @@
     },
     {
       id: 'pneumatics', title: 'Pneumatic cylinders', color: '#0284c7',
-      blurb: 'Valves, end sensors, cylinder sequences, pick & place.',
+      blurb: 'All valve types, end sensors, cylinder sequences, pick & place.',
       intro: 'What you learn here: how air cylinders are driven by a PLC. Valves, end sensors, cylinder sequences and a pick & place station.',
       start: 'field-devices',
-      lessons: ['field-devices', 'video-circuit', 'state-machine', 'seq-tools'],
+      lessons: ['field-devices', 'pneu-valves', 'video-circuit', 'state-machine', 'seq-tools'],
       tasks: [
         'cyl-once', 'cyl-repeat', 'cylinders-abc', 'step-machine', 'cyl-abba-c', 'cyl-dwell', 'cyl-parallel',
         'cyl-cycle-stop', 'cyl-modes', 'sfc-1', 'blk-fc', 'blk-fb-timeout', 'cio-2', 'st-repeat-count', 'diag-reed',
