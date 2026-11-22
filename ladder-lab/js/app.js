@@ -2361,7 +2361,7 @@
 
     renderVals() {
       if (this.lang === 'st') {
-        const html = this.m.listVars().filter((v) => !v.at).map((v) => `<tr><td>${esc(v.name)}</td><td><span class="kind">${esc(v.type || '')}</span></td><td class="${v.on ? 'v1' : ''}" style="white-space:nowrap">${esc(v.value)}</td></tr>`).join('');
+        const html = this.m.listVars().filter((v) => !v.at).map((v) => `<tr><td>${esc(v.name)}</td><td><span class="kind">${esc(v.type || '')}</span></td><td class="${v.on ? 'v1' : ''}" style="white-space:${/\s/.test(v.value) ? 'normal' : 'nowrap'}">${esc(v.value)}</td></tr>`).join('');
         const tb = $('.valrows', this.el);
         if (tb && tb._h !== html) { tb.innerHTML = html; tb._h = html; }
         return;

@@ -1,6 +1,6 @@
 // node ladder-lab/tests/run.js — verifies engine + every challenge solution
 const path = require('path');
-['engine', 'st', 'plants', 'plants-robot', 'plants-starters', 'plants-valves', 'challenges', 'lessons', 'topics', 'quiz-read', 'fbdview', 'hw-flow', 'hw-safety', 'hw-valves'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
+['engine', 'st', 'plants', 'plants-robot', 'plants-starters', 'plants-valves', 'plants-life', 'challenges', 'lessons', 'topics', 'quiz-read', 'fbdview', 'hw-flow', 'hw-safety', 'hw-valves', 'hw-life'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
 const LL = globalThis.LL;
 let fail = 0, pass = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL', m); } };
@@ -143,6 +143,18 @@ if (LL.EC && LL.EC.freeFor) LL.EC.FREE_SCN.forEach((scn) => {
   vs = vrun({ gen: 1, mass: 5, cup: 30 }, 1); vrun({ gen: 1, lift: 1, mass: 5, cup: 30 }, 1, vs); ok(vs.dropped && !vs.held, 'vacuum: too heavy for the cup when it moves');
   vs = vrun({ gen: 1, leak: 1, mass: 2, cup: 30, sw: 50 }, 1); ok(!vs.sw, 'vacuum: a leak keeps the switch off');
   ok(Math.abs(Vc.force(60, 30) - 42.4) < 0.1, 'vacuum: force = vacuum × area');
+  { const L = LL.LifeSim, run = (st, ms) => { for (let i = 0; i < ms / 10; i++) L.scan(st, 10); return st; };
+    [0, 1].forEach((adv) => {
+      const nm = adv ? 'heartbeat stopwatch: ' : 'heartbeat TON: ';
+      let st = run(L.init(adv), 3000); ok(!st.err && st.life >= 28 && st.life <= 31, nm + 'counts 10 per second, no error');
+      st.mode = 'freeze'; run(st, 900); ok(!st.err, nm + 'no error before 1 s'); run(st, 300); ok(st.err, nm + 'error after a 1 s freeze');
+      st.mode = 'ok'; run(st, 200); ok(!st.err, nm + 'OK again at the first change');
+      st.mode = 'slow'; st.lastCopy = -1e9; const e0 = st.errs; run(st, 8000); ok(st.errs - e0 >= 3 && st.errs - e0 <= 5, nm + 'slow remote: CommError blinks');
+      if (adv) ok(st.resp >= 1.9 && st.resp <= 2.2, nm + 'response time about 2 s');
+      st.mode = 'cut'; run(st, 1300); ok(st.err && st.reply === 0, nm + 'cable cut: reply 0, error');
+      st = run(L.init(adv), 61000); ok(st.life < 600 && st.life <= 12, nm + 'wraps at 600');
+    });
+    ok(LL.LESSONS.some((l) => l.id === 'heartbeat' && l.body.includes('[[hw:lifeword]]')), 'heartbeat lesson mounts its widget'); }
   const PD = V.PDRAW; ok(PD.faults.length >= 5 && PD.faults.every((f) => PD.parts[f.a]), 'pdraw: every fault answer is a part on the drawing');
   ['vacuum', 'pneu-drawings'].forEach((id) => ok(LL.LESSONS.some((l) => l.id === id), 'lesson ' + id));
   ok(LL.LESSONS.find((l) => l.id === 'vacuum').body.includes('[[hw:vacuum]]') && LL.LESSONS.find((l) => l.id === 'pneu-drawings').body.includes('[[hw:pdraw]]'), 'vacuum and drawing lessons mount their widgets');

@@ -269,9 +269,9 @@
       blurb: 'Serial, Modbus, PROFIBUS, CAN, PROFINET, EtherCAT, MQTT.',
       intro: 'What you learn here: how PLCs and devices talk to each other. How serial, Modbus, PROFIBUS, CAN, PROFINET, EtherCAT and MQTT work, and handshakes between machines.',
       start: 'protocols',
-      lessons: ['protocols', 'networks', 'project-setup'],
-      tasks: ['mb-1', 'comm-1', 'comm-2', 'comm-3', 'mb-2'],
-      machines: ['handover', 'modbus'],
+      lessons: ['protocols', 'networks', 'heartbeat', 'project-setup'],
+      tasks: ['mb-1', 'hb-life', 'hb-watch', 'hb-stopwatch', 'hb-two', 'st-hb', 'comm-1', 'comm-2', 'comm-3', 'mb-2'],
+      machines: ['handover', 'remote', 'modbus'],
       quiz: [
         { mode: 'net', sel: 'Basics', label: 'Basics' },
         { mode: 'net', sel: 'How it works', label: 'How it works' },

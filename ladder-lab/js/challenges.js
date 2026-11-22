@@ -1719,6 +1719,72 @@
         { name: 'A second cycle works too', steps: ['tap I0.0', 'waitfor I0.2=1 5000', 'wait 200', 'tap I0.0', 'waitfor I0.3=1 2000', 'waitfor I0.2=1 3000'] },
       ],
     },
+    // ── heartbeat with a life word and its echo (plant 'remote')
+    {
+      id: 'hb-life', level: 6, plant: 'remote', title: 'Heartbeat 1/4: the life word',
+      tags: { 'AQW30': 'LifeWord', 'T9': '0.1 s pulse' },
+      brief: 'Prove that your PLC is alive: send a <b>life word</b> to the remote device. Add 1 to <b>LifeWord</b> (AQW30) every <b>0.1 s</b>, and start again at <b>0</b> after 599 (600 × 0.1 s = 1 minute, then it repeats). The device copies it back on AIW30: watch the echo follow in the I/O list.',
+      hints: ['A 0.1 s pulse: a timer that restarts itself. NC(T9) TON(T9,100ms): its done bit T9 is on for exactly one scan every 0.1 s.', 'NO(T9) ADD(AQW30,1,AQW30) adds 1 on each pulse. Then CMP(AQW30>=600) MOV(0,AQW30).'],
+      solution: 'NAME Life word\nRUNG 0.1 s pulse: a timer that restarts itself (its Q is on for one scan)\nNC(T9) TON(T9,100ms)\nRUNG Heartbeat: LifeWord + 1 on every pulse\nNO(T9) ADD(AQW30,1,AQW30)\nRUNG 600 reached: back to 0 (600 × 0.1 s = 1 min)\nCMP(AQW30>=600) MOV(0,AQW30)',
+      tests: [
+        { name: 'About 10 per second', steps: ['wait 1000', 'range AQW30 7 11', 'wait 1000', 'range AQW30 15 21'] },
+        { name: 'Back to 0 after 599, never 600', steps: ['wait 70000', 'plant wrapped=1 maxLife<=599'] },
+      ],
+    },
+    {
+      id: 'hb-watch', level: 6, plant: 'remote', title: 'Heartbeat 2/4: watchdog on the echo',
+      tags: { 'AQW30': 'LifeWord', 'AIW30': 'LifeWordReply', 'MW32': 'LastReply', 'M1.0': 'Changed', 'T1': 'WatchdogTimer', 'M1.1': 'CommError' },
+      brief: 'The life word runs (rungs 1–3). Now watch the <b>echo</b> AIW30. Do <b>not</b> check echo = LifeWord (the echo is always a little late): check that the echo keeps <b>changing</b>. If it does not change for more than <b>1 s</b>, set <b>CommError</b> (M1.1, lamp Q0.0). As soon as it changes again, reset CommError. Try the faults: freeze, slow, cable cut.',
+      starter: 'NAME Life word\nRUNG 0.1 s pulse: a timer that restarts itself (its Q is on for one scan)\nNC(T9) TON(T9,100ms)\nRUNG Heartbeat: LifeWord + 1 on every pulse\nNO(T9) ADD(AQW30,1,AQW30)\nRUNG 600 reached: back to 0 (600 × 0.1 s = 1 min)\nCMP(AQW30>=600) MOV(0,AQW30)',
+      hints: ['Change detected: CMP(AIW30<>MW32) COIL(M1.0). Then NO(M1.0) MOV(AIW30,MW32) remembers the new value as LastReply.', 'NC(M1.0) TON(T1,1s): the timer runs only while nothing changes; one change restarts it.', 'NO(T1) SET(M1.1), NO(M1.0) RST(M1.1), and the lamp NO(M1.1) COIL(Q0.0).'],
+      solution: 'NAME Life word\nRUNG 0.1 s pulse: a timer that restarts itself (its Q is on for one scan)\nNC(T9) TON(T9,100ms)\nRUNG Heartbeat: LifeWord + 1 on every pulse\nNO(T9) ADD(AQW30,1,AQW30)\nRUNG 600 reached: back to 0 (600 × 0.1 s = 1 min)\nCMP(AQW30>=600) MOV(0,AQW30)\nRUNG Change detected: the echo is not what we saw last time\nCMP(AIW30<>MW32) COIL(M1.0)\nRUNG Remember the echo (LastReply)\nNO(M1.0) MOV(AIW30,MW32)\nRUNG Watchdog timer: runs while nothing changes\nNC(M1.0) TON(T1,1s)\nRUNG More than 1 s without a change: CommError\nNO(T1) SET(M1.1)\nRUNG A change: OK again\nNO(M1.0) RST(M1.1)\nRUNG CommError lamp\nNO(M1.1) COIL(Q0.0)',
+      tests: [
+        { name: 'Link OK: no CommError', steps: ['wait 3000', 'stays Q0.0=0 2000'] },
+        { name: 'Remote freezes: CommError after about 1 s', steps: ['wait 1000', 'action freeze', 'wait 700', 'expect Q0.0=0', 'waitfor Q0.0=1 800'] },
+        { name: 'Remote answers again: OK again', steps: ['wait 1000', 'action freeze', 'wait 1500', 'expect Q0.0=1', 'action freeze', 'waitfor Q0.0=0 500'] },
+        { name: 'Cable cut (echo = 0): CommError', steps: ['wait 1000', 'action cut', 'waitfor Q0.0=1 1500'] },
+        { name: 'Remote slow (every 2 s): CommError blinks', steps: ['wait 500', 'action slow', 'pulses Q0.0 9000 3 5'] },
+      ],
+    },
+    {
+      id: 'hb-stopwatch', level: 6, plant: 'remote', title: 'Heartbeat 3/4: stopwatch and response time',
+      tags: { 'AQW30': 'LifeWord', 'AIW30': 'LifeWordReply', 'MW32': 'LastReply', 'M1.0': 'Changed', 'MW34': 'TimeAcc (0.1 s)', 'MW36': 'ResponseTime (0.1 s)', 'M1.1': 'CommError' },
+      brief: 'The way industrial libraries do it: instead of a TON, a <b>stopwatch</b> TimeAcc (MW34, in tenths of a second). On a change: store <b>ResponseTime</b> := TimeAcc (MW36) and restart TimeAcc at 1 (0.1 s). No change: add 1 on every 0.1 s pulse, but stop at 100 (10 s). TimeAcc &gt; 10 (1.0 s): set <b>CommError</b> (M1.1, lamp Q0.0); a change resets it. ResponseTime now tells you how fast the remote side answers.',
+      starter: 'NAME Life word\nRUNG 0.1 s pulse: a timer that restarts itself (its Q is on for one scan)\nNC(T9) TON(T9,100ms)\nRUNG Heartbeat: LifeWord + 1 on every pulse\nNO(T9) ADD(AQW30,1,AQW30)\nRUNG 600 reached: back to 0 (600 × 0.1 s = 1 min)\nCMP(AQW30>=600) MOV(0,AQW30)\nRUNG Change detected\nCMP(AIW30<>MW32) COIL(M1.0)\nRUNG Remember the echo\nNO(M1.0) MOV(AIW30,MW32)',
+      hints: ['Order matters: on a change, first MOV(MW34,MW36), then MOV(1,MW34).', 'Count only on the pulse and only without a change: NO(T9) NC(M1.0) ADD(MW34,1,MW34).', 'CMP(MW34>100) MOV(100,MW34) keeps the stopwatch from running for ever. CMP(MW34>10) SET(M1.1).'],
+      solution: 'NAME Life word\nRUNG 0.1 s pulse: a timer that restarts itself (its Q is on for one scan)\nNC(T9) TON(T9,100ms)\nRUNG Heartbeat: LifeWord + 1 on every pulse\nNO(T9) ADD(AQW30,1,AQW30)\nRUNG 600 reached: back to 0 (600 × 0.1 s = 1 min)\nCMP(AQW30>=600) MOV(0,AQW30)\nRUNG Change detected\nCMP(AIW30<>MW32) COIL(M1.0)\nRUNG Remember the echo\nNO(M1.0) MOV(AIW30,MW32)\nRUNG On a change: ResponseTime = the stopwatch\nNO(M1.0) MOV(MW34,MW36)\nRUNG On a change: restart the stopwatch at 0.1 s\nNO(M1.0) MOV(1,MW34)\nRUNG No change: + 0.1 s on every pulse\nNO(T9) NC(M1.0) ADD(MW34,1,MW34)\nRUNG Stop counting at 10 s\nCMP(MW34>100) MOV(100,MW34)\nRUNG More than 1.0 s: CommError\nCMP(MW34>10) SET(M1.1)\nRUNG A change: OK again\nNO(M1.0) RST(M1.1)\nRUNG CommError lamp\nNO(M1.1) COIL(Q0.0)',
+      tests: [
+        { name: 'Link OK: ResponseTime 0.1 to 0.3 s, no CommError', steps: ['wait 3000', 'expect Q0.0=0', 'range MW36 1 3'] },
+        { name: 'Remote freezes: CommError', steps: ['wait 1000', 'action freeze', 'waitfor Q0.0=1 1600'] },
+        { name: 'Remote slow: ResponseTime shows about 2 s', steps: ['wait 500', 'action slow', 'wait 4500', 'range MW36 15 22'] },
+        { name: 'The stopwatch stops at 10 s', steps: ['wait 500', 'action freeze', 'wait 13000', 'range MW34 100 101'] },
+      ],
+    },
+    {
+      id: 'hb-two', level: 6, plant: 'remote', title: 'Heartbeat 4/4: a second channel',
+      tags: { 'AQW31': 'LifeWord 2', 'AIW31': 'Reply 2', 'MW42': 'LastReply 2', 'M2.0': 'Changed 2', 'T2': 'Watchdog 2', 'M2.1': 'CommError 2' },
+      brief: 'A second device (for example the HMI panel) needs its own watchdog. Channel 1 works already. Send the life word also on <b>AQW31</b>, watch its echo <b>AIW31</b> the same way, and show <b>CommError 2</b> on lamp <b>Q0.1</b>. A frozen channel 2 must not set CommError 1, and the other way round.',
+      starter: 'NAME Life word\nRUNG 0.1 s pulse: a timer that restarts itself (its Q is on for one scan)\nNC(T9) TON(T9,100ms)\nRUNG Heartbeat: LifeWord + 1 on every pulse\nNO(T9) ADD(AQW30,1,AQW30)\nRUNG 600 reached: back to 0 (600 × 0.1 s = 1 min)\nCMP(AQW30>=600) MOV(0,AQW30)\nRUNG Change detected: the echo is not what we saw last time\nCMP(AIW30<>MW32) COIL(M1.0)\nRUNG Remember the echo (LastReply)\nNO(M1.0) MOV(AIW30,MW32)\nRUNG Watchdog timer: runs while nothing changes\nNC(M1.0) TON(T1,1s)\nRUNG More than 1 s without a change: CommError\nNO(T1) SET(M1.1)\nRUNG A change: OK again\nNO(M1.0) RST(M1.1)\nRUNG CommError lamp\nNO(M1.1) COIL(Q0.0)',
+      hints: ['Copy the rungs of channel 1 and change every address: AIW31, MW42, M2.0, T2, M2.1, Q0.1.', 'Send the same life word on channel 2: NO(SM0.0) MOV(AQW30,AQW31). SM0.0 is always on.'],
+      solution: 'NAME Life word\nRUNG 0.1 s pulse: a timer that restarts itself (its Q is on for one scan)\nNC(T9) TON(T9,100ms)\nRUNG Heartbeat: LifeWord + 1 on every pulse\nNO(T9) ADD(AQW30,1,AQW30)\nRUNG 600 reached: back to 0 (600 × 0.1 s = 1 min)\nCMP(AQW30>=600) MOV(0,AQW30)\nRUNG Change detected: the echo is not what we saw last time\nCMP(AIW30<>MW32) COIL(M1.0)\nRUNG Remember the echo (LastReply)\nNO(M1.0) MOV(AIW30,MW32)\nRUNG Watchdog timer: runs while nothing changes\nNC(M1.0) TON(T1,1s)\nRUNG More than 1 s without a change: CommError\nNO(T1) SET(M1.1)\nRUNG A change: OK again\nNO(M1.0) RST(M1.1)\nRUNG CommError lamp\nNO(M1.1) COIL(Q0.0)\nRUNG Channel 2: send the same life word\nNO(SM0.0) MOV(AQW30,AQW31)\nRUNG Channel 2: change detected\nCMP(AIW31<>MW42) COIL(M2.0)\nRUNG Channel 2: remember the echo\nNO(M2.0) MOV(AIW31,MW42)\nRUNG Channel 2: watchdog\nNC(M2.0) TON(T2,1s)\nRUNG Channel 2: CommError\nNO(T2) SET(M2.1)\nRUNG Channel 2: OK again\nNO(M2.0) RST(M2.1)\nRUNG Channel 2: lamp\nNO(M2.1) COIL(Q0.1)',
+      tests: [
+        { name: 'Both channels OK', steps: ['wait 3000', 'expect Q0.0=0 Q0.1=0'] },
+        { name: 'Channel 2 freezes: only CommError 2', steps: ['wait 1000', 'action freeze2', 'waitfor Q0.1=1 1500', 'expect Q0.0=0'] },
+        { name: 'Channel 1 freezes: only CommError 1', steps: ['wait 1000', 'action freeze', 'waitfor Q0.0=1 1500', 'expect Q0.1=0'] },
+      ],
+    },
+    {
+      id: 'st-hb', level: 7, lang: 'st', plant: 'remote', title: 'ST: heartbeat and watchdog with a REAL stopwatch',
+      brief: 'The heartbeat in Structured Text, the way a library block does it. Every <b>0.1 s</b>: LifeWord + 1, back to 0 at 600. Watch the echo: on a change, <b>ResponseTime := TimeAcc</b>, TimeAcc := 0.1 and CommError := FALSE; no change: TimeAcc += 0.1 on every pulse (stop at 10.0). <b>TimeAcc &gt; 1.0</b>: CommError := TRUE (lamp Q0.0). Compare it with your ladder version: same logic, a few lines.',
+      starter: 'PROGRAM PLC_PRG\nVAR\n  LifeWord      AT %QW30 : INT;\n  LifeWordReply AT %IW30 : INT;\n  CommErrorLamp AT %QX0.0 : BOOL;\n  LastReply : INT;\n  Pulse : TON;\n  TimeAcc : REAL := 0.0;\n  ResponseTime : REAL := 0.0;\n  CommError : BOOL;\nEND_VAR\n\n(* 0.1 s pulse: a timer that restarts itself *)\nPulse(IN := NOT Pulse.Q, PT := T#100MS);\n',
+      hints: ['IF Pulse.Q THEN LifeWord := LifeWord + 1; IF LifeWord >= 600 THEN LifeWord := 0; END_IF END_IF', 'IF LifeWordReply <> LastReply THEN … ELSIF Pulse.Q AND TimeAcc < 10.0 THEN TimeAcc := TimeAcc + 0.1; END_IF', 'Do not compare REALs with =. TimeAcc > 1.0 is fine.'],
+      solution: 'PROGRAM PLC_PRG\nVAR\n  LifeWord      AT %QW30 : INT;\n  LifeWordReply AT %IW30 : INT;\n  CommErrorLamp AT %QX0.0 : BOOL;\n  LastReply : INT;\n  Pulse : TON;\n  TimeAcc : REAL := 0.0;\n  ResponseTime : REAL := 0.0;\n  CommError : BOOL;\nEND_VAR\n\n(* 0.1 s pulse: a timer that restarts itself *)\nPulse(IN := NOT Pulse.Q, PT := T#100MS);\n\n(* heartbeat: 0..599, one step every 0.1 s *)\nIF Pulse.Q THEN\n  LifeWord := LifeWord + 1;\n  IF LifeWord >= 600 THEN LifeWord := 0; END_IF\nEND_IF\n\n(* watchdog: the echo must keep CHANGING *)\nIF LifeWordReply <> LastReply THEN\n  LastReply := LifeWordReply;\n  ResponseTime := TimeAcc;\n  TimeAcc := 0.1;\n  CommError := FALSE;\nELSIF Pulse.Q AND TimeAcc < 10.0 THEN\n  TimeAcc := TimeAcc + 0.1;\nEND_IF\nIF TimeAcc > 1.0 THEN CommError := TRUE; END_IF\n\nCommErrorLamp := CommError;',
+      tests: [
+        { name: 'Link OK: no CommError', steps: ['wait 3000', 'expect Q0.0=0', 'range AQW30 20 32'] },
+        { name: 'Remote freezes: CommError', steps: ['wait 1000', 'action freeze', 'waitfor Q0.0=1 1600'] },
+        { name: 'Remote answers again: OK again', steps: ['wait 1000', 'action freeze', 'wait 1800', 'action freeze', 'waitfor Q0.0=0 500'] },
+      ],
+    },
   ];
 
   // keep levels together (stable sort)
@@ -1733,6 +1799,7 @@
   'use strict';
   const LL = (G.LL = G.LL || {});
   LL.MACHINE_GUIDE = {
+    remote: { how: ['Your PLC sends a life word on AQW30; the remote device copies it back on AIW30 about 60 ms later. Channel 2 does the same on AQW31 / AIW31.', 'The faults: the remote freezes (the echo stops changing), answers only every 2 s, or the cable is cut (the echo reads 0). Channel 2 can freeze on its own.', 'A good watchdog checks that the echo keeps CHANGING, not that it equals the life word: the echo is always a little late.'] },
     valvebench: { how: ['Cylinder A sits on a 5/2 bistable valve: Y1 out, Y2 back. The valve remembers its position, so a pulse is enough.', 'Cylinder B sits on a 5/3 closed-centre valve: Y3 out, Y4 back, both off = stop and hold anywhere.', 'Lift C hangs a load on a 5/3 closed-centre valve: Y5 up, Y6 down, both off = the load is held. Try the fault "valve C leaks": the load creeps down.', 'Switching both coils of one valve on together is always a program fault: the drawing marks it in red.'] },
     panel: { how: ['A test bench for small logic: push buttons PB1–PB3 (wired NO), a STOP button wired NC (reads 1 until pressed), maintained switches SW1–SW4 and lamps L1–L8.', 'Nothing here can break, so use it to try any rung from the lessons.'], ex: 'toggle' },
     motor: { how: ['Two contactors feed the motor: K1 forward, K2 reverse (K2 swaps two phases). Both on at once is a short circuit, a fault.', 'The overload relay contact (I0.3) reads 1 while healthy. "Trip overload" opens it, like an overheated motor.', 'Usual program: two seal-in rungs with STOP and OL in series, each with an NC interlock contact of the other contactor.'], ex: 'interlock' },
@@ -1826,7 +1893,7 @@
         { title: 'Production data: counters, downtime, OEE', sub: 'Part counters on edges, andon light, run / fault / starved time, cycle time, OEE without overflow or division by zero', lessons: ['production-data'], ids: ['prod-1', 'prod-2', 'prod-3'] },
         { title: 'Barcodes, label printers and HMI texts', sub: 'Strings, read → print with a running serial → check, rejects, HMI text lists', lessons: ['barcode-printer', 'hmi-texts'], ids: ['bcr-1', 'bcr-2', 'bcr-3'] },
         { title: 'Data blocks and recipes', sub: 'Named data, arrays, an index from the HMI, and why the index must be checked', lessons: ['data-blocks'], ids: ['db-recipe', 'bug-db-index'] },
-        { title: 'Machines that talk: networks and handshakes', sub: 'Heartbeat, comm watchdog, hand-over handshake, data that travels with it', lessons: ['networks', 'protocols'], ids: ['comm-1', 'comm-2', 'comm-3', 'mb-1', 'mb-2'] },
+        { title: 'Machines that talk: networks and handshakes', sub: 'Heartbeat, comm watchdog, hand-over handshake, data that travels with it', lessons: ['networks', 'protocols', 'heartbeat'], ids: ['hb-life', 'hb-watch', 'hb-stopwatch', 'hb-two', 'comm-1', 'comm-2', 'comm-3', 'mb-1', 'mb-2'] },
         { title: 'Program flow and queues: jump, MCR zone, FIFO', sub: 'Skip code with a jump, switch a group of rungs off with an MCR zone, and keep things in order with a FIFO, with the traps of each', lessons: ['flow-data'], ids: ['jmp-1', 'mcr-1', 'fifo-1'] },
         { title: 'Robot cell: the handshake', sub: 'Job number, START, DONE, the CLEAR zone signal, and a cell that loads, machines and unloads', lessons: ['robot-interface'], ids: ['robot-1', 'robot-2', 'bug-robot'] },
         { title: 'Whole machines', sub: 'Plan, build and test complete projects', lessons: ['project-method', 'structure'], ids: ['bottling', 'mixer', 'elevator', 'carwash', 'washer', 'ped-crossing', 'traffic-night', 'auto-batching', 'capline', 'palletizer'] },
@@ -1869,7 +1936,7 @@
         { title: 'ST basics', sub: 'Assignments, IF, function blocks', lessons: ['st-basics', 'st-fb'], ids: ['st-latch', 'st-timers', 'st-bug-latch', 'st-bug-timer'] },
         { title: 'Sequences with CASE', sub: 'State machines in text', lessons: ['st-case'], ids: ['st-case-abc', 'st-repeat-count', 'st-traffic', 'st-gate'] },
         { title: 'Loops and arrays', sub: 'FOR, WHILE, ring buffers', lessons: ['st-loops'], ids: ['st-for-bargraph', 'st-while-slot', 'st-shift', 'st-average', 'st-elevator'] },
-        { title: 'Process machines', sub: 'Recipes and control in ST', lessons: ['st-case'], ids: ['st-mixer', 'st-bottling', 'st-greenhouse'] },
+        { title: 'Process machines', sub: 'Recipes and control in ST', lessons: ['st-case'], ids: ['st-mixer', 'st-bottling', 'st-greenhouse', 'st-hb'] },
         { title: 'Recipe-driven flexible machine', sub: 'Tables instead of copied sequences', lessons: ['tool-id', 'modes'], ids: ['st-fixture', 'fixture-modes', 'st-fixture-c', 'fixture-changeover'] },
       ],
     },

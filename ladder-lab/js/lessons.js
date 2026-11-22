@@ -2678,6 +2678,61 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
       challenges: ['comm-1', 'comm-2', 'comm-3'],
     },
     {
+      id: 'heartbeat', level: 6, title: 'Heartbeat and communication watchdog', min: 14,
+      summary: 'How a PLC proves it is alive with a life word, and how it notices that the other side stopped answering: the echo must keep changing. A simple version with a TON and the industrial version with a stopwatch and a response time.',
+      body: `
+<p>Two devices talk over a network: your PLC and a remote device (another PLC, a robot, an HMI, a drive). When the cable is pulled or the other side hangs, its data simply <b>stops</b> or reads <b>0</b>. Your program cannot tell "the remote has nothing to say" from "the remote is dead". So you add a <b>heartbeat</b> and a <b>watchdog</b>.</p>
+<h3>1. The idea</h3>
+<ul>
+<li>Your PLC counts a number, the <b>LifeWord</b>, up by 1 every <b>0.1 s</b>: 0, 1, 2 … 599, then 0 again.</li>
+<li>The remote device copies it back: the <b>LifeWordReply</b> (an <b>echo</b>).</li>
+<li>The PLC watches the echo. If it does <b>not change for more than 1 s</b>, it sets <b>CommError</b>. When it changes again, CommError goes off.</li>
+<li>The key point: the PLC does <b>not</b> check reply = LifeWord. It only checks that the reply keeps <b>changing</b>.</li>
+</ul>
+<p>Switch the remote between OK, frozen, slow and cut. Watch the values, the power flow in both rungs, the GRAFCET step and the CommError trend. Slow motion lets you follow single scans:</p>
+[[hw:lifeword]]
+<h3>2. Rung 1: the heartbeat, step by step</h3>
+<ol>
+<li><b>A 0.1 s pulse.</b> A timer that restarts itself: <span class="addr">NC(T9) TON(T9,100ms)</span>. Its done bit is ON for exactly <b>one scan</b> every 0.1 s. (Siemens has a clock memory byte for this, other brands a system clock bit; you then need an edge: P_TRIG / R_TRIG.)</li>
+<li><b>On the pulse: LifeWord + 1</b> (INC, or ADD 1).</li>
+<li><b>LifeWord ≥ 600: MOVE 0 to LifeWord.</b> 600 × 0.1 s = 1 minute: the value stays small, repeats, and you can still see "it moved".</li>
+</ol>
+<h3>3. Rung 2: the watchdog (simple version)</h3>
+<ol>
+<li><b>Change detected:</b> LifeWordReply &lt;&gt; LastReply. In the same rung, <b>MOVE LifeWordReply → LastReply</b>, so the next scan compares with the new value.</li>
+<li><b>WatchdogTimer</b>: a TON with PT = 1 s. Its input is <b>NOT changed</b>: it runs while nothing changes, and every change restarts it.</li>
+<li><b>WatchdogTimer.Q → SET CommError.</b></li>
+<li><b>Change detected → RESET CommError.</b></li>
+</ol>
+<p>As a GRAFCET it is just two steps:</p>
+<div class="tbl"><table>
+<tr><th>Step</th><th>Leave it when</th><th>Go to</th></tr>
+<tr><td><b>OK</b> (CommError = 0)</td><td>the reply is frozen for more than 1 s</td><td>COMM ERROR</td></tr>
+<tr><td><b>COMM ERROR</b> (CommError = 1)</td><td>the reply changes</td><td>OK</td></tr>
+</table></div>
+<h3>4. The industrial version: a stopwatch</h3>
+<p>Library blocks (for example the watchdog blocks of the big brands) use a <b>stopwatch</b> instead of a TON. It gives you one more value: how fast the other side answers.</p>
+<ul>
+<li>A change: <b>ResponseTime := TimeAcc</b>, then <b>TimeAcc := 0.1</b>.</li>
+<li>No change, on every 0.1 s pulse: <b>TimeAcc := TimeAcc + 0.1</b> (stop at 10 s so it cannot run away).</li>
+<li><b>TimeAcc &gt; 1.0 → SET CommError</b>; a change resets it.</li>
+<li>ResponseTime on a good link: 0.1 to 0.3 s. Growing slowly over the weeks? The network or the remote side is getting overloaded: you see it <b>before</b> it fails.</li>
+</ul>
+<p>In the Lab tasks the stopwatch counts in tenths of a second in an INT (MW34: 10 = 1.0 s); the Structured Text task uses a real REAL.</p>
+<h3>5. Exercises</h3>
+<details class="callout tip"><summary><b>1.</b> What happens to CommError if the remote answers only every 2 s?</summary><p>It <b>blinks</b>: after 1 s without a change it comes on, at the next answer (after 2 s) it goes off, and so on. A blinking comm alarm means "slow", a steady one means "dead". Try "Remote slow" above.</p></details>
+<details class="callout tip"><summary><b>2.</b> Why 600?</summary><p>600 × 0.1 s = 1 minute. The value stays small (it fits any INT and is easy to read on an HMI), it repeats, and every value is different from the last one: that is all the watchdog needs.</p></details>
+<details class="callout tip"><summary><b>3.</b> Why check "changed" and not "equal"?</summary><p>The echo always arrives a little <b>late</b> (transport delay, bus cycle, the other program's scan). When it arrives, your LifeWord has already moved on. "Reply = LifeWord" would be false almost all the time, even on a perfect link. "The reply keeps changing" is true exactly when the other side is alive.</p></details>
+<p><b>4.</b> Add a second watchdog for another data channel: task <a href="#ch-hb-two">Heartbeat 4/4</a>. <b>5.</b> The same logic in Structured Text: task <a href="#ch-st-hb">ST: heartbeat and watchdog</a>. Compare: in ST the whole watchdog is one IF … ELSIF.</p>
+<div class="callout warn"><b>What to do on CommError:</b> the data from the remote side is old. Stop using it: stop the movements that depend on it, hold or go to a safe state, show the alarm. Comm watchdogs are not safety functions; safety over a network needs a safety protocol (PROFIsafe, CIP Safety, FSoE).</div>
+<div class="callout where"><b>Where:</b> PLC to PLC links, PLC to robot, PLC to HMI or SCADA, drives on a fieldbus, remote I/O, anything that talks over a cable or Wi-Fi.</div>
+`,
+      sims: {},
+      takeaways: ['LifeWord: +1 every 0.1 s, 0..599. The remote echoes it.', 'Watch that the echo keeps CHANGING; never compare it with LifeWord (it is always late).', 'No change for more than 1 s: CommError. A change: OK again. A blinking CommError means a slow link.', 'A stopwatch instead of a TON also gives the response time.'],
+      mistakes: ['Checking reply = LifeWord: false on a perfect link because of the transport delay.', 'A heartbeat bit that is always 1 when the cable is pulled (the input freezes at its last value): watch for a change, not for a value.', 'Using the remote data after CommError as if it were fresh.'],
+      challenges: ['hb-life', 'hb-watch', 'hb-stopwatch', 'hb-two', 'st-hb', 'comm-1'],
+    },
+    {
       id: 'protocols', level: 6, title: "Industrial communication: how the data really travels", min: 20,
       summary: "Serial RS-232 / RS-485, Modbus, PROFIBUS, CAN, CANopen, DeviceNet, LIN, AS-i, HART, IO-Link, PROFINET, EtherNet/IP, EtherCAT, OPC UA and MQTT: what happens on the wire, how they differ, and which one to use when, with step-by-step animations.",
       body: `
@@ -3884,6 +3939,10 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
 
   // ───────────────────────── glossary ─────────────────────────
   LL.GLOSSARY = [
+    ['Life word', 'A counter the PLC sends to another device, +1 every 0.1 s (for example 0 to 599). The other side echoes it; while the echo keeps changing, the link is alive.'],
+    ['Echo (life word reply)', 'The value a remote device copies back from what it received, so the sender can see the link works.'],
+    ['Communication watchdog', 'A timer or stopwatch in the program that sets an alarm when data from another device stops changing for too long.'],
+    ['Response time (comm)', 'How long the other side takes to answer: the time between two changes of the echo. Measured with a stopwatch in the watchdog.'],
     ['Venturi ejector', 'A vacuum generator without moving parts: compressed air through a nozzle drags the air out of a suction cup.'],
     ['Vacuum switch', 'A switch on a vacuum gripper that tells the PLC the vacuum is reached, so the part is held.'],
     ['Blow-off pulse', 'A short puff of air into a suction cup after the vacuum is switched off, so the part lets go at once.'],
@@ -4240,6 +4299,9 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
 
   // ───────────────────────── concept quiz ─────────────────────────
   LL.QUIZ = [
+    { l: 6, q: "Why does a comm watchdog check that the echo CHANGES, and not that echo = life word?", a: ["The echo arrives a little late, so it is almost never equal, even on a good link", "Comparing two words is not allowed in ladder", "The echo is always 0 on a good link", "Equal would need a REAL"], c: 0, why: "Transport delay and the other side's scan make the echo late. A changing echo proves the other side is alive." },
+    { l: 6, q: "The remote side answers only every 2 s. The watchdog time is 1 s. What does CommError do?", a: ["Stays off", "Stays on", "Blinks: on after 1 s of silence, off at each answer", "Goes on once and needs a reset"], c: 2, why: "1 s without a change sets it, the next answer resets it: a blinking comm alarm means a slow link." },
+    { l: 6, q: "A life word counts +1 every 0.1 s from 0 to 599. How long until it repeats?", a: ["6 s", "1 minute", "10 minutes", "600 s"], c: 1, why: "600 × 0.1 s = 60 s." },
     { l: 4, q: "When may the PLC lift a part held by suction cups?", a: ["After a fixed 0.5 s with the vacuum on", "When the vacuum switch says the vacuum is reached", "As soon as the vacuum valve is switched on", "When the part sensor under the cup goes off"], c: 1, why: "Only the vacuum switch proves the part is held. A timer lifts even with a torn cup or no air." },
     { l: 4, q: "What is the holding force of a suction cup?", a: ["Vacuum × cup area", "Air pressure × hose length", "Weight of the part × 2", "Cup diameter × vacuum"], c: 0, why: "Force = pressure difference × area. Then divide by a safety factor of 2 to 4 for the moves." },
     { l: 4, q: "On a pneumatic drawing, what is 1B2?", a: ["The second valve of circuit 1", "The second sensor of circuit 1", "The coil of valve 1V1", "Cylinder 2 of circuit 1"], c: 1, why: "The number in front is the circuit, the letter the kind of part (B = sensor), the last number which one." },
