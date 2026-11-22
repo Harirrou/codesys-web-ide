@@ -958,8 +958,8 @@
     // the sections, and the jump buttons, in page order; a topic can show its quiz first
     // (interview: the questions are what people look for there)
     const SEC = {
-      lessons: ['Lessons', 'Lessons', 'Read them in this order. Some have a simulator or an animation you can try.', lessons.length],
-      tasks: ['Tasks', 'Tasks', `Tasks with a machine and automatic tests. <b>${d.c}/${tasks.length}</b> passed.`, tasks.length],
+      lessons: ['Lessons', 'Lessons', 'Ride the line from top to bottom. Some stations have a simulator or an animation you can try.', lessons.length],
+      tasks: ['Tasks', 'Tasks', `Tasks with a machine and automatic tests. <b>${d.c}/${tasks.length}</b> passed. Tap a terminal to read the task.`, tasks.length],
       machines: ['Machines', 'Machines in the Lab', 'Free play: open a machine and try your own program.', machines.length],
       quiz: ['Quiz', 'Quiz', 'Check what you know: up to 10 questions per round.', quiz.length],
     };
@@ -982,17 +982,42 @@
       ${order.map(sec).join('')}
       <section class="tp-sec tp-others"><div class="sec-head"><div><h2>Other topics</h2><p>Jump to another subject.</p></div></div><div class="tp-strip">${TOPICS.map((X) => topicChip(X, X.id === T.id)).join('')}</div></section>
     </div>`);
-    // lesson cards: the big number is the step in this topic (1, 2, 3…); the course number is small text
-    lessons.forEach((l, k) => {
-      const w = lessonWidgets(l);
-      $('.tp-lessons', el).appendChild(h(`<a class="card lesson-card" href="${lhref(l)}"><span class="no tp-step" title="Step ${k + 1} in this topic">${k + 1}</span><span class="body"><span class="tp-lno">Lesson ${lessonNo(l)} · ${l.min} min</span><h4>${esc(l.title)}</h4><p>${esc(l.summary)}</p>${w.length ? `<span class="tp-ws">${w.map((x) => `<span class="tp-w">${I.play}${esc(x)}</span>`).join('')}</span>` : ''}</span><span class="check ${S.lessons[l.id] ? 'done' : ''}">${S.lessons[l.id] ? I.check : ''}</span></a>`));
-    });
-    tasks.forEach((c) => {
-      const t = chKind(c), plain = c.brief.replace(/<[^>]+>/g, '');
-      // kind chips (no chip when the title already says it, or starts with its icon)
-      const tags = [t.st ? 'ST' : '', t.bug && !/bug hunt/i.test(c.title) ? 'bug hunt' : '', c.kind === 'diagnose' && !/fault finding/i.test(c.title) ? 'fault finding' : ''].filter(Boolean).map((x) => `<span class="chip">${x}</span>`).join('');
-      const state = S.ch[c.id] ? '<span class="chip ok">✓ passed</span>' : S.chTried[c.id] ? '<span class="chip">in progress</span>' : '';
-      $('.tp-tasks', el).appendChild(h(`<a class="card ch-card tp-task" href="#ch-${c.id}"><div class="top-line"><span class="eyebrow">Level ${c.level} · ${esc(LL.Plants[c.plant].name)}</span>${state}</div><h4>${esc(c.title)}</h4><p>${esc(plain.length > 140 ? plain.slice(0, 138) + '…' : plain)}</p>${tags ? `<div class="tp-tags">${tags}</div>` : ''}</a>`));
+    // lessons: a line map. Every lesson is a station on the topic's line; done stations are lit, the next one says
+    // "You are here", the rest wait. The big number is the step in this topic, the course number is small text.
+    const here = lessons.find((l) => !S.lessons[l.id]);
+    $('.tp-lessons', el).appendChild(h(`<ol class="lm">${lessons.map((l, k) => {
+      const w = lessonWidgets(l), st = S.lessons[l.id] ? 'done' : l === here ? 'here' : 'todo';
+      return `<li class="lm-st ${st}"><a href="${lhref(l)}"><span class="lm-dot" aria-hidden="true">${st === 'done' ? I.check : k + 1}</span><span class="lm-t"><span class="lm-no">${st === 'here' ? '<b class="lm-here">You are here</b> · ' : ''}Lesson ${lessonNo(l)} · ${l.min} min${st === 'done' ? ' · done' : ''}</span><b class="lm-title">${esc(l.title)}</b><span class="lm-sum">${esc(l.summary)}</span>${w.length ? `<span class="tp-ws">${w.map((x) => `<span class="tp-w">${I.play}${esc(x)}</span>`).join('')}</span>` : ''}</span></a></li>`;
+    }).join('')}</ol>`));
+    // tasks: a terminal strip per machine. Every task is a numbered terminal with a status lamp and level bars;
+    // tap one to read it, then open it. The next task not passed sits on top.
+    const tBox = $('.tp-tasks', el), num = (c) => String(tasks.indexOf(c) + 1).padStart(2, '0');
+    const bars = (lv) => { const n = Math.max(1, Math.min(5, Math.ceil(lv * 5 / 7))); return `<span class="ts-bars" title="Level ${lv}" aria-label="Level ${lv}">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</span>`; };
+    const stOf = (c) => (S.ch[c.id] ? 'pass' : S.chTried[c.id] ? 'try' : 'new');
+    if (nextC) tBox.appendChild(h(`<a class="ts-next" href="#ch-${nextC.id}"><span class="ts-next-k">Next task · T${num(nextC)} · Level ${nextC.level}</span><b>${esc(nextC.title)}</b><span class="ts-next-m">${esc(LL.Plants[nextC.plant].name)}</span></a>`));
+    const plants = [...new Set(tasks.map((c) => c.plant))];
+    plants.forEach((pid) => {
+      const list = tasks.filter((c) => c.plant === pid), ok = list.filter((c) => S.ch[c.id]).length;
+      const g = h(`<div class="ts-group"><div class="ts-head"><b>${esc(LL.Plants[pid].name)}</b><span>${ok}/${list.length} passed</span></div><div class="ts-rail" role="list"></div><div class="ts-prev" hidden></div></div>`);
+      const rail = $('.ts-rail', g), prev = $('.ts-prev', g);
+      list.forEach((c) => {
+        const t = chKind(c);
+        const tile = h(`<button type="button" class="ts-t ${stOf(c)}" role="listitem" aria-expanded="false" title="${esc(c.title)}"><span class="ts-top"><span class="ts-no">T${num(c)}</span><span class="ts-lamp" aria-label="${stOf(c) === 'pass' ? 'passed' : stOf(c) === 'try' ? 'in progress' : 'not tried'}"></span></span><span class="ts-name">${esc(c.title)}</span><span class="ts-foot">${bars(c.level)}${t.st ? '<span class="ts-kind">ST</span>' : t.bug ? '<span class="ts-kind">bug</span>' : c.kind === 'diagnose' ? '<span class="ts-kind">fault</span>' : ''}</span></button>`);
+        tile.onclick = () => {
+          const open = tile.classList.contains('sel');
+          $$('.ts-t.sel', tBox).forEach((x) => { x.classList.remove('sel'); x.setAttribute('aria-expanded', 'false'); });
+          $$('.ts-prev', tBox).forEach((x) => { x.hidden = true; });
+          if (open) return;
+          tile.classList.add('sel'); tile.setAttribute('aria-expanded', 'true');
+          const plain = c.brief.replace(/<[^>]+>/g, '');
+          const state = S.ch[c.id] ? '<span class="chip ok">✓ passed</span>' : S.chTried[c.id] ? '<span class="chip">in progress</span>' : '';
+          prev.innerHTML = `<div class="ts-prev-h"><span class="eyebrow">T${num(c)} · Level ${c.level} · ${esc(LL.Plants[c.plant].name)}${t.st ? ' · Structured Text' : ''}</span>${state}</div><h4>${esc(c.title)}</h4><p>${esc(plain.length > 320 ? plain.slice(0, 318) + '…' : plain)}</p><a class="btn primary" href="#ch-${c.id}">Open this task ${I.arrow}</a>`;
+          prev.hidden = false;
+          if (prev.getBoundingClientRect().bottom > innerHeight) prev.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        };
+        rail.appendChild(tile);
+      });
+      tBox.appendChild(g);
     });
     const mbox = $('.tp-machines', el);
     machines.forEach((pid) => {

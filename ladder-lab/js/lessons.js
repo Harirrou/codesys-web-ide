@@ -870,7 +870,7 @@ Back := Step_Back AND NOT Out_cmd;   (* Y12 *)</pre>
       sims: {},
       takeaways: ['5/2 = 5 ports, 2 positions. 1 supply, 2 and 4 to the cylinder, 3 and 5 exhaust; coil 14 gives 1→4.', 'Choose the valve by the safe state: back (5/2 mono), stay (5/2 bistable), stop (5/3 closed), free (5/3 exhaust).', 'Monostable: hold the coil. Bistable and 5/3: two outputs, never both on.', 'Meter-out flow control for speed, a regulator for force, a quick exhaust for a fast return.'],
       mistakes: ['A 5/3 exhaust centre on a vertical load: it falls when the valve stops.', 'Switching both coils of a bistable or 5/3 valve on together.', 'Trusting a closed centre to hold a load for a long time: valves leak.', 'Working on a machine with the power off but the air still on.'],
-      challenges: ['cyl-once', 'cyl-repeat', 'cylinders-abc', 'cyl-dwell', 'diag-reed'],
+      challenges: ['vlv-bistable', 'vlv-midstop', 'vlv-lift', 'bug-vlv-both', 'cyl-once', 'cyl-repeat'],
     },
     {
       id: 'io-wiring', level: 4, title: "Wiring inputs and outputs: PNP, NPN, relays and transistors", min: 14,

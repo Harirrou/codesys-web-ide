@@ -140,9 +140,9 @@
         'cyl-once', 'cyl-repeat', 'cylinders-abc', 'step-machine', 'cyl-abba-c', 'cyl-dwell', 'cyl-parallel',
         'cyl-cycle-stop', 'cyl-modes', 'sfc-1', 'blk-fc', 'blk-fb-timeout', 'cio-2', 'st-repeat-count', 'diag-reed',
         'pp-feed', 'pp-axis', 'pp-pick', 'diag-vacuum', 'pp-cycle', 'bug-pp-crash', 'pp-sort', 'pp-auto', 'pp-home',
-        'pp-station', 'st-case-abc'
+        'pp-station', 'st-case-abc', 'vlv-bistable', 'vlv-midstop', 'vlv-lift', 'bug-vlv-both'
       ],
-      machines: ['cylinders', 'pickplace'],
+      machines: ['cylinders', 'pickplace', 'valvebench'],
       quiz: [
         { mode: 'iv', sel: 'Fluid power', label: 'Interview: Fluid power' },
       ],
