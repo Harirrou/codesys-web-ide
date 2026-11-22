@@ -2724,13 +2724,29 @@ Y1 = M20.1 + M20.2 + … + M20.5                        (actions)</pre>
 <details class="callout tip"><summary><b>2.</b> Why 600?</summary><p>600 × 0.1 s = 1 minute. The value stays small (it fits any INT and is easy to read on an HMI), it repeats, and every value is different from the last one: that is all the watchdog needs.</p></details>
 <details class="callout tip"><summary><b>3.</b> Why check "changed" and not "equal"?</summary><p>The echo always arrives a little <b>late</b> (transport delay, bus cycle, the other program's scan). When it arrives, your LifeWord has already moved on. "Reply = LifeWord" would be false almost all the time, even on a perfect link. "The reply keeps changing" is true exactly when the other side is alive.</p></details>
 <p><b>4.</b> Add a second watchdog for another data channel: task <a href="#ch-hb-two">Heartbeat 4/4</a>. <b>5.</b> The same logic in Structured Text: task <a href="#ch-st-hb">ST: heartbeat and watchdog</a>. Compare: in ST the whole watchdog is one IF … ELSIF.</p>
+<h3>6. Real project: a water tower over a radio link</h3>
+<p>The pump is at the PLC; the tower is 3 km away, and its level comes back by radio with the echo. Without a watchdog, a frozen link keeps showing the old level: the pump runs on and the tower <b>overflows</b>. A cut cable is worse: the level reads 0 = "empty", so the level control <b>wants</b> the pump. Build it in task <a href="#ch-hb-tower">Project: water tower over a radio link</a>:</p>
+<ul>
+<li>CommError <b>stops the pump</b> and drops auto: data that is not fresh must not drive anything.</li>
+<li>CommError is <b>latched</b>: RESET only works while the link is alive, then the operator presses START. No surprise restart.</li>
+<li>An <b>early warning</b> from the response time (slower than 0.5 s), before the link really fails.</li>
+</ul>
+<h3>7. The expert level</h3>
+<ul>
+<li><b>Choose the watchdog time</b> from the update time: about 3 to 5 × the normal answer time. Too short gives false alarms, too long reacts late.</li>
+<li><b>What the data does on an error</b>: keep the last value, go to a <b>safe substitute value</b> (valve closed, speed 0), or stop the function. Decide it per signal, write it in the I/O list.</li>
+<li><b>Both directions</b>: the remote side must watch <b>your</b> life word too, and go safe on its own when your PLC stops.</li>
+<li><b>Diagnostics</b>: count the errors, store the longest silence and the worst response time, show them on the HMI. A link that gets slower week after week is a cable, a switch or a radio that is failing.</li>
+<li><b>Built-in help</b>: PROFINET and EtherNet/IP devices have their own connection timeout and status bits (device OK, connection faulted). Use them too, but the life word also proves that the <b>program</b> on the other side runs, not only the network card.</li>
+<li><b>Safety</b>: a life word is not a safety function. For E-stops and guards over a network use a safety protocol (PROFIsafe, CIP Safety, FSoE): they add a counter, a CRC and a watchdog, certified.</li>
+</ul>
 <div class="callout warn"><b>What to do on CommError:</b> the data from the remote side is old. Stop using it: stop the movements that depend on it, hold or go to a safe state, show the alarm. Comm watchdogs are not safety functions; safety over a network needs a safety protocol (PROFIsafe, CIP Safety, FSoE).</div>
 <div class="callout where"><b>Where:</b> PLC to PLC links, PLC to robot, PLC to HMI or SCADA, drives on a fieldbus, remote I/O, anything that talks over a cable or Wi-Fi.</div>
 `,
       sims: {},
       takeaways: ['LifeWord: +1 every 0.1 s, 0..599. The remote echoes it.', 'Watch that the echo keeps CHANGING; never compare it with LifeWord (it is always late).', 'No change for more than 1 s: CommError. A change: OK again. A blinking CommError means a slow link.', 'A stopwatch instead of a TON also gives the response time.'],
       mistakes: ['Checking reply = LifeWord: false on a perfect link because of the transport delay.', 'A heartbeat bit that is always 1 when the cable is pulled (the input freezes at its last value): watch for a change, not for a value.', 'Using the remote data after CommError as if it were fresh.'],
-      challenges: ['hb-life', 'hb-watch', 'hb-stopwatch', 'hb-two', 'st-hb', 'comm-1'],
+      challenges: ['hb-life', 'hb-watch', 'hb-stopwatch', 'hb-two', 'hb-tower', 'st-hb', 'comm-1'],
     },
     {
       id: 'protocols', level: 6, title: "Industrial communication: how the data really travels", min: 20,
@@ -4299,6 +4315,8 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
 
   // ───────────────────────── concept quiz ─────────────────────────
   LL.QUIZ = [
+    { l: 6, q: "The cable to a remote level transmitter is cut and the level now reads 0. What can go wrong?", a: ["Nothing: 0 is a safe value", "The level control thinks the tank is empty and starts the pump: overflow", "The PLC goes to STOP", "The level shows 100 %"], c: 1, why: "A dead link often looks like a real value. Only the watchdog can tell old or missing data from a real 0." },
+    { l: 6, q: "How long should a comm watchdog time be?", a: ["As short as possible, 10 ms", "About 3 to 5 times the normal answer time", "Always exactly 1 s", "As long as possible, 1 minute"], c: 1, why: "Short enough to react before damage, long enough that a normal late answer does not raise an alarm." },
     { l: 6, q: "Why does a comm watchdog check that the echo CHANGES, and not that echo = life word?", a: ["The echo arrives a little late, so it is almost never equal, even on a good link", "Comparing two words is not allowed in ladder", "The echo is always 0 on a good link", "Equal would need a REAL"], c: 0, why: "Transport delay and the other side's scan make the echo late. A changing echo proves the other side is alive." },
     { l: 6, q: "The remote side answers only every 2 s. The watchdog time is 1 s. What does CommError do?", a: ["Stays off", "Stays on", "Blinks: on after 1 s of silence, off at each answer", "Goes on once and needs a reset"], c: 2, why: "1 s without a change sets it, the next answer resets it: a blinking comm alarm means a slow link." },
     { l: 6, q: "A life word counts +1 every 0.1 s from 0 to 599. How long until it repeats?", a: ["6 s", "1 minute", "10 minutes", "600 s"], c: 1, why: "600 × 0.1 s = 60 s." },
