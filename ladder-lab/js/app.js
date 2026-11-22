@@ -15,7 +15,7 @@
   let S = { lessons: {}, ch: {}, chTried: {}, programs: {}, st: {}, lang: {}, plant: {}, quiz: { best: 0, predict: 0, predictBest: 0 }, theme: '', brand: 'll' };
   try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch (e) { /* storage unavailable */ }
   LL.brand = S.brand || 'll';
-  S.st = S.st || {}; S.lang = S.lang || {};
+  S.st = S.st || {}; S.lang = S.lang || {}; S.ui = S.ui && typeof S.ui === 'object' ? S.ui : {};
   let saveT = 0;
   function saveNow() { clearTimeout(saveT); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
   function save() { clearTimeout(saveT); saveT = setTimeout(saveNow, 250); }
@@ -763,6 +763,7 @@
   const topicCounts = (T) => [[T.lessons.length, 'lesson'], [T.tasks.length, 'task'], [T.machines.length, 'machine']].filter(([n]) => n).map(([n, w]) => `<span class="nw">${plural(n, w)}</span>`).join(' · ');
   const topicDone = (T) => { const l = T.lessons.filter((id) => S.lessons[id]).length, c = T.tasks.filter((id) => S.ch[id]).length; return { l, c, n: l + c, of: T.lessons.length + T.tasks.length }; };
   // the topics in the order of the home index, in groups; a topic's number is its place in that order (like a sheet number)
+  const LEVEL_SHORT = { 1: 'Basics', 2: 'Memory', 3: 'Timers', 4: 'Counters', 5: 'Sequences', 6: 'Projects', 7: 'ST' };
   const TOPIC_GROUPS = [
     ['Fundamentals', ['basics', 'electrical', 'memory', 'timers', 'counters']],
     ['Program structure', ['blocks', 'sequences', 'data', 'st']],
@@ -805,7 +806,7 @@
         </div>
         <div class="card hero-demo"><div class="demo-cap"><span class="eyebrow">Try it now: tap START, then STOP</span></div><div class="demo"></div></div>
       </section>
-      ${TOPICS.length ? `<section class="tp-home" id="topics"><div class="sec-head"><h2>Topics</h2><span class="sec-n">${TOPICS.length}</span></div><div class="tp-index"></div></section>` : ''}
+      ${TOPICS.length ? `<section class="tp-home" id="topics"><div class="sec-head"><div><h2>Topics</h2><p>Tap a rung to close its contact: the group opens.</p></div><span class="sec-n">${TOPICS.length}</span></div><div class="tp-index"></div></section>` : ''}
       <div class="sec-head"><h2>Your progress</h2><span class="sec-n">${d.l}/${LL.LESSONS.length} lessons · ${d.c}/${LL.CHALLENGES.length} tasks</span></div>
       <div class="levels-strip"></div>
       <div class="sec-head"><h2>Ways to practise</h2><span class="sec-n">7</span></div>
@@ -829,31 +830,45 @@
     workBox(el);
     new MiniSim($('.demo', el), { program: 'RUNG Start/stop with seal-in\nNO(I0.3) | NO(I0.0) | COIL(Q0.0)\n. NO(Q0.0)', inputs: { 'I0.0': { name: 'START', kind: 'pb' }, 'I0.3': { name: 'STOP', kind: 'pbnc' } }, outputs: { 'Q0.0': 'Motor' } }, { label: 'Live rung', noOpen: true });
     const ti = $('.tp-index', el);
-    if (ti) TOPIC_GROUPS.forEach(([name, ids]) => {
-      const first = LL.TOPIC_BY_ID[ids[0]], g = h(`<section class="tp-group"${first ? ` style="--tc:${first.color}"` : ''}><h3>${esc(name)}</h3></section>`);
-      ids.map((id) => LL.TOPIC_BY_ID[id]).filter(Boolean).forEach((T) => {
-        const d = topicDone(T);
-        g.appendChild(h(`<a class="tp-row${d.n ? ' started' : ''}" href="#topic-${T.id}" style="--tc:${T.color}"><span class="tp-no">${topicNo(T)}</span>${topicIc(T)}<span class="tp-t"><b>${esc(T.title)}</b><span class="tp-b">${esc(T.blurb)}</span></span><span class="tp-pg" title="${d.n} of ${d.of} lessons and tasks done">${d.n}/${d.of}</span></a>`));
-      });
-      if (g.children.length > 1) ti.appendChild(g);
-    });
+    if (ti) {
+      const groups = TOPIC_GROUPS.map(([name, ids], gi) => {
+        const Ts = ids.map((id) => LL.TOPIC_BY_ID[id]).filter(Boolean);
+        if (!Ts.length) return null;
+        const dd = Ts.map(topicDone);
+        return { id: name, name, color: Ts[0].color, tag: 'R' + String(gi + 1).padStart(2, '0'),
+          meta: (Ts.length > 1 ? topicNo(Ts[0]) + '–' + topicNo(Ts[Ts.length - 1]) : topicNo(Ts[0])) + ' · ' + plural(Ts.length, 'topic'),
+          done: dd.reduce((a, d) => a + d.n, 0), of: dd.reduce((a, d) => a + d.of, 0), started: dd.some((d) => d.n && d.n < d.of),
+          body: () => h(`<div class="rg-rows">${Ts.map((T, k) => { const d = dd[k]; return `<a class="tp-row${d.n ? ' started' : ''}" href="#topic-${T.id}" style="--tc:${T.color}"><span class="tp-no">${topicNo(T)}</span>${topicIc(T)}<span class="tp-t"><b>${esc(T.title)}</b><span class="tp-b">${esc(T.blurb)}</span></span><span class="tp-pg" title="${d.n} of ${d.of} lessons and tasks done">${d.n}/${d.of}</span></a>`; }).join('')}</div>`) };
+      }).filter(Boolean);
+      const open = Array.isArray(S.ui.rungs) ? S.ui.rungs : [(groups.find((g) => g.started) || groups[0]).id];
+      LL.Panels.rungs(ti, groups, { open, onChange: (v) => { S.ui.rungs = v; save(); } });
+    }
     const strip = $('.levels-strip', el);
     LL.LEVELS.forEach((lv) => {
       const ls = LL.LESSONS.filter((l) => l.level === lv.n), dn = ls.filter((l) => S.lessons[l.id]).length;
-      strip.appendChild(h(`<a class="lvl" href="#learn" style="--tc:${lv.color}"><span class="n">${lv.n}</span><h4>${esc(lv.name)}</h4><span class="meter"><i style="width:${Math.round((dn / ls.length) * 100)}%"></i></span><span class="ct">${dn}/${ls.length}</span></a>`));
+      strip.appendChild(h(`<a class="lvl" href="#learn" data-lv="${lv.n}" style="--tc:${lv.color}"><span class="n">${lv.n}</span><h4>${esc(lv.name)}</h4><span class="meter"><i style="width:${Math.round((dn / ls.length) * 100)}%"></i></span><span class="ct">${dn}/${ls.length}</span></a>`));
     });
+    strip.addEventListener('click', (e) => { const a = e.target.closest('[data-lv]'); if (a) { S.ui.learnLv = +a.dataset.lv; save(); } });
   }
 
   function pageLearn() {
-    const el = h(`<div class="wrap"><span class="plate">Course</span><h1 style="margin:10px 0 6px">Lessons</h1><p class="muted" style="margin:0 0 26px;max-width:62ch">Work through the levels in order. Every lesson explains <b>what</b> an instruction is, <b>why</b> it exists and <b>where</b> it is used, with live examples. Then practise in the linked challenges.</p><a class="srch-learn" href="#search">${I.search}<span>Search lessons, tasks, machines and terms</span></a>${TOPICS.length ?`<div class="tp-pick"><div class="tp-pick-h"><h2>Or pick a topic</h2><a class="tp-all" href="#topics">All ${TOPICS.length} topics ${I.arrow}</a></div><div class="tp-strip tp-swipe">${TOPICS.map((T) => topicChip(T)).join('')}</div><p class="tp-swipe-hint" aria-hidden="true">Swipe for more topics →</p></div>` : ''}<div class="levels"></div><div class="sec-head"><div><h2>Reference</h2><p>Terms you'll hear on site, in plain words.</p></div><span style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="#glossary">${I.book} Open glossary</a><a class="btn" href="#calc">Calculators</a></span></div></div>`);
+    const el = h(`<div class="wrap"><span class="plate">Course</span><h1 style="margin:10px 0 6px">Lessons</h1><p class="muted" style="margin:0 0 26px;max-width:62ch">Work through the levels in order. Every lesson explains <b>what</b> an instruction is, <b>why</b> it exists and <b>where</b> it is used, with live examples. Then practise in the linked challenges.</p><a class="srch-learn" href="#search">${I.search}<span>Search lessons, tasks, machines and terms</span></a>${TOPICS.length ?`<div class="tp-pick"><div class="tp-pick-h"><h2>Or pick a topic</h2><a class="tp-all" href="#topics">All ${TOPICS.length} topics ${I.arrow}</a></div><div class="tp-strip tp-swipe">${TOPICS.map((T) => topicChip(T)).join('')}</div><p class="tp-swipe-hint" aria-hidden="true">Swipe for more topics →</p></div>` : ''}<div class="pk-head"><h2>Levels</h2><p>Switch on a level to see its lessons, or the main switch for all.</p></div><div class="lv-pick"></div><div class="levels"></div><div class="sec-head"><div><h2>Reference</h2><p>Terms you'll hear on site, in plain words.</p></div><span style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="#glossary">${I.book} Open glossary</a><a class="btn" href="#calc">Calculators</a></span></div></div>`);
     const lv = $('.levels', el);
-    LL.LEVELS.forEach((L) => {
-      const b = h(`<section class="level-block" style="--tc:${L.color}"><div class="level-head"><span class="big">${L.n}</span><div><h2>${esc(L.name)}</h2><p>${esc(L.sub)}</p></div></div><div class="lessons"></div></section>`);
-      LL.LESSONS.filter((l) => l.level === L.n).forEach((l) => {
-        $('.lessons', b).appendChild(h(`<a class="card lesson-card" href="#lesson-${l.id}"><span class="no">${lessonNo(l)}</span><span class="body"><h4>${esc(l.title)}</h4><p>${esc(l.summary)}</p></span><span class="check ${S.lessons[l.id] ? 'done' : ''}">${S.lessons[l.id] ? I.check : ''}</span></a>`));
+    const lvItems = LL.LEVELS.map((L) => { const ls = LL.LESSONS.filter((l) => l.level === L.n); return { v: L.n, n: L.n, name: L.name, short: LEVEL_SHORT[L.n] || L.name, color: L.color, done: ls.filter((l) => S.lessons[l.id]).length, of: ls.length }; });
+    const firstOpen = (lvItems.find((it) => it.done < it.of) || lvItems[0]).v;
+    const drawLv = (v) => {
+      lv.innerHTML = '';
+      LL.LEVELS.filter((L) => v === 'all' || L.n === v).forEach((L) => {
+        const b = h(`<section class="level-block" style="--tc:${L.color}"><div class="level-head"><span class="big">${L.n}</span><div><h2>${esc(L.name)}</h2><p>${esc(L.sub)}</p></div></div><div class="lessons"></div></section>`);
+        LL.LESSONS.filter((l) => l.level === L.n).forEach((l) => {
+          $('.lessons', b).appendChild(h(`<a class="card lesson-card" href="#lesson-${l.id}"><span class="no">${lessonNo(l)}</span><span class="body"><h4>${esc(l.title)}</h4><p>${esc(l.summary)}</p></span><span class="check ${S.lessons[l.id] ? 'done' : ''}">${S.lessons[l.id] ? I.check : ''}</span></a>`));
+        });
+        lv.appendChild(b);
       });
-      lv.appendChild(b);
-    });
+    };
+    const v0 = S.ui.learnLv === 'all' || lvItems.some((it) => it.v === S.ui.learnLv) ? S.ui.learnLv : firstOpen;
+    LL.Panels.breakers($('.lv-pick', el), lvItems, { value: v0, all: 'All levels', label: 'Lesson levels', onChange: (v) => { S.ui.learnLv = v; save(); drawLv(v); } });
+    drawLv(v0);
     main().appendChild(el);
     swipeStrip($('.tp-swipe', el));
   }
@@ -1075,7 +1090,7 @@
     const total = LL.CHALLENGES.length, passed = LL.CHALLENGES.filter((c) => S.ch[c.id]).length;
     const el = h(`<div class="wrap"><span class="plate">Practice</span><h1 style="margin:10px 0 6px">Challenges &amp; exercises</h1><p class="muted" style="margin:0 0 14px;max-width:64ch">Each task gives you a machine and a job. Build the program, try it by hand, then press <b>Run tests</b>: the checker presses buttons, waits and checks the outputs like a commissioning engineer. Stuck? Hints first, solution last. <b>${passed}/${total}</b> passed.</p>
       <div class="path-banner">${LL.PATHS.map((P) => { const ps = pathState(P); return `<a class="card" href="#path-${P.id}"><span class="eyebrow">Guided path</span><b>${esc(P.title)}</b><div class="meter"><i style="width:${Math.round((ps.done / P.all.length) * 100)}%"></i></div><span class="muted">${ps.done}/${P.all.length} · ${ps.next ? 'next: ' + esc(ps.next.title) : 'complete'}</span></a>`; }).join('')}</div>
-      <div class="filters" role="group" aria-label="Filter"></div><div class="lv"></div></div>`);
+      <div class="filters" role="group" aria-label="Filter"></div><div class="pk-head"><h2>Levels</h2><p>Seat a fuse to power one level, or the main fuse for all.</p></div><div class="ch-pick"></div><div class="lv"></div></div>`);
     const F = [['all', 'All'], ['ld', 'Ladder'], ['st', 'Structured Text'], ['bug', 'Bug hunts'], ['project', 'Projects'], ['todo', 'Not passed yet']];
     const cur = S.chFilter || 'all';
     const fl = $('.filters', el);
@@ -1086,7 +1101,10 @@
       fl.appendChild(b);
     });
     function match(c, k) { const t = chKind(c); return k === 'all' || (k === 'ld' && !t.st) || (k === 'st' && t.st) || (k === 'bug' && t.bug) || (k === 'project' && t.project) || (k === 'todo' && !S.ch[c.id]); }
-    LL.LEVELS.forEach((L) => {
+    const chItems = LL.LEVELS.map((L) => { const all = LL.CHALLENGES.filter((c) => c.level === L.n && match(c, cur)); return { v: L.n, n: L.n, name: L.name, short: LEVEL_SHORT[L.n] || L.name, color: L.color, done: all.filter((c) => S.ch[c.id]).length, of: all.length }; }).filter((it) => it.of);
+    const drawCh = (v) => {
+    $('.lv', el).innerHTML = '';
+    LL.LEVELS.filter((L) => v === 'all' || L.n === v).forEach((L) => {
       const list = LL.CHALLENGES.filter((c) => c.level === L.n && match(c, cur));
       if (!list.length) return;
       const b = h(`<section class="level-block" style="--tc:${L.color}"><div class="level-head"><span class="big">${L.n}</span><div><h2>${esc(L.name)}</h2><p>${list.length} task${list.length > 1 ? 's' : ''}</p></div></div><div class="ch-grid"></div></section>`);
@@ -1098,6 +1116,10 @@
       $('.lv', el).appendChild(b);
     });
     if (!$('.lv', el).children.length) $('.lv', el).innerHTML = '<p class="muted">Nothing here. All passed? Try another filter.</p>';
+    };
+    const c0 = S.ui.chLv === 'all' || chItems.some((it) => it.v === S.ui.chLv) ? S.ui.chLv : 'all';
+    if (chItems.length) LL.Panels.fuses($('.ch-pick', el), chItems, { value: c0, all: 'All levels', label: 'Task levels', onChange: (v) => { S.ui.chLv = v; save(); drawCh(v); } });
+    drawCh(chItems.length ? c0 : 'all');
     main().appendChild(el);
   }
 
@@ -1117,22 +1139,26 @@
 
   // ───────────────────────── quiz ─────────────────────────
   function pageQuiz(start) {
-    const el = h(`<div class="wrap quiz-wrap"><span class="plate">Drill</span><h1 style="margin:10px 0 6px">Quiz</h1><p class="muted" style="margin:0 0 20px">Short sessions, often. That's how it sticks.</p><div class="grid modes"></div><div class="qarea" style="margin-top:20px"></div></div>`);
-    const modes = $('.modes', el);
-    const area = $('.qarea', el);
-    [['predict', 'Predict the output', 'Random rungs and input states. Will the lamp light? Endless.', 'Best streak ' + (S.quiz.predictBest || 0)],
-      ['read', 'Read a program', 'Several rungs and a short story: buttons pressed, time passing. What is ON at the end? Endless.', 'Best streak ' + (S.quiz.readBest || 0)],
-      ['drill', 'Timer & counter drill', 'TON, TOF, TP, RTO, CTU, CTD scenarios. Endless.', 'Best streak ' + (S.quiz.drillBest || 0)],
-      ['concept', 'Concept check', LL.QUIZ.length + ' questions, 10 per round, pick a level.', 'Best score ' + (S.quiz.best || 0) + '/10'],
-      ['iv', 'Interview questions', (LL.QUIZ_IV || []).length + ' questions asked in PLC job interviews, by topic, with a model answer.', 'Best score ' + (S.quiz.ivBest || 0) + '/10'],
-      ['net', 'Industrial networks', (LL.QUIZ_NET || []).length + ' questions: how it works, RS-232 / RS-485, Modbus, PROFIBUS, CAN / CANopen / DeviceNet, LIN, AS-i, HART, IO-Link, PROFINET, EtherNet/IP, EtherCAT, OPC UA, MQTT, safety, troubleshooting.', 'Best score ' + (S.quiz.netBest || 0) + '/10']].forEach(([k, t, d, s]) => {
-      const b = h(`<button class="card path" style="text-align:left;cursor:pointer"><span class="ic">${k === 'predict' || k === 'read' ? I.lab : k === 'drill' ? I.reset : I.quiz}</span><h3>${t}</h3><p>${d}</p><span class="chip">${s}</span></button>`);
-      b.onclick = () => (k === 'predict' ? predict(area) : k === 'read' ? readQuiz(area) : k === 'drill' ? drill(area) : concept(area, k));
-      modes.appendChild(b);
-    });
-    [['#oral', 'Answer out loud', 'The interview questions without the four choices: say your answer, then compare with the model answer.', 'Interview practice'], ['#cheat', 'Cheat sheet', 'One page with the rungs, tables and rules to remember. Made to be printed.', 'Reference']].forEach(([href, t, d, s]) => modes.appendChild(h(`<a class="card path" href="${href}" style="text-align:left;text-decoration:none"><span class="ic">${I.quiz}</span><h3>${t}</h3><p>${d}</p><span class="chip">${s}</span></a>`)));
+    const el = h(`<div class="wrap quiz-wrap"><span class="plate">Drill</span><h1 style="margin:10px 0 6px">Quiz</h1><p class="muted" style="margin:0 0 20px">Short sessions, often. That's how it sticks. Turn the selector to choose a mode.</p><div class="quiz-top"><div class="sw-host"></div><div class="sw-side"><div class="sw-cap"></div><div class="sw-more"><a class="path" href="#oral" style="--tc:#be123c"><span class="ic">${I.quiz}</span><h3>Answer out loud</h3><p>Interview questions without choices: say it, then compare.</p></a><a class="path" href="#cheat" style="--tc:#475569"><span class="ic">${I.book}</span><h3>Cheat sheet</h3><p>One printable page with the rungs and rules to remember.</p></a></div></div></div><div class="qarea" style="margin-top:20px"></div></div>`);
+    const area = $('.qarea', el), cap = $('.sw-cap', el);
+    const MODES = [
+      ['predict', 'Predict', '#16a34a', 'Predict the output', 'Random rungs and input states. Will the lamp light? Endless.', 'Best streak ' + (S.quiz.predictBest || 0)],
+      ['read', 'Read', '#2563eb', 'Read a program', 'Several rungs and a short story: buttons pressed, time passing. What is ON at the end? Endless.', 'Best streak ' + (S.quiz.readBest || 0)],
+      ['drill', 'Timers', '#d97706', 'Timer & counter drill', 'TON, TOF, TP, RTO, CTU, CTD scenarios. Endless.', 'Best streak ' + (S.quiz.drillBest || 0)],
+      ['concept', 'Concepts', '#9333ea', 'Concept check', LL.QUIZ.length + ' questions, 10 per round, pick a level.', 'Best score ' + (S.quiz.best || 0) + '/10'],
+      ['iv', 'Interview', '#be123c', 'Interview questions', (LL.QUIZ_IV || []).length + ' questions asked in PLC job interviews, by topic, with a model answer.', 'Best score ' + (S.quiz.ivBest || 0) + '/10'],
+      ['net', 'Networks', '#0891b2', 'Industrial networks', (LL.QUIZ_NET || []).length + ' questions: RS-232 / RS-485, Modbus, PROFIBUS, CAN, LIN, AS-i, HART, IO-Link, PROFINET, EtherNet/IP, EtherCAT, OPC UA, MQTT and more.', 'Best score ' + (S.quiz.netBest || 0) + '/10']];
+    const run = (k) => {
+      const m = MODES.find((x) => x[0] === k) || MODES[0];
+      cap.style.setProperty('--tc', m[2]);
+      cap.innerHTML = `<span class="sw-pos-n">Position ${MODES.indexOf(m) + 1} of ${MODES.length}</span><h2>${esc(m[3])}</h2><p>${esc(m[4])}</p><span class="sw-best">${esc(m[5])}</span>`;
+      area.innerHTML = '';
+      if (k === 'predict') predict(area); else if (k === 'read') readQuiz(area); else if (k === 'drill') drill(area); else concept(area, k);
+    };
+    const k0 = MODES.some((m) => m[0] === start) ? start : MODES.some((m) => m[0] === S.ui.quiz) ? S.ui.quiz : 'predict';
+    LL.Panels.selector($('.sw-host', el), MODES.map((m) => ({ v: m[0], name: m[1], color: m[2] })), { value: k0, label: 'Quiz mode', onChange: (k) => { S.ui.quiz = k; save(); run(k); } });
     main().appendChild(el);
-    if (start === 'iv' || start === 'net' || start === 'concept') concept(area, start); else if (start === 'read') readQuiz(area); else predict(area);
+    run(k0);
   }
 
   // question banks: the concept bank is filtered by level, the interview and network banks by topic

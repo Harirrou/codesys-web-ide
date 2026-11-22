@@ -108,6 +108,9 @@ The look comes from the control cabinet and its drawings, and it lives in the to
 - Corners of 2 / 4 / 6 px. Round is for round things (lamps, push buttons).
 - Colour means something: green = energised, running or passed; red = stop or fault; amber = warning or forced;
   blue = selection and focus. Brand, navigation and progress are ink. Lamp colours follow IEC 60073.
+- Choosers are cabinet parts (`js/panels.js`): topic groups are ladder rungs on Home, lesson levels are
+  circuit breakers on Learn, task levels are fuses on Tasks, quiz modes are a rotary selector switch.
+  Every row that opens something ends with a ">".
 - No emoji. Signs are inline SVG (`LL.SYM` in `js/engine.js`, `I` in `js/app.js`).
 
 ## Android app and Google Play
