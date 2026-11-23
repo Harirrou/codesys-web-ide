@@ -894,7 +894,8 @@
     const tps = LL.topicsOfLesson ? LL.topicsOfLesson(l.id) : [];
     const nextNote = T ? `<p class="tp-next">${next ? `Next in <b>${esc(T.title)}</b>: ${esc(next.title)}` : `Last lesson in <b>${esc(T.title)}</b>. The button takes you back to the topic and its tasks.`}</p>` : '';
     let body = l.body.replace(/\[\[sim:(\w+)\]\]/g, (m, k) => `<div class="sim-ph" data-sim="${k}"></div>`).replace(/\[\[mem:explorer\]\]/g, '<div class="mem-ph"></div>').replace(/\[\[brands:table\]\]/g, () => LL.brandTableHTML()).replace(/\[\[comm:(\w+)\]\]/g, (m, k) => `<div class="comm-ph" data-comm="${k}"></div>`).replace(/\[\[hw:(\w+)\]\]/g, (m, k) => `<div class="hw-ph" data-hw="${k}"></div>`);
-    const el = h(`<div class="wrap"><div class="lesson">
+    const tc = (T || tps[0] || {}).color || (lvl && lvl.color) || '#475569';
+    const el = h(`<div class="wrap"><div class="lesson" style="--tc:${tc}">
       <article>
         ${T ? `<a class="btn small ghost" href="#topic-${T.id}">${I.back} ${esc(T.title)}</a>` : `<a class="btn small ghost" href="#learn">${I.back} All lessons</a>`}
         <div class="eyebrow" style="margin-top:14px">${T ? `${esc(T.title)}: step ${k + 1} of ${seq.length} · ` : ''}Lesson ${lessonNo(l)} · Level ${l.level}: ${esc(lvl.name)} · ${l.min} min</div>
@@ -908,11 +909,12 @@
         </div>
         ${nextNote}
       </article>
-      <aside><div class="card">
-        <h4>Remember</h4><ul>${l.takeaways.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
-        ${l.mistakes && l.mistakes.length ? `<h4>Common mistakes</h4><ul>${l.mistakes.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
-        ${l.challenges.length ? '<h4>Practise</h4>' + l.challenges.map((c) => { const ch = LL.CH_BY_ID[c]; return `<a class="ch-link" href="#ch-${c}">${I.target}<span>${esc(ch.title)}</span>${S.ch[c] ? '<span class="chip ok">passed</span>' : ''}</a>`; }).join('') : ''}
-        <a class="ch-link" href="#lab">${I.lab}<span>Free play in the Lab</span></a>
+      <aside><div class="ls-side">
+        <section class="ls-box ls-remember"><h4>${I.check} Remember</h4><ul>${l.takeaways.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></section>
+        ${l.mistakes && l.mistakes.length ? `<section class="ls-box ls-mistakes"><h4>${I.x} Common mistakes</h4><ul>${l.mistakes.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></section>` : ''}
+        <section class="ls-box ls-practise"><h4>${I.target} Practise now</h4>
+        ${l.challenges.map((c) => { const ch = LL.CH_BY_ID[c]; return `<a class="ch-link" href="#ch-${c}"><span class="ch-ic">${I.target}</span><span class="ch-t"><b>${esc(ch.title)}</b><small>Task · level ${ch.level}${S.ch[c] ? ' · passed' : ''}</small></span><span class="ch-go" aria-hidden="true">${S.ch[c] ? I.check : I.arrow}</span></a>`; }).join('')}
+        <a class="ch-link" href="#lab"><span class="ch-ic">${I.lab}</span><span class="ch-t"><b>Free play in the Lab</b><small>Any machine, your own program</small></span><span class="ch-go" aria-hidden="true">${I.arrow}</span></a></section>
       </div></aside>
     </div></div>`);
     main().appendChild(el);
