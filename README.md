@@ -1,5 +1,7 @@
 # Wispbloom 🌸
 
+> **Also in this repo:** [Ladder Lab](ladder-lab/README.md), a web app for learning PLC ladder logic from beginner to advanced (lessons, simulator, auto-tested challenges).
+
 **Every match reshapes the sky.**
 
 A fast, satisfying one-touch orbit-shooter puzzle game for Android (and any
