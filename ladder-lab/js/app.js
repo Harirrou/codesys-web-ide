@@ -809,12 +809,13 @@
       ${TOPICS.length ? `<section class="tp-home" id="topics"><div class="sec-head"><div><h2>Topics</h2><p>Tap a rung to close its contact: the group opens.</p></div><span class="sec-n">${TOPICS.length}</span></div><div class="tp-index"></div></section>` : ''}
       <div class="sec-head"><h2>Your progress</h2><span class="sec-n">${d.l}/${LL.LESSONS.length} lessons · ${d.c}/${LL.CHALLENGES.length} tasks</span></div>
       <div class="levels-strip"></div>
-      <div class="sec-head"><h2>Ways to practise</h2><span class="sec-n">7</span></div>
+      <div class="sec-head"><h2>Ways to practise</h2><span class="sec-n">8</span></div>
       <div class="paths">
         <a class="path" href="#learn" style="--tc:#16a34a"><span class="ic">${I.learn}</span><h3>Lessons</h3><p>What, why and where, each with live examples you can press.</p></a>
         <a class="path" href="#lab" style="--tc:#2563eb"><span class="ic">${I.lab}</span><h3>Lab</h3><p>Draw rungs and drive a motor, a tank, a conveyor, an elevator, a mixer, a sorter or a filling line.</p></a>
         <a class="path" href="#circuits" style="--tc:#d97706"><span class="ic">${I.circ}</span><h3>Circuits</h3><p>Wire real motor starters with contactors, relays and push buttons, then power them on.</p></a>
         <a class="path" href="#path" style="--tc:#0d9488"><span class="ic">${I.target}</span><h3>Guided path</h3><p>All tasks in the order to solve them, from your first contact to whole machines.</p></a>
+        <a class="path" href="#path-blocks" style="--tc:#4f46e5"><span class="ic">${I.fbd}</span><h3>FC &amp; FB workshop</h3><p>Functions and function blocks from the first block to interview level: short lessons, a block simulator, 18 tasks.</p></a>
         <a class="path" href="#path-interview" style="--tc:#be123c"><span class="ic">${I.book}</span><h3>Interview path</h3><p>The classic PLC interview tasks, in the order to prepare them.</p></a>
         <a class="path" href="#quiz" style="--tc:#9333ea"><span class="ic">${I.quiz}</span><h3>Quiz</h3><p>Concept questions and endless drills: predict the output, read a program.</p></a>
         <a class="path" href="#calc" style="--tc:#ea580c"><span class="ic">${I.calc}</span><h3>Calculators</h3><p>The numbers for a project: fill a tank, pump, pipe, cable, 24 V supply, analog scaling and more.</p></a>

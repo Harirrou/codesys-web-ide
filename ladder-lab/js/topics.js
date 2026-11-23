@@ -100,11 +100,11 @@
     },
     {
       id: 'blocks', title: 'Blocks & structure', color: '#4f46e5',
-      blurb: 'Function blocks (FB / FC) and a clear program layout.',
+      blurb: 'FC and FB from the first block to interview level, and a clear program layout.',
       intro: 'What you learn here: how to write a program that is easy to read and to reuse. Function blocks (FB) and functions (FC), a clear program layout, and how to plan a project.',
-      start: 'blocks',
-      lessons: ['blocks', 'structure', 'project-method'],
-      tasks: ['blk-motors', 'drive-1', 'blk-fc', 'blk-fb-timeout', 'drive-line'],
+      start: 'fb-intro',
+      lessons: ['fb-intro', 'blocks', 'fb-design', 'structure', 'project-method', 'standards'],
+      tasks: ['fb-first', 'fb-lamptest', 'fb-scale', 'fb-limit', 'fb-max3', 'blk-fc', 'fb-startstop', 'fb-toggle', 'fb-debounce', 'fb-batch', 'blk-motors', 'bug-fb-global', 'bug-fc-forgets', 'fb-nested', 'blk-fb-timeout', 'drive-1', 'drive-line'],
       machines: ['vfdline', 'cylinders', 'panel'],
       quiz: [
         { mode: 'iv', sel: 'Programming', label: 'Interview: Programming' },
@@ -384,7 +384,7 @@
       blurb: 'TIA Portal, Studio 5000, CODESYS, Schneider, TwinCAT, Omron.',
       intro: 'What you learn here: how your ladder looks in real software. TIA Portal, Studio 5000, CODESYS, Schneider, TwinCAT and Omron: the names, and how to translate.',
       start: 'real-software',
-      lessons: ['real-software', 'project-setup', 'iec'],
+      lessons: ['real-software', 'project-setup', 'iec', 'standards'],
       tasks: ['port-rk'],
       machines: [],
       quiz: [
@@ -397,7 +397,7 @@
       blurb: 'The classic PLC interview tasks and questions.',
       intro: 'What you learn here: the tasks and questions you meet in a PLC job interview. Practise them here, from easy to hard.',
       start: 'interview-prep',
-      lessons: ['interview-prep'],
+      lessons: ['interview-prep', 'fb-design'],
       // the same tasks, in the same order, as the guided interview path (#path-interview)
       tasks: [
         'start-stop', 'stop-nc', 'two-station', 'interlock', 'toggle', 'set-reset', 'majority', 'iv-buzzer', 'iv-reverse',
@@ -407,7 +407,7 @@
         'washer', 'elevator', 'hyd-b2', 'hyd-acc', 'bug-hyd', 'hyd-3', 'hyd-4', 'cio-1', 'tod-1', 'prod-1', 'prod-3',
         'soft-1', 'mb-1', 'saf-1', 'saf-2', 'db-recipe', 'bcr-2', 'blk-fc', 'blk-fb-timeout', 'alarm-1', 'analog-scale',
         'dint-scale', 'pid-2', 'comm-2', 'mo-3', 'sv-2', 'st-latch', 'st-timers', 'st-case-abc', 'st-average'
-      ],
+      , 'fb-limit', 'fb-max3', 'fb-scale', 'fb-toggle', 'fb-debounce', 'bug-fb-global', 'bug-fc-forgets'],
       // free-play machines do not help to prepare an interview: every task card names its machine
       machines: [],
       // the questions are what most people look for here: show them first

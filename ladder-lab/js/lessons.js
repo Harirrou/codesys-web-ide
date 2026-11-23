@@ -1801,6 +1801,115 @@ Valve B = (AUTO AND step wants B) OR (MANUAL AND Jog B AND A is out)   ← inter
       challenges: ["cyl-modes", "capline"],
     },
     {
+      id: 'fb-intro', level: 4, title: 'FC and FB: what, where, when', min: 8,
+      summary: 'A function (FC) is a calculator: same inputs, same answer, no memory. A function block (FB) is a small machine with its own memory drawer: one per CALL. Write once, use many times.',
+      body: `
+<h3>Why blocks?</h3>
+<p>Ten conveyors start and stop the same way. Copy the rungs ten times and every fix must be made ten times. Write the logic <b>once</b> as a block, then <b>CALL</b> it ten times with different wires: inputs in, outputs out.</p>
+<h3>FC: the calculator</h3>
+<ul>
+<li>No memory. Every call starts from zero: same inputs → same outputs.</li>
+<li>Use it for maths and simple logic: scaling, limits, the biggest of three, a lamp test.</li>
+<li>Inside, its own variables are <b>temporary</b>: thrown away after the call.</li>
+</ul>
+<h3>FB: the small machine with a memory drawer</h3>
+<ul>
+<li>Has memory that stays from scan to scan: seal-ins, timers, edges, counters, steps.</li>
+<li>Every CALL needs its own <b>instance</b> (its own drawer): Conv1, Conv2, Conv3. In TIA Portal an instance DB, in Studio 5000 a tag of the AOI, in CODESYS a variable of the FB type.</li>
+<li>Use it for anything that must remember: a motor, a valve with a timeout, a toggle, a debounce, a batch counter.</li>
+</ul>
+<p>Switch the block between FB and FC, start the conveyors one by one, then try the classic bug:</p>
+[[hw:blocks]]
+<h3>The rule in one line</h3>
+<div class="callout tip"><b>Does it need to remember anything from the last scan</b> (a latch, a timer, an edge, a count)? <b>Yes → FB.</b> <b>No → FC.</b></div>
+<div class="tbl"><table>
+<tr><th></th><th>FC (function)</th><th>FB (function block)</th></tr>
+<tr><td>Memory</td><td>none (temporary only)</td><td>yes, one instance per call</td></tr>
+<tr><td>Timers, edges, counters inside</td><td>no</td><td>yes</td></tr>
+<tr><td>Typical blocks</td><td>Scale, Limit, Max, Average, lamp logic</td><td>Motor, Valve, Toggle, Debounce, Alarm, Batch, PID</td></tr>
+<tr><td>TIA Portal</td><td>FC</td><td>FB + instance DB</td></tr>
+<tr><td>Studio 5000</td><td>routine (JSR)</td><td>Add-On Instruction (AOI)</td></tr>
+<tr><td>CODESYS / IEC 61131-3</td><td>FUNCTION</td><td>FUNCTION_BLOCK</td></tr>
+</table></div>
+<div class="callout where"><b>Where:</b> every professional program. A packaging line has one FB_Motor called 40 times, one FB_Valve called 60 times and one FC_Scale for every analog input.</div>
+`,
+      sims: {},
+      takeaways: ['Write once, CALL many times with different wires.', 'Needs to remember anything (latch, timer, edge, count)? FB. Otherwise FC.', 'Every FB call has its own instance: its own memory.'],
+      mistakes: ['A seal-in or a timer inside an FC: it forgets every scan.', 'Two calls with the same instance, or a global M bit inside an FB: the calls overwrite each other.'],
+      challenges: ['fb-first', 'fb-lamptest', 'fb-scale', 'fb-limit', 'fb-max3', 'fb-startstop', 'fb-toggle', 'fb-debounce'],
+    },
+    {
+      id: 'fb-design', level: 5, title: 'Designing a good block (and writing one in an interview)', min: 9,
+      summary: 'The interface (IN, OUT, IN_OUT), static and temporary variables, the five rules of a good block, a small library of real-world blocks, and how to answer "write me a function".',
+      body: `
+<h3>1. The interface: what goes in, what comes out</h3>
+<ul>
+<li><b>IN</b>: read only (a button, a sensor, a setpoint).</li>
+<li><b>OUT</b>: written by the block (a contactor, an alarm, a result).</li>
+<li><b>IN_OUT</b>: read and written (a counter or a big structure the block changes).</li>
+<li>Inside an FB: <b>static</b> variables (they stay) and <b>temporary</b> ones (gone after the call).</li>
+</ul>
+<h3>2. Five rules of a good block</h3>
+<ol>
+<li><b>Only use its own variables and parameters</b>, never a global M bit or I/O address inside. Otherwise two calls fight over the same bit.</li>
+<li><b>One instance per call.</b></li>
+<li><b>Write every output in every call</b>, so an output never keeps a stale value.</li>
+<li><b>A clear name and comment</b>: FB_Motor, FC_Scale, what each parameter means, units.</li>
+<li><b>Small and testable</b>: one job per block. Big blocks are built from small ones (an FB inside an FB).</li>
+</ol>
+<h3>3. A small real-world library</h3>
+<div class="tbl"><table>
+<tr><th>Block</th><th>Kind</th><th>Used for</th></tr>
+<tr><td>FC_Scale</td><td>FC</td><td>4–20 mA / 0–27648 to engineering units, every analog input</td></tr>
+<tr><td>FC_Limit, FC_Max3</td><td>FC</td><td>setpoints from the HMI, the hottest of several sensors</td></tr>
+<tr><td>FB_Motor</td><td>FB</td><td>start / stop, feedback check, overload, run hours</td></tr>
+<tr><td>FB_Valve</td><td>FB</td><td>open / close with a timeout alarm on the end switches</td></tr>
+<tr><td>FB_Debounce, FB_Toggle</td><td>FB</td><td>chattering sensors, one-button on / off</td></tr>
+<tr><td>FB_Alarm</td><td>FB</td><td>delay, latch, acknowledge, HMI text number</td></tr>
+<tr><td>FB_Batch, FB_Totalizer</td><td>FB</td><td>parts per box, litres per day</td></tr>
+</table></div>
+<h3>4. "Write me a function": how to answer in an interview</h3>
+<ol>
+<li><b>Say FC or FB, and why</b> ("it has to remember the last state, so an FB").</li>
+<li><b>Write the interface first</b>: IN, OUT, types, units.</li>
+<li><b>Then the logic</b>, a few lines.</li>
+<li><b>Name the edge cases</b>: value below the minimum, a division by zero, two buttons at once, power-up.</li>
+<li><b>Say how you would test it</b>, and how you would call it twice.</li>
+</ol>
+<pre class="code">FUNCTION FC_Limit : INT
+VAR_INPUT  In, Min, Max : INT; END_VAR
+  FC_Limit := In;
+  IF In &lt; Min THEN FC_Limit := Min; END_IF
+  IF In &gt; Max THEN FC_Limit := Max; END_IF
+END_FUNCTION</pre>
+<p>The same task in ladder: <a href="#ch-fb-limit">FC 4/5: limit a value</a>. Then <a href="#ch-fb-toggle">the toggle</a> and <a href="#ch-bug-fb-global">the bug hunt</a>: both are asked again and again.</p>
+`,
+      sims: {},
+      takeaways: ['IN read, OUT written, IN_OUT both; static stays, temporary is gone after the call.', 'No global bits or I/O addresses inside a block; one instance per call; write every output.', 'Interview: FC or FB and why, interface first, then logic, then edge cases and tests.'],
+      mistakes: ['A global M bit or a fixed I/O address inside an FB.', 'An output that is only written in some calls (an IF without ELSE): it keeps an old value.', 'One giant block that does everything.'],
+      challenges: ['fb-batch', 'bug-fb-global', 'bug-fc-forgets', 'fb-nested', 'blk-fb-timeout', 'blk-motors'],
+    },
+    {
+      id: 'standards', level: 6, title: 'The standards in one map (IEC 61131-3 and friends)', min: 8,
+      summary: 'The numbers you see in job ads and on drawings: what each one is for, which ones you must know well, and the one line to say in an interview.',
+      body: `
+<p>A standard is an agreement written down, so a contactor, a drawing or a PLC program means the same thing in every country and with every brand. You do not learn them by heart. You need to know <b>which one is for what</b>, and know a few <b>well</b>.</p>
+[[hw:stdmap]]
+<h3>The ones to know well</h3>
+<ul>
+<li><b>IEC 61131-3</b>: the PLC languages (LD, FBD, ST, SFC) and the blocks (PROGRAM, FUNCTION, FUNCTION_BLOCK). The languages are in <a href="#lesson-iec">Beyond ladder: IEC 61131-3</a>.</li>
+<li><b>IEC 60204-1</b>: the electrics of a machine (E-stop, colours, earth, control voltage).</li>
+<li><b>ISO 13849-1</b> (PL a–e) and <b>IEC 62061</b> (SIL): how safe a safety function must be.</li>
+<li><b>IEC 81346</b> and <b>IEC 60617</b>: the names (-K1, -S0) and symbols on electrical drawings.</li>
+</ul>
+<div class="callout tip"><b>In an interview:</b> say what a standard is <b>for</b> and where you met it ("our machines were built to IEC 60204-1, the safety functions to ISO 13849 PL d"). Nobody expects the clause numbers.</div>
+`,
+      sims: {},
+      takeaways: ['IEC 61131 has 10 parts; part 3 (languages and blocks) is the one programmers use every day.', 'Safety: ISO 12100 (risk), ISO 13849 (PL) or IEC 62061 (SIL), IEC 60204-1 (electrics).', 'Know what each standard is for; nobody expects the clause numbers.'],
+      mistakes: ['Saying "IEC 61131" when you mean the languages: that is part 3, IEC 61131-3.', 'Mixing up PL (ISO 13849) and SIL (IEC 62061).'],
+      challenges: [],
+    },
+    {
       id: 'blocks', level: 5, title: 'Reusable blocks: write once, use many times (FC / FB)', min: 14,
       summary: 'Real programs are built from blocks: one "motor" block used for twenty motors, each call with its own wiring and its own memory. How blocks, parameters and instances work.',
       body: `
@@ -3955,6 +4064,13 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
 
   // ───────────────────────── glossary ─────────────────────────
   LL.GLOSSARY = [
+    ['FC (function)', 'A block without memory: the same inputs always give the same outputs. Used for maths and simple logic. FUNCTION in IEC 61131-3.'],
+    ['FB (function block)', 'A block with its own memory (static variables, timers, edges). Every call needs its own instance. FUNCTION_BLOCK in IEC 61131-3, an AOI in Studio 5000.'],
+    ['Instance', 'The memory of one call of an FB: its own static variables and timers. In TIA Portal an instance DB.'],
+    ['Static variable', 'A variable inside an FB that keeps its value from scan to scan (one per instance).'],
+    ['Temporary variable', 'A variable inside a block that is thrown away after the call. An FC has only these.'],
+    ['IN_OUT parameter', 'A block parameter that the block both reads and writes.'],
+    ['POU (program organisation unit)', 'IEC 61131-3 word for a PROGRAM, a FUNCTION or a FUNCTION_BLOCK.'],
     ['Life word', 'A counter the PLC sends to another device, +1 every 0.1 s (for example 0 to 599). The other side echoes it; while the echo keeps changing, the link is alive.'],
     ['Echo (life word reply)', 'The value a remote device copies back from what it received, so the sender can see the link works.'],
     ['Communication watchdog', 'A timer or stopwatch in the program that sets an alarm when data from another device stops changing for too long.'],
@@ -4624,6 +4740,13 @@ IF TankFull THEN Inlet.Close(); END_IF</pre>
     { l: 5, q: "What does a monitored reset (monitored start) need?", a: ["A new press of the reset button", "The reset button held down all the time", "A reset signal from the E-stop itself", "No button: the relay starts by itself"], c: 0, why: "The relay looks for a change of the button signal. A button that is stuck or bridged does not start the machine." },
   ];
   LL.QUIZ_IV = [
+    { t: "Programming", q: "What is the difference between an FC and an FB?", a: ["An FC has no memory of its own; an FB keeps static data in an instance for every call", "An FC is written in ladder and an FB only in Structured Text", "An FB runs faster because it has no parameters", "An FC can call blocks; an FB cannot"], c: 0, why: "FC: same inputs, same outputs, only temporary variables. FB: static variables, timers and edges live in its instance." },
+    { t: "Programming", q: "You need a block for a motor with a start/stop latch and a feedback timeout. FC or FB?", a: ["FC, because it is called many times", "FB: the latch and the timer must remember their state between scans", "Either: memory does not matter in blocks", "Neither: latches cannot be in blocks"], c: 1, why: "Anything that remembers (latch, timer, edge, counter) needs the static memory of an FB instance." },
+    { t: "Programming", q: "Two motors use the same FB, and starting one also starts the other. The most likely reason?", a: ["The PLC scan is too slow", "The block uses a global M bit, or both calls share one instance", "The FB needs an IN_OUT parameter", "FBs cannot run two motors"], c: 1, why: "Memory inside an FB must be #static (one per instance), and every call needs its own instance." },
+    { t: "Programming", q: "What is an instance DB (instance data)?", a: ["The memory of one call of an FB: its parameters and static variables", "A list of all blocks in the project", "The temporary variables of an FC", "A backup of the PLC program"], c: 0, why: "Each FB call gets its own instance; that is how one block can run ten motors independently." },
+    { t: "Programming", q: "What are IN, OUT and IN_OUT parameters?", a: ["IN is read by the block, OUT written by it, IN_OUT read and written", "IN are digital, OUT analog, IN_OUT both", "IN run first, OUT last, IN_OUT in between", "They are only comments for the reader"], c: 0, why: "The interface says what flows in and out; IN_OUT passes something the block changes." },
+    { t: "Programming", q: "What does IEC 61131-3 define?", a: ["The PLC languages (LD, FBD, ST, SFC) and program units like FUNCTION and FUNCTION_BLOCK", "The colours of push buttons", "The safety level of a machine", "The wire colours in a cabinet"], c: 0, why: "Part 3 of IEC 61131 is the programming part, followed by all big PLC brands." },
+    { t: "Programming", q: "Name one standard for machine safety and what it measures.", a: ["ISO 13849-1: the Performance Level (PL a to e) of a safety function", "IEC 61131-3: the safety level of a PLC program", "IEC 60617: the safety level of a symbol", "ISA-95: the safety of a network"], c: 0, why: "ISO 13849-1 gives PL a–e; IEC 62061 does the same job with SIL 1–3." },
     { t: "Basics", q: "Explain the PLC scan cycle.", a: ["Read all inputs into the image, run the program top to bottom, write the outputs", "React to each input the moment it changes, one rung at a time, with no fixed order", "Write the outputs first, then read the inputs, then run the program from the bottom", "Run every rung at the same time, and update an output as soon as its rung is done"], c: 0, why: "Inputs are frozen for the whole scan; outputs change only at the end. That is why the order of rungs matters." },
     { t: "Basics", q: "Why is a STOP push button wired with an NC contact?", a: ["A broken wire or a failed contact then stops the machine", "NC buttons are cheaper and last longer than NO buttons", "The PLC input card can read only NC contacts, not NO ones", "So the red stop lamp lights up while the machine runs"], c: 0, why: "Fail-safe: a broken stop circuit must look like \"stop pressed\". In the program you then use a NO (examine-if-closed) contact." },
     { t: "Basics", q: "A PNP (sourcing) sensor gives +24 V when active. Which input card does it need?", a: ["A sinking input card (current flows into the input to 0 V)", "A sourcing input card (the card also gives out +24 V)", "Any digital card: the polarity of DC signals does not matter", "An analog 0–10 V input card, because the sensor gives a voltage"], c: 0, why: "Sourcing device → sinking input. PNP sensors are the standard in Europe, NPN in parts of Asia." },

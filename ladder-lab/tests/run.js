@@ -1,6 +1,6 @@
 // node ladder-lab/tests/run.js — verifies engine + every challenge solution
 const path = require('path');
-['engine', 'st', 'plants', 'plants-robot', 'plants-starters', 'plants-valves', 'plants-life', 'challenges', 'lessons', 'topics', 'quiz-read', 'fbdview', 'hw-flow', 'hw-safety', 'hw-valves', 'hw-life'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
+['engine', 'st', 'plants', 'plants-robot', 'plants-starters', 'plants-valves', 'plants-life', 'challenges', 'lessons', 'topics', 'quiz-read', 'fbdview', 'hw-flow', 'hw-safety', 'hw-valves', 'hw-life', 'hw-blocks'].forEach((f) => { try { require(path.join(__dirname, '../js/' + f + '.js')); } catch (e) { if (f !== 'lessons') throw e; } });
 const LL = globalThis.LL;
 let fail = 0, pass = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL', m); } };
@@ -155,6 +155,14 @@ if (LL.EC && LL.EC.freeFor) LL.EC.FREE_SCN.forEach((scn) => {
       st = run(L.init(adv), 61000); ok(st.life < 600 && st.life <= 12, nm + 'wraps at 600');
     });
     ok(LL.LESSONS.some((l) => l.id === 'heartbeat' && l.body.includes('[[hw:lifeword]]')), 'heartbeat lesson mounts its widget'); }
+  { const B = LL.BlockSim, st = B.init();
+    st.start[0] = 1; B.scan(st); st.start[0] = 0; B.scan(st); ok(st.run[0] === 1 && st.run[1] === 0, 'block factory FB: each instance remembers on its own');
+    st.stop = 0; B.scan(st); st.stop = 1; B.scan(st); ok(st.run.every((x) => !x), 'block factory: STOP clears all');
+    st.kind = 'FC'; st.start[1] = 1; B.scan(st); st.start[1] = 0; B.scan(st); ok(st.run[1] === 0, 'block factory FC: forgets after the call');
+    st.kind = 'FB'; st.bug = true; st.glob = 0; st.start[0] = 1; B.scan(st); st.start[0] = 0; B.scan(st); ok(st.run[0] && st.run[1] && st.run[2], 'block factory bug: a global bit starts them all');
+    ok(LL.STD.parts.length === 10 && LL.STD.parts.every((p) => p[2] && p[4]) && LL.STD.layers.every((l) => l[1].every((c) => c[1] && c[2])), 'standards map: every entry has a text and an interview line');
+    ['fb-intro', 'fb-design', 'standards'].forEach((id) => ok(LL.LESSONS.some((l) => l.id === id), 'lesson ' + id));
+    ok(LL.PATH_BY_ID.blocks && LL.PATH_BY_ID.blocks.all.every((id) => LL.CH_BY_ID[id]), 'FC & FB path: every task exists'); }
   const PD = V.PDRAW; ok(PD.faults.length >= 5 && PD.faults.every((f) => PD.parts[f.a]), 'pdraw: every fault answer is a part on the drawing');
   ['vacuum', 'pneu-drawings'].forEach((id) => ok(LL.LESSONS.some((l) => l.id === id), 'lesson ' + id));
   ok(LL.LESSONS.find((l) => l.id === 'vacuum').body.includes('[[hw:vacuum]]') && LL.LESSONS.find((l) => l.id === 'pneu-drawings').body.includes('[[hw:pdraw]]'), 'vacuum and drawing lessons mount their widgets');
