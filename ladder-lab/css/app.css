@@ -15,9 +15,9 @@
    Layout: header + one content column (max 1240 px); the Lab splits into program | machine on wide screens;
    phones get a bottom tab bar. */
 :root {
-  --bg: #dfe2df; --surface: #f8f8f5; --surface-2: #eceeeb; --surface-3: #dcdfdb;
-  --ink: #161a1d; --ink-2: #343a3e; --muted: #555d62;
-  --line: #aeb4b0; --line-2: #cfd3cf; --edge: #7b858a;
+  --bg: #eef2f7; --surface: #ffffff; --surface-2: #f5f7fa; --surface-3: #e7ecf2;
+  --ink: #141a22; --ink-2: #333c48; --muted: #586373;
+  --line: #ccd4de; --line-2: #e3e8ee; --edge: #8a95a3;
   --accent: #8a5200; --accent-bg: #f2a900; --accent-ink: #221600;
   --power: #086c35; --power-bright: #088339; --power-soft: rgba(8, 131, 57, .14);
   --danger: #c21f1f; --danger-soft: rgba(194, 31, 31, .1);
@@ -1218,3 +1218,39 @@ ul.guide { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 6
 
 /* selects that look like controls, not like disabled fields */
 .blk-tabs .blk-brand select, .machine-head select { background: var(--surface); color: var(--ink); border: 1px solid var(--edge); border-radius: var(--r-ctl); padding: 6px 8px; min-height: 34px; font-weight: 600; }
+
+/* ───── glossary A–Z and colour-coded calculators ───── */
+.gl-az { display: flex; flex-wrap: wrap; gap: 4px; margin: 14px 0 0; position: sticky; top: 56px; z-index: 5; padding: 8px 0; background: var(--bg); }
+.gl-az a { width: 34px; height: 34px; display: grid; place-items: center; border-radius: var(--r-ctl); font: 700 var(--t-14) var(--f-mono); text-decoration: none; color: var(--tc-ink); background: color-mix(in srgb, var(--tc) 13%, var(--surface)); border: 1px solid color-mix(in srgb, var(--tc) 35%, transparent); }
+.gl-az a:hover { background: var(--tc-ink); color: var(--surface); }
+.gl-az a.off { opacity: .3; pointer-events: none; }
+.gl-list { border-top: 0; max-width: 980px; }
+.gl-letter { display: flex; align-items: center; gap: 12px; margin: 22px 0 8px; scroll-margin-top: 110px; }
+.gl-letter b { width: 44px; height: 44px; border-radius: var(--r-panel); display: grid; place-items: center; font: 700 1.5rem/1 var(--f-display); background: var(--tc-ink); color: var(--surface); }
+.gl-letter span { flex: 1; height: 2px; background: color-mix(in srgb, var(--tc) 40%, transparent); }
+.gl-letter i { font: 500 var(--t-12) var(--f-mono); color: var(--muted); font-style: normal; }
+.gl-item { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--tc-ink); border-radius: var(--r-ctl); padding: 10px 14px; margin: 0 0 6px; }
+.gl-item h4 { color: var(--tc-text); }
+.gl-item p { color: var(--ink); }
+.gl-item mark, .gl-list mark { background: color-mix(in srgb, #f2a900 40%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
+
+.cx-chips button.on { color: var(--tc-ink, var(--ink)); border-bottom-color: var(--tc-ink, var(--ink)); }
+.cx-grp { margin-top: 26px; }
+.cx-grp h2 { display: flex; align-items: center; gap: 10px; font: 700 var(--t-16)/1.3 var(--f-body) !important; letter-spacing: 0 !important; text-transform: none !important; color: var(--tc-text) !important; border-bottom: 2px solid var(--tc-ink) !important; padding-bottom: 8px; }
+.cx-grp h2::before { content: ""; width: 14px; height: 14px; border-radius: 3px; background: var(--tc-ink); }
+.cx-grp h2 small { margin-left: auto; font: 500 var(--t-12) var(--f-mono); color: var(--muted); }
+.cx-grid { columns: auto !important; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 10px; margin-top: 12px; }
+.cx-card { position: relative; display: grid !important; grid-template-columns: minmax(0, 1fr) !important; align-content: start; gap: 4px !important; padding: 12px 48px 12px 14px !important; background: var(--surface); border: 1px solid var(--line) !important; border-left: 5px solid var(--tc-ink) !important; border-radius: var(--r-panel); box-shadow: 0 1px 2px rgba(0, 0, 0, .05); transition: box-shadow .15s, border-color .15s; }
+.cx-card:hover { border-color: var(--tc-ink) !important; box-shadow: 0 4px 14px rgba(0, 0, 0, .12); }
+.cx-card b { color: var(--ink); }
+.cx-card .cx-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.cx-tag { font: 600 var(--t-12)/1 var(--f-body); padding: 4px 8px; border-radius: 999px; background: var(--surface-3); color: var(--ink-2); }
+.cx-tag.lv1 { background: color-mix(in srgb, #16a34a 15%, var(--surface)); color: #0f6b30; }
+.cx-tag.lv2 { background: color-mix(in srgb, #2563eb 13%, var(--surface)); color: #1d4ed8; }
+.cx-tag.lv3 { background: color-mix(in srgb, #9333ea 13%, var(--surface)); color: #7e22ce; }
+.cx-tag.pic { background: color-mix(in srgb, var(--tc) 14%, var(--surface)); color: var(--tc-text); }
+.cx-tag.pic::before { content: ""; display: inline-block; width: 0; height: 0; border-left: 7px solid currentColor; border-top: 4px solid transparent; border-bottom: 4px solid transparent; margin-right: 5px; vertical-align: -1px; }
+.cx-card::after { content: "→"; position: absolute; right: 12px; top: 14px; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font: 700 15px/1 var(--f-body); background: color-mix(in srgb, var(--tc) 14%, var(--surface)); color: var(--tc-ink); }
+.cx-card:hover::after { background: var(--tc-ink); color: var(--surface); }
+:root[data-theme="dark"] .cx-tag.lv1 { color: #7ee2a0; } :root[data-theme="dark"] .cx-tag.lv2 { color: #93b8ff; } :root[data-theme="dark"] .cx-tag.lv3 { color: #d2a8ff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cx-tag.lv1 { color: #7ee2a0; } :root:not([data-theme="light"]) .cx-tag.lv2 { color: #93b8ff; } :root:not([data-theme="light"]) .cx-tag.lv3 { color: #d2a8ff; } }

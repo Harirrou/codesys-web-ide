@@ -1154,11 +1154,24 @@
   function pageGlossary() {
     const el = h(`<div class="wrap"><span class="plate">Reference</span><h1 style="margin:10px 0 8px">Glossary</h1><p style="margin:0 0 12px"><a class="btn small" href="#cheat">Cheat sheet: everything on one page</a> <a class="btn small" href="#calc">Calculators</a></p><input class="gl-search" id="gl-q" type="search" placeholder="Search ${LL.GLOSSARY.length} terms: seal-in, TON, PNP…" aria-label="Search glossary"><div class="gl-list"></div></div>`);
     const list = $('.gl-list', el);
+    // A to Z: each letter has its own colour, a jump bar on top, the terms sorted
+    const PAL = ['#2563eb', '#16a34a', '#d97706', '#9333ea', '#0891b2', '#db2777', '#ea580c', '#4f46e5', '#0d9488', '#be123c'];
+    const key = (t) => { const c = t.replace(/^[^A-Za-z0-9]+/, '').charAt(0).toUpperCase(); return /[A-Z]/.test(c) ? c : '#'; };
+    const colOf = (k) => (k === '#' ? '#475569' : PAL[(k.charCodeAt(0) - 65) % PAL.length]);
+    const sorted = LL.GLOSSARY.slice().sort((a, b) => a[0].localeCompare(b[0], 'en', { sensitivity: 'base' }));
+    const az = h('<nav class="gl-az" aria-label="Jump to a letter"></nav>');
+    list.before(az);
+    const mark = (text, q) => { const e = esc(text); if (!q) return e; const i = e.toLowerCase().indexOf(esc(q).toLowerCase()); return i < 0 ? e : e.slice(0, i) + '<mark>' + e.slice(i, i + esc(q).length) + '</mark>' + e.slice(i + esc(q).length); };
     const draw = (q) => {
-      q = (q || '').toLowerCase();
-      list.innerHTML = LL.GLOSSARY.filter(([t, d]) => !q || t.toLowerCase().includes(q) || d.toLowerCase().includes(q))
-        .map(([t, d]) => `<div class="card gl-item"><h4>${esc(t)}</h4><p>${esc(d)}</p></div>`).join('') || '<p class="muted">No match. Try a shorter word.</p>';
+      q = (q || '').trim().toLowerCase();
+      const hits = sorted.filter(([t, d]) => !q || t.toLowerCase().includes(q) || d.toLowerCase().includes(q));
+      const groups = {};
+      hits.forEach((x) => { (groups[key(x[0])] = groups[key(x[0])] || []).push(x); });
+      const letters = Object.keys(groups).sort((a, b) => (a === '#') - (b === '#') || a.localeCompare(b));
+      az.innerHTML = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((k) => `<a href="#glossary" data-k="${k}" style="--tc:${colOf(k)}" class="${groups[k] ? '' : 'off'}">${k}</a>`).join('');
+      list.innerHTML = letters.map((k) => `<section class="gl-sec" style="--tc:${colOf(k)}"><div class="gl-letter" id="gl-${k === '#' ? 'num' : k}"><b>${k}</b><span></span><i>${groups[k].length}</i></div>${groups[k].map(([t, d]) => `<div class="gl-item"><h4>${mark(t, q)}</h4><p>${mark(d, q)}</p></div>`).join('')}</section>`).join('') || '<p class="muted">No match. Try a shorter word.</p>';
     };
+    az.addEventListener('click', (e) => { const a = e.target.closest('[data-k]'); if (!a) return; e.preventDefault(); const t = document.getElementById('gl-' + a.dataset.k); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     $('#gl-q', el).addEventListener('input', (e) => draw(e.target.value));
     if (glossQ) $('#gl-q', el).value = glossQ; // from a search result
     draw(glossQ); glossQ = '';

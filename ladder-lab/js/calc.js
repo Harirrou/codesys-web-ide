@@ -83,6 +83,8 @@
     ['num', 'Numbers, addresses and units'], ['time', 'Scan, counting and motion'], ['mech', 'Machines and process'], ['ctrl', 'Control, networks and safety'],
   ];
   const LEVELS = { 1: 'Basic', 2: 'Everyday', 3: 'Advanced' };
+  // one colour per group, so the list is easy to scan
+  const GCOL = { proj: '#0891b2', elec: '#d97706', motor: '#ea580c', size: '#4f46e5', sig: '#2563eb', num: '#9333ea', time: '#0d9488', mech: '#16a34a', ctrl: '#be123c' };
   const LIST = [], BY = Object.create(null);
   const add = (o) => { LIST.push(o); BY[o.id] = o; };
 
@@ -984,12 +986,12 @@
     const q = wrap.querySelector('#cx-q'), chips = wrap.querySelector('.cx-chips'), out = wrap.querySelector('.cx-list');
     q.value = listState.q;
     const draw = () => {
-      chips.innerHTML = [['', 'All']].concat(GROUPS).map(([k, n]) => `<button type="button" data-g="${k}" class="${listState.g === k ? 'on' : ''}" aria-pressed="${listState.g === k}">${esc(n)}</button>`).join('');
+      chips.innerHTML = [['', 'All']].concat(GROUPS).map(([k, n]) => `<button type="button" data-g="${k}" class="${listState.g === k ? 'on' : ''}" aria-pressed="${listState.g === k}"${k ? ` style="--tc:${GCOL[k]}"` : ''}>${esc(n)}</button>`).join('');
       const words = listState.q.toLowerCase().split(/\s+/).filter(Boolean);
       const hit = (c) => { const t = (c.t + ' ' + c.d + ' ' + (c.key || '')).toLowerCase(); return words.every((w) => t.includes(w)); };
       const html = GROUPS.filter(([k]) => !listState.g || listState.g === k).map(([k, n]) => {
         const cs = LIST.filter((c) => c.g === k && hit(c));
-        return cs.length ? `<section class="cx-grp"><h2>${esc(n)}</h2><div class="cx-grid">${cs.map((c) => `<a class="cx-card" href="#calc-${c.id}"><b>${esc(c.t)}</b><span class="cx-d">${esc(c.d)}</span><span class="cx-lv">${LEVELS[c.lv]}${c.pic ? ' · picture' : ''}</span></a>`).join('')}</div></section>` : '';
+        return cs.length ? `<section class="cx-grp" style="--tc:${GCOL[k] || '#475569'}"><h2>${esc(n)}<small>${cs.length}</small></h2><div class="cx-grid">${cs.map((c) => `<a class="cx-card" href="#calc-${c.id}"><b>${esc(c.t)}</b><span class="cx-d">${esc(c.d)}</span><span class="cx-tags"><span class="cx-tag lv${c.lv}">${LEVELS[c.lv]}</span>${c.pic ? '<span class="cx-tag pic">moving picture</span>' : ''}</span></a>`).join('')}</div></section>` : '';
       }).join('');
       out.innerHTML = html || '<p class="cx-none">No calculator found. Try a shorter word.</p>';
     };
