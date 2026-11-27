@@ -76,6 +76,7 @@ import com.harirrou.fedyet.ui.components.EmptyState
 import com.harirrou.fedyet.ui.components.GhostButton
 import com.harirrou.fedyet.ui.components.MemberDot
 import com.harirrou.fedyet.ui.components.PetPortrait
+import com.harirrou.fedyet.ui.components.fadeTop
 import com.harirrou.fedyet.ui.components.glass
 import com.harirrou.fedyet.ui.components.glowRing
 import com.harirrou.fedyet.ui.components.kindIcon
@@ -98,6 +99,8 @@ fun BoardScreen(
     onAddPet: () -> Unit,
     onAddTask: (String) -> Unit,
     onStartOwnHome: () -> Unit,
+    banner: (@Composable () -> Unit)? = null,
+    walk: (@Composable (WhenFormatter) -> Unit)? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -124,17 +127,19 @@ fun BoardScreen(
         val hour = state.now.atZone(home.zone).hour
         val formatter = remember(home.zone, state.now, context) { WhenFormatter(context, home.zone, state.now) }
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).fadeTop(),
             contentPadding = PaddingValues(
                 start = 16.dp,
                 end = 16.dp,
-                top = padding.calculateTopPadding() + 20.dp,
+                top = 20.dp,
                 bottom = padding.calculateBottomPadding() + 20.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item(key = "hero") { Hero(home, board, hour, formatter.header(state.now), ambient) }
             if (home.isSample) item(key = "notice") { SampleNotice(onStartOwnHome) }
+            if (banner != null) item(key = "banner") { banner() }
+            if (walk != null) item(key = "walk") { walk(formatter) }
             if (board.pets.isEmpty()) {
                 item(key = "empty") {
                     EmptyState(

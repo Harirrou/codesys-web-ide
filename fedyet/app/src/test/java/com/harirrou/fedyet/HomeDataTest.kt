@@ -196,6 +196,12 @@ class HomeDataTest {
         assertEquals(rest.sortedBy { it.dueAt }, rest)
         assertTrue(items.any { it.title == "Flea and tick" })
 
+        // Once dinner is ticked, the meals entry is tomorrow's breakfast, by name.
+        val fed = HomeEdits.addLog(sample, LogEntry("x", "luna-meals", SampleHome.ME, now))
+        val meals = UpcomingPresenter.present(fed, now).first { it.needId == "luna-meals" }
+        assertEquals("Breakfast", meals.title)
+        assertFalse(meals.dueNow)
+
         val paused = sample.copy(needs = sample.needs.map { if (it.id == "luna-flea") it.copy(active = false) else it })
         assertTrue(UpcomingPresenter.present(paused, now).none { it.title == "Flea and tick" })
     }

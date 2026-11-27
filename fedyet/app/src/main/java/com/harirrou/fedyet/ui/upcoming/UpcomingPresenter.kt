@@ -30,7 +30,9 @@ object UpcomingPresenter {
             val dueNow = state.status == Status.DUE
             val dueAt = (if (overdue || dueNow) state.slotDueAt else state.nextDueAt) ?: return@mapNotNull null
             if (dueAt.isAfter(horizon)) return@mapNotNull null
-            UpcomingItem(need.id, pet, state.slotLabel ?: need.label, need.kind, dueAt, overdue, dueNow)
+            // A task that is done names its next occasion: after dinner, tomorrow's entry is "Breakfast".
+            val title = (if (overdue || dueNow) state.slotLabel else state.nextLabel) ?: need.label
+            UpcomingItem(need.id, pet, title, need.kind, dueAt, overdue, dueNow)
         }.sortedWith(compareByDescending<UpcomingItem> { it.overdue }.thenBy { it.dueAt })
     }
 }

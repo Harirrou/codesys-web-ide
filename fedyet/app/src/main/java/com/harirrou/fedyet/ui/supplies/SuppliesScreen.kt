@@ -37,6 +37,7 @@ import com.harirrou.fedyet.ui.WhenFormatter
 import com.harirrou.fedyet.ui.amount
 import com.harirrou.fedyet.ui.components.EmptyState
 import com.harirrou.fedyet.ui.components.GhostButton
+import com.harirrou.fedyet.ui.components.fadeTop
 import com.harirrou.fedyet.ui.components.glass
 import com.harirrou.fedyet.ui.theme.Bricolage
 import com.harirrou.fedyet.ui.theme.Tokens
@@ -64,11 +65,11 @@ fun SuppliesScreen(
     val sorted = remember(home) { home.supplies.sortedBy { daysLeft(home, it) ?: Int.MAX_VALUE } }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).fadeTop(),
         contentPadding = PaddingValues(
             start = 16.dp,
             end = 16.dp,
-            top = padding.calculateTopPadding() + 20.dp,
+            top = 20.dp,
             bottom = padding.calculateBottomPadding() + 20.dp,
         ),
         verticalArrangement = Arrangement.spacedBy(12.dp),

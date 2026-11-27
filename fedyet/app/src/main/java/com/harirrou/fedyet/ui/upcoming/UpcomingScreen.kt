@@ -30,6 +30,7 @@ import com.harirrou.fedyet.ui.WhenFormatter
 import com.harirrou.fedyet.ui.components.EmptyState
 import com.harirrou.fedyet.ui.components.PetFace
 import com.harirrou.fedyet.ui.components.SectionTitle
+import com.harirrou.fedyet.ui.components.fadeTop
 import com.harirrou.fedyet.ui.components.glass
 import com.harirrou.fedyet.ui.theme.Tokens
 import java.time.Instant
@@ -46,11 +47,11 @@ fun UpcomingScreen(home: HomeSnapshot, now: Instant, padding: PaddingValues, onP
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).fadeTop(),
         contentPadding = PaddingValues(
             start = 16.dp,
             end = 16.dp,
-            top = padding.calculateTopPadding() + 20.dp,
+            top = 20.dp,
             bottom = padding.calculateBottomPadding() + 20.dp,
         ),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -72,7 +73,7 @@ fun UpcomingScreen(home: HomeSnapshot, now: Instant, padding: PaddingValues, onP
             item(key = "h-$heading") { SectionTitle(heading) }
             items(group, key = { it.needId }) { item ->
                 val line = when {
-                    item.overdue -> stringResource(R.string.status_overdue, formatter.moment(item.dueAt))
+                    item.overdue -> formatter.moment(item.dueAt)
                     item.dueNow -> stringResource(R.string.upcoming_due_now)
                     else -> formatter.time(item.dueAt)
                 }

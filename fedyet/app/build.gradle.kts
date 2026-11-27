@@ -15,8 +15,8 @@ android {
         applicationId = "com.harirrou.fedyet"
         minSdk = 24
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.3.0"
+        versionCode = 6
+        versionName = "0.5.0"
     }
 
     buildTypes {
@@ -60,6 +60,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
+    implementation("androidx.glance:glance-appwidget:1.1.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation(kotlin("test-junit"))

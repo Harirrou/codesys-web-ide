@@ -262,6 +262,66 @@
     <string name="home_leave_sample_text">The sample pets are removed and you set up your own home.</string>
     <string name="home_version">Fed Yet %1$s</string>
 
+    <!-- Walk check -->
+    <string name="walk_title">Walk check</string>
+    <string name="walk_setup_title">Is it OK to walk now?</string>
+    <string name="walk_setup_body">Set where you walk and Fed Yet checks pavement heat, rain, cold and wind for you.</string>
+    <string name="walk_use_location">Use my location</string>
+    <string name="walk_type_town">Type a town</string>
+    <string name="walk_town_label">Town or city</string>
+    <string name="walk_change_place">Change place</string>
+    <string name="walk_good">Good to walk</string>
+    <string name="walk_care">Take care</string>
+    <string name="walk_avoid">Better wait</string>
+    <string name="walk_line_good">%1$s · pavement about %2$s</string>
+    <string name="walk_hot_pavement_avoid">Pavement about %1$s. Too hot for paws.</string>
+    <string name="walk_hot_pavement_care">Pavement about %1$s. Test it with your hand first.</string>
+    <string name="walk_heat_avoid">%1$s in the shade. Too hot for a walk.</string>
+    <string name="walk_heat_care">%1$s in the shade. Keep it short and bring water.</string>
+    <string name="walk_freezing">%1$s. Too cold for more than a quick trip out.</string>
+    <string name="walk_cold">%1$s. Cold; short-haired and small dogs may need a coat.</string>
+    <string name="walk_thunder">Thunderstorm forecast.</string>
+    <string name="walk_heavy_rain">Heavy rain.</string>
+    <string name="walk_rain">Rain. Fine with a towel ready.</string>
+    <string name="walk_wind_avoid">Very strong wind.</string>
+    <string name="walk_wind_care">Windy.</string>
+    <string name="walk_dark">It is dark. Take a light.</string>
+    <string name="walk_window">Good from %1$s to %2$s</string>
+    <string name="walk_no_window">No good time in the next 18 hours</string>
+    <string name="walk_loading">Checking the forecast…</string>
+    <string name="walk_no_forecast">Couldn\'t get the forecast. Check your connection.</string>
+    <string name="walk_place_not_found">Couldn\'t find that place.</string>
+    <string name="walk_location_unavailable">Couldn\'t get your location. Try typing a town.</string>
+    <string name="walk_retry">Try again</string>
+    <string name="walk_strip_now">Now</string>
+    <string name="walk_strip_later">+12 h</string>
+    <string name="walk_credit">Forecast from MET Norway. Pavement heat is an estimate; always check the ground yourself.</string>
+
+    <!-- Reminders -->
+    <string name="home_reminders">Reminders</string>
+    <string name="home_reminders_title">Remind me when something is due</string>
+    <string name="home_reminders_body">Only when its time has come and nobody has done it.</string>
+    <string name="home_reminders_blocked">Notifications are turned off for Fed Yet in your phone\'s settings.</string>
+    <string name="reminder_ask_title">Want a reminder?</string>
+    <string name="reminder_ask_body">Fed Yet can tell you when something is due and nobody has done it. Nothing else.</string>
+    <string name="reminder_turn_on">Turn on</string>
+    <string name="reminder_not_now">Not now</string>
+    <string name="notif_channel">Due tasks</string>
+    <string name="notif_channel_description">When a task is due and nobody has done it</string>
+    <string name="notif_title">%1$s: %2$s</string>
+    <string name="notif_due">Due now · %1$s</string>
+    <string name="notif_overdue">Overdue · was due %1$s</string>
+    <string name="notif_done">Done</string>
+
+    <!-- Widget -->
+    <string name="widget_name">Fed Yet board</string>
+    <string name="widget_description">What is waiting and what comes next. Tick tasks without opening the app.</string>
+    <string name="widget_setup">Open Fed Yet to set up your home.</string>
+    <string name="widget_overdue">%1$s · overdue</string>
+    <string name="widget_due_now">%1$s · due now</string>
+    <string name="widget_later">%1$s · %2$s</string>
+    <string name="widget_tick">Tick %1$s</string>
+
     <string name="licences_fonts_title">Fonts</string>
     <string name="licences_fonts_body">Bricolage Grotesque and Figtree, used under the SIL Open Font License 1.1. Copyright the Bricolage Grotesque Project Authors and the Figtree Project Authors. openfontlicense.org</string>
     <string name="licences_pictures_title">Pictures</string>

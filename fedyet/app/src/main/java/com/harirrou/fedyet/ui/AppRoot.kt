@@ -29,6 +29,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -42,6 +43,7 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -52,6 +54,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.harirrou.fedyet.AppContainer
 import com.harirrou.fedyet.R
 import com.harirrou.fedyet.data.HomeSnapshot
+import com.harirrou.fedyet.data.Species
+import com.harirrou.fedyet.engine.NeedKind
+import com.harirrou.fedyet.walk.WalkCard
+import com.harirrou.fedyet.walk.WalkViewModel
 import com.harirrou.fedyet.ui.board.BoardScreen
 import com.harirrou.fedyet.ui.board.BoardViewModel
 import com.harirrou.fedyet.ui.components.AmbientBackground
@@ -120,13 +126,20 @@ fun AppRoot(container: AppContainer) {
             !ready -> Box(Modifier.fillMaxSize())
             current == null -> WelcomeScreen(onStart = app::createHome, onSample = app::createSampleHome)
             // A different home starts from a clean slate: first tab, nothing pushed.
-            else -> key(current.id) { Main(app, board, current, now, ambient) }
+            else -> key(current.id) { Main(container, app, board, current, now, ambient) }
         }
     }
 }
 
 @Composable
-private fun Main(app: AppViewModel, board: BoardViewModel, home: HomeSnapshot, now: Instant, ambient: Ambient) {
+private fun Main(
+    container: AppContainer,
+    app: AppViewModel,
+    board: BoardViewModel,
+    home: HomeSnapshot,
+    now: Instant,
+    ambient: Ambient,
+) {
     val stack = rememberSaveable(
         saver = listSaver<SnapshotStateList<String>, String>(save = { it.toList() }, restore = { it.toMutableStateList() }),
     ) { mutableStateListOf() }
@@ -153,6 +166,7 @@ private fun Main(app: AppViewModel, board: BoardViewModel, home: HomeSnapshot, n
     ) { encoded ->
         when (val route = Route.decode(encoded)) {
             Route.Tabs -> Tabs(
+                container = container,
                 app = app,
                 board = board,
                 home = home,
@@ -223,6 +237,7 @@ private fun Main(app: AppViewModel, board: BoardViewModel, home: HomeSnapshot, n
 
 @Composable
 private fun Tabs(
+    container: AppContainer,
     app: AppViewModel,
     board: BoardViewModel,
     home: HomeSnapshot,
@@ -233,6 +248,12 @@ private fun Tabs(
     snackbar: SnackbarHostState,
     push: (Route) -> Unit,
 ) {
+    val reminderUi = rememberReminderUi(container, home)
+    val walkModel: WalkViewModel = viewModel(factory = WalkViewModel.factory(container))
+    val walkState by walkModel.state.collectAsStateWithLifecycle()
+    // The walk check is for homes with an animal that gets walked.
+    val walks = home.pets.any { it.species == Species.DOG } || home.needs.any { it.kind == NeedKind.WALK }
+    LaunchedEffect(walks, tab) { if (walks && tab == 0) walkModel.refresh() }
     Scaffold(
         containerColor = Color.Transparent,
         snackbarHost = {
@@ -258,6 +279,16 @@ private fun Tabs(
                 onAddPet = { push(Route.PetEdit(null)) },
                 onAddTask = { push(Route.NeedEdit(it, null)) },
                 onStartOwnHome = { onTab(3) },
+                banner = if (reminderUi.shouldAsk) {
+                    { ReminderCard(reminderUi) }
+                } else {
+                    null
+                },
+                walk = if (walks) {
+                    { formatter -> WalkCard(walkState, now, formatter, walkModel) }
+                } else {
+                    null
+                },
             )
             1 -> UpcomingScreen(home, now, padding, onPet = { push(Route.PetDetail(it)) })
             2 -> SuppliesScreen(
@@ -274,6 +305,7 @@ private fun Tabs(
                 onRenameMe = app::renameMe,
                 onDeleteEverything = app::deleteEverything,
                 onLicences = { push(Route.Licences) },
+                reminders = reminderUi,
             )
         }
     }
@@ -292,13 +324,19 @@ private val TabSpecs = listOf(
 @Composable
 private fun TabBar(selected: Int, onSelect: (Int) -> Unit) {
     val shape = RoundedCornerShape(30.dp)
+    // The list scrolls underneath; fade it out so nothing shows through below the bar.
+    Box(
+        Modifier.fillMaxWidth().background(
+            Brush.verticalGradient(0f to Color.Transparent, 0.22f to Tokens.Night.copy(alpha = 0.97f), 1f to Tokens.Night),
+        ),
+    ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(horizontal = 16.dp, vertical = 10.dp)
             .clip(shape)
-            .background(Tokens.NightRaised.copy(alpha = 0.96f))
+            .background(Tokens.NightRaised)
             .border(1.dp, Tokens.GlassEdgeBottom, shape)
             .padding(6.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -330,5 +368,5 @@ private fun TabBar(selected: Int, onSelect: (Int) -> Unit) {
                 )
             }
         }
-    }
+    }    }
 }

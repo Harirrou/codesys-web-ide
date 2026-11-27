@@ -20,6 +20,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,6 +41,7 @@ import com.harirrou.fedyet.BuildConfig
 import com.harirrou.fedyet.R
 import com.harirrou.fedyet.data.CsvExport
 import com.harirrou.fedyet.data.HomeSnapshot
+import com.harirrou.fedyet.ui.ReminderUi
 import com.harirrou.fedyet.ui.components.ConfirmDialog
 import com.harirrou.fedyet.ui.components.GlassCard
 import com.harirrou.fedyet.ui.components.Hint
@@ -46,6 +49,7 @@ import com.harirrou.fedyet.ui.components.MemberDot
 import com.harirrou.fedyet.ui.components.PrimaryButton
 import com.harirrou.fedyet.ui.components.SectionTitle
 import com.harirrou.fedyet.ui.components.TextEditDialog
+import com.harirrou.fedyet.ui.components.fadeTop
 import com.harirrou.fedyet.ui.theme.Tokens
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -60,6 +64,7 @@ fun HomeScreen(
     onRenameMe: (String) -> Unit,
     onDeleteEverything: () -> Unit,
     onLicences: () -> Unit,
+    reminders: ReminderUi,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -85,11 +90,13 @@ fun HomeScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .padding(top = padding.calculateTopPadding())
+            .fadeTop()
             .verticalScroll(rememberScrollState())
             .padding(
                 start = 16.dp,
                 end = 16.dp,
-                top = padding.calculateTopPadding() + 20.dp,
+                top = 20.dp,
                 bottom = padding.calculateBottomPadding() + 20.dp,
             ),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -119,7 +126,8 @@ fun HomeScreen(
                     MemberDot(member, size = 34.dp)
                     Spacer(Modifier.width(12.dp))
                     Text(
-                        if (member.id == home.meId) stringResource(R.string.home_you, member.name) else member.name,
+                        // The sample home already calls this person "You".
+                        if (member.id == home.meId && !home.isSample) stringResource(R.string.home_you, member.name) else member.name,
                         style = MaterialTheme.typography.titleMedium,
                         color = Tokens.Text,
                     )
@@ -128,6 +136,28 @@ fun HomeScreen(
         }
         // Build step 2 (sync) turns this note into the real "Invite someone" action.
         Hint(stringResource(R.string.home_sharing_body))
+
+        if (!home.isSample) {
+            SectionTitle(stringResource(R.string.home_reminders))
+            GlassCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.home_reminders_title), style = MaterialTheme.typography.titleMedium, color = Tokens.Text)
+                        Text(
+                            stringResource(if (reminders.blocked) R.string.home_reminders_blocked else R.string.home_reminders_body),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (reminders.blocked) Tokens.Due else Tokens.TextMuted,
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Switch(
+                        checked = reminders.enabled,
+                        onCheckedChange = reminders.setEnabled,
+                        colors = SwitchDefaults.colors(checkedTrackColor = Tokens.Mint, checkedThumbColor = Tokens.Night),
+                    )
+                }
+            }
+        }
 
         SectionTitle(stringResource(R.string.home_settings))
         GlassCard {

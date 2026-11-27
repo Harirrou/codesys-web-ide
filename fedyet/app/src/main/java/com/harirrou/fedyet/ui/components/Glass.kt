@@ -40,6 +40,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -121,6 +125,21 @@ fun Modifier.glass(shape: Shape, glow: Color? = null): Modifier = this
         }
     }
     .border(1.dp, Brush.verticalGradient(listOf(Tokens.GlassEdgeTop, Tokens.GlassEdgeBottom)), shape)
+
+/**
+ * Fades scrolling content out over its top [height], so it melts away under the status bar
+ * and never collides with the clock, while the glow behind stays untouched.
+ */
+fun Modifier.fadeTop(height: Dp = 18.dp): Modifier = this
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        drawRect(
+            brush = Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black, endY = height.toPx()),
+            size = Size(size.width, height.toPx()),
+            blendMode = BlendMode.DstIn,
+        )
+    }
 
 /** A progress ring with a soft glow, drawn clockwise from the top. */
 fun DrawScope.glowRing(progress: Float, stroke: Float, brush: Brush, glow: Color) {

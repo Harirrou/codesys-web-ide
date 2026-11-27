@@ -103,6 +103,8 @@ enum class Status { NOT_DUE, DUE, OVERDUE, DONE }
  * @param doneLog the log that satisfied it, when [status] is DONE.
  * @param slotLogs every live log counted for this occasion (two or more means it was done twice).
  * @param nextDueAt the next due time the household should care about.
+ * @param followingDueAt the due time of the occasion after the one shown, when the schedule has
+ *   fixed occasions. A missed dinner must not stop tomorrow's breakfast from being announced.
  */
 data class NeedState(
     val status: Status,
@@ -111,6 +113,9 @@ data class NeedState(
     val doneLog: LogEntry?,
     val slotLogs: List<LogEntry>,
     val nextDueAt: Instant?,
+    val followingDueAt: Instant? = null,
+    /** The name of the occasion at [nextDueAt] ("Breakfast"), when the schedule names its times. */
+    val nextLabel: String? = null,
 )
 
 enum class GuardReason {

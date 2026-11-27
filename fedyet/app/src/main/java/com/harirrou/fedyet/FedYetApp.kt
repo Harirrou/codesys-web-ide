@@ -3,11 +3,17 @@ package com.harirrou.fedyet
 import android.app.Application
 import com.harirrou.fedyet.data.HomeRepository
 import com.harirrou.fedyet.data.LocalHomeRepository
+import com.harirrou.fedyet.reminders.ReminderScheduler
+import com.harirrou.fedyet.reminders.ReminderSettings
+import com.harirrou.fedyet.walk.WeatherRepository
+import com.harirrou.fedyet.widget.BoardWidget
 import java.io.File
 import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 class FedYetApp : Application() {
     /** Hand-rolled dependency container. Small on purpose; swap pieces here, not in screens. */
@@ -20,10 +26,29 @@ class FedYetApp : Application() {
     }
 }
 
-class AppContainer(app: Application) {
+class AppContainer(private val app: Application) {
     val clock: () -> Instant = { Instant.now() }
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    /** Lives as long as the app's process. Used for work that must outlast a screen. */
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     // Build step 2 replaces this with the Firestore-backed repository.
     val homeRepository: HomeRepository = LocalHomeRepository(File(app.filesDir, "home.json"), clock, scope)
+
+    val weather = WeatherRepository(app, clock)
+
+    val reminderSettings = ReminderSettings(app)
+    val reminders = ReminderScheduler(app, clock, reminderSettings)
+
+    init {
+        // Whatever changes the home (a tick, an edit, later a sync from another phone),
+        // reminders and the widget follow from this one place.
+        scope.launch {
+            homeRepository.ready.first { it }
+            homeRepository.home.collect { home ->
+                reminders.sync(home)
+                BoardWidget.refresh(app)
+            }
+        }
+    }
 }

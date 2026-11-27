@@ -93,7 +93,8 @@ class NeedsEngine(private val zone: ZoneId) {
                 val due = state.slotDueAt ?: return null
                 if (now.isBefore(due)) due else due.plus(minutes(need.lateMinutes))
             }
-            Status.OVERDUE -> null
+            // Nothing more to say about this occasion, but the next one still gets its turn.
+            Status.OVERDUE -> state.followingDueAt
         }
     }
 
@@ -111,7 +112,7 @@ class NeedsEngine(private val zone: ZoneId) {
 
         if (index < 0) {
             val first = slots.first()
-            return NeedState(Status.NOT_DUE, null, first.label, null, emptyList(), first.dueAt)
+            return NeedState(Status.NOT_DUE, null, first.label, null, emptyList(), first.dueAt, nextLabel = first.label)
         }
 
         val slot = slots[index]
@@ -126,13 +127,14 @@ class NeedsEngine(private val zone: ZoneId) {
                 localDate(slot.dueAt).isBefore(today) &&
                 owned.all { localDate(it.at).isBefore(today) }
             if (fromAnEarlierDay) {
-                return NeedState(Status.NOT_DUE, null, next!!.label, null, emptyList(), next.dueAt)
+                return NeedState(Status.NOT_DUE, null, next!!.label, null, emptyList(), next.dueAt, nextLabel = next.label)
             }
-            return NeedState(Status.DONE, slot.dueAt, slot.label, owned.first(), owned, next?.dueAt)
+            return NeedState(Status.DONE, slot.dueAt, slot.label, owned.first(), owned, next?.dueAt, nextLabel = next?.label)
         }
         val overdueFrom = slot.dueAt.plus(minutes(need.lateMinutes))
         val status = if (now.isAfter(overdueFrom)) Status.OVERDUE else Status.DUE
-        return NeedState(status, slot.dueAt, slot.label, null, emptyList(), slot.dueAt)
+        val following = slots.getOrNull(index + 1)?.dueAt
+        return NeedState(status, slot.dueAt, slot.label, null, emptyList(), slot.dueAt, following, nextLabel = slot.label)
     }
 
     /**

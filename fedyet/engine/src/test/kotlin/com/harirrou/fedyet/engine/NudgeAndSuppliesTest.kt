@@ -24,10 +24,17 @@ class NudgeAndSuppliesTest {
     }
 
     @Test
-    fun `once overdue there is nothing more to send`() {
+    fun `a missed dinner does not stop tomorrow's breakfast from being announced`() {
         val need = meals()
         val logs = listOf(log(need, "Sara", "2026-11-27 07:10"))
-        assertNull(engine.nextNudgeAt(need, logs, at("2026-11-27 21:00")))
+        assertEquals(at("2026-11-28 07:00"), engine.nextNudgeAt(need, logs, at("2026-11-27 21:00")))
+    }
+
+    @Test
+    fun `an overdue interval task has nothing more to announce until it is done`() {
+        val need = crickets()
+        val logs = listOf(log(need, "Sara", "2026-11-24 20:00"))
+        assertNull(engine.nextNudgeAt(need, logs, at("2026-11-29 12:00")))
     }
 
     @Test
