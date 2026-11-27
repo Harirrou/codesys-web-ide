@@ -1,0 +1,156 @@
+rules_version = '2';
+
+// Fed Yet – who may read and write what.
+//
+// Layout
+//   /homes/{homeId}                    one household
+//   /homes/{homeId}/members/{uid}      people in it (role: owner | member | sitter)
+//   /homes/{homeId}/pets/{petId}
+//   /homes/{homeId}/needs/{needId}
+//   /homes/{homeId}/days/{yyyy-mm-dd}  that day's logs, as one document
+//   /homes/{homeId}/supplies/{id}
+//   /invites/{code}                    join codes
+//
+// Principles
+//   - Nothing in a home is visible to anyone who is not a member of it.
+//   - You become a member only by creating the home, or by quoting a valid, unexpired invite.
+//   - A sitter can read everything and tick tasks, but cannot change pets, schedules,
+//     supplies or members, and loses access when the pass ends.
+//   - Nobody can change their own role.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function homePath(homeId) {
+      return /databases/$(database)/documents/homes/$(homeId);
+    }
+
+    function memberPath(homeId) {
+      return /databases/$(database)/documents/homes/$(homeId)/members/$(request.auth.uid);
+    }
+
+    function stillValid(member) {
+      return !('expiresAt' in member) || member.expiresAt == null || member.expiresAt > request.time;
+    }
+
+    function isMember(homeId) {
+      return signedIn() && exists(memberPath(homeId)) && stillValid(get(memberPath(homeId)).data);
+    }
+
+    function myRole(homeId) {
+      return get(memberPath(homeId)).data.role;
+    }
+
+    function isOwner(homeId) {
+      return isMember(homeId) && myRole(homeId) == 'owner';
+    }
+
+    // Owners and ordinary members. Not sitters.
+    function canEdit(homeId) {
+      return isMember(homeId) && myRole(homeId) in ['owner', 'member'];
+    }
+
+    function onlyChanges(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+
+    match /homes/{homeId} {
+      // A home is created together with its creator's owner record, in one batch.
+      allow create: if signedIn()
+                    && request.resource.data.createdBy == request.auth.uid
+                    && getAfter(memberPath(homeId)).data.role == 'owner';
+      allow get: if isMember(homeId);
+      allow list: if false;
+      allow update: if isOwner(homeId) && request.resource.data.createdBy == resource.data.createdBy;
+      allow delete: if isOwner(homeId);
+
+      match /members/{uid} {
+        function inviteFor(code) {
+          return get(/databases/$(database)/documents/invites/$(code)).data;
+        }
+
+        // Quoting an invite: it must exist, be for this home, be unexpired, and
+        // the new record must take exactly the role (and end date) the invite grants.
+        function joinsWithInvite(data) {
+          let invite = inviteFor(data.inviteCode);
+          return data.inviteCode is string
+                 && invite.homeId == homeId
+                 && invite.expiresAt > request.time
+                 && data.role == invite.role
+                 && (
+                   (invite.role == 'member' && !('expiresAt' in data))
+                   || (invite.role == 'sitter' && data.expiresAt == invite.accessUntil)
+                 );
+        }
+
+        // The creator's own record, written in the same batch as a brand-new home.
+        function foundsHome(data) {
+          return data.role == 'owner'
+                 && !exists(homePath(homeId))
+                 && getAfter(homePath(homeId)).data.createdBy == request.auth.uid;
+        }
+
+        allow read: if isMember(homeId);
+        allow create: if signedIn()
+                      && uid == request.auth.uid
+                      && (foundsHome(request.resource.data) || joinsWithInvite(request.resource.data));
+        // People may rename themselves, pick a colour and register their phone for
+        // push. Role, end date and the invite used can never be edited.
+        allow update: if isMember(homeId)
+                      && uid == request.auth.uid
+                      && onlyChanges(['name', 'tint', 'fcmTokens']);
+        // Leave the home yourself, or be removed by the owner.
+        allow delete: if signedIn() && (uid == request.auth.uid || isOwner(homeId));
+      }
+
+      match /pets/{petId} {
+        allow read: if isMember(homeId);
+        allow write: if canEdit(homeId);
+      }
+
+      match /needs/{needId} {
+        allow read: if isMember(homeId);
+        allow create, delete: if canEdit(homeId);
+        // Ticking a task also records when it was last done; a sitter may write
+        // only those two fields.
+        allow update: if canEdit(homeId)
+                      || (isMember(homeId) && onlyChanges(['lastDoneAt', 'lastDoneBy']));
+      }
+
+      match /days/{dayKey} {
+        allow read: if isMember(homeId);
+        // Everyone in the home, sitters included, can tick and undo.
+        allow create: if isMember(homeId) && request.resource.data.keys().hasOnly(['logs']);
+        allow update: if isMember(homeId) && onlyChanges(['logs']);
+        allow delete: if isOwner(homeId);
+      }
+
+      match /supplies/{supplyId} {
+        allow read: if isMember(homeId);
+        allow write: if canEdit(homeId);
+      }
+    }
+
+    match /invites/{code} {
+      // Anyone signed in who knows a code can look it up; codes cannot be listed.
+      allow get: if signedIn();
+      allow list: if false;
+      // Members (not sitters) invite people. An invite never grants "owner"
+      // and lasts at most a week.
+      allow create: if signedIn()
+                    && canEdit(request.resource.data.homeId)
+                    && request.resource.data.createdBy == request.auth.uid
+                    && request.resource.data.role in ['member', 'sitter']
+                    && request.resource.data.expiresAt is timestamp
+                    && request.resource.data.expiresAt > request.time
+                    && request.resource.data.expiresAt < request.time + duration.value(8, 'd')
+                    && (request.resource.data.role == 'member' || request.resource.data.accessUntil is timestamp);
+      allow update: if false;
+      allow delete: if signedIn() && canEdit(resource.data.homeId);
+    }
+  }
+}

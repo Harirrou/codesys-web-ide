@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Fed Yet</string>
+
+    <string name="board_title">Home board</string>
+    <string name="board_sample_notice">Sample home. Tap a task to try it; nothing is saved yet.</string>
+
+    <string name="who_you">You</string>
+
+    <plurals name="pill_due">
+        <item quantity="one">%d due</item>
+        <item quantity="other">%d due</item>
+    </plurals>
+    <string name="pill_all_done">All done</string>
+    <string name="pill_nothing_due">Nothing due</string>
+
+    <string name="status_done">%1$s · %2$s</string>
+    <string name="status_done_next">%1$s · %2$s · next %3$s</string>
+    <string name="status_done_twice">%1$s · %2$s · logged twice</string>
+    <string name="status_due_at">Due at %1$s</string>
+    <string name="status_due_on">Due %1$s</string>
+    <string name="status_due_now">Due now · usually %1$s</string>
+    <string name="status_overdue">Overdue · was due %1$s</string>
+    <string name="status_next">Next %1$s</string>
+    <plurals name="status_next_every">
+        <item quantity="one">Next %1$s · every day</item>
+        <item quantity="other">Next %1$s · every %2$d days</item>
+    </plurals>
+
+    <string name="when_today_at">today at %1$s</string>
+    <string name="when_tomorrow">tomorrow</string>
+    <string name="when_yesterday">yesterday</string>
+
+    <string name="snack_logged">%1$s logged for %2$s.</string>
+    <string name="snack_undo">Undo</string>
+
+    <string name="guard_soft_title">Already done?</string>
+    <string name="guard_soft_already">%1$s logged this for %2$s at %3$s. Log it again?</string>
+    <string name="guard_soft_too_soon">%1$s last logged this for %2$s at %3$s, which is sooner than usual. Log it anyway?</string>
+    <string name="guard_hard_title_already">Already given</string>
+    <string name="guard_hard_title_too_soon">Too soon for another dose</string>
+    <string name="guard_hard_already">%1$s gave %2$s this at %3$s. A second dose can be harmful.</string>
+    <string name="guard_hard_too_soon">%1$s gave %2$s the last dose at %3$s. That is sooner than the usual gap.</string>
+    <string name="guard_hard_check">I have checked and want to give it again</string>
+    <string name="guard_cancel">Cancel</string>
+    <string name="guard_log_again">Log again</string>
+    <string name="guard_give_again">Give again</string>
+    <string name="guard_dont_give">Don\'t give</string>
+
+    <string name="cd_done">Done</string>
+    <string name="cd_not_done">Not done yet</string>
+    <string name="cd_not_due">Not due yet</string>
+</resources>
