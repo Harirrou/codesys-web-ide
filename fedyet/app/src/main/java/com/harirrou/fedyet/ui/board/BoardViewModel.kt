@@ -101,7 +101,7 @@ class BoardViewModel(
 
     private fun log(needId: String, title: String, petName: String) {
         viewModelScope.launch {
-            val entry = repository.addLog(needId, clock())
+            val entry = repository.addLog(needId, clock()) ?: return@launch
             eventFlow.emit(BoardEvent.Logged(entry.id, title, petName))
         }
     }

@@ -2,7 +2,15 @@
 <resources>
     <string name="app_name">Fed Yet</string>
 
-    <string name="board_sample_notice">Sample home · tap a task to try it · nothing is saved yet</string>
+    <string name="board_sample_notice">This is a sample home. Nothing here is real.</string>
+    <string name="board_sample_action">Start mine</string>
+    <string name="board_empty_title">No pets yet</string>
+    <string name="board_empty_body">Add your first pet and the app will suggest its daily tasks.</string>
+
+    <string name="tab_board">Board</string>
+    <string name="tab_upcoming">Upcoming</string>
+    <string name="tab_supplies">Supplies</string>
+    <string name="tab_home">Home</string>
 
     <string name="greeting_morning">Good morning</string>
     <string name="greeting_afternoon">Good afternoon</string>
@@ -39,6 +47,7 @@
         <item quantity="other">Next %1$s · every %2$d days</item>
     </plurals>
 
+    <string name="when_today">Today</string>
     <string name="when_today_at">today at %1$s</string>
     <string name="when_tomorrow">tomorrow</string>
     <string name="when_yesterday">yesterday</string>
@@ -60,6 +69,201 @@
     <string name="guard_dont_give">Don\'t give</string>
 
     <string name="cd_done">Done</string>
-    <string name="cd_not_done">Not done yet</string>
-    <string name="cd_not_due">Not due yet</string>
+    <string name="cd_back">Back</string>
+    <string name="cd_less">Less</string>
+    <string name="cd_more">More</string>
+    <string name="cd_colour">Colour %1$d</string>
+    <string name="cd_remove_time">Remove this time</string>
+
+    <string name="action_save">Save</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_ok">OK</string>
+
+    <!-- Welcome -->
+    <string name="welcome_tagline">Everyone at home knows what\'s been done.</string>
+    <string name="welcome_point_1">One tap marks a task done</string>
+    <string name="welcome_point_2">A warning before anything is done twice</string>
+    <string name="welcome_point_3">Works for any animal, not only dogs and cats</string>
+    <string name="welcome_your_name">Your name</string>
+    <string name="welcome_home_name">Name of your home</string>
+    <string name="welcome_home_default">Our home</string>
+    <string name="welcome_start">Start my home</string>
+    <string name="welcome_sample">Look around a sample home</string>
+
+    <!-- Animals -->
+    <string name="species_dog">Dog</string>
+    <string name="species_cat">Cat</string>
+    <string name="species_rabbit">Rabbit</string>
+    <string name="species_guinea_pig">Guinea pig</string>
+    <string name="species_hamster">Hamster</string>
+    <string name="species_bird">Bird</string>
+    <string name="species_fish">Fish</string>
+    <string name="species_reptile">Reptile</string>
+    <string name="species_horse">Horse</string>
+    <string name="species_chicken">Chickens</string>
+    <string name="species_other">Other</string>
+
+    <!-- Pet -->
+    <string name="pet_add">Add a pet</string>
+    <string name="pet_new_title">New pet</string>
+    <string name="pet_edit_title">Edit pet</string>
+    <string name="pet_name">Name</string>
+    <string name="pet_detail">Breed or a note (optional)</string>
+    <string name="pet_kind">Kind of animal</string>
+    <string name="pet_colour">Colour</string>
+    <string name="pet_photo_choose">Choose a photo</string>
+    <string name="pet_photo_remove">Remove</string>
+    <string name="pet_presets_title">Suggested tasks</string>
+    <string name="pet_presets_hint">Starting points only. Tap to leave one out; you can change times later.</string>
+    <string name="pet_delete">Delete this pet</string>
+    <string name="pet_delete_title">Delete %1$s?</string>
+    <string name="pet_delete_text">This also removes the pet\'s tasks and their history. It cannot be undone.</string>
+    <string name="pet_today">Today</string>
+    <string name="pet_nothing_logged">Nothing has been ticked yet today.</string>
+    <string name="pet_tasks">Tasks</string>
+    <string name="pet_supplies">Runs out</string>
+    <string name="timeline_start">Midnight</string>
+    <string name="timeline_end">Midnight</string>
+
+    <!-- Task -->
+    <string name="need_add">Add a task</string>
+    <string name="need_add_first">Add the first task</string>
+    <string name="need_new_title">New task for %1$s</string>
+    <string name="need_edit_title">Task for %1$s</string>
+    <string name="need_label">What needs doing</string>
+    <string name="need_kind">Kind of task</string>
+    <string name="need_repeat">How often</string>
+    <string name="need_time_name">Name (optional)</string>
+    <string name="need_add_time">Add another time</string>
+    <string name="need_every">Every</string>
+    <plurals name="need_days">
+        <item quantity="one">Every day, counted from the last time it was done.</item>
+        <item quantity="other">Every %d days, counted from the last time it was done.</item>
+    </plurals>
+    <string name="need_at">At</string>
+    <string name="need_day_of_month">Day of the month</string>
+    <string name="need_short_months">In shorter months this falls on the last day.</string>
+    <string name="need_date">Date</string>
+    <string name="need_guard_title">If it looks already done</string>
+    <string name="need_guard_hint">What happens when someone tries to tick it a second time.</string>
+    <string name="guard_none">Just log it</string>
+    <string name="guard_soft">Ask first</string>
+    <string name="guard_hard">Must confirm</string>
+    <string name="need_pause">Pause this task</string>
+    <string name="need_pause_hint">It stays here but is never due.</string>
+    <string name="need_paused">Paused</string>
+    <string name="need_delete">Delete this task</string>
+    <string name="need_delete_title">Delete %1$s?</string>
+    <string name="need_delete_text">Its history is removed too. It cannot be undone.</string>
+
+    <string name="kind_meal">Food</string>
+    <string name="kind_walk">Walk</string>
+    <string name="kind_medicine">Medicine</string>
+    <string name="kind_clean">Cleaning</string>
+    <string name="kind_water">Water</string>
+    <string name="kind_other">Other</string>
+
+    <string name="repeat_daily">Every day</string>
+    <string name="repeat_every_days">Every few days</string>
+    <string name="repeat_monthly">Monthly</string>
+    <string name="repeat_yearly">Yearly</string>
+    <string name="repeat_once">Once</string>
+    <string name="repeat_summary_daily">Every day · %1$s</string>
+    <plurals name="repeat_summary_every">
+        <item quantity="one">Every day · %2$s</item>
+        <item quantity="other">Every %1$d days · %2$s</item>
+    </plurals>
+    <string name="repeat_summary_monthly">Monthly on day %1$d · %2$s</string>
+    <string name="repeat_summary_yearly">Every year on %1$s · %2$s</string>
+    <string name="repeat_summary_once">Once · %1$s · %2$s</string>
+
+    <!-- Suggested tasks -->
+    <string name="preset_meals">Meals</string>
+    <string name="preset_food">Food</string>
+    <string name="preset_feed">Feeding</string>
+    <string name="preset_pellets">Pellets and greens</string>
+    <string name="preset_hay">Top up hay</string>
+    <string name="preset_walks">Walks</string>
+    <string name="preset_water">Fresh water</string>
+    <string name="preset_flea">Flea and tick</string>
+    <string name="preset_litter">Litter box</string>
+    <string name="preset_clean_cage">Clean the cage</string>
+    <string name="preset_clean_tank">Clean the tank</string>
+    <string name="preset_clean_coop">Clean the coop</string>
+    <string name="preset_mist">Mist the tank</string>
+    <string name="preset_uvb">Replace the UVB bulb</string>
+    <string name="preset_water_change">Water change</string>
+    <string name="preset_filter">Clean the filter</string>
+    <string name="preset_exercise">Exercise</string>
+    <string name="preset_muck_out">Muck out</string>
+    <string name="preset_farrier">Farrier</string>
+    <string name="preset_eggs">Collect eggs</string>
+    <string name="preset_lock_up">Lock up for the night</string>
+    <string name="slot_breakfast">Breakfast</string>
+    <string name="slot_dinner">Dinner</string>
+    <string name="slot_morning">Morning feed</string>
+    <string name="slot_evening">Evening feed</string>
+    <string name="slot_morning_walk">Morning walk</string>
+    <string name="slot_evening_walk">Evening walk</string>
+
+    <!-- Upcoming -->
+    <string name="upcoming_title">Upcoming</string>
+    <string name="upcoming_overdue">Overdue</string>
+    <string name="upcoming_due_now">Due now</string>
+    <string name="upcoming_empty_title">Nothing coming up</string>
+    <string name="upcoming_empty_body">Tasks due in the next 30 days appear here.</string>
+
+    <!-- Supplies -->
+    <string name="supplies_title">Supplies</string>
+    <string name="supplies_empty_title">Never run out again</string>
+    <string name="supplies_empty_body">Add food, litter or medicine and link it to a task. Every tick uses a little, and the app tells you how many days are left.</string>
+    <string name="supply_add">Add a supply</string>
+    <string name="supply_new_title">New supply</string>
+    <string name="supply_edit_title">Edit supply</string>
+    <string name="supply_label">What is it</string>
+    <string name="supply_unit">Counted in (cups, tablets, grams…)</string>
+    <string name="supply_remaining">How much is left</string>
+    <string name="supply_per_use">Used each time</string>
+    <string name="supply_linked">Used up by</string>
+    <string name="supply_linked_hint">Each time this task is ticked, the amount left goes down.</string>
+    <string name="supply_linked_none">Nothing yet</string>
+    <plurals name="supply_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <string name="supply_empty_now">Out</string>
+    <string name="supply_left">%1$s %2$s left</string>
+    <string name="supply_no_link">Link a task to see how many days are left.</string>
+    <string name="supply_order_by">Order by %1$s · %2$s · %3$s</string>
+    <string name="supply_used_by">%1$s · %2$s</string>
+    <string name="supply_delete">Delete this supply</string>
+    <string name="supply_delete_title">Delete %1$s?</string>
+    <string name="supply_delete_text">The task it was linked to stays.</string>
+
+    <!-- Home -->
+    <string name="home_people">People</string>
+    <string name="home_you">%1$s (you)</string>
+    <string name="home_sharing_body">Inviting family to share this home arrives with sync, in a coming version.</string>
+    <string name="home_settings">This home</string>
+    <string name="home_name">Home name</string>
+    <string name="home_your_name">Your name</string>
+    <string name="home_export">Export history</string>
+    <string name="home_export_hint">Save everything ticked so far as a spreadsheet file</string>
+    <string name="home_export_done">Saved</string>
+    <string name="home_licences">Credits and licences</string>
+    <string name="home_delete">Delete this home</string>
+    <string name="home_delete_title">Delete this home?</string>
+    <string name="home_delete_text">All pets, tasks and history on this phone are removed. It cannot be undone.</string>
+    <string name="home_sample_title">This is a sample home</string>
+    <string name="home_sample_body">Luna, Miso and Pebble are made up so you can try things. When you are ready, start your own home.</string>
+    <string name="home_start_own">Start my own home</string>
+    <string name="home_leave_sample_title">Leave the sample home?</string>
+    <string name="home_leave_sample_text">The sample pets are removed and you set up your own home.</string>
+    <string name="home_version">Fed Yet %1$s</string>
+
+    <string name="licences_fonts_title">Fonts</string>
+    <string name="licences_fonts_body">Bricolage Grotesque and Figtree, used under the SIL Open Font License 1.1. Copyright the Bricolage Grotesque Project Authors and the Figtree Project Authors. openfontlicense.org</string>
+    <string name="licences_pictures_title">Pictures</string>
+    <string name="licences_pictures_body">The animal pictures were made for Fed Yet.</string>
 </resources>

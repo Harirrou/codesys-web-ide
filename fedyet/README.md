@@ -7,9 +7,20 @@ Plan: `docs/build-plan.md`. Design: https://claude.ai/artifact/8SDfWWsnQ2fEXvErx
 
 | Folder | What it is | State |
 |---|---|---|
-| `engine/` | Pure Kotlin rules: what is due, done or overdue; the do-it-twice guard; reminders; "runs out" maths | Done, 60 tests |
+| `engine/` | Pure Kotlin rules: what is due, done or overdue; the do-it-twice guard; reminders; "runs out" maths | Done, 64 tests |
 | `firestore/` | Database security rules and their tests | Done, 30 tests |
-| `app/` | The Android app. Board screen on a built-in sample home | First screen works on sample data; no sync yet |
+| `app/` | The Android app | All screens work, saving to the phone. No sync, reminders or widget yet. 23 tests |
+
+Screens: welcome, home board, pet page, add/edit pet (with a photo and suggested tasks per kind of animal),
+add/edit task, upcoming, supplies, add/edit supply, home settings with export.
+
+How the app is put together:
+
+- `app/.../data/HomeRepository.kt` is the one doorway to storage. Today `LocalHomeRepository` keeps the home in
+  a JSON file on the phone. Sync means writing a second class with the same methods; no screen changes.
+- `app/.../data/HomeEdits.kt` holds every change to a home as a pure, tested function.
+- `app/.../ui/components/` holds the shared look (glass cards, glow rings, buttons, fields). New screens are
+  built from these so the app stays consistent.
 
 Every ID and URL the app needs lives in one file: `app/src/main/java/com/harirrou/fedyet/AppConfig.kt`.
 
@@ -45,6 +56,7 @@ They run against a local emulator. Nothing touches a real Firebase project.
 
 ## Next steps (from the plan)
 
-2. Firestore data layer, anonymous sign-in, create or join a home by code. Needs a Firebase project.
-3. Add pet and add task, with species presets.
-4. Push between phones, and reminders that cancel when someone else has done the task.
+1. Firestore-backed `HomeRepository`: anonymous sign-in, create or join a home by code. Needs a Firebase project.
+2. Push between phones, and reminders that cancel when someone else has done the task.
+3. Home-screen widget.
+4. Ads, consent, privacy policy, store listing.

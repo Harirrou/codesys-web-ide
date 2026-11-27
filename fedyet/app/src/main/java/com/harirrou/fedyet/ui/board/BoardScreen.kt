@@ -1,13 +1,11 @@
 package com.harirrou.fedyet.ui.board
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,10 +32,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
@@ -53,19 +48,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
@@ -81,22 +69,37 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.harirrou.fedyet.R
 import com.harirrou.fedyet.data.HomeSnapshot
-import com.harirrou.fedyet.data.Member
-import com.harirrou.fedyet.data.Pet
-import com.harirrou.fedyet.data.Species
 import com.harirrou.fedyet.engine.GuardReason
-import com.harirrou.fedyet.engine.NeedKind
 import com.harirrou.fedyet.engine.Status
+import com.harirrou.fedyet.ui.WhenFormatter
+import com.harirrou.fedyet.ui.components.EmptyState
+import com.harirrou.fedyet.ui.components.GhostButton
+import com.harirrou.fedyet.ui.components.MemberDot
+import com.harirrou.fedyet.ui.components.PetPortrait
+import com.harirrou.fedyet.ui.components.glass
+import com.harirrou.fedyet.ui.components.glowRing
+import com.harirrou.fedyet.ui.components.kindIcon
 import com.harirrou.fedyet.ui.theme.Ambient
 import com.harirrou.fedyet.ui.theme.Bricolage
 import com.harirrou.fedyet.ui.theme.Tokens
-import com.harirrou.fedyet.ui.theme.ambientFor
 import kotlinx.coroutines.launch
 
+/**
+ * The home board: one card per pet, one row per task. The surrounding screen supplies the
+ * bottom bar, the snackbar and the padding that keeps content clear of them.
+ */
 @Composable
-fun BoardScreen(viewModel: BoardViewModel) {
+fun BoardScreen(
+    viewModel: BoardViewModel,
+    padding: PaddingValues,
+    snackbar: SnackbarHostState,
+    ambient: Ambient,
+    onPet: (String) -> Unit,
+    onAddPet: () -> Unit,
+    onAddTask: (String) -> Unit,
+    onStartOwnHome: () -> Unit,
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
 
     LaunchedEffect(viewModel) {
@@ -117,45 +120,43 @@ fun BoardScreen(viewModel: BoardViewModel) {
 
     val home = state.home
     val board = state.board
-    val hour = if (home != null) state.now.atZone(home.zone).hour else 12
-    val ambient = ambientFor(hour)
-
-    AmbientBackground(ambient) {
-        Scaffold(
-            containerColor = Color.Transparent,
-            snackbarHost = {
-                SnackbarHost(snackbar) { data ->
-                    Snackbar(
-                        snackbarData = data,
-                        containerColor = Tokens.NightRaised,
-                        contentColor = Tokens.Text,
-                        actionColor = Tokens.Due,
-                        shape = RoundedCornerShape(18.dp),
+    if (home != null && board != null) {
+        val hour = state.now.atZone(home.zone).hour
+        val formatter = remember(home.zone, state.now, context) { WhenFormatter(context, home.zone, state.now) }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = padding.calculateTopPadding() + 20.dp,
+                bottom = padding.calculateBottomPadding() + 20.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            item(key = "hero") { Hero(home, board, hour, formatter.header(state.now), ambient) }
+            if (home.isSample) item(key = "notice") { SampleNotice(onStartOwnHome) }
+            if (board.pets.isEmpty()) {
+                item(key = "empty") {
+                    EmptyState(
+                        title = stringResource(R.string.board_empty_title),
+                        body = stringResource(R.string.board_empty_body),
+                        action = stringResource(R.string.pet_add),
+                        onAction = onAddPet,
                     )
                 }
-            },
-        ) { insets ->
-            if (home == null || board == null) {
-                Box(Modifier.fillMaxSize().padding(insets))
-                return@Scaffold
             }
-            val formatter = remember(home.zone, state.now, context) { WhenFormatter(context, home.zone, state.now) }
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = insets.calculateTopPadding() + 20.dp,
-                    bottom = insets.calculateBottomPadding() + 28.dp,
-                ),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                item(key = "hero") { Hero(home, board, hour, formatter.header(state.now), ambient) }
-                item(key = "notice") { SampleNotice() }
-                items(board.pets, key = { it.pet.id }) { card ->
-                    PetCard(card, home, formatter, onRowTapped = viewModel::onRowTapped)
-                }
+            items(board.pets, key = { it.pet.id }) { card ->
+                PetCard(
+                    card = card,
+                    home = home,
+                    formatter = formatter,
+                    onRowTapped = viewModel::onRowTapped,
+                    onPet = { onPet(card.pet.id) },
+                    onAddTask = { onAddTask(card.pet.id) },
+                )
+            }
+            if (board.pets.isNotEmpty()) {
+                item(key = "add") { GhostButton(stringResource(R.string.pet_add), onAddPet, icon = R.drawable.ic_plus) }
             }
         }
     }
@@ -169,70 +170,6 @@ fun BoardScreen(viewModel: BoardViewModel) {
             onConfirm = viewModel::confirmPrompt,
             onDismiss = viewModel::dismissPrompt,
         )
-    }
-}
-
-// ---- Atmosphere ----
-
-/** The night ground with two soft glows at the top whose colours follow the time of day. */
-@Composable
-private fun AmbientBackground(ambient: Ambient, content: @Composable () -> Unit) {
-    val near by animateColorAsState(ambient.near, tween(1200), label = "ambientNear")
-    val far by animateColorAsState(ambient.far, tween(1200), label = "ambientFar")
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Tokens.Night)
-            .drawBehind {
-                drawRect(
-                    Brush.radialGradient(
-                        colors = listOf(near.copy(alpha = 0.44f), Color.Transparent),
-                        center = Offset(size.width * 0.12f, -size.width * 0.10f),
-                        radius = size.width * 1.15f,
-                    ),
-                )
-                drawRect(
-                    Brush.radialGradient(
-                        colors = listOf(far.copy(alpha = 0.30f), Color.Transparent),
-                        center = Offset(size.width * 1.05f, size.width * 0.35f),
-                        radius = size.width * 0.95f,
-                    ),
-                )
-            },
-    ) {
-        content()
-    }
-}
-
-/** A glass-like surface: faint white fill, a brighter top edge, and an optional colour glow in one corner. */
-private fun Modifier.glass(shape: Shape, glow: Color? = null): Modifier = this
-    .clip(shape)
-    .background(Brush.verticalGradient(listOf(Tokens.GlassTop, Tokens.GlassBottom)))
-    .drawBehind {
-        if (glow != null) {
-            drawRect(
-                Brush.radialGradient(
-                    colors = listOf(glow.copy(alpha = 0.22f), Color.Transparent),
-                    center = Offset(size.width * 0.10f, 0f),
-                    radius = size.width * 0.80f,
-                ),
-            )
-        }
-    }
-    .border(1.dp, Brush.verticalGradient(listOf(Tokens.GlassEdgeTop, Tokens.GlassEdgeBottom)), shape)
-
-/** A progress ring with a soft glow, drawn clockwise from the top. */
-private fun DrawScope.glowRing(progress: Float, stroke: Float, brush: Brush, glow: Color) {
-    val inset = stroke * 1.6f
-    val arcSize = Size(size.width - inset * 2, size.height - inset * 2)
-    val topLeft = Offset(inset, inset)
-    drawArc(Tokens.Track, 0f, 360f, false, topLeft, arcSize, style = Stroke(stroke))
-    if (progress <= 0f) return
-    val sweep = 360f * progress.coerceIn(0f, 1f)
-    rotate(-90f) {
-        drawArc(glow.copy(alpha = 0.14f), 0f, sweep, false, topLeft, arcSize, style = Stroke(stroke * 2.8f, cap = StrokeCap.Round))
-        drawArc(glow.copy(alpha = 0.26f), 0f, sweep, false, topLeft, arcSize, style = Stroke(stroke * 1.8f, cap = StrokeCap.Round))
-        drawArc(brush, 0f, sweep, false, topLeft, arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
     }
 }
 
@@ -309,30 +246,24 @@ private fun DayRing(done: Int, total: Int, ambient: Ambient) {
 }
 
 @Composable
-private fun MemberDot(member: Member) {
-    Box(
-        modifier = Modifier
-            .size(28.dp)
-            .border(2.dp, Tokens.Night, CircleShape)
-            .padding(2.dp)
-            .background(Color(member.tint), CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(member.name.take(1).uppercase(), style = MaterialTheme.typography.labelMedium, color = Tokens.Night)
-    }
-}
-
-@Composable
-private fun SampleNotice() {
-    Text(
-        text = stringResource(R.string.board_sample_notice),
-        style = MaterialTheme.typography.bodySmall,
-        color = Tokens.TextMuted,
+private fun SampleNotice(onStartOwnHome: () -> Unit) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .glass(RoundedCornerShape(16.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-    )
+            .glass(RoundedCornerShape(18.dp))
+            .clickable(role = Role.Button, onClick = onStartOwnHome)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.board_sample_notice),
+            style = MaterialTheme.typography.bodySmall,
+            color = Tokens.TextMuted,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(stringResource(R.string.board_sample_action), style = MaterialTheme.typography.labelLarge, color = Tokens.Mint)
+    }
 }
 
 // ---- Pet cards ----
@@ -343,6 +274,8 @@ private fun PetCard(
     home: HomeSnapshot,
     formatter: WhenFormatter,
     onRowTapped: (String) -> Unit,
+    onPet: () -> Unit,
+    onAddTask: () -> Unit,
 ) {
     val tint = Color(card.pet.tint)
     Column(
@@ -352,7 +285,10 @@ private fun PetCard(
             .padding(top = 16.dp, bottom = 8.dp),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(role = Role.Button, onClick = onPet)
+                .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             PetPortrait(card.pet, done = card.doneCount, total = card.doneCount + card.dueCount)
@@ -370,58 +306,19 @@ private fun PetCard(
                 NeedRow(row, statusText(row, home, formatter), tint, onClick = { onRowTapped(row.needId) })
             }
         }
-    }
-}
-
-/** The pet's picture inside a ring that fills as today's tasks get done. */
-@Composable
-private fun PetPortrait(pet: Pet, done: Int, total: Int) {
-    val tint = Color(pet.tint)
-    val target = if (total == 0) 0f else done.toFloat() / total
-    val progress by animateFloatAsState(target, spring(dampingRatio = 0.75f, stiffness = 140f), label = "petRing")
-    Box(Modifier.size(76.dp), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
-            glowRing(progress = progress, stroke = 3.5.dp.toPx(), brush = Brush.linearGradient(listOf(tint, tint)), glow = tint)
-        }
-        val art = artFor(pet.species)
-        if (art != null) {
-            Image(
-                painter = painterResource(art),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.size(58.dp).clip(CircleShape),
-            )
-        } else {
-            Box(
+        if (card.rows.isEmpty()) {
+            HorizontalDivider(color = Tokens.Hairline, modifier = Modifier.padding(horizontal = 16.dp))
+            Text(
+                text = stringResource(R.string.need_add_first),
+                style = MaterialTheme.typography.labelLarge,
+                color = Tokens.Mint,
                 modifier = Modifier
-                    .size(58.dp)
-                    .background(Brush.linearGradient(listOf(tint, tint.copy(alpha = 0.55f))), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    pet.name.take(1).uppercase(),
-                    color = Tokens.Night,
-                    fontFamily = Bricolage,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 24.sp,
-                )
-            }
+                    .fillMaxWidth()
+                    .clickable(role = Role.Button, onClick = onAddTask)
+                    .padding(horizontal = 16.dp, vertical = 18.dp),
+            )
         }
     }
-}
-
-private fun artFor(species: Species): Int? = when (species) {
-    Species.DOG -> R.drawable.pet_dog
-    Species.CAT -> R.drawable.pet_cat
-    Species.RABBIT -> R.drawable.pet_rabbit
-    Species.GUINEA_PIG -> R.drawable.pet_guinea_pig
-    Species.HAMSTER -> R.drawable.pet_hamster
-    Species.BIRD -> R.drawable.pet_bird
-    Species.FISH -> R.drawable.pet_fish
-    Species.REPTILE -> R.drawable.pet_reptile
-    Species.HORSE -> R.drawable.pet_horse
-    Species.CHICKEN -> R.drawable.pet_chicken
-    Species.OTHER -> null
 }
 
 @Composable
@@ -497,7 +394,7 @@ private fun NeedRow(row: NeedRowUi, status: String, tint: Color, onClick: () -> 
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                painter = painterResource(iconFor(row.kind)),
+                painter = painterResource(kindIcon(row.kind)),
                 contentDescription = null,
                 tint = if (done) tint else Tokens.TextMuted,
                 modifier = Modifier.size(21.dp),
@@ -603,15 +500,6 @@ private fun CheckMark(status: Status, tint: Color) {
             },
         )
     }
-}
-
-private fun iconFor(kind: NeedKind): Int = when (kind) {
-    NeedKind.MEAL -> R.drawable.ic_bowl
-    NeedKind.WALK -> R.drawable.ic_walk
-    NeedKind.MEDICINE -> R.drawable.ic_pill
-    NeedKind.CLEAN -> R.drawable.ic_box
-    NeedKind.WATER -> R.drawable.ic_drop
-    NeedKind.OTHER -> R.drawable.ic_dot
 }
 
 // ---- "Already done?" ----

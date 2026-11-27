@@ -11,35 +11,17 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.util.UUID
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.update
 
 /**
- * A made-up home kept in memory, so the board can be tried before sync exists.
- * Tasks earlier today are already ticked by "Sara" and "Omar"; the most recent ones are left open.
+ * A made-up home for trying the app. Tasks earlier today are already ticked by "Sara" and
+ * "Omar"; the most recent ones are left open.
  */
-class SampleHomeRepository(private val clock: () -> Instant) : HomeRepository {
+object SampleHome {
+    const val ME = "me"
+    private const val SARA = "sara"
+    private const val OMAR = "omar"
 
-    private val zone: ZoneId = ZoneId.systemDefault()
-    private val state = MutableStateFlow<HomeSnapshot?>(build())
-    override val home: StateFlow<HomeSnapshot?> = state
-
-    override suspend fun addLog(needId: String, at: Instant): LogEntry {
-        val entry = LogEntry(id = UUID.randomUUID().toString(), needId = needId, by = ME, at = at)
-        state.update { it?.copy(logs = it.logs + entry) }
-        return entry
-    }
-
-    override suspend fun undo(logId: String) {
-        state.update { snapshot ->
-            snapshot?.copy(logs = snapshot.logs.map { if (it.id == logId) it.copy(undone = true) else it })
-        }
-    }
-
-    private fun build(): HomeSnapshot {
-        val now = clock()
+    fun build(now: Instant, zone: ZoneId): HomeSnapshot {
         val today = now.atZone(zone).toLocalDate()
         val created = today.minusDays(60).atStartOfDay(zone).toInstant()
 
@@ -84,27 +66,28 @@ class SampleHomeRepository(private val clock: () -> Instant) : HomeRepository {
         if (firstOfMonth.isBefore(now)) add("luna-flea", firstOfMonth)
 
         return HomeSnapshot(
+            id = "sample",
             name = "Sample home",
             zone = zone,
             meId = ME,
             members = listOf(
-                Member(SARA, "Sara", 0xFF7FB2FF),
-                Member(OMAR, "Omar", 0xFFFFC073),
-                Member(ME, "You", 0xFF6EE7B7),
+                Member(ME, "You", MemberTints[0]),
+                Member(SARA, "Sara", MemberTints[1]),
+                Member(OMAR, "Omar", MemberTints[2]),
             ),
             pets = listOf(
-                Pet("luna", "Luna", "Dog · Labrador", 0xFF5BB0FF, Species.DOG),
-                Pet("miso", "Miso", "Cat · indoor", 0xFFC395FF, Species.CAT),
-                Pet("pebble", "Pebble", "Leopard gecko", 0xFF3DDBC6, Species.REPTILE),
+                Pet("luna", "Luna", "Labrador", PetTints[0], Species.DOG),
+                Pet("miso", "Miso", "Indoor cat", PetTints[1], Species.CAT),
+                Pet("pebble", "Pebble", "Leopard gecko", PetTints[2], Species.REPTILE),
             ),
             needs = needs,
             logs = logs,
+            supplies = listOf(
+                Supply("kibble", "Kibble", "cups", remaining = 24.0, perUse = 2.0, needId = "luna-meals"),
+                Supply("tablets", "Joint tablets", "tablets", remaining = 24.0, perUse = 1.0, needId = "luna-tablet"),
+                Supply("crickets", "Crickets", "crickets", remaining = 30.0, perUse = 6.0, needId = "pebble-crickets"),
+            ),
+            isSample = true,
         )
-    }
-
-    private companion object {
-        const val ME = "me"
-        const val SARA = "sara"
-        const val OMAR = "omar"
     }
 }

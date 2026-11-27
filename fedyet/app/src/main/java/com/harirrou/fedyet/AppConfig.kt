@@ -15,10 +15,4 @@ object AppConfig {
     const val ADMOB_APP_ID = "TODO_ADMOB_APP_ID"
     const val ADMOB_BANNER_ID = "TODO_ADMOB_BANNER_ID"
     const val ADMOB_NATIVE_ID = "TODO_ADMOB_NATIVE_ID"
-
-    /**
-     * True while the app runs on the built-in sample home instead of a real, shared one.
-     * Switch to false when the Firestore data layer lands (build step 2).
-     */
-    const val USE_SAMPLE_HOME = true
 }
