@@ -97,25 +97,32 @@ Kotlin, Jetpack Compose (Material 3), MVVM, Hilt, Coroutines/Flow · Firebase Au
 6. **Home & members**: invite, roles, export, delete.
 7. **Sitter pass** (v1.1) and **Safety** (v1.2).
 
-## 8. Design tokens ("household calm": light, grown-up, no cartoon)
+## 8. Design tokens ("Cinematic glow": dark, rich, alive)
+
+Chosen by the owner after the first build looked too plain. The source of truth is
+`app/src/main/java/com/harirrou/fedyet/ui/theme/Theme.kt` and `ui/board/BoardScreen.kt`.
+The design canvas linked at the top still shows the earlier light look.
 
 | Token | Value |
 |---|---|
-| Ground | `#F3F4F0` |
-| Card | `#FFFFFF`, border `#E2E5DE`, radius 20 |
-| Ink | `#17211C` |
-| Secondary text | `#56635C` |
-| Done / primary | `#1E5A46` |
-| Due | text `#8A5A00`, fill `#F2A93B`, pill `#FBE7C2` |
-| Alert | `#B93A26` |
-| Pet tints | `#2B5FA8`, `#7A3E7E`, `#1B7F86`, `#9A6A12` |
+| Ground | `#0B0E14` night, with two soft glows at the top |
+| Glow colours | follow the home's time of day: dawn peach/violet, day blue/teal, golden hour amber/coral, dusk violet/blue, night deep blue |
+| Glass card | white at 13% fading to 6%, 1 px edge white 24% to 7%, radius 28, a corner glow in the pet's colour. No real blur. |
+| Text | `#F2F5FA`, secondary `#A9B4C6` |
+| Due | `#F5B94A` |
+| Overdue / warning | `#FF8571` |
+| All done | `#6EE7B7` |
+| Pet colours | `#5BB0FF`, `#C395FF`, `#3DDBC6`, `#FFB454` |
 | Headings, numbers | Bricolage Grotesque 700 |
 | Text | Figtree 400/500/600 |
 
-- Every state is told apart by words and shape as well as colour (empty ring, filled check, dashed ring).
+- Each pet has a picture inside a glowing ring that fills as today's tasks get done. Owners can use their own
+  photo; otherwise the app shows the bundled picture for that kind of animal (`res/drawable-nodpi/pet_*.webp`).
+- The header shows a greeting, how many things are left, and a ring for the whole home's day.
+- Ticking a task pops the mark in with a spring and sends one ring outward. Tasks already done when the
+  screen opens do not animate.
+- Every state is told apart by words and shape as well as colour (dashed ring, solid ring, filled mark).
 - Touch targets 44 px or more. A whole row is the button.
-- Pets show their photo if the owner adds one, otherwise a coloured tile with the first letter.
-- Dark theme uses the same tokens inverted; build it after the light theme is right.
 
 ## 9. Money
 

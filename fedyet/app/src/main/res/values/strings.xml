@@ -2,8 +2,20 @@
 <resources>
     <string name="app_name">Fed Yet</string>
 
-    <string name="board_title">Home board</string>
-    <string name="board_sample_notice">Sample home. Tap a task to try it; nothing is saved yet.</string>
+    <string name="board_sample_notice">Sample home · tap a task to try it · nothing is saved yet</string>
+
+    <string name="greeting_morning">Good morning</string>
+    <string name="greeting_afternoon">Good afternoon</string>
+    <string name="greeting_evening">Good evening</string>
+    <string name="greeting_night">Good night</string>
+
+    <plurals name="hero_left">
+        <item quantity="one">%d thing left</item>
+        <item quantity="other">%d things left</item>
+    </plurals>
+    <string name="hero_all_done">All done for now</string>
+    <string name="hero_nothing_due">Nothing due right now</string>
+    <string name="hero_ring">%1$d of %2$d done</string>
 
     <string name="who_you">You</string>
 
