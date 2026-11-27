@@ -54,7 +54,7 @@ class NeedsEngine(private val zone: ZoneId) {
                     null
                 } else {
                     val target = ownerIndex(slots, need.earlyMinutes, now)
-                    ownedLogs(slots, need.earlyMinutes, target, live).firstOrNull()
+                    if (target < 0) null else ownedLogs(slots, need.earlyMinutes, target, live).firstOrNull()
                 }
             }
         }
@@ -118,6 +118,16 @@ class NeedsEngine(private val zone: ZoneId) {
         val owned = ownedLogs(slots, need.earlyMinutes, index, live)
         if (owned.isNotEmpty()) {
             val next = slots.drop(index + 1).firstOrNull()
+            // A daily task ticked on an earlier day is not "done" today: until today's
+            // occasion opens, the board shows when it is next due instead of an old tick.
+            val today = localDate(now)
+            val fromAnEarlierDay = need.schedule is Schedule.Daily &&
+                next != null &&
+                localDate(slot.dueAt).isBefore(today) &&
+                owned.all { localDate(it.at).isBefore(today) }
+            if (fromAnEarlierDay) {
+                return NeedState(Status.NOT_DUE, null, next!!.label, null, emptyList(), next.dueAt)
+            }
             return NeedState(Status.DONE, slot.dueAt, slot.label, owned.first(), owned, next?.dueAt)
         }
         val overdueFrom = slot.dueAt.plus(minutes(need.lateMinutes))
@@ -171,8 +181,13 @@ class NeedsEngine(private val zone: ZoneId) {
      * The slot a log made at [instant] counts for. A slot starts claiming logs twice as
      * early as it opens, so dinner given half an hour before its window is dinner, while a
      * missed breakfast given at lunchtime is still breakfast.
+     *
+     * Returns -1 for a log from before the first occasion started claiming, such as a
+     * "last done" date entered when the need was created. Such a log counts for the
+     * safety gap but never ticks an occasion.
      */
     private fun ownerIndex(slots: List<Slot>, early: Int, instant: Instant): Int {
+        if (instant.isBefore(ahead(slots, 0, early * 2))) return -1
         var index = 0
         for (i in 1 until slots.size) {
             if (!instant.isBefore(ahead(slots, i, early * 2))) index = i

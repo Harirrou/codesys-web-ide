@@ -41,7 +41,7 @@ class SampleHomeRepository(private val clock: () -> Instant) : HomeRepository {
     private fun build(): HomeSnapshot {
         val now = clock()
         val today = now.atZone(zone).toLocalDate()
-        val created = today.minusDays(7).atStartOfDay(zone).toInstant()
+        val created = today.minusDays(60).atStartOfDay(zone).toInstant()
 
         fun need(id: String, pet: String, kind: NeedKind, label: String, schedule: Schedule) =
             Need(id = id, petId = pet, kind = kind, label = label, schedule = schedule, createdAt = created)

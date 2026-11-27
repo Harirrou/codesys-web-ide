@@ -52,6 +52,22 @@ class BoardPresenterTest {
     }
 
     @Test
+    fun `a monthly dose given on the 1st points at the 1st of next month`() {
+        val flea = board().pets[0].rows.first { it.title == "Flea and tick" }
+        val next = assertIs<StatusLine.Done>(flea.line).next!!
+        assertEquals("2026-12-01", next.atZone(ZoneId.systemDefault()).toLocalDate().toString())
+    }
+
+    @Test
+    fun `in the afternoon yesterday's litter tick is gone and tonight's is not yet due`() {
+        val afternoon = LocalDateTime.parse("2026-11-27T14:26").atZone(ZoneId.systemDefault()).toInstant()
+        val miso = board(afternoon).pets[1]
+        val litter = miso.rows.first { it.title == "Litter box" }
+        assertEquals(Status.NOT_DUE, litter.status)
+        assertIs<StatusLine.Next>(litter.line)
+    }
+
+    @Test
     fun `logging dinner turns it done by me and lowers the due count`() = runBlocking {
         val repository = SampleHomeRepository { evening }
         repository.addLog("luna-meals", evening)

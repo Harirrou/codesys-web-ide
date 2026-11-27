@@ -93,6 +93,48 @@ class DailyNeedsTest {
     }
 
     @Test
+    fun `a daily task ticked yesterday is not shown as done today`() {
+        val litter = Need(
+            id = "litter", petId = "miso", kind = NeedKind.CLEAN, label = "Litter box",
+            schedule = Schedule.Daily(listOf(DailySlot(time("19:00")))),
+            createdAt = at("2026-11-20 00:00"),
+        )
+        val logs = listOf(log(litter, "Sara", "2026-11-26 19:08"))
+        // Still done late that evening.
+        assertEquals(Status.DONE, engine.evaluate(litter, logs, at("2026-11-26 23:00")).status)
+        // Next afternoon, before today's window opens: not done, next due tonight.
+        val afternoon = engine.evaluate(litter, logs, at("2026-11-27 14:26"))
+        assertEquals(Status.NOT_DUE, afternoon.status)
+        assertNull(afternoon.doneLog)
+        assertEquals(at("2026-11-27 19:00"), afternoon.nextDueAt)
+        // And due as usual once the window opens.
+        assertEquals(Status.DUE, engine.evaluate(litter, logs, at("2026-11-27 17:30")).status)
+    }
+
+    @Test
+    fun `yesterday's dinner does not show as done after midnight`() {
+        val need = meals()
+        val logs = listOf(log(need, "Sara", "2026-11-27 07:10"), log(need, "You", "2026-11-27 18:40"))
+        val night = engine.evaluate(need, logs, at("2026-11-28 00:30"))
+        assertEquals(Status.NOT_DUE, night.status)
+        assertEquals("Breakfast", night.slotLabel)
+        assertEquals(at("2026-11-28 07:00"), night.nextDueAt)
+    }
+
+    @Test
+    fun `a late-night task ticked just after midnight stays done that day`() {
+        val lateDose = Need(
+            id = "late", petId = "miso", kind = NeedKind.MEDICINE, label = "Night dose",
+            schedule = Schedule.Daily(listOf(DailySlot(time("23:30")))),
+            createdAt = at("2026-11-20 00:00"),
+        )
+        val logs = listOf(log(lateDose, "Sara", "2026-11-27 00:10"))
+        val morning = engine.evaluate(lateDose, logs, at("2026-11-27 09:00"))
+        assertEquals(Status.DONE, morning.status)
+        assertEquals("Sara", morning.doneLog?.by)
+    }
+
+    @Test
     fun `an undone log is ignored`() {
         val need = meals()
         val logs = listOf(log(need, "Sara", "2026-11-27 07:10", undone = true))

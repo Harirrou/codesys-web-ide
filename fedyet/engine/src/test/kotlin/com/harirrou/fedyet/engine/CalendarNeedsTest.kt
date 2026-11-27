@@ -73,6 +73,19 @@ class CalendarNeedsTest {
     }
 
     @Test
+    fun `a dose from before the need existed does not tick its first occasion`() {
+        val need = fleaDose(created = "2026-11-20 12:00")
+        // "Last given on 1 November", entered when the need was set up.
+        val logs = listOf(log(need, "Sara", "2026-11-01 09:20"))
+        val before = engine.evaluate(need, logs, at("2026-11-27 14:26"))
+        assertEquals(Status.NOT_DUE, before.status)
+        assertEquals(at("2026-12-01 09:00"), before.nextDueAt)
+        assertEquals(Status.DUE, engine.evaluate(need, logs, at("2026-12-01 09:00")).status)
+        // 30 days after the last dose is a normal gap, so no warning.
+        assertEquals(GuardVerdict.Allowed, engine.checkLog(need, logs, at("2026-12-01 09:00")))
+    }
+
+    @Test
     fun `a yearly need on 29 February uses the 28th in ordinary years`() {
         val need = vaccine(2, 29, created = "2026-06-01 12:00")
         assertEquals(at("2027-02-28 10:00"), engine.evaluate(need, emptyList(), at("2027-02-28 11:00")).slotDueAt)

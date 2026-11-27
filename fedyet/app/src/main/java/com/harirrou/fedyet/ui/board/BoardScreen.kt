@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -144,10 +143,8 @@ private fun Header(home: HomeSnapshot, dateLine: String) {
             Text(dateLine, style = MaterialTheme.typography.bodySmall, color = Tokens.Muted)
             Text(stringResource(R.string.board_title), style = MaterialTheme.typography.headlineLarge)
         }
-        Row {
-            home.members.forEachIndexed { index, member ->
-                MemberDot(member, Modifier.offset(x = (-8 * index).dp))
-            }
+        Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
+            home.members.forEach { member -> MemberDot(member) }
         }
     }
 }
