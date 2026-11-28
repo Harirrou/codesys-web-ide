@@ -53,6 +53,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.harirrou.fedyet.AppContainer
 import com.harirrou.fedyet.R
+import com.harirrou.fedyet.ads.BannerAd
 import com.harirrou.fedyet.data.HomeSnapshot
 import com.harirrou.fedyet.data.Species
 import com.harirrou.fedyet.engine.NeedKind
@@ -124,7 +125,11 @@ fun AppRoot(container: AppContainer) {
         val current = home
         when {
             !ready -> Box(Modifier.fillMaxSize())
-            current == null -> WelcomeScreen(onStart = app::createHome, onSample = app::createSampleHome)
+            current == null -> WelcomeScreen(
+                onStart = app::createHome,
+                onSample = app::createSampleHome,
+                onJoin = if (app.canSync) app::joinHome else null,
+            )
             // A different home starts from a clean slate: first tab, nothing pushed.
             else -> key(current.id) { Main(container, app, board, current, now, ambient) }
         }
@@ -267,7 +272,13 @@ private fun Tabs(
                 )
             }
         },
-        bottomBar = { TabBar(tab, onTab) },
+        bottomBar = {
+            Column {
+                // The one ad slot: Upcoming and Supplies only. Never on the Board, where people tick tasks.
+                if (tab == 1 || tab == 2) BannerAd(Modifier.padding(horizontal = 16.dp))
+                TabBar(tab, onTab)
+            }
+        },
     ) { padding ->
         when (tab) {
             0 -> BoardScreen(
@@ -304,6 +315,8 @@ private fun Tabs(
                 onRenameHome = app::renameHome,
                 onRenameMe = app::renameMe,
                 onDeleteEverything = app::deleteEverything,
+                onInvite = if (app.canSync && home.synced) app::createInvite else null,
+                allLogs = app::allLogs,
                 onLicences = { push(Route.Licences) },
                 reminders = reminderUi,
             )

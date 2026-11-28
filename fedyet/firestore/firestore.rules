@@ -115,10 +115,10 @@ service cloud.firestore {
       match /needs/{needId} {
         allow read: if isMember(homeId);
         allow create, delete: if canEdit(homeId);
-        // Ticking a task also records when it was last done; a sitter may write
-        // only those two fields.
+        // Ticking a task also records the last two times it was done; a sitter may
+        // write only those two fields.
         allow update: if canEdit(homeId)
-                      || (isMember(homeId) && onlyChanges(['lastDoneAt', 'lastDoneBy']));
+                      || (isMember(homeId) && onlyChanges(['lastDone', 'prevDone']));
       }
 
       match /days/{dayKey} {
@@ -132,6 +132,8 @@ service cloud.firestore {
       match /supplies/{supplyId} {
         allow read: if isMember(homeId);
         allow write: if canEdit(homeId);
+        // Ticking a task uses up its supply, so a sitter may change how much is left, and nothing else.
+        allow update: if isMember(homeId) && onlyChanges(['remaining']);
       }
     }
 

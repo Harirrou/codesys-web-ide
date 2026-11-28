@@ -1,6 +1,8 @@
 package com.harirrou.fedyet
 
 import android.app.Application
+import com.harirrou.fedyet.data.CompositeHomeRepository
+import com.harirrou.fedyet.data.FirestoreHomeRepository
 import com.harirrou.fedyet.data.HomeRepository
 import com.harirrou.fedyet.data.LocalHomeRepository
 import com.harirrou.fedyet.reminders.ReminderScheduler
@@ -32,8 +34,12 @@ class AppContainer(private val app: Application) {
     /** Lives as long as the app's process. Used for work that must outlast a screen. */
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    // Build step 2 replaces this with the Firestore-backed repository.
-    val homeRepository: HomeRepository = LocalHomeRepository(File(app.filesDir, "home.json"), clock, scope)
+    private val localHome = LocalHomeRepository(File(app.filesDir, "home.json"), clock, scope)
+
+    /** Shared between phones when Firebase is set up for this build; otherwise kept on the phone. */
+    val homeRepository: HomeRepository = SyncSetup.firebase(app)?.let { (auth, db) ->
+        CompositeHomeRepository(localHome, FirestoreHomeRepository(app, auth, db, clock, scope), scope)
+    } ?: localHome
 
     val weather = WeatherRepository(app, clock)
 

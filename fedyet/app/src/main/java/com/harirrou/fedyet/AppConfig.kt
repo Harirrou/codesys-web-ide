@@ -21,8 +21,13 @@ object AppConfig {
     /** MET Norway refuses requests that do not say who is asking. Put the real contact here. */
     const val WEATHER_USER_AGENT = "FedYet/0.5 (Android; contact: $CONTACT_EMAIL)"
 
-    /** AdMob IDs. Added in build step 9. Until then no ads are loaded. */
-    const val ADMOB_APP_ID = "TODO_ADMOB_APP_ID"
-    const val ADMOB_BANNER_ID = "TODO_ADMOB_BANNER_ID"
-    const val ADMOB_NATIVE_ID = "TODO_ADMOB_NATIVE_ID"
+    /** Turns ads (and the consent form that comes before them) on or off for the whole app. */
+    const val ADS_ENABLED = true
+
+    /**
+     * AdMob banner unit. This is Google's public TEST unit: it always shows a "Test Ad" and earns
+     * nothing. Replace it with your own before release, together with ADMOB_APP_ID in
+     * app/build.gradle.kts (the app ID has to live there because Android reads it from the manifest).
+     */
+    const val ADMOB_BANNER_ID = "ca-app-pub-3940256099942544/9214589741"
 }

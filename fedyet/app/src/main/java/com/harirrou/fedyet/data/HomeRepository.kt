@@ -5,6 +5,8 @@ import com.harirrou.fedyet.engine.Need
 import java.time.Instant
 import kotlinx.coroutines.flow.StateFlow
 
+enum class JoinResult { JOINED, NOT_FOUND, EXPIRED, OFFLINE, NOT_AVAILABLE }
+
 /**
  * The home the user is in, and every way to change it.
  *
@@ -40,6 +42,27 @@ interface HomeRepository {
     suspend fun saveSupply(supply: Supply)
     suspend fun deleteSupply(supplyId: String)
 
-    /** Removes the home and all its data from this phone. */
+    /**
+     * Removes the home. For its owner that deletes it for everyone; for anyone else it
+     * means leaving it. A home kept only on this phone is simply deleted.
+     */
     suspend fun deleteEverything()
+
+    /** Whether homes can be shared between phones on this build. */
+    val canSync: Boolean get() = false
+
+    /** A code someone else can type to join this home, or null if sharing is not possible. */
+    suspend fun createInvite(): String? = null
+
+    /** Joins the home an invite code belongs to. */
+    suspend fun joinHome(code: String, myName: String): JoinResult = JoinResult.NOT_AVAILABLE
+
+    /** Every log the home has, for export. May be more than [HomeSnapshot.logs], which can be a recent window. */
+    suspend fun allLogs(): List<LogEntry> = home.value?.logs.orEmpty()
+
+    /**
+     * Waits, at most [timeoutMs], until the home reflects the latest data from other phones.
+     * Used before deciding whether a reminder is still needed. Returns at once when nothing is shared.
+     */
+    suspend fun awaitFresh(timeoutMs: Long) {}
 }

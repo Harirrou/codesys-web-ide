@@ -4,7 +4,11 @@ import com.harirrou.fedyet.engine.LogEntry
 import com.harirrou.fedyet.engine.Need
 import java.time.ZoneId
 
-data class Member(val id: String, val name: String, val tint: Long)
+/** [role] is "owner", "member" or "sitter". A home kept only on this phone has one owner. */
+data class Member(val id: String, val name: String, val tint: Long, val role: String = ROLE_OWNER)
+
+const val ROLE_OWNER = "owner"
+const val ROLE_MEMBER = "member"
 
 /** The kind of animal. Picks the default picture and the suggested tasks. */
 enum class Species { DOG, CAT, RABBIT, GUINEA_PIG, HAMSTER, BIRD, FISH, REPTILE, HORSE, CHICKEN, OTHER }
@@ -50,8 +54,13 @@ data class HomeSnapshot(
     val logs: List<LogEntry>,
     val supplies: List<Supply> = emptyList(),
     val isSample: Boolean = false,
+    /** True when the home lives in the cloud and is shared between phones. */
+    val synced: Boolean = false,
 ) {
     fun member(id: String): Member? = members.firstOrNull { it.id == id }
+
+    /** Whether the person using this phone owns the home (and so may delete it) or only belongs to it. */
+    val iAmOwner: Boolean get() = member(meId)?.role != ROLE_MEMBER
     fun pet(id: String): Pet? = pets.firstOrNull { it.id == id }
     fun need(id: String): Need? = needs.firstOrNull { it.id == id }
     fun supply(id: String): Supply? = supplies.firstOrNull { it.id == id }

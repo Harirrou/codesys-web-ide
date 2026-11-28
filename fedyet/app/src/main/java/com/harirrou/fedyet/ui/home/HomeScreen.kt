@@ -24,6 +24,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,10 +40,12 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.harirrou.fedyet.BuildConfig
 import com.harirrou.fedyet.R
+import com.harirrou.fedyet.ads.Ads
 import com.harirrou.fedyet.data.CsvExport
 import com.harirrou.fedyet.data.HomeSnapshot
 import com.harirrou.fedyet.ui.ReminderUi
 import com.harirrou.fedyet.ui.components.ConfirmDialog
+import com.harirrou.fedyet.ui.components.GhostButton
 import com.harirrou.fedyet.ui.components.GlassCard
 import com.harirrou.fedyet.ui.components.Hint
 import com.harirrou.fedyet.ui.components.MemberDot
@@ -65,6 +68,8 @@ fun HomeScreen(
     onDeleteEverything: () -> Unit,
     onLicences: () -> Unit,
     reminders: ReminderUi,
+    onInvite: ((onCode: (String?) -> Unit) -> Unit)? = null,
+    allLogs: suspend () -> List<com.harirrou.fedyet.engine.LogEntry> = { home.logs },
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -72,6 +77,8 @@ fun HomeScreen(
     var renamingMe by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var exported by remember { mutableStateOf(false) }
+    /** The invite code being shown; "" while it could not be made. */
+    var invite by remember { mutableStateOf<String?>(null) }
     val me = home.member(home.meId)
 
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
@@ -79,7 +86,8 @@ fun HomeScreen(
             scope.launch {
                 val ok = withContext(Dispatchers.IO) {
                     runCatching {
-                        context.contentResolver.openOutputStream(uri)?.use { it.write(CsvExport.history(home).toByteArray()) } != null
+                        val full = home.copy(logs = allLogs())
+                        context.contentResolver.openOutputStream(uri)?.use { it.write(CsvExport.history(full).toByteArray()) } != null
                     }.getOrDefault(false)
                 }
                 exported = ok
@@ -134,8 +142,15 @@ fun HomeScreen(
                 }
             }
         }
-        // Build step 2 (sync) turns this note into the real "Invite someone" action.
-        Hint(stringResource(R.string.home_sharing_body))
+        if (onInvite != null) {
+            GhostButton(
+                text = stringResource(R.string.invite_action),
+                onClick = { onInvite { code -> invite = code ?: "" } },
+                icon = R.drawable.ic_plus,
+            )
+        } else if (!home.isSample) {
+            Hint(stringResource(R.string.home_sharing_body))
+        }
 
         if (!home.isSample) {
             SectionTitle(stringResource(R.string.home_reminders))
@@ -174,15 +189,32 @@ fun HomeScreen(
             )
             HorizontalDivider(color = Tokens.Hairline)
             SettingRow(stringResource(R.string.home_licences), null, onClick = onLicences)
+            val privacyRequired by Ads.privacyOptionsRequired.collectAsState()
+            if (privacyRequired) {
+                HorizontalDivider(color = Tokens.Hairline)
+                SettingRow(
+                    stringResource(R.string.home_privacy_choices),
+                    null,
+                    onClick = { (context as? android.app.Activity)?.let(Ads::showPrivacyOptions) },
+                )
+            }
             if (!home.isSample) {
                 HorizontalDivider(color = Tokens.Hairline)
-                SettingRow(stringResource(R.string.home_delete), null, onClick = { confirmDelete = true }, color = Tokens.Alert)
+                SettingRow(
+                    stringResource(if (home.iAmOwner) R.string.home_delete else R.string.home_leave),
+                    null,
+                    onClick = { confirmDelete = true },
+                    color = Tokens.Alert,
+                )
             }
         }
 
         Hint(stringResource(R.string.home_version, BuildConfig.VERSION_NAME))
     }
 
+    invite?.let { code ->
+        InviteDialog(code = code, homeName = home.name, onDismiss = { invite = null })
+    }
     if (renamingHome) {
         TextEditDialog(
             title = stringResource(R.string.home_name),
@@ -209,9 +241,29 @@ fun HomeScreen(
     }
     if (confirmDelete) {
         ConfirmDialog(
-            title = stringResource(if (home.isSample) R.string.home_leave_sample_title else R.string.home_delete_title),
-            text = stringResource(if (home.isSample) R.string.home_leave_sample_text else R.string.home_delete_text),
-            confirm = stringResource(if (home.isSample) R.string.home_start_own else R.string.action_delete),
+            title = stringResource(
+                when {
+                    home.isSample -> R.string.home_leave_sample_title
+                    !home.iAmOwner -> R.string.home_leave_title
+                    home.synced -> R.string.home_delete_shared_title
+                    else -> R.string.home_delete_title
+                },
+            ),
+            text = stringResource(
+                when {
+                    home.isSample -> R.string.home_leave_sample_text
+                    !home.iAmOwner -> R.string.home_leave_text
+                    home.synced -> R.string.home_delete_shared_text
+                    else -> R.string.home_delete_text
+                },
+            ),
+            confirm = stringResource(
+                when {
+                    home.isSample -> R.string.home_start_own
+                    !home.iAmOwner -> R.string.home_leave_action
+                    else -> R.string.action_delete
+                },
+            ),
             dismiss = stringResource(R.string.action_cancel),
             danger = !home.isSample,
             onConfirm = {

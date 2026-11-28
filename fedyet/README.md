@@ -8,8 +8,8 @@ Plan: `docs/build-plan.md`. Design: https://claude.ai/artifact/8SDfWWsnQ2fEXvErx
 | Folder | What it is | State |
 |---|---|---|
 | `engine/` | Pure Kotlin rules: what is due, done or overdue; the do-it-twice guard; reminders; "runs out" maths; the walk check | Done, 75 tests |
-| `firestore/` | Database security rules and their tests | Done, 30 tests |
-| `app/` | The Android app | Everything works on one phone: all screens, saving, reminders, widget, walk check. No sync yet. 35 tests |
+| `firestore/` | Database security rules, their tests, and a scripted "second phone" for end-to-end tests | Done, 30 tests |
+| `app/` | The Android app | Complete except your own IDs: sync turns on when `app/google-services.json` exists. 41 tests |
 
 Screens: welcome, home board, pet page, add/edit pet (with a photo and suggested tasks per kind of animal),
 add/edit task, upcoming, supplies, add/edit supply, home settings with export.
@@ -61,14 +61,43 @@ They run against a local emulator. Nothing touches a real Firebase project.
   tomorrow's once-a-day tablet cannot quietly be given tonight.
 - **A log from a phone whose clock is fast counts as made now.** Log times should be server times once sync exists.
 
+## Sync between phones
+
+- Turned on by adding `app/google-services.json` (see `docs/firebase-setup.md`). Without it the app keeps
+  everything on the phone.
+- Data model and rules: `app/.../data/FirestoreMapping.kt` and `firestore/firestore.rules`.
+- A home started without a connection, or kept on the phone before sync was set up, is uploaded
+  automatically once the phone can sign in.
+- Reminders need no push server: when a reminder is due, the phone first fetches the latest from the
+  cloud (up to 5 seconds) and stays quiet if someone else already did the task.
+
+Tested end to end on an Android 13 emulator against the local Firebase emulators, with a scripted
+second phone (`firestore/e2e/second-phone.mjs`): create a home, add a pet, invite, join, ticks
+showing on the other phone with the right name, a reminder suppressed because the other phone did
+the task while this app was closed, and a reminder shown for a task nobody did.
+
+To run that setup yourself:
+
+```
+cd firestore
+npx firebase emulators:start --only auth,firestore --project demo-fedyet
+gradlew.bat :app:assembleDebug -Pfedyet.emulator=10.0.2.2     (in another terminal, from the fedyet folder)
+node e2e/second-phone.mjs join <CODE> Sara
+```
+
 ## Before release
 
-- `AppConfig.WEATHER_URL` points straight at MET Norway. Switch it to your own Cloudflare proxy, and put a real
-  contact in `AppConfig.CONTACT_EMAIL` (MET Norway requires every app to identify itself).
-- The walk check sends coordinates rounded to two decimals (about 1 km). Say so in the privacy policy.
+1. **Your IDs**, all in two places:
+   - `app/build.gradle.kts`: `admobAppId` (now Google's test app ID)
+   - `app/src/main/java/com/harirrou/fedyet/AppConfig.kt`: `ADMOB_BANNER_ID` (now a test unit),
+     `CONTACT_EMAIL`, `WEATHER_URL` (now MET Norway directly; point it at your Cloudflare proxy)
+2. **Firebase**: `docs/firebase-setup.md`.
+3. **Privacy policy**: fill in `docs/privacy-policy.md` and publish it on a web page (Play requires a link).
+4. **Store listing**: `docs/store-listing.md`.
+5. **Signing key**: in Android Studio, Build → Generate Signed App Bundle → create a new key store.
+   Keep the file and both passwords somewhere safe; losing them means you can never update the app.
+6. **AdMob**: in the AdMob console, set up the consent messages (GDPR and US states) under
+   Privacy & messaging, or the consent form will not appear.
 
-## Next steps (from the plan)
-
-1. Firestore-backed `HomeRepository`: anonymous sign-in, create or join a home by code. Needs a Firebase project.
-2. Push between phones, so a reminder is cleared when someone else does the task.
-3. Ads, consent, privacy policy, store listing.
+Not done yet (later versions): sitter pass (the rules already support it), a native ad card,
+syncing pet photos.

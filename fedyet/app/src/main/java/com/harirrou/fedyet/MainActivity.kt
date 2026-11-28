@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.harirrou.fedyet.ads.Ads
 import com.harirrou.fedyet.ui.AppRoot
 import com.harirrou.fedyet.ui.theme.FedYetTheme
 
@@ -18,6 +19,7 @@ class MainActivity : ComponentActivity() {
         )
         super.onCreate(savedInstanceState)
         val container = (application as FedYetApp).container
+        Ads.gatherConsent(this)
         setContent {
             FedYetTheme {
                 AppRoot(container)

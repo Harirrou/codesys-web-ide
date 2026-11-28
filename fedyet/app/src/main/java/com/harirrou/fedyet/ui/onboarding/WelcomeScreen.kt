@@ -13,7 +13,12 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.remember
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +35,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.harirrou.fedyet.R
+import com.harirrou.fedyet.data.JoinResult
 import com.harirrou.fedyet.ui.components.GhostButton
 import com.harirrou.fedyet.ui.components.GlassCard
 import com.harirrou.fedyet.ui.components.GlassField
@@ -39,10 +45,15 @@ import com.harirrou.fedyet.ui.theme.Tokens
 
 /** The first screen: start your own home, or look around a sample one. */
 @Composable
-fun WelcomeScreen(onStart: (homeName: String, myName: String) -> Unit, onSample: () -> Unit) {
+fun WelcomeScreen(
+    onStart: (homeName: String, myName: String) -> Unit,
+    onSample: () -> Unit,
+    onJoin: ((code: String, myName: String, onResult: (JoinResult) -> Unit) -> Unit)?,
+) {
     val defaultHome = stringResource(R.string.welcome_home_default)
     var myName by rememberSaveable { mutableStateOf("") }
     var homeName by rememberSaveable { mutableStateOf(defaultHome) }
+    var joining by rememberSaveable { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -79,8 +90,71 @@ fun WelcomeScreen(onStart: (homeName: String, myName: String) -> Unit, onSample:
             onClick = { onStart(homeName.trim(), myName.trim()) },
             enabled = myName.isNotBlank() && homeName.isNotBlank(),
         )
+        if (onJoin != null) {
+            GhostButton(stringResource(R.string.welcome_join), { joining = true })
+        }
         GhostButton(stringResource(R.string.welcome_sample), onSample)
     }
+
+    if (joining && onJoin != null) {
+        JoinDialog(initialName = myName, onJoin = onJoin, onDismiss = { joining = false })
+    }
+}
+
+/** Typing an invite code from someone already in the home. */
+@Composable
+private fun JoinDialog(
+    initialName: String,
+    onJoin: (code: String, myName: String, onResult: (JoinResult) -> Unit) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var code by rememberSaveable { mutableStateOf("") }
+    var name by rememberSaveable { mutableStateOf(initialName) }
+    var busy by remember { mutableStateOf(false) }
+    var problem by remember { mutableStateOf<JoinResult?>(null) }
+
+    AlertDialog(
+        onDismissRequest = { if (!busy) onDismiss() },
+        containerColor = Tokens.NightRaised,
+        titleContentColor = Tokens.Text,
+        shape = RoundedCornerShape(28.dp),
+        title = { Text(stringResource(R.string.join_title), style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.join_body), style = MaterialTheme.typography.bodyMedium, color = Tokens.TextMuted)
+                GlassField(code, { code = it.uppercase() }, stringResource(R.string.join_code), capitalization = KeyboardCapitalization.Characters)
+                GlassField(name, { name = it }, stringResource(R.string.welcome_your_name), capitalization = KeyboardCapitalization.Words)
+                val message = when (problem) {
+                    JoinResult.NOT_FOUND -> stringResource(R.string.join_not_found)
+                    JoinResult.EXPIRED -> stringResource(R.string.join_expired)
+                    JoinResult.OFFLINE -> stringResource(R.string.join_offline)
+                    JoinResult.NOT_AVAILABLE -> stringResource(R.string.join_not_available)
+                    else -> null
+                }
+                if (message != null) Text(message, style = MaterialTheme.typography.bodySmall, color = Tokens.Due)
+                if (busy) Text(stringResource(R.string.join_busy), style = MaterialTheme.typography.bodySmall, color = Tokens.TextMuted)
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    busy = true
+                    problem = null
+                    onJoin(code, name.trim()) { result ->
+                        busy = false
+                        if (result != JoinResult.JOINED) problem = result
+                    }
+                },
+                enabled = !busy && code.isNotBlank() && name.isNotBlank(),
+                colors = ButtonDefaults.textButtonColors(contentColor = Tokens.Mint),
+            ) { Text(stringResource(R.string.join_action)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !busy, colors = ButtonDefaults.textButtonColors(contentColor = Tokens.Text)) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
 }
 
 @Composable

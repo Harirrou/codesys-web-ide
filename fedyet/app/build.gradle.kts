@@ -7,6 +7,14 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+// Sync turns on when the Firebase project's google-services.json is placed next to this file.
+// Without it the app keeps everything on the phone, as before.
+val hasFirebaseConfig = file("google-services.json").exists()
+if (hasFirebaseConfig) apply(plugin = "com.google.gms.google-services")
+
+// For testing against the local Firebase emulators: gradlew assembleDebug -Pfedyet.emulator=10.0.2.2
+val emulatorHost = (project.findProperty("fedyet.emulator") as String?).orEmpty()
+
 android {
     namespace = "com.harirrou.fedyet"
     compileSdk = 36
@@ -15,8 +23,15 @@ android {
         applicationId = "com.harirrou.fedyet"
         minSdk = 24
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.5.0"
+        versionCode = 7
+        versionName = "0.6.0"
+
+        buildConfigField("boolean", "HAS_FIREBASE_CONFIG", hasFirebaseConfig.toString())
+
+        // AdMob app ID. This is Google's public TEST app ID; replace it before release
+        // (and the banner unit in AppConfig.kt).
+        manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
+        buildConfigField("String", "FIREBASE_EMULATOR_HOST", "\"$emulatorHost\"")
     }
 
     buildTypes {
@@ -61,6 +76,14 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
     implementation("androidx.glance:glance-appwidget:1.1.1")
+
+    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
+    implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-auth")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
+
+    implementation("com.google.android.gms:play-services-ads:25.5.0")
+    implementation("com.google.android.ump:user-messaging-platform:4.0.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation(kotlin("test-junit"))

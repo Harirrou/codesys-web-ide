@@ -252,6 +252,7 @@
     <string name="home_export_hint">Save everything ticked so far as a spreadsheet file</string>
     <string name="home_export_done">Saved</string>
     <string name="home_licences">Credits and licences</string>
+    <string name="home_privacy_choices">Privacy choices</string>
     <string name="home_delete">Delete this home</string>
     <string name="home_delete_title">Delete this home?</string>
     <string name="home_delete_text">All pets, tasks and history on this phone are removed. It cannot be undone.</string>
@@ -261,6 +262,32 @@
     <string name="home_leave_sample_title">Leave the sample home?</string>
     <string name="home_leave_sample_text">The sample pets are removed and you set up your own home.</string>
     <string name="home_version">Fed Yet %1$s</string>
+
+    <!-- Sharing -->
+    <string name="action_done">Done</string>
+    <string name="welcome_join">I have an invite code</string>
+    <string name="join_title">Join a home</string>
+    <string name="join_body">Type the code someone in the home sent you.</string>
+    <string name="join_code">Invite code</string>
+    <string name="join_action">Join</string>
+    <string name="join_busy">Joining…</string>
+    <string name="join_not_found">That code doesn\'t match a home. Check it and try again.</string>
+    <string name="join_expired">That code has expired. Ask for a new one.</string>
+    <string name="join_offline">You need a connection to join. Try again when you\'re online.</string>
+    <string name="join_not_available">Sharing isn\'t available in this version.</string>
+    <string name="invite_action">Invite someone</string>
+    <string name="invite_title">Invite to this home</string>
+    <string name="invite_body">They install Fed Yet, tap \"I have an invite code\" and type:</string>
+    <string name="invite_expiry">The code works for 7 days.</string>
+    <string name="invite_failed">Couldn\'t make a code right now. Try again in a moment.</string>
+    <string name="invite_share">Send code</string>
+    <string name="invite_share_text">Join %1$s on Fed Yet, so we all see who fed, walked and gave medicine. Install Fed Yet, tap \"I have an invite code\" and type %2$s</string>
+    <string name="home_leave">Leave this home</string>
+    <string name="home_leave_title">Leave this home?</string>
+    <string name="home_leave_text">You stop seeing its pets and tasks on this phone. Someone in the home can invite you back.</string>
+    <string name="home_leave_action">Leave</string>
+    <string name="home_delete_shared_title">Delete this home for everyone?</string>
+    <string name="home_delete_shared_text">Its pets, tasks and history are removed from every phone in the home. It cannot be undone.</string>
 
     <!-- Walk check -->
     <string name="walk_title">Walk check</string>

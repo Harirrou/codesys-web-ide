@@ -7,6 +7,7 @@ import com.harirrou.fedyet.FedYetApp
 import com.harirrou.fedyet.engine.GuardVerdict
 import com.harirrou.fedyet.engine.NeedsEngine
 import com.harirrou.fedyet.widget.BoardWidget
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -18,10 +19,13 @@ class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val container = (context.applicationContext as FedYetApp).container
         val pending = goAsync()
-        container.scope.launch {
+        // Off the main thread, and finished well inside the time Android gives a receiver.
+        container.scope.launch(Dispatchers.Default) {
             try {
                 val repository = container.homeRepository
                 repository.ready.first { it }
+                // Someone else may have done it on their phone: get the latest before deciding.
+                repository.awaitFresh(FRESH_WAIT_MS)
                 if (intent.action == ACTION_DONE) {
                     val needId = intent.getStringExtra(EXTRA_NEED)
                     val home = repository.home.value
@@ -47,6 +51,7 @@ class ReminderReceiver : BroadcastReceiver() {
         const val ACTION_WAKE = "com.harirrou.fedyet.reminders.WAKE"
         const val ACTION_DONE = "com.harirrou.fedyet.reminders.DONE"
         const val EXTRA_NEED = "needId"
+        private const val FRESH_WAIT_MS = 5_000L
     }
 }
 
@@ -59,7 +64,8 @@ class SystemEventsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val container = (context.applicationContext as FedYetApp).container
         val pending = goAsync()
-        container.scope.launch {
+        // Off the main thread, and finished well inside the time Android gives a receiver.
+        container.scope.launch(Dispatchers.Default) {
             try {
                 container.homeRepository.ready.first { it }
                 container.reminders.sync(container.homeRepository.home.value)

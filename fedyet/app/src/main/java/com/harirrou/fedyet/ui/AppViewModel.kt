@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.harirrou.fedyet.AppContainer
 import com.harirrou.fedyet.data.HomeRepository
 import com.harirrou.fedyet.data.HomeSnapshot
+import com.harirrou.fedyet.data.JoinResult
 import com.harirrou.fedyet.data.Pet
 import com.harirrou.fedyet.data.Supply
 import com.harirrou.fedyet.engine.Need
@@ -48,6 +49,18 @@ class AppViewModel(
     fun saveSupply(supply: Supply) = run { repository.saveSupply(supply) }
     fun deleteSupply(supplyId: String) = run { repository.deleteSupply(supplyId) }
     fun deleteEverything() = run { repository.deleteEverything() }
+
+    val canSync: Boolean get() = repository.canSync
+
+    fun createInvite(onCode: (String?) -> Unit) {
+        viewModelScope.launch { onCode(repository.createInvite()) }
+    }
+
+    fun joinHome(code: String, myName: String, onResult: (JoinResult) -> Unit) {
+        viewModelScope.launch { onResult(repository.joinHome(code, myName)) }
+    }
+
+    suspend fun allLogs() = repository.allLogs()
 
     fun timeNow(): Instant = clock()
 

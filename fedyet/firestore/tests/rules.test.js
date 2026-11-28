@@ -218,7 +218,12 @@ describe('sitters', () => {
     await assertSucceeds(getDoc(doc(maya, `homes/${HOME}/pets/luna`)));
     await assertSucceeds(getDoc(doc(maya, `homes/${HOME}/needs/meals`)));
     await assertSucceeds(updateDoc(doc(maya, `homes/${HOME}/days/2026-11-27`), { 'logs.c3': { needId: 'meals', by: 'maya' } }));
-    await assertSucceeds(updateDoc(doc(maya, `homes/${HOME}/needs/meals`), { lastDoneAt: Timestamp.now(), lastDoneBy: 'maya' }));
+    await assertSucceeds(updateDoc(doc(maya, `homes/${HOME}/needs/meals`), {
+      lastDone: { id: 'c3', at: Date.now(), by: 'maya' },
+      prevDone: { id: 'a1', at: Date.now() - 3600000, by: 'sara' },
+    }));
+    // Ticking a task uses up a little of its supply.
+    await assertSucceeds(updateDoc(doc(maya, `homes/${HOME}/supplies/kibble`), { remaining: 22 }));
   });
 
   test('a sitter cannot change pets, schedules, supplies or members, or invite people', async () => {
@@ -228,7 +233,8 @@ describe('sitters', () => {
     await assertFails(updateDoc(doc(maya, `homes/${HOME}/pets/luna`), { name: 'Lulu' }));
     await assertFails(updateDoc(doc(maya, `homes/${HOME}/needs/meals`), { label: 'Changed' }));
     await assertFails(deleteDoc(doc(maya, `homes/${HOME}/needs/meals`)));
-    await assertFails(updateDoc(doc(maya, `homes/${HOME}/supplies/kibble`), { remaining: 0 }));
+    await assertFails(updateDoc(doc(maya, `homes/${HOME}/supplies/kibble`), { label: 'Renamed' }));
+    await assertFails(deleteDoc(doc(maya, `homes/${HOME}/supplies/kibble`)));
     await assertFails(deleteDoc(doc(maya, `homes/${HOME}/members/omar`)));
     await assertFails(setDoc(doc(maya, 'invites/SITINV01'), { homeId: HOME, createdBy: 'maya', role: 'member', expiresAt: days(1) }));
   });
