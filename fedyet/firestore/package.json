@@ -1,0 +1,14 @@
+{
+  "name": "fedyet-firestore-rules",
+  "private": true,
+  "type": "module",
+  "description": "Security rules for Fed Yet and the tests that prove them.",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore --project demo-fedyet \"node --test tests/rules.test.js\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "firebase": "^13.0.0",
+    "firebase-tools": "^15.37.0"
+  }
+}
